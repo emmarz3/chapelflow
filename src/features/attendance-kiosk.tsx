@@ -12,6 +12,7 @@ import {
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { Brand, Button } from "../components/ui";
+import { useFeatureMotion } from "../components/motion/motion-system";
 import { attendanceService } from "../services/chapelflow";
 import { queueAttendanceCheckIn } from "../lib/offline-queue";
 
@@ -23,8 +24,10 @@ export function AttendanceKioskPage() {
   const [message, setMessage] = useState("");
   const [manual, setManual] = useState(false);
   const video = useRef<HTMLVideoElement>(null);
+  const contentRef = useRef<HTMLElement>(null);
   const stream = useRef<MediaStream | null>(null);
   const timeout = useRef<number | undefined>(undefined);
+  useFeatureMotion(contentRef, state);
   function reset() {
     stream.current?.getTracks().forEach((track) => track.stop());
     stream.current = null;
@@ -115,7 +118,7 @@ export function AttendanceKioskPage() {
         </div>
         <Link to="/app/attendance">Exit kiosk</Link>
       </header>
-      <section className="kiosk__content" aria-live="polite">
+      <section className="kiosk__content" aria-live="polite" ref={contentRef}>
         {state === "idle" && (
           <>
             <span className="kiosk__icon">
@@ -157,7 +160,7 @@ export function AttendanceKioskPage() {
         )}
         {state === "camera" && (
           <>
-            <div className="kiosk__camera">
+            <div className="kiosk__camera" data-scanning="true">
               <video
                 ref={video}
                 muted

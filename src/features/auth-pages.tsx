@@ -8,7 +8,7 @@ import {
   Mail,
   ShieldCheck,
 } from "lucide-react";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import {
   Link,
   Navigate,
@@ -17,13 +17,15 @@ import {
   useSearchParams,
 } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
+import { useQuery } from "@tanstack/react-query";
 import { z } from "zod";
 import { Brand, Button, Field } from "../components/ui";
+import { useAuthMotion } from "../components/motion/motion-system";
 import { useAuth } from "./auth-context";
 import type { Role } from "../types/domain";
 import { ApiError } from "../lib/api";
 import { isDemoMode } from "../lib/fixtures";
-import { authService } from "../services/chapelflow";
+import { authService, communityService } from "../services/chapelflow";
 
 const loginSchema = z.object({
   identifier: z
@@ -33,8 +35,11 @@ const loginSchema = z.object({
 });
 
 export function AuthLayout({ children }: { children: React.ReactNode }) {
+  const location = useLocation();
+  const rootRef = useRef<HTMLDivElement>(null);
+  useAuthMotion(rootRef, location.pathname);
   return (
-    <div className="auth-layout">
+    <div className="auth-layout" ref={rootRef}>
       <aside className="auth-visual">
         <img src="/chapel-hero.png" alt="" />
         <div className="auth-visual__shade" />
@@ -64,7 +69,19 @@ export function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [role, setRole] = useState<Role>("chapel_admin");
-  if (user) return <Navigate to="/app" replace />;
+  if (user)
+    return (
+      <Navigate
+        to={
+          user.role === "attendance_usher"
+            ? "/usher/attendance"
+            : user.role === "member"
+              ? "/app/chapel-pass"
+              : "/app"
+        }
+        replace
+      />
+    );
   const reason = new URLSearchParams(location.search).get("reason");
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -81,8 +98,18 @@ export function LoginPage() {
       return;
     }
     try {
-      await login(parsed.data.identifier, parsed.data.password, role);
-      navigate("/app");
+      const authenticated = await login(
+        parsed.data.identifier,
+        parsed.data.password,
+        role,
+      );
+      navigate(
+        authenticated.role === "attendance_usher"
+          ? "/usher/attendance"
+          : authenticated.role === "member"
+            ? "/app/chapel-pass"
+            : "/app",
+      );
     } catch (caught) {
       setError(
         caught instanceof ApiError
@@ -152,6 +179,7 @@ export function LoginPage() {
               <option value="chapel_admin">Chapel administrator</option>
               <option value="pastor">Pastor</option>
               <option value="worker">Worker</option>
+              <option value="attendance_usher">Attendance usher</option>
               <option value="member">Member</option>
             </select>
             <small>
@@ -185,12 +213,29 @@ export function LoginPage() {
 }
 
 const registrationSteps = ["Account", "Profile", "Community", "Consent"];
+
+function registrationPayload(values: Record<string, string>) {
+  return {
+    ...values,
+    acceptedPolicies: values.acceptedPolicies === "on",
+    programmeUpdates: values.programmeUpdates === "on",
+  };
+}
+
 export function RegisterPage() {
   const [step, setStep] = useState(0);
   const [complete, setComplete] = useState(false);
+  const [verificationRequired, setVerificationRequired] = useState(true);
+  const [approvalRequired, setApprovalRequired] = useState(false);
   const [values, setValues] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const communities = useQuery({
+    queryKey: ["public-communities", "registration"],
+    queryFn: async () => (await communityService.publicList()).data,
+    enabled: step === 2,
+    staleTime: 5 * 60_000,
+  });
   async function next(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
@@ -208,7 +253,13 @@ export function RegisterPage() {
     }
     setSubmitting(true);
     try {
-      if (!isDemoMode) await authService.register(merged);
+      if (!isDemoMode) {
+        const response = await authService.register(
+          registrationPayload(merged),
+        );
+        setVerificationRequired(response.data.verificationRequired);
+        setApprovalRequired(Boolean(response.data.approvalRequired));
+      }
       setComplete(true);
     } catch (caught) {
       setError(
@@ -227,11 +278,25 @@ export function RegisterPage() {
           <Check />
         </span>
         <p className="eyebrow">Registration received</p>
-        <h1>Check your email to continue.</h1>
+        <h1>
+          {approvalRequired
+            ? "Your registration is awaiting approval."
+            : verificationRequired
+              ? "Check your email to continue."
+              : "Your account is ready."}
+        </h1>
         <p>
-          We sent a verification link to{" "}
-          <strong>{values.email || "your email address"}</strong>. The link
-          expires in 30 minutes.
+          {approvalRequired ? (
+            "The chapel administration will verify your student information before your account can sign in."
+          ) : verificationRequired ? (
+            <>
+              We sent a verification link to{" "}
+              <strong>{values.email || "your email address"}</strong>. The link
+              expires in 30 minutes.
+            </>
+          ) : (
+            "Sign in with your email or matric number to open your ChapelFlow account."
+          )}
         </p>
         <Link className="button button--primary full-button" to="/login">
           Return to sign in
@@ -345,16 +410,64 @@ export function RegisterPage() {
                 </select>
               </label>
               <label className="field">
-                <span>Service team interest</span>
-                <select name="department" defaultValue={values.department}>
-                  <option>Not yet decided</option>
-                  <option>Choir</option>
-                  <option>Ushering</option>
-                  <option>Media</option>
-                  <option>Prayer</option>
-                  <option>Protocol</option>
+                <span>Chapel unit</span>
+                <select
+                  name="unitCommunityId"
+                  defaultValue={values.unitCommunityId || ""}
+                  disabled={communities.isPending || communities.isError}
+                  required
+                >
+                  <option value="" disabled>
+                    {communities.isPending
+                      ? "Loading units…"
+                      : "Select your unit"}
+                  </option>
+                  {communities.data
+                    ?.filter((community) => community.type === "unit")
+                    .map((community) => (
+                      <option key={community.id} value={community.id}>
+                        {community.name}
+                      </option>
+                    ))}
                 </select>
               </label>
+              <label className="field">
+                <span>Campus fellowship</span>
+                <select
+                  name="fellowshipCommunityId"
+                  defaultValue={values.fellowshipCommunityId || ""}
+                  disabled={communities.isPending || communities.isError}
+                  required
+                >
+                  <option value="" disabled>
+                    {communities.isPending
+                      ? "Loading fellowships…"
+                      : "Select your fellowship"}
+                  </option>
+                  {communities.data
+                    ?.filter(
+                      (community) => community.type === "campus_fellowship",
+                    )
+                    .map((community) => (
+                      <option key={community.id} value={community.id}>
+                        {community.name}
+                      </option>
+                    ))}
+                </select>
+              </label>
+              {communities.isError && (
+                <div className="form-error" role="alert">
+                  <span>Community options could not be loaded.</span>
+                  <button
+                    type="button"
+                    className="text-link"
+                    disabled={communities.isFetching}
+                    onClick={() => void communities.refetch()}
+                  >
+                    {communities.isFetching ? "Trying againâ€¦" : "Try again"}
+                  </button>
+                </div>
+              )}
             </div>
           )}
           {step === 3 && (
@@ -488,6 +601,7 @@ export function ResetPasswordPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const token = params.get("token") || "";
+  const setupToken = params.get("setup") || "";
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
@@ -504,7 +618,10 @@ export function ResetPasswordPage() {
     setLoading(true);
     setError("");
     try {
-      if (!isDemoMode) await authService.resetPassword(token, password);
+      if (!isDemoMode) {
+        if (setupToken) await authService.setupPassword(setupToken, password);
+        else await authService.resetPassword(token, password);
+      }
       setComplete(true);
     } catch (caught) {
       setError(
@@ -516,7 +633,8 @@ export function ResetPasswordPage() {
       setLoading(false);
     }
   }
-  if (!token && !isDemoMode) return <AuthNoticePage type="invalid-link" />;
+  if (!token && !setupToken && !isDemoMode)
+    return <AuthNoticePage type="invalid-link" />;
   return (
     <div className="auth-card">
       {complete ? (

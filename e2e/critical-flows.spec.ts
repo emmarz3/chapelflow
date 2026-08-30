@@ -1,8 +1,10 @@
 import { expect, test } from "@playwright/test";
 
 test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => {
+    sessionStorage.setItem("chapelflow:intro-seen", "1");
+  });
   await page.goto("/", { waitUntil: "domcontentloaded" });
-  await page.evaluate(() => sessionStorage.clear());
 });
 
 test("public chapel site exposes primary journeys", async ({ page }) => {
@@ -40,8 +42,9 @@ test("member navigation excludes administrative records", async ({ page }) => {
   await page.getByLabel(/^password/i).fill("secure-password");
   await page.getByLabel(/preview role/i).selectOption("member");
   await page.getByRole("button", { name: /^sign in/i }).click();
+  await expect(page).toHaveURL(/\/app\/chapel-pass$/);
   await expect(
-    page.getByRole("heading", { name: /welcome back, favour/i }),
+    page.getByRole("heading", { name: /my chapel pass/i }),
   ).toBeVisible();
   await expect(page.getByRole("link", { name: "Members" })).toHaveCount(0);
   await expect(page.getByRole("link", { name: "Finance" })).toHaveCount(0);
@@ -60,7 +63,7 @@ test("protected routes redirect anonymous and unauthorized users", async ({
   await page.getByLabel(/^password/i).fill("secure-password");
   await page.getByLabel(/preview role/i).selectOption("member");
   await page.getByRole("button", { name: /^sign in/i }).click();
-  await expect(page).toHaveURL(/\/app$/);
+  await expect(page).toHaveURL(/\/app\/chapel-pass$/);
   await page.goto("/app/members", { waitUntil: "domcontentloaded" });
   await expect(page).toHaveURL(/\/access-denied$/);
   await expect(
@@ -152,6 +155,8 @@ test("registration preserves progress and records policy acceptance", async ({
   await page.getByLabel(/last name/i).fill("Okafor");
   await page.getByLabel(/matric number/i).fill("CU/26/101");
   await page.getByRole("button", { name: /continue/i }).click();
+  await page.getByLabel(/chapel unit/i).selectOption({ index: 1 });
+  await page.getByLabel(/campus fellowship/i).selectOption({ index: 1 });
   await page.getByRole("button", { name: /continue/i }).click();
   await page.getByLabel(/read and accept/i).check();
   await page.getByRole("button", { name: /submit registration/i }).click();

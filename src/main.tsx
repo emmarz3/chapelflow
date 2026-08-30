@@ -6,6 +6,9 @@ import { AuthProvider } from "./features/auth-context";
 import { App } from "./app/App";
 import "./styles.css";
 import "./extended.css";
+import "./components/intro/intro.css";
+import "./components/motion/motion.css";
+import "./community.css";
 
 const queryClient = new QueryClient({
   defaultOptions: {

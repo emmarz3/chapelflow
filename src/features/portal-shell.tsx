@@ -26,19 +26,22 @@ import {
   WifiOff,
   X,
 } from "lucide-react";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, NavLink, Navigate, Outlet, useLocation } from "react-router-dom";
-import { motion } from "framer-motion";
 import { Brand, Modal } from "../components/ui";
+import { usePortalMotion } from "../components/motion/motion-system";
 import { hasPermission, useAuth } from "./auth-context";
 import { isDemoMode } from "../lib/fixtures";
 import type { Permission, Role } from "../types/domain";
+import { notificationService } from "../services/chapelflow";
 
 interface NavItem {
   label: string;
   path: string;
   icon: ReactNode;
   permission?: Permission;
+  roles?: Role[];
 }
 const navGroups: { label: string; items: NavItem[] }[] = [
   {
@@ -61,12 +64,48 @@ const navGroups: { label: string; items: NavItem[] }[] = [
         path: "/app/attendance",
         icon: <ClipboardCheck />,
         permission: "attendance:read",
+        roles: ["super_admin", "chapel_admin"],
+      },
+      {
+        label: "My Chapel Pass",
+        path: "/app/chapel-pass",
+        icon: <ShieldCheck />,
+        roles: ["member"],
       },
       {
         label: "Events",
         path: "/app/events",
         icon: <CalendarDays />,
         permission: "events:read",
+      },
+      {
+        label: "My communities",
+        path: "/app/communities",
+        icon: <Users />,
+        permission: "community:view",
+      },
+    ],
+  },
+  {
+    label: "Community",
+    items: [
+      {
+        label: "Leadership",
+        path: "/app/leadership",
+        icon: <ShieldCheck />,
+        permission: "leadership:view",
+      },
+      {
+        label: "Manage communities",
+        path: "/app/admin/communities",
+        icon: <Building2 />,
+        permission: "community:manage",
+      },
+      {
+        label: "Manage leadership",
+        path: "/app/admin/leadership",
+        icon: <UserRound />,
+        permission: "leadership:manage",
       },
     ],
   },
@@ -151,7 +190,13 @@ function useNetworkStatus() {
   return online;
 }
 
-export function ProtectedRoute({ permission }: { permission?: Permission }) {
+export function ProtectedRoute({
+  permission,
+  roles,
+}: {
+  permission?: Permission;
+  roles?: Role[];
+}) {
   const { user, loading } = useAuth();
   if (loading)
     return (
@@ -161,6 +206,8 @@ export function ProtectedRoute({ permission }: { permission?: Permission }) {
       </div>
     );
   if (!user) return <Navigate to="/login" replace />;
+  if (roles && !roles.includes(user.role))
+    return <Navigate to="/access-denied" replace />;
   if (!hasPermission(user, permission))
     return <Navigate to="/access-denied" replace />;
   return <Outlet />;
@@ -175,9 +222,19 @@ export function PortalShell() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const sidebarRef = useRef<HTMLElement>(null);
+  const contentRef = useRef<HTMLElement>(null);
   const [theme, setTheme] = useState(
     () => localStorage.getItem("chapelflow-theme") || "light",
   );
+  const notificationQuery = useQuery({
+    queryKey: ["notifications"],
+    queryFn: async () => (await notificationService.list()).data,
+    enabled: Boolean(user),
+    refetchInterval: 30_000,
+  });
+  const unreadNotifications =
+    notificationQuery.data?.filter((item) => !item.read_at).length ?? 0;
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
     localStorage.setItem("chapelflow-theme", theme);
@@ -198,13 +255,16 @@ export function PortalShell() {
       navGroups
         .map((group) => ({
           ...group,
-          items: group.items.filter((item) =>
-            hasPermission(user, item.permission),
+          items: group.items.filter(
+            (item) =>
+              hasPermission(user, item.permission) &&
+              (!item.roles || Boolean(user && item.roles.includes(user.role))),
           ),
         }))
         .filter((group) => group.items.length),
     [user],
   );
+  usePortalMotion(contentRef, sidebarRef, location.pathname);
   if (!user) return null;
   return (
     <div
@@ -219,7 +279,10 @@ export function PortalShell() {
           changes are paused.
         </div>
       )}
-      <aside className={`sidebar ${mobileOpen ? "sidebar--open" : ""}`}>
+      <aside
+        ref={sidebarRef}
+        className={`sidebar ${mobileOpen ? "sidebar--open" : ""}`}
+      >
         <div className="sidebar__brand">
           <Link to="/app">
             <Brand compact={collapsed} inverse />
@@ -321,7 +384,7 @@ export function PortalShell() {
               onClick={() => setNotificationsOpen((value) => !value)}
             >
               <Bell />
-              <span>3</span>
+              {unreadNotifications > 0 && <span>{unreadNotifications}</span>}
             </button>
             <button
               className="profile-button"
@@ -351,6 +414,7 @@ export function PortalShell() {
                     <option value="chapel_admin">Chapel administrator</option>
                     <option value="pastor">Pastor</option>
                     <option value="worker">Worker</option>
+                    <option value="attendance_usher">Attendance usher</option>
                     <option value="member">Member</option>
                   </select>
                 </label>
@@ -362,16 +426,9 @@ export function PortalShell() {
             <NotificationPanel onClose={() => setNotificationsOpen(false)} />
           )}
         </header>
-        <motion.main
-          id="portal-content"
-          key={location.pathname}
-          className="portal-content"
-          initial={{ opacity: 0, y: 5 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.18 }}
-        >
+        <main ref={contentRef} id="portal-content" className="portal-content">
           <Outlet />
-        </motion.main>
+        </main>
         <nav
           className="mobile-bottom-nav"
           aria-label="Primary mobile navigation"
@@ -380,9 +437,11 @@ export function PortalShell() {
             <Gauge />
             Home
           </NavLink>
-          <NavLink to="/app/attendance">
+          <NavLink
+            to={user.role === "member" ? "/app/chapel-pass" : "/app/attendance"}
+          >
             <ClipboardCheck />
-            Attendance
+            {user.role === "member" ? "Chapel Pass" : "Attendance"}
           </NavLink>
           <NavLink to="/app/events">
             <CalendarDays />
@@ -400,49 +459,53 @@ export function PortalShell() {
 }
 
 function NotificationPanel({ onClose }: { onClose: () => void }) {
-  const items = [
-    {
-      icon: <ClipboardCheck />,
-      title: "Attendance session active",
-      body: "842 people have checked in.",
-      time: "2 min",
-    },
-    {
-      icon: <Users />,
-      title: "New member registrations",
-      body: "7 registrations are ready for review.",
-      time: "18 min",
-    },
-    {
-      icon: <Activity />,
-      title: "Worker roster updated",
-      body: "Three open positions remain for Sunday.",
-      time: "1 hr",
-    },
-  ];
+  const client = useQueryClient();
+  const query = useQuery({
+    queryKey: ["notifications"],
+    queryFn: async () => (await notificationService.list()).data,
+  });
+  const markRead = useMutation({
+    mutationFn: notificationService.markRead,
+    onSuccess: () =>
+      void client.invalidateQueries({ queryKey: ["notifications"] }),
+  });
+  const items = query.data ?? [];
+  const unread = items.filter((item) => !item.read_at).length;
   return (
     <div className="notification-panel">
       <header>
         <div>
           <h2>Notifications</h2>
-          <p>3 unread updates</p>
+          <p>{unread} unread updates</p>
         </div>
         <button className="icon-button" onClick={onClose}>
           <X />
         </button>
       </header>
       {items.map((item) => (
-        <article key={item.title}>
-          <span>{item.icon}</span>
+        <article key={item.id}>
+          <span>{item.community_id ? <Users /> : <Activity />}</span>
           <div>
             <strong>{item.title}</strong>
             <p>{item.body}</p>
-            <small>{item.time} ago</small>
+            <small>{new Date(item.created_at).toLocaleString()}</small>
           </div>
+          {!item.read_at && (
+            <button
+              className="text-link"
+              disabled={markRead.isPending}
+              onClick={() => markRead.mutate(item.id)}
+            >
+              Mark read
+            </button>
+          )}
         </article>
       ))}
-      <Link to="/app/communication" onClick={onClose}>
-        View notification centre
+      {!items.length && (
+        <p className="notification-panel__empty">No new notifications.</p>
+      )}
+      <Link to="/app/communities" onClick={onClose}>
+        Open my communities
       </Link>
     </div>
   );

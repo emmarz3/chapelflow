@@ -14,7 +14,7 @@ import { isDemoMode } from "../lib/fixtures";
 interface AuthContextValue {
   user: User | null;
   loading: boolean;
-  login: (identifier: string, password: string, role?: Role) => Promise<void>;
+  login: (identifier: string, password: string, role?: Role) => Promise<User>;
   logout: () => Promise<void>;
   switchDemoRole: (role: Role) => void;
 }
@@ -58,14 +58,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (isDemoMode) {
             await new Promise((resolve) => window.setTimeout(resolve, 500));
             window.sessionStorage.setItem("chapelflow-demo-role", role);
-            setUser(buildDemoUser(role));
-            return;
+            const demoUser = buildDemoUser(role);
+            setUser(demoUser);
+            return demoUser;
           }
           const response = await api.post<{ data: User }>("/auth/login", {
             identifier,
             password,
           });
           setUser(response.data);
+          return response.data;
         } finally {
           setLoading(false);
         }

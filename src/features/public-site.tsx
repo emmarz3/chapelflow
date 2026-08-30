@@ -11,10 +11,10 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { useState, type ReactNode } from "react";
-import { Link, NavLink, Outlet } from "react-router-dom";
-import { motion } from "framer-motion";
+import { useRef, useState, type ReactNode } from "react";
+import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import { Brand, Button, PageHeader, SectionLink } from "../components/ui";
+import { usePublicMotion } from "../components/motion/motion-system";
 import { isDemoMode } from "../lib/fixtures";
 import { LivePublicDetailPage, LivePublicPage } from "./live-public";
 
@@ -28,6 +28,9 @@ const publicNav = [
 
 export function PublicLayout() {
   const [open, setOpen] = useState(false);
+  const location = useLocation();
+  const mainRef = useRef<HTMLElement>(null);
+  usePublicMotion(mainRef, location.pathname);
   return (
     <div className="public-shell">
       <a className="skip-link" href="#main-content">
@@ -87,7 +90,7 @@ export function PublicLayout() {
           </Link>
         </div>
       )}
-      <main id="main-content">
+      <main id="main-content" ref={mainRef}>
         <Outlet />
       </main>
       <PublicFooter />
@@ -151,12 +154,7 @@ function DemoHomePage() {
           alt="Students approaching a university chapel in the morning"
         />
         <div className="hero__shade" />
-        <motion.div
-          className="hero__content"
-          initial={{ opacity: 0, y: 24 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.65 }}
-        >
+        <div className="hero__content">
           <span className="hero__kicker">Faith. Fellowship. Formation.</span>
           <h1>A chapel community for every part of university life.</h1>
           <p>
@@ -171,7 +169,7 @@ function DemoHomePage() {
               <Play size={17} /> Watch latest sermon
             </Link>
           </div>
-        </motion.div>
+        </div>
         <div className="service-ribbon">
           <span className="service-ribbon__icon">
             <Clock3 />

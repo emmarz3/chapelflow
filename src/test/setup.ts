@@ -22,13 +22,15 @@ function memoryStorage(): Storage {
   };
 }
 
-if (typeof window.localStorage?.clear !== "function")
-  Object.defineProperty(window, "localStorage", {
-    configurable: true,
-    value: memoryStorage(),
-  });
-if (typeof window.sessionStorage?.clear !== "function")
-  Object.defineProperty(window, "sessionStorage", {
-    configurable: true,
-    value: memoryStorage(),
-  });
+if (typeof window !== "undefined") {
+  if (typeof window.localStorage?.clear !== "function")
+    Object.defineProperty(window, "localStorage", {
+      configurable: true,
+      value: memoryStorage(),
+    });
+  if (typeof window.sessionStorage?.clear !== "function")
+    Object.defineProperty(window, "sessionStorage", {
+      configurable: true,
+      value: memoryStorage(),
+    });
+}

@@ -25,4 +25,14 @@ describe("role permissions", () => {
     expect(hasPermission(administrator, "branches:manage")).toBe(true);
     expect(hasPermission(administrator, "audit:read")).toBe(true);
   });
+
+  it("restricts attendance ushers to scanner operations", () => {
+    const usher = buildDemoUser("attendance_usher");
+    expect(hasPermission(usher, "attendance:scan")).toBe(true);
+    expect(hasPermission(usher, "attendance:manual")).toBe(true);
+    expect(hasPermission(usher, "attendance:write")).toBe(false);
+    expect(hasPermission(usher, "members:read")).toBe(false);
+    expect(hasPermission(usher, "finance:read")).toBe(false);
+    expect(hasPermission(usher, "settings:manage")).toBe(false);
+  });
 });
