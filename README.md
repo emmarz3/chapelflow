@@ -1,16 +1,26 @@
-# ChapelFlow frontend
+# ChapelFlow
 
-Production-oriented React frontend for Chrisland University Chapel, Abeokuta. It includes the institutional public website, authentication and onboarding, permission-aware portal navigation, role-specific dashboards, attendance, members, events, finance, communications, workers, assets, media, CMS, analytics, branches, audit, settings, policies, responsive layouts, dark mode, and PWA support.
+Production-oriented chapel management platform for Chrisland University Chapel, Abeokuta. The repository contains the React/PWA frontend and a TypeScript/PostgreSQL API for secure student QR attendance.
 
 ## Run locally
 
+Requirement: Node.js 22+.
+
 ```bash
 npm install
-copy .env.example .env.local
 npm run dev
 ```
 
-Use `VITE_DATA_MODE=demo` for the explicit preview dataset and role switcher. Production should keep `VITE_DATA_MODE=api`; it never silently falls back to fixtures.
+This starts the frontend and API together. Local development uses an embedded persistent PostgreSQL-compatible database in `.chapelflow-data`, runs migrations automatically, and approves local student registrations immediately so they can sign in. These conveniences are disabled in production.
+
+To start either process separately:
+
+```bash
+npm run dev:server
+npm run dev:web
+```
+
+Use `VITE_DATA_MODE=demo` only for the explicit static preview dataset and role switcher. Full-stack development and production use `VITE_DATA_MODE=api`.
 
 ## Checks
 
@@ -32,11 +42,16 @@ npm run build
 - `src/lib/fixtures.ts`: development-only preview data
 - `src/services/chapelflow.ts`: typed feature contracts for every production module
 - `src/types`: shared API/domain types
+- `server`: Express API, authentication, QR security, RBAC, attendance workflows, migrations, and seed scripts
 - `e2e`: Playwright journeys for desktop and mobile
 
 The proposed endpoint catalogue and role/permission matrix are documented in [`docs/API_CONTRACT.md`](docs/API_CONTRACT.md). Production-readiness and external-provider dependencies are tracked in [`docs/PRODUCTION_CHECKLIST.md`](docs/PRODUCTION_CHECKLIST.md).
 
 Authentication assumes secure HttpOnly cookies. No authentication token is stored in `localStorage`; only the non-sensitive theme preference is persisted there. Backend authorization remains authoritative.
+
+Student passes use short-lived HMAC-signed tokens bound to the active attendance session. Attendance writes derive the usher from the server session, record an audit event, use an idempotency key, and enforce `UNIQUE(attendance_session_id, student_id)` in PostgreSQL.
+
+In production, public student registrations remain inactive until a chapel administrator verifies and approves them from the member directory. Approval is server-authorized and audited; ushers cannot approve accounts.
 
 Production routes fetch backend-authorized content and show explicit loading, empty, and error states. Preview fixtures are reachable only when `VITE_DATA_MODE=demo` is intentionally configured. Demo authentication stores only a preview role in session storage and is excluded from API mode.
 
@@ -49,9 +64,17 @@ Production routes fetch backend-authorized content and show explicit loading, em
 - `VITE_SUPPORT_CONTACT`: approved support contact
 - `VITE_MAP_URL`: approved chapel map/location URL
 - `VITE_LIVESTREAM_URL`: configured stream provider URL
+- `DATABASE_URL`: PostgreSQL connection string
+- `APP_ORIGIN`: exact trusted frontend origin
+- `PORT`: API port, default `8000`
+- `CHAPELFLOW_SESSION_SECRET`: at least 32 random characters
+- `CHAPELFLOW_QR_SIGNING_SECRET`: a different secret of at least 32 random characters
+- `CHAPELFLOW_ADMIN_USERNAME` / `CHAPELFLOW_ADMIN_EMAIL` / `CHAPELFLOW_ADMIN_NAME` / `CHAPELFLOW_ADMIN_PASSWORD`: initial super-administrator seed
+- `CHAPELFLOW_USHER_01_USERNAME` / `CHAPELFLOW_USHER_01_PASSWORD`: first restricted usher seed
+- `CHAPELFLOW_USHER_02_USERNAME` / `CHAPELFLOW_USHER_02_PASSWORD`: second restricted usher seed
 
 ## Deployment
 
-Serve the built `dist` directory with SPA fallback to `index.html`. Configure HTTPS, CSP, secure cookies, CSRF protection matching the backend, asset caching, and a backend allowlist for the production frontend origin. Review all policy text with institutional legal counsel and configure official contacts before publication.
+Production requires PostgreSQL 15+ and a completed `.env` based on `.env.example`. Run `npm run build`, `npm run db:migrate`, and `npm run db:seed`, then start the compiled API with `npm run server`. Serve `dist` with SPA fallback and reverse-proxy `/api` to the API process. Use HTTPS, persistent PostgreSQL, secure environment variables, backups, and the exact production `APP_ORIGIN`. The seed is idempotent and preserves existing administrator and usher passwords.
 
 The generated campus-chapel hero is stored at `public/chapel-hero.png`. It contains no text or logos and should be replaced with approved institutional photography when available.
