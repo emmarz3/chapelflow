@@ -98,6 +98,46 @@ describe("ChapelFlow production workflow contracts", () => {
     });
   });
 
+  it("submits only the signed pass, active session, and idempotency key when scanning", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse({
+        data: {
+          result: "recorded",
+          record: {
+            id: "record-1",
+            recordedAt: "2026-08-30T08:17:00Z",
+            student: {
+              name: "Ada Okafor",
+              identifier: "CU/26/101",
+              programme: "Computer Science",
+              level: "300",
+            },
+            session: { id: "session-1", title: "Sunday Chapel" },
+          },
+        },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await attendanceService.scan({
+      token: "cf1.signed-token",
+      sessionId: "session-1",
+      idempotencyKey: "request-1",
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/attendance/scan",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          token: "cf1.signed-token",
+          sessionId: "session-1",
+          idempotencyKey: "request-1",
+        }),
+      }),
+    );
+  });
+
   it("requires the correction reason in the attendance mutation contract", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       jsonResponse({

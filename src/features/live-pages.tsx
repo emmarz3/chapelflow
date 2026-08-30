@@ -16,6 +16,7 @@ import {
   UserCheck,
   Users,
   WifiOff,
+  XCircle,
 } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -30,6 +31,7 @@ import {
   YAxis,
 } from "recharts";
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { Link } from "react-router-dom";
 import {
   Badge,
   Button,
@@ -46,7 +48,6 @@ import { ApiError } from "../lib/api";
 import { downloadCsv } from "../lib/export";
 import {
   ATTENDANCE_QUEUE_EVENT,
-  queueAttendanceCheckIn,
   readPendingAttendance,
 } from "../lib/offline-queue";
 import {
@@ -58,6 +59,7 @@ import {
   memberService,
   operationsService,
   privacyService,
+  communityService,
   queryKeys,
   type ListRow,
   type OperationsModule,
@@ -83,6 +85,11 @@ export function LiveDashboardPage() {
     queryFn: async () =>
       (await dashboardService.get(user?.branchId || "")).data,
     enabled: Boolean(user),
+  });
+  const communities = useQuery({
+    queryKey: queryKeys.communities(),
+    queryFn: async () => (await communityService.mine()).data,
+    enabled: Boolean(user?.permissions.includes("community:view")),
   });
   if (query.isPending) return <LoadingState label="Loading dashboard" />;
   if (query.isError)
@@ -111,6 +118,31 @@ export function LiveDashboardPage() {
           </article>
         ))}
       </div>
+      {communities.data && communities.data.length > 0 && (
+        <section className="panel dashboard-community-preview">
+          <header className="panel-heading">
+            <div>
+              <h2>My communities</h2>
+              <p>Private updates from your unit and fellowship</p>
+            </div>
+            <Link className="text-link" to="/app/communities">
+              View all communities
+            </Link>
+          </header>
+          <div>
+            {communities.data.slice(0, 3).map((community) => (
+              <Link
+                key={community.id}
+                to={`/app/communities/${community.slug}`}
+              >
+                <span>{community.type === "unit" ? "Unit" : "Fellowship"}</span>
+                <strong>{community.name}</strong>
+                <small>{community.unreadCount ?? 0} unread</small>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
       <section className="panel">
         <header className="panel-heading">
           <div>
@@ -188,6 +220,14 @@ export function LiveMembersPage() {
       void client.invalidateQueries({ queryKey: ["members"] });
     },
   });
+  const approve = useMutation({
+    mutationFn: (memberId: string) => memberService.approve(memberId),
+    onSuccess: () => {
+      setSelected(null);
+      toast("Student registration approved. The account can now sign in.");
+      void client.invalidateQueries({ queryKey: ["members"] });
+    },
+  });
   const rows = query.data?.data ?? [];
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -246,6 +286,7 @@ export function LiveMembersPage() {
             onChange={(event) => setStatus(event.target.value)}
           >
             <option value="all">All statuses</option>
+            <option value="pending">Pending approval</option>
             <option value="active">Active</option>
             <option value="follow_up">Follow-up</option>
             <option value="inactive">Inactive</option>
@@ -303,9 +344,11 @@ export function LiveMembersPage() {
                       tone={
                         member.status === "active"
                           ? "success"
-                          : member.status === "follow_up"
+                          : member.status === "pending"
                             ? "warning"
-                            : "neutral"
+                            : member.status === "follow_up"
+                              ? "warning"
+                              : "neutral"
                       }
                     >
                       {member.status.replace("_", " ")}
@@ -340,6 +383,21 @@ export function LiveMembersPage() {
         onClose={() => setSelected(null)}
         title={selected?.name || "Member"}
         description={selected?.identifier}
+        footer={
+          selected?.status === "pending" && canWrite ? (
+            <>
+              <Button variant="ghost" onClick={() => setSelected(null)}>
+                Review later
+              </Button>
+              <Button
+                loading={approve.isPending}
+                onClick={() => selected && approve.mutate(selected.id)}
+              >
+                Approve student account
+              </Button>
+            </>
+          ) : undefined
+        }
       >
         <div className="detail-grid">
           <div>
@@ -359,6 +417,11 @@ export function LiveMembersPage() {
             <strong>{selected?.status.replace("_", " ")}</strong>
           </div>
         </div>
+        {approve.isError && (
+          <div className="form-error" role="alert">
+            {message(approve.error)}
+          </div>
+        )}
       </Modal>
       <Modal
         open={createOpen}
@@ -403,6 +466,7 @@ export function LiveAttendancePage() {
   const canManage = hasPermission(user, "attendance:write");
   const [manualOpen, setManualOpen] = useState(false);
   const [sessionOpen, setSessionOpen] = useState(false);
+  const [closeConfirmOpen, setCloseConfirmOpen] = useState(false);
   const [qrOpen, setQrOpen] = useState(false);
   const [correction, setCorrection] = useState<AttendanceRecord | null>(null);
   const [pendingCount, setPendingCount] = useState(
@@ -414,17 +478,26 @@ export function LiveAttendancePage() {
     queryKey: queryKeys.attendance("current"),
     queryFn: async () => (await attendanceService.current()).data,
   });
+  const scheduled = useQuery({
+    queryKey: ["attendance-sessions", "scheduled"],
+    queryFn: async () => (await attendanceService.sessions("scheduled")).data,
+    enabled: canManage,
+  });
   const manual = useMutation({
     mutationFn: ({
       sessionId,
       identifier,
+      reason,
     }: {
       sessionId: string;
       identifier: string;
+      reason: string;
     }) =>
-      attendanceService.checkIn(sessionId, {
-        memberIdentifier: identifier,
-        method: "manual",
+      attendanceService.manual({
+        sessionId,
+        identifier,
+        reason,
+        idempotencyKey: crypto.randomUUID(),
       }),
     onSuccess: () => {
       setManualOpen(false);
@@ -437,8 +510,29 @@ export function LiveAttendancePage() {
       attendanceService.createSession(payload),
     onSuccess: () => {
       setSessionOpen(false);
-      toast("Attendance session created.");
+      toast("Attendance session scheduled. Activate it when check-in opens.");
       void client.invalidateQueries({ queryKey: ["attendance"] });
+      void client.invalidateQueries({ queryKey: ["attendance-sessions"] });
+    },
+  });
+  const activateSession = useMutation({
+    mutationFn: (sessionId: string) =>
+      attendanceService.activateSession(sessionId),
+    onSuccess: () => {
+      toast(
+        "Attendance session activated. Usher scanners can now check in students.",
+      );
+      void client.invalidateQueries({ queryKey: ["attendance"] });
+      void client.invalidateQueries({ queryKey: ["attendance-sessions"] });
+    },
+  });
+  const closeSession = useMutation({
+    mutationFn: () => attendanceService.closeSession(query.data!.session.id),
+    onSuccess: () => {
+      setCloseConfirmOpen(false);
+      toast("Attendance session closed. New scans are now blocked.");
+      void client.invalidateQueries({ queryKey: ["attendance"] });
+      void client.invalidateQueries({ queryKey: ["attendance-sessions"] });
     },
   });
   const qr = useQuery({
@@ -488,10 +582,84 @@ export function LiveAttendancePage() {
             )
           }
         />
-        <ErrorState
-          description={message(query.error)}
-          onRetry={() => void query.refetch()}
-        />
+        {query.error instanceof ApiError &&
+        query.error.code === "NO_ACTIVE_SESSION" ? (
+          <section className="table-panel">
+            <header>
+              <div className="panel-heading">
+                <div>
+                  <h2>Scheduled sessions</h2>
+                  <p>
+                    Activate one service when ushers are ready to begin
+                    scanning.
+                  </p>
+                </div>
+              </div>
+            </header>
+            {scheduled.isPending ? (
+              <LoadingState label="Loading scheduled attendance sessions" />
+            ) : scheduled.isError ? (
+              <ErrorState
+                description={message(scheduled.error)}
+                onRetry={() => void scheduled.refetch()}
+              />
+            ) : scheduled.data.length ? (
+              <table>
+                <thead>
+                  <tr>
+                    <th>Service</th>
+                    <th>Date</th>
+                    <th>Check-in window</th>
+                    <th>
+                      <span className="sr-only">Action</span>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {scheduled.data.map((item) => (
+                    <tr key={item.id}>
+                      <td>
+                        <strong>{item.title}</strong>
+                      </td>
+                      <td>{new Date(item.date).toLocaleDateString()}</td>
+                      <td>
+                        {new Date(item.startsAt).toLocaleTimeString()} –{" "}
+                        {new Date(item.endsAt).toLocaleTimeString()}
+                      </td>
+                      <td>
+                        <Button
+                          loading={
+                            activateSession.isPending &&
+                            activateSession.variables === item.id
+                          }
+                          onClick={() => activateSession.mutate(item.id)}
+                        >
+                          Activate session
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <EmptyState
+                icon={<CalendarDays />}
+                title="No scheduled attendance sessions"
+                description="Create the next chapel service before check-in begins."
+              />
+            )}
+            {activateSession.isError && (
+              <div className="form-error" role="alert">
+                {message(activateSession.error)}
+              </div>
+            )}
+          </section>
+        ) : (
+          <ErrorState
+            description={message(query.error)}
+            onRetry={() => void query.refetch()}
+          />
+        )}
         <SessionModal
           open={sessionOpen}
           loading={createSession.isPending}
@@ -507,22 +675,12 @@ export function LiveAttendancePage() {
     const identifier = String(
       new FormData(event.currentTarget).get("identifier"),
     );
+    const reason = String(new FormData(event.currentTarget).get("reason"));
     if (!navigator.onLine) {
-      const queued = queueAttendanceCheckIn({
-        sessionId: session.id,
-        memberIdentifier: identifier,
-        method: "manual",
-      });
-      toast(
-        queued
-          ? "Check-in queued for safe synchronization."
-          : "This check-in is already pending.",
-        queued ? "success" : "error",
-      );
-      setManualOpen(false);
+      toast("Connection problem — attendance was not recorded.", "error");
       return;
     }
-    manual.mutate({ sessionId: session.id, identifier });
+    manual.mutate({ sessionId: session.id, identifier, reason });
   }
   return (
     <>
@@ -540,9 +698,19 @@ export function LiveAttendancePage() {
               Display QR
             </Button>
             {canManage && (
-              <Button icon={<Plus />} onClick={() => setManualOpen(true)}>
-                Manual entry
-              </Button>
+              <>
+                <Button icon={<Plus />} onClick={() => setManualOpen(true)}>
+                  Manual entry
+                </Button>
+                <Button
+                  variant="danger"
+                  icon={<XCircle />}
+                  loading={closeSession.isPending}
+                  onClick={() => setCloseConfirmOpen(true)}
+                >
+                  Close session
+                </Button>
+              </>
             )}
           </>
         }
@@ -642,6 +810,32 @@ export function LiveAttendancePage() {
           />
         )}
       </section>
+      <Modal
+        open={closeConfirmOpen}
+        onClose={() => setCloseConfirmOpen(false)}
+        title="Close attendance session?"
+        description="Existing attendance records remain available, but all usher devices will be blocked from recording new scans."
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setCloseConfirmOpen(false)}>
+              Keep session active
+            </Button>
+            <Button
+              variant="danger"
+              loading={closeSession.isPending}
+              onClick={() => closeSession.mutate()}
+            >
+              Close attendance
+            </Button>
+          </>
+        }
+      >
+        {closeSession.isError && (
+          <div className="form-error" role="alert">
+            {message(closeSession.error)}
+          </div>
+        )}
+      </Modal>
       <Modal
         open={manualOpen}
         onClose={() => setManualOpen(false)}

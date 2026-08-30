@@ -3,6 +3,11 @@ import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
 
 export default defineConfig({
+  server: {
+    proxy: {
+      "/api": "http://127.0.0.1:8000",
+    },
+  },
   build: {
     rollupOptions: {
       output: {
@@ -24,7 +29,11 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: "prompt",
-      includeAssets: ["chapelflow-mark.svg"],
+      includeAssets: [
+        "chapelflow-mark.svg",
+        "chapelflow-brand.jpg",
+        "chrisland-university-chapel.png",
+      ],
       manifest: {
         name: "ChapelFlow",
         short_name: "ChapelFlow",
@@ -62,6 +71,6 @@ export default defineConfig({
     environment: "jsdom",
     setupFiles: "./src/test/setup.ts",
     css: true,
-    include: ["src/**/*.test.{ts,tsx}"],
+    include: ["src/**/*.test.{ts,tsx}", "server/**/*.test.ts"],
   },
 });

@@ -392,6 +392,29 @@ function MemberDashboard() {
           <p>Add an emergency contact</p>
         </article>
       </div>
+      <section className="panel dashboard-community-preview">
+        <header className="panel-heading">
+          <div>
+            <h2>My communities</h2>
+            <p>Your unit and fellowship workspaces</p>
+          </div>
+          <Link className="text-link" to="/app/communities">
+            View all
+          </Link>
+        </header>
+        <div>
+          <Link to="/app/communities/music">
+            <span>Unit</span>
+            <strong>Music</strong>
+            <small>4 unread</small>
+          </Link>
+          <Link to="/app/communities/love-campus-fellowship">
+            <span>Fellowship</span>
+            <strong>Love Campus Fellowship</strong>
+            <small>2 unread</small>
+          </Link>
+        </div>
+      </section>
       <div className="dashboard-grid">
         <section className="panel panel--wide">
           <PanelHeading
