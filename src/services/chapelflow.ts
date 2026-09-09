@@ -33,6 +33,19 @@ export interface DashboardPayload {
   }[];
   attendanceTrend: { week: string; attendance: number }[];
 }
+export interface RoleWorkspacePayload {
+  role: string;
+  branch_id: string | null;
+  groups: { id: string; name: string; type: string; active_members: number }[];
+  metrics: {
+    active_students: number;
+    groups: number;
+    open_sessions: number;
+    attendance_today: number;
+    pending_reports: number;
+  };
+  live_sessions: { id: string; label: string; state: string; opens_at: string; closes_at: string | null; check_ins: number }[];
+}
 export interface AttendancePayload {
   session: {
     id: string;
@@ -154,8 +167,12 @@ export const authService = {
     }),
   forgotPassword: (identifier: string) =>
     api.post<void>("/auth/forgot-password", { identifier }),
-  resetPassword: (token: string, password: string) =>
-    api.post<void>("/auth/reset-password", { token, password }),
+  resetPassword: (token: string, password: string, uid?: string) =>
+    api.post<void>("/auth/reset-password", {
+      token,
+      password,
+      ...(uid ? { uid } : {}),
+    }),
   changePassword: (currentPassword: string, password: string) =>
     api.post<void>("/auth/change-password", { currentPassword, password }),
   sessions: () =>
@@ -172,7 +189,23 @@ export const authService = {
     api.delete<void>(`/auth/sessions/${encodeURIComponent(sessionId)}`),
   setupPassword: (token: string, password: string) =>
     api.post<void>("/auth/setup-password", { token, password }),
+  studentProfile: () =>
+    api.get<{ data: StudentProfile }>("/account/profile"),
+  updateStudentProfile: (payload: Partial<StudentProfile>) =>
+    api.patch<{ data: StudentProfile }>("/account/profile", payload),
 };
+
+export interface StudentProfile {
+  email: string;
+  phone_number: string;
+  address: string;
+  photo_url: string;
+  emergency_contact_name: string;
+  emergency_contact_phone: string;
+  matric_no: string;
+  department: string | null;
+  role: string;
+}
 
 const demoCommunities: CommunitySummary[] = [
   {
@@ -358,6 +391,31 @@ export const dashboardService = {
       `/dashboard${queryString({ branchId })}`,
     ),
 };
+
+/** Role-scoped operational endpoints. Django applies scope again server-side. */
+export const roleWorkspaceService = {
+  summary: () => api.get<{ data: RoleWorkspacePayload }>("/role-workspace"),
+  memberships: () => api.get<{ data: Record<string, unknown>[] }>("/role/memberships"),
+  updateMembership: (id: string, is_active: boolean) =>
+    api.patch<{ data: Record<string, unknown> }>(`/role/memberships/${encodeURIComponent(id)}`, { is_active }),
+  announcements: () => api.get<{ data: Record<string, unknown>[] }>("/role/announcements"),
+  createAnnouncement: (payload: Record<string, unknown>) =>
+    api.post<{ data: Record<string, unknown> }>("/role/announcements", payload),
+  reports: () => api.get<{ data: Record<string, unknown>[] }>("/role/reports"),
+  createReport: (payload: Record<string, unknown>) =>
+    api.post<{ data: Record<string, unknown> }>("/role/reports", payload),
+  assignments: () => api.get<{ data: Record<string, unknown>[] }>("/role/assignments"),
+  followUps: () => api.get<{ data: Record<string, unknown>[] }>("/role/follow-ups"),
+  joinRequests: () => api.get<{ data: Record<string, unknown>[] }>("/role/join-requests"),
+  resolveJoinRequest: (id: string, action: "approve" | "reject") => api.post<{ data: Record<string, unknown> }>(`/role/join-requests/${encodeURIComponent(id)}/${action}`, {}),
+  tasks: () => api.get<{ data: Record<string, unknown>[] }>("/role/tasks"),
+  createTask: (payload: Record<string, unknown>) => api.post<{ data: Record<string, unknown> }>("/role/tasks", payload),
+  updateTask: (id: string, payload: Record<string, unknown>) => api.patch<{ data: Record<string, unknown> }>(`/role/tasks/${encodeURIComponent(id)}`, payload),
+  meetings: () => api.get<{ data: Record<string, unknown>[] }>("/role/meetings"),
+  createMeeting: (payload: Record<string, unknown>) => api.post<{ data: Record<string, unknown> }>("/role/meetings", payload),
+  meetingAttendance: (id: string) => api.get<{ data: Record<string, unknown>[] }>(`/role/meetings/${encodeURIComponent(id)}/attendance`),
+  markMeetingAttendance: (id: string, member: string, present = true) => api.post<{ data: Record<string, unknown> }>(`/role/meetings/${encodeURIComponent(id)}/attendance`, { member, present }),
+};
 export const memberService = {
   list: (params: QueryParams) =>
     api.get<PagedResponse<Member>>(`/members${queryString(params)}`),
@@ -407,6 +465,10 @@ export const attendanceService = {
     isDemoMode
       ? Promise.resolve({ data: demoAttendancePass })
       : api.get<{ data: AttendancePass }>("/attendance/pass"),
+  identityPass: () =>
+    api.get<{ data: { token: string; issued_at: string } }>(
+      "/attendance/identity-pass",
+    ),
   history: () =>
     isDemoMode
       ? Promise.resolve({ data: demoAttendanceHistory })
@@ -434,6 +496,23 @@ export const attendanceService = {
     sessionId: string;
     idempotencyKey: string;
   }) => api.post<{ data: AttendanceScanResult }>("/attendance/scan", payload),
+  usherCheckpoint: () =>
+    api.get<{
+      data: {
+        checkpoint_id: string;
+        checkpoint_name: string;
+        successful_scans: number;
+        token: string;
+        expires_at: string;
+        rotation_seconds: number;
+        session: { id: string; label: string; state: string; window_opens_at?: string | null; window_closes_at?: string | null };
+      };
+    }>("/attendance/checkpoint/token"),
+  studentScan: (token: string) =>
+    api.post<{
+      data: { result: "recorded" | "duplicate"; record: AttendanceRecord };
+      message?: string;
+    }>("/attendance/student-scan", { token }),
   manual: (payload: {
     identifier: string;
     sessionId: string;
@@ -451,6 +530,137 @@ export const attendanceService = {
       {},
     ),
 };
+export const institutionalAccountService = {
+  list: () =>
+    api.get<{ data: InstitutionalAccount[] }>("/institutional-accounts"),
+  create: (
+    payload: Omit<InstitutionalAccount, "id" | "is_active"> & {
+      password: string;
+    },
+  ) =>
+    api.post<{ data: InstitutionalAccount }>(
+      "/institutional-accounts",
+      payload,
+    ),
+  update: (id: string, payload: Partial<InstitutionalAccount>) =>
+    api.patch<{ data: InstitutionalAccount }>(
+      `/institutional-accounts/${encodeURIComponent(id)}`,
+      payload,
+    ),
+  resetPassword: (id: string) =>
+    api.post<void>(
+      `/institutional-accounts/${encodeURIComponent(id)}/password-reset`,
+    ),
+};
+
+export const chapelGroupService = {
+  list: () =>
+    api.get<{
+      data: Array<{
+        id: string;
+        name: string;
+        group_type: string;
+        is_active: boolean;
+      }>;
+    }>("/chapel-groups"),
+};
+
+export interface InstitutionalAccount {
+  id: string;
+  first_name: string;
+  last_name: string;
+  email: string;
+  phone_number?: string;
+  role:
+    | "CHAPLAIN"
+    | "STUDENT_CHAPLAIN"
+    | "UNIT_HEAD"
+    | "FELLOWSHIP_LEADER"
+    | "ATTENDANCE_USHER";
+  branch?: string | null;
+  institutional_group?: string | null;
+  is_active: boolean;
+  password_change_required?: boolean;
+}
+
+export interface AdminAttendanceSession {
+  id: string;
+  label: string;
+  state: "OPEN" | "PAUSED" | "CLOSED";
+  is_open: boolean;
+  opened_at: string;
+  window_opens_at: string | null;
+  window_closes_at: string | null;
+  record_count: number;
+}
+
+export interface AdminAuditLog {
+  id: string;
+  action: string;
+  resource_type: string;
+  resource_id: string;
+  created_at: string;
+  metadata: Record<string, unknown>;
+}
+
+export interface AdminAttendanceRecord {
+  id: string;
+  member: string | null;
+  status: string;
+  checked_in_at: string;
+}
+
+export const adminAttendanceService = {
+  sessions: () =>
+    api.get<{ data: AdminAttendanceSession[] }>("/admin/attendance/sessions"),
+  createSession: (
+    payload: Pick<
+      AdminAttendanceSession,
+      "label" | "window_opens_at" | "window_closes_at"
+    >,
+  ) =>
+    api.post<{ data: AdminAttendanceSession }>(
+      "/admin/attendance/sessions",
+      payload,
+    ),
+  transition: (id: string, action: "pause" | "resume" | "close") =>
+    api.post<{ data: AdminAttendanceSession }>(
+      `/admin/attendance/sessions/${encodeURIComponent(id)}/${action}`,
+    ),
+  records: () =>
+    api.get<{ data: AdminAttendanceRecord[] }>("/admin/attendance/records"),
+  correct: (id: string, status: string, reason: string) =>
+    api.post<{ data: AdminAttendanceRecord }>(
+      `/admin/attendance/records/${encodeURIComponent(id)}/correct`,
+      { status, reason },
+    ),
+  scanAttempts: () =>
+    api.get<{
+      data: Array<{
+        id: string;
+        result: string;
+        created_at: string;
+        session: string | null;
+      }>;
+    }>("/admin/attendance/scan-attempts"),
+};
+
+export const securityService = {
+  auditLogs: () => api.get<{ data: AdminAuditLog[] }>("/admin/audit-logs"),
+  sessions: () =>
+    api.get<{
+      data: Array<{
+        jti: string;
+        created_at: string;
+        expires_at: string;
+        is_current: boolean;
+      }>;
+    }>("/auth/sessions"),
+  revokeSession: (jti: string) =>
+    api.post<void>("/auth/sessions/revoke", { jti }),
+  revokeAllSessions: (keepCurrent: boolean) =>
+    api.post<void>("/auth/sessions/revoke-all", { keep_current: keepCurrent }),
+};
 export const eventService = {
   list: (params: QueryParams) =>
     api.get<PagedResponse<EventSummary>>(`/events${queryString(params)}`),
@@ -463,6 +673,11 @@ export const eventService = {
     ),
   cancelRegistration: (eventId: string) =>
     api.delete<void>(`/events/${encodeURIComponent(eventId)}/registrations/me`),
+};
+export const studentContentService = {
+  announcements: () => api.get<{ data: { id: string; title: string; body: string; published_at: string }[] }>("/student/announcements"),
+  joinRequests: () => api.get<{ data: { groups: { id: string; name: string; type: string; description: string }[]; requests: { id: string; group: string; status: string; message: string; requested_at: string }[] } }>("/student/join-requests"),
+  requestJoin: (group: string, message: string) => api.post<{ data: { id: string; status: string } }>("/student/join-requests", { group, message }),
 };
 
 const modulePaths: Record<OperationsModule, string> = {

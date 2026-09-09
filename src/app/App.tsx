@@ -18,6 +18,18 @@ import {
 import { AttendanceKioskPage } from "../features/attendance-kiosk";
 import { StudentAttendancePassPage } from "../features/student-attendance-pass";
 import { UsherAttendancePage } from "../features/usher-attendance";
+import { InstitutionalAccountsPage } from "../features/institutional-accounts";
+import { AdminOperationsPage } from "../features/admin-operations";
+import { RoleOperationsPage } from "../features/role-operations";
+import {
+  StudentAttendanceHistoryPage,
+  StudentAnnouncementsPage,
+  StudentIdentityPassPage,
+  StudentJoinCommunityPage,
+  StudentNotificationsPage,
+  StudentProfilePage,
+} from "../features/student-portal";
+import { StudentProfileEditorPage } from "../features/student-profile-editor";
 import {
   AccessDeniedPage,
   NotFoundPage,
@@ -238,6 +250,9 @@ export function App() {
             <Route element={<ProtectedRoute />}>
               <Route element={<PortalShell />}>
                 <Route path="/app" element={<DashboardPage />} />
+                <Route element={<ProtectedRoute roles={["chaplain", "student_chaplain", "unit_leader", "fellowship_leader"]} />}>
+                  <Route path="/app/operations" element={<RoleOperationsPage />} />
+                </Route>
                 <Route element={<ProtectedRoute permission="members:read" />}>
                   <Route path="/app/members" element={<MembersPage />} />
                 </Route>
@@ -256,6 +271,19 @@ export function App() {
                     path="/app/chapel-pass"
                     element={<StudentAttendancePassPage />}
                   />
+                  <Route
+                    path="/app/my-attendance"
+                    element={<StudentAttendanceHistoryPage />}
+                  />
+                  <Route
+                    path="/app/identity-pass"
+                    element={<StudentIdentityPassPage />}
+                  />
+                  <Route path="/app/profile" element={<StudentProfilePage />} />
+                  <Route path="/app/profile/edit" element={<StudentProfileEditorPage />} />
+                  <Route path="/app/notifications" element={<StudentNotificationsPage />} />
+                  <Route path="/app/announcements" element={<StudentAnnouncementsPage />} />
+                  <Route path="/app/join-community" element={<StudentJoinCommunityPage />} />
                 </Route>
                 <Route element={<ProtectedRoute permission="events:read" />}>
                   <Route path="/app/events" element={<EventsPage />} />
@@ -292,6 +320,16 @@ export function App() {
                   <Route
                     path="/app/admin/leadership"
                     element={<LeadershipAdminPage />}
+                  />
+                </Route>
+                <Route element={<ProtectedRoute roles={["super_admin"]} />}>
+                  <Route
+                    path="/app/admin/accounts"
+                    element={<InstitutionalAccountsPage />}
+                  />
+                  <Route
+                    path="/app/admin/control-room"
+                    element={<AdminOperationsPage />}
                   />
                 </Route>
                 <Route element={<ProtectedRoute permission="workers:read" />}>
@@ -349,10 +387,12 @@ export function App() {
                     element={<OperationsPage module="audit" />}
                   />
                 </Route>
-                <Route
-                  path="/app/settings"
-                  element={<OperationsPage module="settings" />}
-                />
+                <Route element={<ProtectedRoute roles={["super_admin", "chapel_admin"]} />}>
+                  <Route
+                    path="/app/settings"
+                    element={<OperationsPage module="settings" />}
+                  />
+                </Route>
               </Route>
             </Route>
 

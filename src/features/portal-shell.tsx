@@ -4,6 +4,7 @@ import {
   Bell,
   Building2,
   CalendarDays,
+  Camera,
   ChevronDown,
   ClipboardCheck,
   Coins,
@@ -34,7 +35,7 @@ import { usePortalMotion } from "../components/motion/motion-system";
 import { hasPermission, useAuth } from "./auth-context";
 import { isDemoMode } from "../lib/fixtures";
 import type { Permission, Role } from "../types/domain";
-import { notificationService } from "../services/chapelflow";
+import { communityService, notificationService } from "../services/chapelflow";
 
 interface NavItem {
   label: string;
@@ -107,6 +108,18 @@ const navGroups: { label: string; items: NavItem[] }[] = [
         icon: <UserRound />,
         permission: "leadership:manage",
       },
+      {
+        label: "Institutional accounts",
+        path: "/app/admin/accounts",
+        icon: <UserRound />,
+        roles: ["super_admin"],
+      },
+      {
+        label: "Service control room",
+        path: "/app/admin/control-room",
+        icon: <Activity />,
+        roles: ["super_admin"],
+      },
     ],
   },
   {
@@ -176,6 +189,49 @@ const navGroups: { label: string; items: NavItem[] }[] = [
   },
 ];
 
+function studentNavGroups(communities: { type: string }[]): { label: string; items: NavItem[] }[] {
+  const hasUnit = communities.some((community) => community.type === "unit");
+  const hasFellowship = communities.some((community) => community.type !== "unit");
+  return [
+    {
+      label: "My chapel",
+      items: [
+        { label: "Overview", path: "/app", icon: <Gauge />, roles: ["member"] },
+        { label: "Scan attendance", path: "/app/chapel-pass", icon: <Camera />, roles: ["member"] },
+        { label: "My attendance", path: "/app/my-attendance", icon: <ClipboardCheck />, roles: ["member"] },
+        { label: "Chapel schedule & events", path: "/app/events", icon: <CalendarDays />, roles: ["member"] },
+        { label: "Join a community", path: "/app/join-community", icon: <Users />, roles: ["member"] },
+        ...(hasFellowship ? [{ label: "My fellowship", path: "/app/communities", icon: <Users />, roles: ["member"] as Role[] }] : []),
+        ...(hasUnit ? [{ label: "My chapel unit", path: "/app/communities", icon: <Building2 />, roles: ["member"] as Role[] }] : []),
+      ],
+    },
+    {
+      label: "My account",
+      items: [
+        { label: "My QR pass", path: "/app/identity-pass", icon: <ShieldCheck />, roles: ["member"] },
+        { label: "Announcements", path: "/app/announcements", icon: <MessageSquareText />, roles: ["member"] },
+        { label: "Notifications", path: "/app/notifications", icon: <Bell />, roles: ["member"] },
+        { label: "Profile and security", path: "/app/profile/edit", icon: <UserRound />, roles: ["member"] },
+        { label: "Help and support", path: "/contact", icon: <MessageSquareText />, roles: ["member"] },
+      ],
+    },
+  ];
+}
+
+function operationalNavGroups(role: Role): { label: string; items: NavItem[] }[] | null {
+  const overview: NavItem = { label: "Overview", path: "/app", icon: <Gauge />, roles: [role] };
+  const members: NavItem = { label: "Students", path: "/app/members", icon: <Users />, permission: "members:read", roles: [role] };
+  const events: NavItem = { label: "Events and programmes", path: "/app/events", icon: <CalendarDays />, permission: "events:read", roles: [role] };
+  const operations: NavItem = { label: "Operations", path: "/app/operations", icon: <Activity />, roles: [role] };
+  if (role === "chaplain") return [{ label: "Chapel oversight", items: [overview, operations, members, events] }];
+  if (role === "student_chaplain") return [{ label: "Student operations", items: [overview, operations, members, { ...events, label: "Chapel services" }] }];
+  if (role === "unit_leader" || role === "fellowship_leader") {
+    const label = role === "unit_leader" ? "Unit" : "Fellowship";
+    return [{ label: `${label} workspace`, items: [overview, operations, { ...members, label: "Members" }, { ...events, label: "Meetings and programmes" }] }];
+  }
+  return null;
+}
+
 function useNetworkStatus() {
   const [online, setOnline] = useState(navigator.onLine);
   useEffect(() => {
@@ -233,6 +289,11 @@ export function PortalShell() {
     enabled: Boolean(user),
     refetchInterval: 30_000,
   });
+  const studentCommunities = useQuery({
+    queryKey: ["communities"],
+    queryFn: async () => (await communityService.mine()).data,
+    enabled: user?.role === "member",
+  });
   const unreadNotifications =
     notificationQuery.data?.filter((item) => !item.read_at).length ?? 0;
   useEffect(() => {
@@ -252,7 +313,9 @@ export function PortalShell() {
   }, []);
   const visibleGroups = useMemo(
     () =>
-      navGroups
+      (user?.role === "member"
+        ? studentNavGroups(studentCommunities.data ?? [])
+        : user ? operationalNavGroups(user.role) ?? navGroups : navGroups)
         .map((group) => ({
           ...group,
           items: group.items.filter(
@@ -262,10 +325,11 @@ export function PortalShell() {
           ),
         }))
         .filter((group) => group.items.length),
-    [user],
+    [user, studentCommunities.data],
   );
   usePortalMotion(contentRef, sidebarRef, location.pathname);
   if (!user) return null;
+  if (user.mfaRequired) return <Navigate to="/login" replace />;
   return (
     <div
       className={`portal-shell ${collapsed ? "portal-shell--collapsed" : ""}`}
@@ -302,7 +366,7 @@ export function PortalShell() {
               {group.items.map((item) => (
                 <NavLink
                   end={item.path === "/app"}
-                  key={item.path}
+                  key={`${group.label}-${item.label}`}
                   to={item.path}
                   title={collapsed ? item.label : undefined}
                 >
@@ -345,12 +409,12 @@ export function PortalShell() {
           >
             <Menu />
           </button>
-          <button className="global-search" onClick={() => setSearchOpen(true)}>
+          {user.role !== "member" && <button className="global-search" onClick={() => setSearchOpen(true)}>
             <Search />
             <span>Search members, events, records…</span>
             <kbd>Ctrl K</kbd>
-          </button>
-          <div className="topbar__context">
+          </button>}
+          {user.role !== "member" && <div className="topbar__context">
             <label className="context-select">
               <Building2 />
               <span className="sr-only">Active branch</span>
@@ -369,7 +433,7 @@ export function PortalShell() {
                 <option>2025/26 Session</option>
               </select>
             </label>
-          </div>
+          </div>}
           <div className="topbar__actions">
             <button
               className="icon-button"
@@ -400,7 +464,7 @@ export function PortalShell() {
           </div>
           {profileOpen && (
             <div className="profile-menu">
-              <Link to="/app/settings">Profile and settings</Link>
+              <Link to={user.role === "member" ? "/app/profile/edit" : "/app/settings"}>Profile and settings</Link>
               {isDemoMode && (
                 <label>
                   Preview role
@@ -443,17 +507,18 @@ export function PortalShell() {
             <ClipboardCheck />
             {user.role === "member" ? "Chapel Pass" : "Attendance"}
           </NavLink>
-          <NavLink to="/app/events">
-            <CalendarDays />
-            Events
-          </NavLink>
+          {user.role === "member" ? (
+            <NavLink to="/app/my-attendance"><ClipboardCheck />My attendance</NavLink>
+          ) : (
+            <NavLink to="/app/events"><CalendarDays />Events</NavLink>
+          )}
           <button onClick={() => setMobileOpen(true)}>
             <Menu />
             More
           </button>
         </nav>
       </div>
-      <SearchModal open={searchOpen} onClose={() => setSearchOpen(false)} />
+      {user.role !== "member" && <SearchModal open={searchOpen} onClose={() => setSearchOpen(false)} />}
     </div>
   );
 }

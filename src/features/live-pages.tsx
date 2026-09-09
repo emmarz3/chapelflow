@@ -71,6 +71,7 @@ import type {
   Permission,
 } from "../types/domain";
 import { hasPermission, useAuth } from "./auth-context";
+import { isDjangoBackend } from "../lib/backend";
 
 function message(error: unknown) {
   return error instanceof ApiError || error instanceof Error
@@ -264,7 +265,7 @@ export function LiveMembersPage() {
             >
               Export
             </Button>
-            {canWrite && (
+            {canWrite && !isDjangoBackend && (
               <Button icon={<Plus />} onClick={() => setCreateOpen(true)}>
                 Add member
               </Button>
@@ -288,7 +289,7 @@ export function LiveMembersPage() {
             <option value="all">All statuses</option>
             <option value="pending">Pending approval</option>
             <option value="active">Active</option>
-            <option value="follow_up">Follow-up</option>
+            {!isDjangoBackend && <option value="follow_up">Follow-up</option>}
             <option value="inactive">Inactive</option>
           </select>
         </label>
@@ -354,7 +355,11 @@ export function LiveMembersPage() {
                       {member.status.replace("_", " ")}
                     </Badge>
                   </td>
-                  <td>{member.attendanceRate}%</td>
+                  <td>
+                    {member.attendanceRate == null
+                      ? "Not available"
+                      : `${member.attendanceRate}%`}
+                  </td>
                   <td>{member.lastSeen || "No attendance"}</td>
                   <td>
                     <button
@@ -384,7 +389,7 @@ export function LiveMembersPage() {
         title={selected?.name || "Member"}
         description={selected?.identifier}
         footer={
-          selected?.status === "pending" && canWrite ? (
+          selected?.status === "pending" && canWrite && !isDjangoBackend ? (
             <>
               <Button variant="ghost" onClick={() => setSelected(null)}>
                 Review later
@@ -410,7 +415,11 @@ export function LiveMembersPage() {
           </div>
           <div>
             <small>Attendance rate</small>
-            <strong>{selected?.attendanceRate}%</strong>
+            <strong>
+              {selected?.attendanceRate == null
+                ? "Not available"
+                : `${selected.attendanceRate}%`}
+            </strong>
           </div>
           <div>
             <small>Status</small>
@@ -1089,6 +1098,7 @@ export function LiveEventsPage() {
       title: String(data.get("title")),
       date: String(data.get("date")),
       time: String(data.get("time")),
+      endTime: String(data.get("endTime")),
       venue: String(data.get("venue")),
       capacity: Number(data.get("capacity")),
       visibility: String(data.get("visibility")) as EventSummary["visibility"],
@@ -1219,6 +1229,7 @@ export function LiveEventsPage() {
           />
           <Field name="date" label="Date" type="date" required />
           <Field name="time" label="Time" type="time" required />
+          <Field name="endTime" label="End time" type="time" required />
           <Field name="venue" label="Venue" required />
           <Field
             name="capacity"

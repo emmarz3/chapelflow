@@ -1,7 +1,9 @@
 import type { ApiErrorShape } from "../types/domain";
+import { isDjangoBackend } from "./backend";
+import { djangoRequest, UnsupportedDjangoOperation } from "./django";
 
 export const API_BASE_URL = (
-  import.meta.env.VITE_API_BASE_URL || "/api"
+  import.meta.env.VITE_API_BASE_URL || (isDjangoBackend ? "/api/v1" : "/api")
 ).replace(/\/$/, "");
 
 export class ApiError extends Error implements ApiErrorShape {
@@ -23,24 +25,73 @@ function safeRedirect(value: string | null) {
   return value?.startsWith("/") && !value.startsWith("//") ? value : "/app";
 }
 
+function csrfCookie() {
+  return document.cookie
+    .split("; ")
+    .find((cookie) => cookie.startsWith("chapelflow_csrf="))
+    ?.split("=")[1];
+}
+
 export async function apiRequest<T>(
   path: string,
   init: RequestInit = {},
 ): Promise<T> {
+  if (!isDjangoBackend) return rawRequest<T>(path, init);
+  try {
+    return (await djangoRequest(path, init, rawRequest)) as T;
+  } catch (error) {
+    if (error instanceof UnsupportedDjangoOperation)
+      throw new ApiError({
+        code: "UNSUPPORTED_OPERATION",
+        message: error.message,
+        status: 501,
+      });
+    throw error;
+  }
+}
+
+async function rawRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
   const controller = new AbortController();
   const timeout = window.setTimeout(() => controller.abort(), 15_000);
   try {
-    const response = await fetch(`${API_BASE_URL}${path}`, {
+    const signal = init.signal
+      ? AbortSignal.any([init.signal, controller.signal])
+      : controller.signal;
+    const headers = new Headers(init.headers);
+    headers.set("Accept", "application/json");
+    headers.set("Content-Type", "application/json");
+    headers.set("X-Requested-With", "XMLHttpRequest");
+    const csrf = csrfCookie();
+    if (csrf) headers.set("X-ChapelFlow-CSRF", csrf);
+    let response = await fetch(`${API_BASE_URL}${path}`, {
       ...init,
       credentials: "include",
-      signal: init.signal ?? controller.signal,
-      headers: {
-        Accept: "application/json",
-        "Content-Type": "application/json",
-        "X-Requested-With": "XMLHttpRequest",
-        ...init.headers,
-      },
+      signal,
+      headers,
     });
+    if (
+      response.status === 401 &&
+      isDjangoBackend &&
+      path !== "/auth/refresh/"
+    ) {
+      const refresh = await fetch(`${API_BASE_URL}/auth/refresh/`, {
+        method: "POST",
+        credentials: "include",
+        signal,
+        headers: new Headers({
+          Accept: "application/json",
+          ...(csrf ? { "X-ChapelFlow-CSRF": csrf } : {}),
+        }),
+      });
+      if (refresh.ok) {
+        response = await fetch(`${API_BASE_URL}${path}`, {
+          ...init,
+          credentials: "include",
+          signal,
+          headers,
+        });
+      }
+    }
     if (
       response.status === 401 &&
       window.location.pathname.startsWith("/app")
@@ -60,13 +111,19 @@ export async function apiRequest<T>(
         message: "We could not complete that request.",
         status: response.status,
       };
-      let body: Partial<ApiErrorShape> = {};
+      let body: Partial<ApiErrorShape> & { errors?: Record<string, string[]> } =
+        {};
       try {
         body = (await response.json()) as Partial<ApiErrorShape>;
       } catch {
         /* Non-JSON responses use the safe fallback. */
       }
-      throw new ApiError({ ...fallback, ...body, status: response.status });
+      throw new ApiError({
+        ...fallback,
+        ...body,
+        fieldErrors: body.fieldErrors ?? body.errors,
+        status: response.status,
+      });
     }
     if (response.status === 204) return undefined as T;
     return (await response.json()) as T;

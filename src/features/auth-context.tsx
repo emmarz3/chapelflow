@@ -10,11 +10,17 @@ import type { Role, User } from "../types/domain";
 import { api } from "../lib/api";
 import { buildDemoUser, hasPermission } from "../lib/permissions";
 import { isDemoMode } from "../lib/fixtures";
+import { useQueryClient } from "@tanstack/react-query";
 
 interface AuthContextValue {
   user: User | null;
   loading: boolean;
-  login: (identifier: string, password: string, role?: Role) => Promise<User>;
+  login: (
+    identifier: string,
+    password: string,
+    role?: Role,
+    otp?: string,
+  ) => Promise<User>;
   logout: () => Promise<void>;
   switchDemoRole: (role: Role) => void;
 }
@@ -22,6 +28,7 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const queryClient = useQueryClient();
   const [user, setUser] = useState<User | null>(() => {
     if (!isDemoMode) return null;
     const role = window.sessionStorage.getItem(
@@ -52,7 +59,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     () => ({
       user,
       loading,
-      async login(identifier, password, role = "chapel_admin") {
+      async login(identifier, password, role = "chapel_admin", otp) {
         setLoading(true);
         try {
           if (isDemoMode) {
@@ -65,7 +72,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const response = await api.post<{ data: User }>("/auth/login", {
             identifier,
             password,
+            ...(otp ? { otp } : {}),
           });
+          queryClient.clear();
           setUser(response.data);
           return response.data;
         } finally {
@@ -78,6 +87,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } finally {
           if (isDemoMode)
             window.sessionStorage.removeItem("chapelflow-demo-role");
+          queryClient.clear();
           setUser(null);
         }
       },
@@ -88,7 +98,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       },
     }),
-    [user, loading],
+    [user, loading, queryClient],
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

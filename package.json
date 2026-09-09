@@ -5,7 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "concurrently -k -n api,web -c magenta,cyan \"npm:dev:server\" \"npm:dev:web\"",
-    "dev:server": "tsx watch server/index.ts",
+    "dev:server": "node scripts/dev-django.mjs",
+    "dev:server:legacy": "tsx watch server/index.ts",
+    "django:migrate": "node scripts/dev-django.mjs migrate",
+    "django:setup": "node scripts/dev-django.mjs migrate --noinput && node scripts/dev-django.mjs shell -c \"from scripts.seed_roles import seed_roles; seed_roles()\" && node scripts/dev-django.mjs shell -c \"from scripts.seed_demo_data import seed_demo_data; seed_demo_data()\"",
+    "django:admin": "node scripts/dev-django.mjs createsuperuser",
     "dev:web": "vite",
     "build": "tsc -b && vite build && tsc -p tsconfig.server.json",
     "typecheck": "tsc -b --pretty false && tsc -p tsconfig.server.json --noEmit --pretty false",
@@ -17,6 +21,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
+    "test:e2e:django": "playwright test --config playwright.django.config.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "preview": "vite preview"

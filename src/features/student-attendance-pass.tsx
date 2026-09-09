@@ -1,6 +1,14 @@
-import { useQuery } from "@tanstack/react-query";
-import { Clock3, QrCode, RefreshCw, ShieldCheck } from "lucide-react";
-import { useRef } from "react";
+import { BrowserQRCodeReader, type IScannerControls } from "@zxing/browser";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import {
+  Camera,
+  CheckCircle2,
+  Clipboard,
+  QrCode,
+  ShieldCheck,
+  XCircle,
+} from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import {
   Badge,
   Button,
@@ -8,110 +16,187 @@ import {
   LoadingState,
   PageHeader,
 } from "../components/ui";
-import { useFeatureMotion } from "../components/motion/motion-system";
 import { attendanceService } from "../services/chapelflow";
 
 export function StudentAttendancePassPage() {
-  const pageRef = useRef<HTMLDivElement>(null);
+  const video = useRef<HTMLVideoElement>(null);
+  const controls = useRef<IScannerControls | null>(null);
+  const [scanning, setScanning] = useState(false);
+  const [manualToken, setManualToken] = useState("");
+  const [message, setMessage] = useState<{
+    tone: "success" | "danger";
+    text: string;
+  } | null>(null);
   const pass = useQuery({
     queryKey: ["attendance-pass"],
     queryFn: async () => (await attendanceService.pass()).data,
-    refetchInterval: 60_000,
-    refetchOnWindowFocus: true,
   });
   const history = useQuery({
     queryKey: ["attendance-history", "me"],
     queryFn: async () => (await attendanceService.history()).data,
   });
-  useFeatureMotion(pageRef, pass.data?.expiresAt ?? pass.status);
-
+  const scan = useMutation({
+    mutationFn: attendanceService.studentScan,
+    onSuccess: (response) => {
+      stopCamera();
+      setMessage({
+        tone: response.data.result === "recorded" ? "success" : "danger",
+        text:
+          response.message ||
+          (response.data.result === "recorded"
+            ? "Attendance recorded."
+            : "Attendance already recorded."),
+      });
+      void history.refetch();
+    },
+    onError: (error) =>
+      setMessage({
+        tone: "danger",
+        text:
+          error instanceof Error
+            ? error.message
+            : "Attendance could not be recorded.",
+      }),
+  });
+  function stopCamera() {
+    controls.current?.stop();
+    controls.current = null;
+    setScanning(false);
+  }
+  useEffect(() => () => controls.current?.stop(), []);
+  async function startCamera() {
+    setMessage(null);
+    setScanning(true);
+    await new Promise<void>((resolve) =>
+      window.requestAnimationFrame(() => resolve()),
+    );
+    if (!video.current) {
+      setScanning(false);
+      return;
+    }
+    try {
+      const reader = new BrowserQRCodeReader();
+      controls.current = await reader.decodeFromConstraints(
+        { video: { facingMode: { ideal: "environment" } }, audio: false },
+        video.current,
+        (result) => {
+          if (result && !scan.isPending) scan.mutate(result.getText());
+        },
+      );
+    } catch {
+      setScanning(false);
+      setMessage({
+        tone: "danger",
+        text: "Camera access is unavailable. Allow camera permission or use the secure recovery field.",
+      });
+    }
+  }
   if (pass.isPending)
-    return <LoadingState label="Preparing your secure chapel pass" />;
-  if (pass.isError) {
+    return <LoadingState label="Loading your attendance scanner" />;
+  if (pass.isError)
     return (
       <ErrorState
         description={pass.error.message}
         onRetry={() => void pass.refetch()}
       />
     );
-  }
-
-  const data = pass.data;
   return (
-    <div className="motion-feature motion-feature--pass" ref={pageRef}>
+    <div className="motion-feature motion-feature--pass">
       <PageHeader
         eyebrow="Student attendance"
-        title="My Chapel Pass"
-        description="Your secure pass refreshes automatically while an attendance session is active."
-        actions={
-          <Button
-            variant="secondary"
-            icon={<RefreshCw />}
-            onClick={() => void pass.refetch()}
-          >
-            Refresh pass
-          </Button>
-        }
+        title="Scan the usher QR"
+        description="Attendance is recorded only when you scan a live QR shown by an authorized usher."
       />
-      <section className="chapel-pass" aria-live="polite">
+      <section className="chapel-pass">
         <header>
           <div className="chapel-pass__mark">
             <QrCode />
           </div>
           <div>
             <small>Chrisland University Chapel</small>
-            <h2>ChapelFlow Attendance Pass</h2>
+            <h2>Live attendance scanner</h2>
           </div>
-          <Badge tone={data.passStatus === "active" ? "success" : "danger"}>
-            {data.passStatus}
+          <Badge
+            tone={pass.data.passStatus === "active" ? "success" : "danger"}
+          >
+            {pass.data.passStatus}
           </Badge>
         </header>
         <div className="chapel-pass__body">
           <div className="chapel-pass__identity">
             <span className="profile-summary__avatar">
-              {data.student.name
+              {pass.data.student.name
                 .split(/\s+/)
                 .slice(0, 2)
                 .map((part) => part[0])
                 .join("")}
             </span>
-            <h3>{data.student.name}</h3>
-            <strong>{data.student.identifier}</strong>
-            <p>{data.student.programme || "Programme not provided"}</p>
-            {data.student.level && <small>Level {data.student.level}</small>}
+            <h3>{pass.data.student.name}</h3>
+            <strong>{pass.data.student.identifier}</strong>
+            <p>{pass.data.student.programme || "Student account"}</p>
           </div>
           <div className="chapel-pass__qr">
-            {data.imageDataUrl ? (
-              <img
-                src={data.imageDataUrl}
-                alt="Your rotating ChapelFlow attendance QR code"
+            {scanning ? (
+              <video
+                ref={video}
+                muted
+                playsInline
+                aria-label="Camera preview for usher QR scanner"
               />
             ) : (
               <div className="chapel-pass__unavailable">
-                <Clock3 />
-                <strong>No active chapel session</strong>
-                <p>
-                  Your QR pass will appear when an administrator opens
-                  attendance.
-                </p>
+                <Camera />
+                <strong>Ready to scan</strong>
+                <p>Point your camera at the usher's rotating QR code.</p>
               </div>
             )}
-            {data.session && <strong>{data.session.title}</strong>}
-            {data.expiresAt && (
-              <small>
-                Refreshes by {new Date(data.expiresAt).toLocaleTimeString()}
-              </small>
-            )}
+            <Button
+              icon={<Camera />}
+              onClick={() => void (scanning ? stopCamera() : startCamera())}
+            >
+              {scanning ? "Stop scanner" : "Open camera"}
+            </Button>
           </div>
         </div>
+        {message && (
+          <p className={`form-note form-note--${message.tone}`}>
+            <>{message.tone === "success" ? <CheckCircle2 /> : <XCircle />}</>{" "}
+            {message.text}
+          </p>
+        )}
+        <form
+          className="chapel-pass__recovery"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (manualToken.trim()) scan.mutate(manualToken.trim());
+          }}
+        >
+          <label>
+            Secure recovery token
+            <input
+              value={manualToken}
+              onChange={(event) => setManualToken(event.target.value)}
+              placeholder="Paste a live usher QR token"
+              autoComplete="off"
+            />
+          </label>
+          <Button
+            variant="secondary"
+            icon={<Clipboard />}
+            type="submit"
+            disabled={scan.isPending}
+          >
+            Submit token
+          </Button>
+        </form>
         <footer>
           <ShieldCheck />
           <span>
-            Present this QR code to an authorized chapel usher for attendance.
+            Your permanent personal QR code cannot be used to self-record
+            attendance.
           </span>
         </footer>
       </section>
-
       <section className="table-panel attendance-history">
         <header>
           <div className="panel-heading">
