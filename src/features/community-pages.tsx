@@ -30,6 +30,7 @@ import {
 } from "../components/ui";
 import { ApiError } from "../lib/api";
 import { isDemoMode } from "../lib/fixtures";
+import { isDjangoBackend } from "../lib/backend";
 import {
   communityAdminService,
   communityService,
@@ -174,7 +175,7 @@ export function CommunityWorkspacePage() {
   });
 
   useEffect(() => {
-    if (isDemoMode || !slug || !detail.data) return;
+    if (isDemoMode || isDjangoBackend || !slug || !detail.data) return;
     const stream = new EventSource(communityService.streamUrl(slug), {
       withCredentials: true,
     });

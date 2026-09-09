@@ -81,8 +81,13 @@ import {
   LiveMembersPage,
   LiveOperationsPage,
 } from "./live-pages";
+import { StudentDashboardPage } from "./student-portal";
+import { RoleDashboardPage } from "./role-dashboard";
 
 export function DashboardPage() {
+  const { user } = useAuth();
+  if (user?.role === "member") return <StudentDashboardPage />;
+  if (["chaplain", "student_chaplain", "unit_leader", "fellowship_leader", "attendance_usher"].includes(user?.role ?? "")) return <RoleDashboardPage />;
   if (!isDemoMode) return <LiveDashboardPage />;
   return <DemoDashboardPage />;
 }

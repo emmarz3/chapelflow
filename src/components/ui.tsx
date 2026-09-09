@@ -20,7 +20,6 @@ import {
 } from "react";
 
 export function Brand({
-  compact = false,
   inverse = false,
 }: {
   compact?: boolean;
@@ -28,11 +27,10 @@ export function Brand({
 }) {
   return (
     <span className={`brand ${inverse ? "brand--inverse" : ""}`}>
-      <img src="/chapelflow-mark.svg" alt="" />
-      <span>
-        <strong>ChapelFlow</strong>
-        {!compact && <small>Chrisland University Chapel</small>}
-      </span>
+      <img
+        src="/chrisland-university-chapel.png"
+        alt="Chrisland University Chapel"
+      />
     </span>
   );
 }

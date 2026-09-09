@@ -23,7 +23,8 @@ import { Brand, Button, Field } from "../components/ui";
 import { useAuthMotion } from "../components/motion/motion-system";
 import { useAuth } from "./auth-context";
 import type { Role } from "../types/domain";
-import { ApiError } from "../lib/api";
+import { ApiError, api } from "../lib/api";
+import { isDjangoBackend } from "../lib/backend";
 import { isDemoMode } from "../lib/fixtures";
 import { authService, communityService } from "../services/chapelflow";
 
@@ -69,6 +70,7 @@ export function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [role, setRole] = useState<Role>("chapel_admin");
+  if (user?.mfaRequired) return <MfaEnrollment />;
   if (user)
     return (
       <Navigate
@@ -102,6 +104,7 @@ export function LoginPage() {
         parsed.data.identifier,
         parsed.data.password,
         role,
+        String(form.get("otp") || ""),
       );
       navigate(
         authenticated.role === "attendance_usher"
@@ -162,6 +165,16 @@ export function LoginPage() {
             </button>
           </span>
         </label>
+        {isDjangoBackend && (
+          <Field
+            name="otp"
+            label="Authenticator code (if enabled)"
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            pattern="[0-9]{6}"
+            maxLength={6}
+          />
+        )}
         <div className="form-row">
           <label className="check-label">
             <input type="checkbox" name="remember" /> Keep me signed in
@@ -212,7 +225,107 @@ export function LoginPage() {
   );
 }
 
-const registrationSteps = ["Account", "Profile", "Community", "Consent"];
+function MfaEnrollment() {
+  const { logout } = useAuth();
+  const [setup, setSetup] = useState<{
+    secret: string;
+    qr_code_base64: string | null;
+  } | null>(null);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  async function start() {
+    setLoading(true);
+    setError("");
+    try {
+      setSetup(
+        (
+          await api.post<{
+            data: { secret: string; qr_code_base64: string | null };
+          }>("/auth/mfa/enroll", {})
+        ).data,
+      );
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "Could not start authenticator setup.",
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+  async function confirm(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setLoading(true);
+    setError("");
+    try {
+      await api.post("/auth/mfa/confirm", {
+        otp: String(new FormData(event.currentTarget).get("otp")),
+      });
+      window.location.assign("/app");
+    } catch (caught) {
+      setError(
+        caught instanceof Error ? caught.message : "Could not verify the code.",
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+  return (
+    <div className="auth-card">
+      <h1>Protect your account</h1>
+      <p>
+        Your role requires an authenticator before you can access chapel
+        records.
+      </p>
+      {!setup ? (
+        <Button onClick={() => void start()} loading={loading}>
+          Set up authenticator
+        </Button>
+      ) : (
+        <form onSubmit={confirm}>
+          <p>
+            Scan this code in your authenticator app, or enter the setup key
+            manually.
+          </p>
+          {setup.qr_code_base64 && (
+            <img
+              src={`data:image/png;base64,${setup.qr_code_base64}`}
+              alt="Authenticator setup QR code"
+              width={240}
+              height={240}
+            />
+          )}
+          <p>
+            <code>{setup.secret}</code>
+          </p>
+          <Field
+            name="otp"
+            label="Six-digit code"
+            required
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            pattern="[0-9]{6}"
+            maxLength={6}
+          />
+          <Button type="submit" loading={loading}>
+            Verify and continue
+          </Button>
+        </form>
+      )}
+      {error && (
+        <p className="form-error" role="alert">
+          {error}
+        </p>
+      )}
+      <Button variant="ghost" onClick={() => void logout()}>
+        Sign out
+      </Button>
+    </div>
+  );
+}
+
+const registrationSteps = ["Account", "Profile", "Membership", "Consent"];
 
 function registrationPayload(values: Record<string, string>) {
   return {
@@ -220,6 +333,15 @@ function registrationPayload(values: Record<string, string>) {
     acceptedPolicies: values.acceptedPolicies === "on",
     programmeUpdates: values.programmeUpdates === "on",
   };
+}
+
+function registrationError(caught: unknown) {
+  if (caught instanceof ApiError && caught.fieldErrors) {
+    const messages = Object.entries(caught.fieldErrors)
+      .flatMap(([field, errors]) => errors.map((message) => `${field === "non_field_errors" ? "Registration" : field.replaceAll("_", " ")}: ${message}`));
+    if (messages.length) return messages.join(" ");
+  }
+  return caught instanceof Error ? caught.message : "Registration could not be completed.";
 }
 
 export function RegisterPage() {
@@ -233,7 +355,7 @@ export function RegisterPage() {
   const communities = useQuery({
     queryKey: ["public-communities", "registration"],
     queryFn: async () => (await communityService.publicList()).data,
-    enabled: step === 2,
+    enabled: step === 2 && !isDjangoBackend,
     staleTime: 5 * 60_000,
   });
   async function next(event: FormEvent<HTMLFormElement>) {
@@ -262,11 +384,7 @@ export function RegisterPage() {
       }
       setComplete(true);
     } catch (caught) {
-      setError(
-        caught instanceof Error
-          ? caught.message
-          : "Registration could not be completed.",
-      );
+      setError(registrationError(caught));
     } finally {
       setSubmitting(false);
     }
@@ -372,6 +490,8 @@ export function RegisterPage() {
                 name="identifier"
                 defaultValue={values.identifier}
                 label="Matric number or staff ID"
+                hint="Use your university identifier, for example CU/2026/001."
+                pattern="[A-Za-z]{2,6}/[0-9]{2,4}/[0-9]{3,6}"
                 required
               />
               <Field
@@ -390,83 +510,94 @@ export function RegisterPage() {
                 <select name="memberType" defaultValue={values.memberType}>
                   <option>Student</option>
                   <option>Staff</option>
-                  <option>Community member</option>
+                  {!isDjangoBackend && <option>Community member</option>}
                 </select>
               </label>
-              <Field
-                name="programme"
-                defaultValue={values.programme}
-                label="Programme or department"
-              />
-              <label className="field">
-                <span>Academic level</span>
-                <select name="level" defaultValue={values.level}>
-                  <option>100</option>
-                  <option>200</option>
-                  <option>300</option>
-                  <option>400</option>
-                  <option>500</option>
-                  <option>Not applicable</option>
-                </select>
-              </label>
-              <label className="field">
-                <span>Chapel unit</span>
-                <select
-                  name="unitCommunityId"
-                  defaultValue={values.unitCommunityId || ""}
-                  disabled={communities.isPending || communities.isError}
-                  required
-                >
-                  <option value="" disabled>
-                    {communities.isPending
-                      ? "Loading units…"
-                      : "Select your unit"}
-                  </option>
-                  {communities.data
-                    ?.filter((community) => community.type === "unit")
-                    .map((community) => (
-                      <option key={community.id} value={community.id}>
-                        {community.name}
+              {isDjangoBackend ? (
+                <p className="form-note">
+                  Your account will be registered with Chrisland University
+                  Chapel.
+                </p>
+              ) : (
+                <>
+                  <Field
+                    name="programme"
+                    defaultValue={values.programme}
+                    label="Programme or department"
+                  />
+                  <label className="field">
+                    <span>Academic level</span>
+                    <select name="level" defaultValue={values.level}>
+                      <option>100</option>
+                      <option>200</option>
+                      <option>300</option>
+                      <option>400</option>
+                      <option>500</option>
+                      <option>Not applicable</option>
+                    </select>
+                  </label>
+                  <label className="field">
+                    <span>Chapel unit</span>
+                    <select
+                      name="unitCommunityId"
+                      defaultValue={values.unitCommunityId || ""}
+                      disabled={communities.isPending || communities.isError}
+                      required
+                    >
+                      <option value="" disabled>
+                        {communities.isPending
+                          ? "Loading units…"
+                          : "Select your unit"}
                       </option>
-                    ))}
-                </select>
-              </label>
-              <label className="field">
-                <span>Campus fellowship</span>
-                <select
-                  name="fellowshipCommunityId"
-                  defaultValue={values.fellowshipCommunityId || ""}
-                  disabled={communities.isPending || communities.isError}
-                  required
-                >
-                  <option value="" disabled>
-                    {communities.isPending
-                      ? "Loading fellowships…"
-                      : "Select your fellowship"}
-                  </option>
-                  {communities.data
-                    ?.filter(
-                      (community) => community.type === "campus_fellowship",
-                    )
-                    .map((community) => (
-                      <option key={community.id} value={community.id}>
-                        {community.name}
+                      {communities.data
+                        ?.filter((community) => community.type === "unit")
+                        .map((community) => (
+                          <option key={community.id} value={community.id}>
+                            {community.name}
+                          </option>
+                        ))}
+                    </select>
+                  </label>
+                  <label className="field">
+                    <span>Campus fellowship</span>
+                    <select
+                      name="fellowshipCommunityId"
+                      defaultValue={values.fellowshipCommunityId || ""}
+                      disabled={communities.isPending || communities.isError}
+                      required
+                    >
+                      <option value="" disabled>
+                        {communities.isPending
+                          ? "Loading fellowships…"
+                          : "Select your fellowship"}
                       </option>
-                    ))}
-                </select>
-              </label>
-              {communities.isError && (
-                <div className="form-error" role="alert">
-                  <span>Community options could not be loaded.</span>
-                  <button
-                    type="button"
-                    className="text-link"
-                    disabled={communities.isFetching}
-                    onClick={() => void communities.refetch()}
-                  >
-                    {communities.isFetching ? "Trying againâ€¦" : "Try again"}
-                  </button>
-                </div>
+                      {communities.data
+                        ?.filter(
+                          (community) => community.type === "campus_fellowship",
+                        )
+                        .map((community) => (
+                          <option key={community.id} value={community.id}>
+                            {community.name}
+                          </option>
+                        ))}
+                    </select>
+                  </label>
+                  {communities.isError && (
+                    <div className="form-error" role="alert">
+                      <span>Community options could not be loaded.</span>
+                      <button
+                        type="button"
+                        className="text-link"
+                        disabled={communities.isFetching}
+                        onClick={() => void communities.refetch()}
+                      >
+                        {communities.isFetching
+                          ? "Trying againâ€¦"
+                          : "Try again"}
+                      </button>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           )}
@@ -483,10 +614,12 @@ export function RegisterPage() {
                 <input name="acceptedPolicies" type="checkbox" required /> I
                 have read and accept the Privacy Policy and Terms of Use.
               </label>
-              <label className="check-label">
-                <input name="programmeUpdates" type="checkbox" /> I would like
-                to receive non-essential chapel programme updates.
-              </label>
+              {!isDjangoBackend && (
+                <label className="check-label">
+                  <input name="programmeUpdates" type="checkbox" /> I would like
+                  to receive non-essential chapel programme updates.
+                </label>
+              )}
             </div>
           )}
           {error && (
@@ -620,7 +753,12 @@ export function ResetPasswordPage() {
     try {
       if (!isDemoMode) {
         if (setupToken) await authService.setupPassword(setupToken, password);
-        else await authService.resetPassword(token, password);
+        else
+          await authService.resetPassword(
+            token,
+            password,
+            params.get("uid") || undefined,
+          );
       }
       setComplete(true);
     } catch (caught) {

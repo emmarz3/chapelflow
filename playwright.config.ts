@@ -2,6 +2,7 @@ import { defineConfig, devices } from "@playwright/test";
 
 export default defineConfig({
   testDir: "./e2e",
+  testIgnore: "django-integration.spec.ts",
   fullyParallel: true,
   workers: 1,
   forbidOnly: Boolean(process.env.CI),

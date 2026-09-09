@@ -3,6 +3,8 @@ export type Role =
   | "chapel_admin"
   | "chaplain"
   | "student_chaplain"
+  | "unit_leader"
+  | "fellowship_leader"
   | "treasurer"
   | "chapel_official"
   | "pastor"
@@ -42,6 +44,8 @@ export type Permission =
   | "chapel:announce";
 
 export interface User {
+  mfaRequired?: boolean;
+  passwordChangeRequired?: boolean;
   id: string;
   name: string;
   email: string;
@@ -81,7 +85,7 @@ export interface Member {
   level: string;
   department: string;
   status: "pending" | "active" | "follow_up" | "inactive";
-  attendanceRate: number;
+  attendanceRate: number | null;
   lastSeen: string;
 }
 
@@ -103,10 +107,22 @@ export interface AttendancePass {
     photoUrl: string | null;
   };
   passStatus: "active" | "revoked" | "inactive";
-  session: { id: string; title: string } | null;
+  session: {
+    id: string;
+    title: string;
+    state?: "upcoming" | "open" | "paused" | "closed";
+    opens_at?: string;
+    closes_at?: string | null;
+  } | null;
   token: string | null;
   imageDataUrl: string | null;
   expiresAt: string | null;
+  attendance_summary?: {
+    total_services: number;
+    attended_services: number;
+    missed_services: number;
+    percentage: number | null;
+  };
 }
 
 export interface AttendanceScanResult {
@@ -129,6 +145,7 @@ export interface EventSummary {
   title: string;
   date: string;
   time: string;
+  endTime?: string;
   venue: string;
   registered: number;
   capacity: number;
