@@ -14,7 +14,9 @@ env = environ.Env(
 )
 environ.Env.read_env(os.path.join(BASE_DIR, ".env"))
 
-SECRET_KEY = env("SECRET_KEY", default="unsafe-dev-secret-change-me")
+LEGACY_DEVELOPMENT_SECRET_KEY = "unsafe-dev-secret-change-me"
+DEVELOPMENT_SECRET_KEY = "unsafe-development-secret-key-change-me-local-only"
+SECRET_KEY = env("SECRET_KEY", default=DEVELOPMENT_SECRET_KEY)
 DEBUG = env.bool("DEBUG", default=False)
 ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["localhost", "127.0.0.1"])
 
@@ -62,6 +64,7 @@ LOCAL_APPS = [
     "apps.uploads",
     "apps.audit",
     "apps.dashboard",
+    "apps.operations",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -140,8 +143,9 @@ USE_TZ = True
 # --------------------------------------------------------------------------
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
-MEDIA_URL = "media/"
+MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
+PUBLIC_BACKEND_URL = env("PUBLIC_BACKEND_URL", default="http://127.0.0.1:8000")
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
@@ -241,15 +245,17 @@ SUPABASE_SECRET_KEY = env("SUPABASE_SECRET_KEY", default="")
 SUPABASE_STORAGE_BUCKET = env("SUPABASE_STORAGE_BUCKET", default="chapelflow-uploads")
 
 MAX_UPLOAD_SIZE_MB = env.int("MAX_UPLOAD_SIZE_MB", default=10)
+MAX_MEDIA_UPLOAD_SIZE_MB = env.int("MAX_MEDIA_UPLOAD_SIZE_MB", default=100)
 ALLOWED_UPLOAD_EXTENSIONS = env.list(
     "ALLOWED_UPLOAD_EXTENSIONS",
-    default=["jpg", "jpeg", "png", "webp", "pdf", "mp3", "mp4", "docx"],
+    default=["jpg", "jpeg", "png", "webp", "gif", "pdf", "mp3", "m4a", "mp4", "mov", "webm", "docx"],
 )
 
 # --------------------------------------------------------------------------
 # Payments
 # --------------------------------------------------------------------------
 PAYSTACK_SECRET_KEY = env("PAYSTACK_SECRET_KEY", default="")
+PAYSTACK_CALLBACK_URL = env("PAYSTACK_CALLBACK_URL", default="")
 FLUTTERWAVE_SECRET_KEY = env("FLUTTERWAVE_SECRET_KEY", default="")
 
 # --------------------------------------------------------------------------

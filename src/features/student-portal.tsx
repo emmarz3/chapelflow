@@ -5,6 +5,7 @@ import {
   CalendarDays,
   Camera,
   CheckCircle2,
+  Coins,
   Clock3,
   QrCode,
   Users,
@@ -14,6 +15,7 @@ import { Link } from "react-router-dom";
 import { Badge, Button, ErrorState, LoadingState, PageHeader, useToast } from "../components/ui";
 import { attendanceService, authService, communityService, eventService, notificationService, studentContentService } from "../services/chapelflow";
 import { useAuth } from "./auth-context";
+import { isStudentMember } from "../lib/permissions";
 
 const stateTone = {
   upcoming: "neutral",
@@ -94,6 +96,12 @@ export function StudentDashboardPage() {
         <article><small>Attendance rate</small><strong>{summary?.percentage == null ? "—" : `${summary.percentage}%`}</strong><p>{summary ? `${summary.missed_services} missed of ${summary.total_services} completed services` : "Shown after completed-service totals are available."}</p></article>
       </section>
 
+      <section className="student-giving-prompt">
+        <Coins aria-hidden="true" />
+        <div><p className="eyebrow">Personal giving</p><h2>Offerings and tithes</h2><p>Give securely through Paystack. ChapelFlow records only verified successful payments.</p></div>
+        <Link className="button button--secondary" to="/app/giving">Give securely</Link>
+      </section>
+
       <div className="student-content-grid">
         <section className="panel">
           <header className="panel-heading"><div><h2>Recent attendance</h2><p>Only your own records are shown here.</p></div><Link className="text-link" to="/app/my-attendance">View history</Link></header>
@@ -144,10 +152,12 @@ export function StudentNotificationsPage() {
 }
 
 export function StudentAnnouncementsPage() {
+  const { user } = useAuth();
+  const isStudent = isStudentMember(user);
   const announcements = useQuery({ queryKey: ["student-announcements"], queryFn: async () => (await studentContentService.announcements()).data });
   if (announcements.isPending) return <LoadingState label="Loading chapel announcements" />;
   if (announcements.isError) return <ErrorState description={announcements.error.message} onRetry={() => void announcements.refetch()} />;
-  return <><PageHeader eyebrow="From your chapel" title="Announcements" description="Published chapel and assigned-community updates." /><section className="panel student-history-panel">{announcements.data.length ? announcements.data.map((item) => <article key={item.id}><Bell /><div><strong>{item.title}</strong><small>{item.body}</small><small>{displayDate(item.published_at)}</small></div></article>) : <p className="empty-copy">No announcements have been published for you yet.</p>}</section></>;
+  return <><PageHeader eyebrow="From your chapel" title="Announcements" description={isStudent ? "Published chapel and assigned-community updates." : "Published chapel-wide updates."} /><section className="panel student-history-panel">{announcements.data.length ? announcements.data.map((item) => <article key={item.id}><Bell /><div><strong>{item.title}</strong><small>{item.body}</small><small>{displayDate(item.published_at)}</small></div></article>) : <p className="empty-copy">No chapel-wide announcements have been published for you yet.</p>}</section></>;
 }
 
 export function StudentIdentityPassPage() {

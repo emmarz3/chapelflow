@@ -10,6 +10,14 @@ import "./components/intro/intro.css";
 import "./components/motion/motion.css";
 import "./community.css";
 
+if (import.meta.env.DEV && "serviceWorker" in navigator) {
+  void navigator.serviceWorker
+    .getRegistrations()
+    .then((registrations) =>
+      Promise.all(registrations.map((registration) => registration.unregister())),
+    );
+}
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: { staleTime: 30_000, retry: 1, refetchOnWindowFocus: false },

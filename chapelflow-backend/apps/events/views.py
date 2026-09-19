@@ -57,6 +57,8 @@ class EventViewSet(BranchScopedQuerysetMixin, StandardModelViewSet):
         "destroy": PermissionCodes.EVENTS_DELETE,
         "generate_schedules": PermissionCodes.EVENTS_UPDATE,
         "calendar": PermissionCodes.EVENTS_VIEW,
+        "register": PermissionCodes.EVENTS_VIEW,
+        "cancel_my_registration": PermissionCodes.EVENTS_VIEW,
         "public": None,  # AllowAny, see get_permissions() below — not RBAC-gated at all
     }
 
@@ -69,8 +71,72 @@ class EventViewSet(BranchScopedQuerysetMixin, StandardModelViewSet):
         return Event.objects.select_related("branch", "event_type", "location").prefetch_related("schedules")
 
     def perform_create(self, serializer):
-        event = serializer.save()
+        venue_name = serializer.validated_data.pop("venue_name", "").strip()
+        branch = serializer.validated_data.get("branch") or getattr(self.request.user, "branch", None)
+        if branch is None:
+            from rest_framework.exceptions import ValidationError
+
+            raise ValidationError({"branch": "Assign the event to a chapel branch."})
+        location = serializer.validated_data.get("location")
+        if venue_name:
+            location, _ = Location.objects.get_or_create(branch=branch, name=venue_name)
+        event = serializer.save(branch=branch, location=location)
         generate_event_schedules(event)
+
+    def _registration_schedule(self, event):
+        from django.utils import timezone
+
+        return (
+            event.schedules.filter(is_cancelled=False, occurrence_start__gte=timezone.now())
+            .order_by("occurrence_start")
+            .first()
+            or event.schedules.filter(is_cancelled=False).order_by("occurrence_start").first()
+        )
+
+    @action(detail=True, methods=["post"], url_path="register")
+    def register(self, request, pk=None):
+        """Register the signed-in student for the next usable occurrence."""
+        from .services import RegistrationError, register_for_event
+
+        event = self.get_object()
+        member = getattr(request.user, "member_profile", None)
+        if member is None:
+            return error_response("Only student accounts can register for an event.", status=403)
+        schedule = self._registration_schedule(event)
+        if schedule is None:
+            return error_response("This event has no active occurrence to register for.", status=400)
+        try:
+            registration, created = register_for_event(schedule, member)
+        except RegistrationError as exc:
+            return error_response(str(exc), status=400)
+        return success_response(
+            EventRegistrationSerializer(registration).data,
+            message="Registered." if created else "Registration restored.",
+            status=201 if created else 200,
+        )
+
+    @action(detail=True, methods=["delete"], url_path="registration")
+    def cancel_my_registration(self, request, pk=None):
+        """Cancel only the caller's registration for the next event occurrence."""
+        from .models import EventRegistration
+        from .services import cancel_registration
+
+        event = self.get_object()
+        member = getattr(request.user, "member_profile", None)
+        if member is None:
+            return error_response("Only student accounts can cancel an event registration.", status=403)
+        schedule = self._registration_schedule(event)
+        registration = (
+            EventRegistration.objects.filter(schedule=schedule, member=member)
+            .select_related("schedule")
+            .first()
+            if schedule
+            else None
+        )
+        if registration is None:
+            return error_response("You are not registered for this event occurrence.", status=404)
+        cancel_registration(registration)
+        return success_response(message="Registration cancelled.")
 
     @action(detail=True, methods=["post"], url_path="generate-schedules")
     def generate_schedules(self, request, pk=None):

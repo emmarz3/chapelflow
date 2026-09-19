@@ -18,7 +18,7 @@ class Migration(migrations.Migration):
         migrations.AddConstraint(
             model_name='rolepermission',
             constraint=models.CheckConstraint(
-                check=(
+                condition=(
                     models.Q(role_obj__isnull=False, legacy_role_code__isnull=True) |
                     models.Q(role_obj__isnull=True, legacy_role_code__isnull=False)
                 ),

@@ -12,6 +12,13 @@ if os.environ.get("CHAPELFLOW_TEST_SQLITE") == "1":
         }
     }
 
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        "LOCATION": "chapelflow-tests",
+    }
+}
+
 DEBUG = False
 
 # Fast password hashing for tests.

@@ -7,6 +7,7 @@ from django.utils.encoding import force_str
 from django.utils.http import urlsafe_base64_decode
 from rest_framework import status
 from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 from rest_framework_simplejwt.exceptions import TokenError
@@ -28,18 +29,17 @@ from .serializers import (
     RegisterSerializer,
     RolePermissionAssignSerializer,
     InstitutionalAccountSerializer,
+    LocalSuperAdminSetupSerializer,
     StudentSelfProfileSerializer,
     UserPublicSerializer,
 )
 from .services import (
-    generate_password_reset_token,
     list_active_sessions,
     record_login,
     revoke_all_sessions,
     revoke_session,
     user_requires_mfa,
 )
-from .tasks import send_password_reset_email
 
 User = get_user_model()
 
@@ -89,6 +89,48 @@ class RegisterView(APIView):
         response = success_response(
             {"access": str(tokens.access_token), "refresh": str(tokens), "user": UserPublicSerializer(user).data},
             message="Registration successful.",
+            status=201,
+        )
+        return _set_auth_cookies(response, str(tokens.access_token), str(tokens))
+
+
+class LocalSuperAdminSetupView(APIView):
+    """Create and sign in the first Super Admin in local development only."""
+
+    permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "auth"
+
+    def post(self, request):
+        if not settings.DEBUG:
+            return error_response("Not found.", status=404)
+
+        serializer = LocalSuperAdminSetupSerializer(data=request.data)
+        if not serializer.is_valid():
+            return error_response("Validation failed.", serializer.errors, status=400)
+
+        with transaction.atomic():
+            from .models import InstitutionalAccountControl
+
+            control, _ = InstitutionalAccountControl.objects.get_or_create(singleton=1)
+            InstitutionalAccountControl.objects.select_for_update().get(pk=control.pk)
+            if User.objects.filter(role=Roles.SUPER_ADMIN).exists():
+                return error_response(
+                    "Super Admin setup is already complete. Sign in with the existing account.",
+                    status=409,
+                )
+            if User.objects.filter(email__iexact=serializer.validated_data["email"]).exists():
+                return error_response("That email address is already in use.", status=400)
+            user = User.objects.create_superuser(**serializer.validated_data)
+
+        tokens = RefreshToken.for_user(user)
+        response = success_response(
+            {
+                "access": str(tokens.access_token),
+                "refresh": str(tokens),
+                "user": UserPublicSerializer(user).data,
+            },
+            message="Super Admin created and signed in.",
             status=201,
         )
         return _set_auth_cookies(response, str(tokens.access_token), str(tokens))
@@ -442,17 +484,39 @@ class InstitutionalAccountPasswordResetView(APIView):
 
     def post(self, request, pk):
         account = User.objects.exclude(role=Roles.SUPER_ADMIN).filter(pk=pk).first()
-        if not account or not account.email:
-            return error_response("An institutional account with an email address is required.", status=404)
-        uid, token = generate_password_reset_token(account)
-        send_password_reset_email.delay(str(account.id), uid, token)
-        account.password_change_required = True
-        account.save(update_fields=["password_change_required"])
+        if not account:
+            return error_response("Institutional account not found.", status=404)
+
+        # Existing passwords are intentionally irretrievable. Issue a strong,
+        # single-display temporary credential and force the account holder to
+        # replace it after signing in. Never put the credential in an audit log.
+        uppercase = "ABCDEFGHJKLMNPQRSTUVWXYZ"
+        lowercase = "abcdefghijkmnopqrstuvwxyz"
+        digits = "23456789"
+        symbols = "!@#$%"
+        alphabet = uppercase + lowercase + digits + symbols
+        characters = [
+            secrets.choice(uppercase),
+            secrets.choice(lowercase),
+            secrets.choice(digits),
+            secrets.choice(symbols),
+            *(secrets.choice(alphabet) for _ in range(14)),
+        ]
+        secrets.SystemRandom().shuffle(characters)
+        temporary_password = "".join(characters)
+        with transaction.atomic():
+            account.set_password(temporary_password)
+            account.password_change_required = True
+            account.save(update_fields=["password", "password_change_required"])
+            revoke_all_sessions(account)
         from apps.audit.models import AuditAction
         from apps.audit.services import write_audit_log
         write_audit_log(AuditAction.PASSWORD_CHANGE, "accounts.User", account.id, user=request.user,
-                        metadata={"initiated_by_admin": True})
-        return success_response(message="Password reset initiated.")
+                        metadata={"initiated_by_admin": True, "temporary_password_issued": True})
+        return success_response(
+            {"temporary_password": temporary_password, "password_change_required": True},
+            message="Temporary password issued. It will not be shown again.",
+        )
 
 
 class ChangePasswordView(APIView):
@@ -463,7 +527,17 @@ class ChangePasswordView(APIView):
         if not serializer.is_valid():
             return error_response("Validation failed.", serializer.errors, status=400)
         request.user.set_password(serializer.validated_data["new_password"])
-        request.user.save(update_fields=["password"])
+        request.user.password_change_required = False
+        request.user.save(update_fields=["password", "password_change_required"])
+        from apps.audit.models import AuditAction
+        from apps.audit.services import write_audit_log
+        write_audit_log(
+            AuditAction.PASSWORD_CHANGE,
+            "accounts.User",
+            request.user.id,
+            user=request.user,
+            metadata={"completed_required_change": True},
+        )
         return success_response(message="Password changed successfully.")
 
 
@@ -486,6 +560,7 @@ class StudentProfileView(APIView):
             "phone_number": request.user.phone_number,
             "address": member.address,
             "photo_url": member.photo_url,
+            "date_of_birth": member.date_of_birth.isoformat() if member.date_of_birth else None,
             "emergency_contact_name": member.emergency_contact_name,
             "emergency_contact_phone": member.emergency_contact_phone,
             "matric_no": request.user.matric_no,
@@ -507,7 +582,7 @@ class StudentProfileView(APIView):
             if user_fields:
                 request.user.save(update_fields=user_fields)
             member_fields = [field for field in (
-                "address", "photo_url", "emergency_contact_name", "emergency_contact_phone",
+                "address", "date_of_birth", "emergency_contact_name", "emergency_contact_phone",
             ) if field in data]
             for field in member_fields:
                 setattr(member, field, data[field])
@@ -522,6 +597,51 @@ class StudentProfileView(APIView):
         return self.get(request)
 
 
+class ProfilePhotoUploadView(APIView):
+    """Stores a member-owned profile image without accepting arbitrary URLs."""
+    permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def post(self, request):
+        member = StudentProfileView()._member(request)
+        if member is None:
+            return error_response("This profile is available only to member accounts.", status=403)
+        file_obj = request.FILES.get("file")
+        if not file_obj:
+            return error_response("Choose an image to upload.", status=400)
+        extension = file_obj.name.rsplit(".", 1)[-1].lower() if "." in file_obj.name else ""
+        if extension not in {"jpg", "jpeg", "png", "webp", "gif"} or not (file_obj.content_type or "").startswith("image/"):
+            return error_response("Profile photos must be JPG, PNG, WebP, or GIF images.", status=400)
+
+        from django.core.exceptions import ValidationError
+        from apps.uploads.models import Upload, UploadCategory
+        from apps.uploads.storage import generate_storage_filename, get_storage_service
+        from apps.uploads.validators import validate_upload
+
+        try:
+            validate_upload(file_obj)
+        except ValidationError as exc:
+            return error_response(str(exc), status=400)
+        file_url = get_storage_service().upload_bytes(
+            file_obj.read(),
+            generate_storage_filename(file_obj.name, prefix="member-photo"),
+            content_type=file_obj.content_type,
+        )
+        with transaction.atomic():
+            Upload.objects.create(
+                branch=request.user.branch,
+                uploaded_by=request.user,
+                category=UploadCategory.MEMBER_PHOTO,
+                original_filename=file_obj.name,
+                file_url=file_url,
+                content_type=file_obj.content_type or "",
+                size_bytes=file_obj.size,
+            )
+            member.photo_url = file_url
+            member.save(update_fields=["photo_url", "updated_at"])
+        return StudentProfileView().get(request)
+
+
 class PasswordResetRequestView(APIView):
     permission_classes = [AllowAny]
     throttle_classes = [ScopedRateThrottle]
@@ -530,16 +650,11 @@ class PasswordResetRequestView(APIView):
     def post(self, request):
         serializer = PasswordResetRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        email = serializer.validated_data["email"]
-
-        user = User.objects.filter(email__iexact=email).first()
-        if user:
-            uid, token = generate_password_reset_token(user)
-            send_password_reset_email.delay(str(user.id), uid, token)
-
-        # Always return 200 regardless of whether the email exists,
-        # to avoid leaking which emails are registered.
-        return success_response(message="If that email exists, a reset link has been sent.")
+        # Account recovery is administrator-assisted. Keep the response
+        # identical for every address so this endpoint cannot enumerate users.
+        return success_response(
+            message="Contact the ChapelFlow Super Admin to receive a temporary password."
+        )
 
 
 class PasswordResetConfirmView(APIView):
@@ -562,7 +677,8 @@ class PasswordResetConfirmView(APIView):
             return error_response("Invalid or expired reset link.", status=400)
 
         user.set_password(data["new_password"])
-        user.save(update_fields=["password"])
+        user.password_change_required = False
+        user.save(update_fields=["password", "password_change_required"])
 
         # A password reset means any credential compromise is over --
         # kill every other logged-in session so a stolen session can't

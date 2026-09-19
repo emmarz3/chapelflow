@@ -25,7 +25,10 @@ class LocalStorageService(StorageService):
         path = Path(settings.MEDIA_ROOT) / filename
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(content)
-        return f"{settings.MEDIA_URL}{filename}"
+        media_url = settings.MEDIA_URL.rstrip("/")
+        if media_url.startswith(("http://", "https://")):
+            return f"{media_url}/{filename}"
+        return f"{settings.PUBLIC_BACKEND_URL.rstrip('/')}/{media_url.lstrip('/')}/{filename}"
 
     def delete(self, file_url: str) -> None:
         from pathlib import Path

@@ -42,6 +42,7 @@ import type {
   CommunityEvent,
   CommunityMember,
   CommunityMessage,
+  CommunityResource,
   CommunitySummary,
   LeadershipDirectoryEntry,
 } from "../types/domain";
@@ -160,6 +161,7 @@ const workspaceTabs = [
   ["announcements", "Announcements"],
   ["chat", "Chat"],
   ["events", "Events"],
+  ["resources", "Resources"],
   ["members", "Members"],
   ["leadership", "Leadership"],
 ] as const;
@@ -250,6 +252,12 @@ export function CommunityWorkspacePage() {
       )}
       {tab === "events" && (
         <CommunityEventsPanel
+          slug={slug}
+          canManage={community.access.canManage}
+        />
+      )}
+      {tab === "resources" && (
+        <CommunityResourcesPanel
           slug={slug}
           canManage={community.access.canManage}
         />
@@ -695,6 +703,77 @@ function CommunityEventsPanel({
           <Button type="submit" loading={create.isPending}>
             Schedule event
           </Button>
+        </form>
+      </Modal>
+    </section>
+  );
+}
+
+function CommunityResourcesPanel({
+  slug,
+  canManage,
+}: {
+  slug: string;
+  canManage: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const client = useQueryClient();
+  const toast = useToast();
+  const query = useQuery({
+    queryKey: ["community-resources", slug],
+    queryFn: async () => (await communityService.resources(slug)).data,
+  });
+  const add = useMutation({
+    mutationFn: (payload: { title: string; url: string; description?: string }) =>
+      communityService.addResource(slug, payload),
+    onSuccess: () => {
+      setOpen(false);
+      toast("Resource added to the community library.");
+      void client.invalidateQueries({ queryKey: ["community-resources", slug] });
+    },
+  });
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    add.mutate({
+      title: String(form.get("title") || ""),
+      url: String(form.get("url") || ""),
+      description: String(form.get("description") || ""),
+    });
+  }
+  return (
+    <section className="community-section">
+      <header>
+        <div>
+          <p className="eyebrow">Shared library</p>
+          <h2>Resources</h2>
+          <p>Links are available only to approved members of this community.</p>
+        </div>
+        {canManage && <Button icon={<Plus />} onClick={() => setOpen(true)}>Add resource</Button>}
+      </header>
+      {query.isPending ? <LoadingState /> : query.isError ? (
+        <ErrorState description={errorMessage(query.error)} onRetry={() => void query.refetch()} />
+      ) : query.data.length ? (
+        <div className="announcement-stack">
+          {query.data.map((resource: CommunityResource) => (
+            <article key={resource.id}>
+              <h3>{resource.title}</h3>
+              {resource.description && <p>{resource.description}</p>}
+              <a className="text-link" href={resource.url} target="_blank" rel="noreferrer">Open resource <ChevronRight /></a>
+              <small>Added {new Date(resource.created_at).toLocaleDateString()}</small>
+            </article>
+          ))}
+        </div>
+      ) : (
+        <EmptyState icon={<Users />} title="No shared resources yet" description="Leaders can add a secure link to study, meeting or training material." />
+      )}
+      <Modal open={open} onClose={() => setOpen(false)} title="Add community resource" description="Only http and https links are accepted. Members will see this resource in their private workspace.">
+        <form className="modal-form" onSubmit={submit}>
+          <Field name="title" label="Title" maxLength={180} required />
+          <Field name="url" label="Resource link" type="url" required />
+          <label className="field"><span>Description</span><textarea name="description" rows={3} /></label>
+          {add.isError && <div className="form-error">{errorMessage(add.error)}</div>}
+          <Button type="submit" loading={add.isPending}>Add resource</Button>
         </form>
       </Modal>
     </section>

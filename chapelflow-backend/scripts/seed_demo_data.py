@@ -101,7 +101,7 @@ def seed_demo_data():
         ("community_leader", "community.leader@demo.chapelflow.test", Roles.COMMUNITY_LEADER, main),
         ("ministry_leader", "ministry.leader@demo.chapelflow.test", Roles.MINISTRY_LEADER, main),
         ("department_leader", "department.leader@demo.chapelflow.test", Roles.DEPARTMENT_LEADER, main),
-        ("unit_leader", "unit.leader@demo.chapelflow.test", Roles.UNIT_LEADER, main),
+        ("unit_leader", "unit.leader@demo.chapelflow.test", Roles.UNIT_HEAD, main),
         ("volunteer_user", "volunteer@demo.chapelflow.test", Roles.VOLUNTEER, main),
         ("visitor_user", "visitor@demo.chapelflow.test", Roles.VISITOR, main),
     ]

@@ -19,6 +19,7 @@ from rest_framework.views import APIView
 
 from common.constants.roles import Roles
 from common.utils.responses import error_response, success_response
+from apps.members.models import is_student_community_member
 
 from . import services
 from .serializers import (
@@ -228,7 +229,7 @@ class MemberDashboardView(APIView):
     Individual member's personal dashboard.
     
     Authorization:
-    - Any authenticated user with linked member profile
+    - Student accounts with a linked member profile
     
     Returns:
     - Membership status
@@ -244,8 +245,8 @@ class MemberDashboardView(APIView):
 
     def get(self, request):
         member = getattr(request.user, "member_profile", None)
-        if not member:
-            return error_response("No member profile linked to this account.", status=404)
+        if not is_student_community_member(member):
+            return error_response("The student dashboard is available only to student accounts.", status=403)
 
         data = {
             "membership_status": member.membership_status,

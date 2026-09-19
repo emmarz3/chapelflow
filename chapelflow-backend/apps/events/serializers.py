@@ -29,16 +29,29 @@ class EventScheduleSerializer(serializers.ModelSerializer):
 
 class EventSerializer(ScopedFKValidationMixin, serializers.ModelSerializer):
     schedules = EventScheduleSerializer(many=True, read_only=True)
+    location_name = serializers.CharField(source="location.name", read_only=True)
+    venue_name = serializers.CharField(write_only=True, required=False, allow_blank=True, max_length=255)
+    event_type_name = serializers.CharField(source="event_type.name", read_only=True)
+    registration_count = serializers.SerializerMethodField()
+
+    def get_registration_count(self, event):
+        from .models import EventRegistration, EventRegistrationStatus
+
+        return EventRegistration.objects.filter(
+            schedule__event=event,
+            status=EventRegistrationStatus.CONFIRMED,
+        ).count()
 
     class Meta:
         model = Event
         fields = [
-            "id", "branch", "event_type", "location", "title", "description",
+            "id", "branch", "event_type", "event_type_name", "location", "location_name", "venue_name", "title", "description",
             "start_time", "end_time", "frequency", "recurrence_end_date",
             "is_public", "requires_registration", "capacity", "registration_deadline",
-            "schedules", "created_at", "updated_at",
+            "schedules", "registration_count", "created_at", "updated_at",
         ]
         read_only_fields = ["id", "created_at", "updated_at"]
+        extra_kwargs = {"branch": {"required": False}}
     
     def validate_branch(self, branch):
         """Phase 3: Validate user can access this branch."""

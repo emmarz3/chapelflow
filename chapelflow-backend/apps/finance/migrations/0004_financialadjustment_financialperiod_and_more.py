@@ -221,19 +221,19 @@ class Migration(migrations.Migration):
         ),
         migrations.AddConstraint(
             model_name='giving',
-            constraint=models.CheckConstraint(check=models.Q(('amount__gt', 0)), name='finance_giving_amount_positive'),
+            constraint=models.CheckConstraint(condition=models.Q(('amount__gt', 0)), name='finance_giving_amount_positive'),
         ),
         migrations.AddConstraint(
             model_name='payment',
-            constraint=models.CheckConstraint(check=models.Q(('amount__gt', 0)), name='finance_payment_amount_positive'),
+            constraint=models.CheckConstraint(condition=models.Q(('amount__gt', 0)), name='finance_payment_amount_positive'),
         ),
         migrations.AddConstraint(
             model_name='pledge',
-            constraint=models.CheckConstraint(check=models.Q(('amount_pledged__gt', 0)), name='finance_pledge_amount_pledged_positive'),
+            constraint=models.CheckConstraint(condition=models.Q(('amount_pledged__gt', 0)), name='finance_pledge_amount_pledged_positive'),
         ),
         migrations.AddConstraint(
             model_name='pledge',
-            constraint=models.CheckConstraint(check=models.Q(('amount_fulfilled__gte', 0), ('amount_fulfilled__lte', models.F('amount_pledged'))), name='finance_pledge_amount_fulfilled_valid'),
+            constraint=models.CheckConstraint(condition=models.Q(('amount_fulfilled__gte', 0), ('amount_fulfilled__lte', models.F('amount_pledged'))), name='finance_pledge_amount_fulfilled_valid'),
         ),
         migrations.AddField(
             model_name='financialadjustment',
@@ -355,6 +355,6 @@ class Migration(migrations.Migration):
         ),
         migrations.AddConstraint(
             model_name='refund',
-            constraint=models.CheckConstraint(check=models.Q(('amount__gt', 0)), name='finance_refund_amount_positive'),
+            constraint=models.CheckConstraint(condition=models.Q(('amount__gt', 0)), name='finance_refund_amount_positive'),
         ),
     ]

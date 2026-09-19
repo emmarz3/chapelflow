@@ -59,7 +59,9 @@ import {
   memberService,
   operationsService,
   privacyService,
+  uploadService,
   communityService,
+  chapelGroupService,
   queryKeys,
   type ListRow,
   type OperationsModule,
@@ -84,7 +86,7 @@ export function LiveDashboardPage() {
   const query = useQuery({
     queryKey: queryKeys.dashboard(user?.branchId || ""),
     queryFn: async () =>
-      (await dashboardService.get(user?.branchId || "")).data,
+      (await dashboardService.get(user?.branchId || "", user!.role)).data,
     enabled: Boolean(user),
   });
   const communities = useQuery({
@@ -1084,9 +1086,9 @@ export function LiveEventsPage() {
     onSuccess: (response) => {
       setRegisterEvent(null);
       toast(
-        response.data.waitlisted
+        response.data.status === "WAITLISTED"
           ? "You were added to the waitlist."
-          : `Registration confirmed: ${response.data.confirmationCode}`,
+          : "Registration confirmed.",
       );
     },
   });
@@ -1409,7 +1411,10 @@ function LiveModuleOperationsPage({
     (module === "communication" &&
       hasPermission(user, "communication:write")) ||
     (module === "assets" && hasPermission(user, "assets:write")) ||
-    (module === "cms" && hasPermission(user, "cms:write"));
+    (module === "cms" && hasPermission(user, "cms:write")) ||
+    (module === "media" && hasPermission(user, "media:write"));
+  const canReviewContent =
+    user?.role === "super_admin" || user?.role === "chaplain";
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
   const [confirm, setConfirm] = useState(false);
@@ -1418,6 +1423,10 @@ function LiveModuleOperationsPage({
     unknown
   > | null>(null);
   const [selected, setSelected] = useState<ListRow | null>(null);
+  const [rejecting, setRejecting] = useState<ListRow | null>(null);
+  const [rejectionReason, setRejectionReason] = useState("");
+  const [uploadError, setUploadError] = useState("");
+  const [uploading, setUploading] = useState(false);
   const [statusFilter, setStatusFilter] = useState("");
   const toast = useToast();
   const client = useQueryClient();
@@ -1431,6 +1440,22 @@ function LiveModuleOperationsPage({
     queryKey: queryKeys.operations(module, params),
     queryFn: () => operationsService.list(module, params),
   });
+  const groupScopedCommunicator =
+    user?.role === "unit_leader" || user?.role === "fellowship_leader";
+  const communities = useQuery({
+    queryKey: ["communication-targets"],
+    queryFn: async () => (await communityService.mine()).data,
+    enabled: module === "communication" && canCreate,
+  });
+  const chapelGroups = useQuery({
+    queryKey: ["chapel-groups", "communication-targets"],
+    queryFn: async () => (await chapelGroupService.list()).data,
+    enabled: module === "communication" && canCreate && !groupScopedCommunicator,
+  });
+  const leaderCommunities = communities.data?.filter((community) => community.is_leader) ?? [];
+  const communicationTargets = groupScopedCommunicator
+    ? leaderCommunities
+    : chapelGroups.data ?? [];
   const create = useMutation({
     mutationFn: (payload: Record<string, unknown>) =>
       operationsService.create(module, payload),
@@ -1442,14 +1467,26 @@ function LiveModuleOperationsPage({
     },
   });
   const recordAction = useMutation({
-    mutationFn: async (row: ListRow) => {
+    mutationFn: async ({ row, action }: { row: ListRow; action?: string }) => {
       if (module === "workers")
         return operationsService.workerAcknowledge(row.id);
       if (module === "communication")
         return operationsService.sendBroadcast(row.id);
       if (module === "assets")
-        return operationsService.assetMovement(row.id, { action: "issue" });
-      if (module === "cms") return operationsService.publishContent(row.id);
+        return operationsService.assetMovement(row.id, {
+          action: action || (row.status === "ISSUED" ? "return" : "issue"),
+        });
+      if (module === "cms" || module === "media") {
+        const action =
+          row.status === "DRAFT" || row.status === "REJECTED"
+            ? "submit"
+            : row.status === "IN_REVIEW"
+              ? "approve"
+              : row.status === "PUBLISHED"
+                ? "archive"
+                : "publish";
+        return operationsService.contentWorkflow(row.id, action);
+      }
     },
     onSuccess: () => {
       setSelected(null);
@@ -1457,12 +1494,65 @@ function LiveModuleOperationsPage({
       void client.invalidateQueries({ queryKey: [module] });
     },
   });
+  const rejectContent = useMutation({
+    mutationFn: ({ row, reason }: { row: ListRow; reason: string }) =>
+      operationsService.contentWorkflow(row.id, "reject", { reason }),
+    onSuccess: () => {
+      setRejecting(null);
+      setSelected(null);
+      setRejectionReason("");
+      toast("Changes requested from the content author.");
+      void client.invalidateQueries({ queryKey: [module] });
+    },
+  });
   const rows = query.data?.data ?? [];
-  function submit(event: FormEvent<HTMLFormElement>) {
+  const assetHistory = useQuery({
+    queryKey: ["asset-history", selected?.id],
+    queryFn: async () => (await operationsService.assetHistory(selected!.id)).data,
+    enabled: module === "assets" && Boolean(selected?.id),
+  });
+  async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const payload = Object.fromEntries(
-      new FormData(event.currentTarget).entries(),
-    );
+    setUploadError("");
+    const form = new FormData(event.currentTarget);
+    const payload: Record<string, unknown> = Object.fromEntries(form.entries());
+    if (module === "media") {
+      const mediaFile = form.get("media_file");
+      const coverImageFile = form.get("cover_image_file");
+      delete payload.media_file;
+      delete payload.cover_image_file;
+      const contentType = String(payload.content_type || "");
+      const requiresUploadedMedia = ["SERMON", "MEDIA", "GALLERY_IMAGE"].includes(contentType);
+      if (requiresUploadedMedia && !(mediaFile instanceof File && mediaFile.name)) {
+        setUploadError("Choose the image, video, audio, or document to publish.");
+        return;
+      }
+      if (contentType === "LIVESTREAM") {
+        payload.media_url = String(payload.stream_url || "").trim();
+      }
+      delete payload.stream_url;
+      try {
+        setUploading(true);
+        if (coverImageFile instanceof File && coverImageFile.name) {
+          payload.cover_image_url = (await uploadService.upload(coverImageFile, "MEDIA_CONTENT")).data.file_url;
+        }
+        if (mediaFile instanceof File && mediaFile.name) {
+          payload.media_url = (await uploadService.upload(mediaFile, "MEDIA_CONTENT")).data.file_url;
+        }
+      } catch (error) {
+        setUploadError(message(error));
+        return;
+      } finally {
+        setUploading(false);
+      }
+    }
+    if (module === "communication") {
+      const targetGroup = String(payload.target_group || "");
+      delete payload.target_group;
+      if (payload.audience_type === "CUSTOM") payload.target_groups = [targetGroup];
+      payload.channels = [payload.channel];
+      delete payload.channel;
+    }
     if (module === "communication" || module === "finance") {
       setPendingPayload(payload);
       setConfirm(true);
@@ -1513,6 +1603,7 @@ function LiveModuleOperationsPage({
             <option value="">All records</option>
             <option value="attention">Needs attention</option>
             <option value="recent">Recently updated</option>
+            {module === "assets" && <option value="LOW_STOCK">Low stock</option>}
           </select>
         </label>
       </div>
@@ -1586,7 +1677,7 @@ function LiveModuleOperationsPage({
             <Button
               type="submit"
               form="operation-form"
-              loading={create.isPending}
+              loading={create.isPending || uploading}
             >
               Continue
             </Button>
@@ -1613,19 +1704,46 @@ function LiveModuleOperationsPage({
               <label className="field">
                 <span>Channel</span>
                 <select name="channel">
-                  <option>Email</option>
-                  <option>SMS</option>
-                  <option>Push</option>
+                  <option value="EMAIL">Email</option>
+                  <option value="SMS">SMS</option>
+                  <option value="PUSH">Push notification</option>
+                  <option value="IN_APP">In-app inbox</option>
                 </select>
               </label>
               <label className="field">
                 <span>Audience</span>
-                <select name="audience">
-                  <option>All active members</option>
-                  <option>Workers</option>
-                  <option>Event participants</option>
+                <select
+                  name="audience_type"
+                  defaultValue={groupScopedCommunicator ? "CUSTOM" : "EVERYONE"}
+                >
+                  <option value="EVERYONE" disabled={groupScopedCommunicator}>
+                    Everyone in this chapel branch
+                  </option>
+                  <option value="STAFF_COMMUNITY" disabled={groupScopedCommunicator}>
+                    Staff community
+                  </option>
+                  <option value="CUSTOM" disabled={!communicationTargets.length}>
+                    Selected unit, fellowship, or ministry
+                  </option>
                 </select>
               </label>
+              {communicationTargets.length > 0 && (
+                <label className="field">
+                  <span>Group target</span>
+                  <select
+                    name="target_group"
+                    defaultValue={groupScopedCommunicator ? communicationTargets[0]?.id : ""}
+                  >
+                    {!groupScopedCommunicator && <option value="">Select when targeting a community</option>}
+                    {communicationTargets.map((group) => (
+                        <option key={group.id} value={group.id}>
+                          {group.name}
+                        </option>
+                      ))}
+                  </select>
+                </label>
+              )}
+              <Field name="publish_at" label="Schedule delivery (optional)" type="datetime-local" />
               <label className="field field--full">
                 <span>Message</span>
                 <textarea name="message" required />
@@ -1651,19 +1769,100 @@ function LiveModuleOperationsPage({
               </label>
             </>
           )}
+          {module === "assets" && (
+            <>
+              <label className="field">
+                <span>Inventory type</span>
+                <select name="tracking_mode" defaultValue="SERIALIZED">
+                  <option value="SERIALIZED">Individual asset</option>
+                  <option value="STOCK">Stock item</option>
+                </select>
+              </label>
+              <Field name="asset_tag" label="Asset tag" placeholder="CUC-PRO-001" />
+              <Field name="serial_number" label="Serial number" />
+              <Field name="category_name" label="Category" placeholder="Protocol equipment" />
+              <Field name="location_name" label="Current location" placeholder="Protocol store" />
+              <Field name="quantity_on_hand" label="Quantity on hand" type="number" min="0" defaultValue="1" required />
+              <Field name="reorder_level" label="Low-stock threshold" type="number" min="0" defaultValue="0" required />
+              <Field name="unit_of_measure" label="Unit of measure" defaultValue="item" required />
+              <label className="field">
+                <span>Condition</span>
+                <select name="condition" defaultValue="GOOD">
+                  <option value="EXCELLENT">Excellent</option>
+                  <option value="GOOD">Good</option>
+                  <option value="FAIR">Fair</option>
+                  <option value="POOR">Poor</option>
+                </select>
+              </label>
+              <Field name="custodian_name" label="Current custodian" />
+              <Field name="next_maintenance_at" label="Next maintenance" type="date" />
+            </>
+          )}
           {module !== "communication" && module !== "finance" && (
-            <Field
-              className="field--full"
-              name="detail"
-              label="Details"
-              required
-            />
+            <>
+              {(module === "cms" || module === "media") && (
+                <>
+                  <label className="field">
+                    <span>Content type</span>
+                    <select name="content_type" required>
+                      {module === "cms" ? (
+                        <>
+                          <option value="PAGE">Website page</option>
+                          <option value="NEWS">News article</option>
+                        </>
+                      ) : (
+                        <>
+                          <option value="SERMON">Sermon</option>
+                          <option value="SERMON_SERIES">Sermon series</option>
+                          <option value="GALLERY">Gallery album</option>
+                          <option value="GALLERY_IMAGE">Gallery image</option>
+                          <option value="LIVESTREAM">Livestream</option>
+                          <option value="MEDIA">Media resource</option>
+                        </>
+                      )}
+                    </select>
+                  </label>
+                  <Field name="slug" label="Public URL slug" placeholder="sunday-message" />
+                  <Field className="field--full" name="summary" label="Public summary" required />
+                  <Field name="author_name" label="Speaker or author" />
+                  <Field name="publish_at" label="Schedule publication" type="datetime-local" />
+                  {module === "media" ? <>
+                    <label className="field field--full"><span>Cover image from device (optional)</span><input name="cover_image_file" type="file" accept="image/jpeg,image/png,image/webp,image/gif" /></label>
+                    <label className="field field--full"><span>Media from device</span><input name="media_file" type="file" accept="image/*,video/*,audio/*,application/pdf" /><small>Images, videos, audio, and PDFs can be up to 100 MB.</small></label>
+                    <Field className="field--full" name="stream_url" label="Livestream URL" type="url" />
+                  </> : <>
+                    <Field className="field--full" name="cover_image_url" label="Cover image URL" type="url" />
+                    <Field className="field--full" name="media_url" label="Audio, video, image, PDF or stream URL" type="url" />
+                  </>}
+                  <label className="field field--full checkbox-field">
+                    <input name="downloadable" type="checkbox" />
+                    <span>Allow this resource to be downloaded from the public library</span>
+                  </label>
+                  {module === "media" && rows.some((row) => row.contentType === "GALLERY") && (
+                    <label className="field field--full">
+                      <span>Gallery album</span>
+                      <select name="parent">
+                        <option value="">Not a gallery image</option>
+                        {rows
+                          .filter((row) => row.contentType === "GALLERY")
+                          .map((row) => <option key={row.id} value={row.id}>{row.primary}</option>)}
+                      </select>
+                    </label>
+                  )}
+                </>
+              )}
+              <label className="field field--full">
+                <span>{module === "cms" || module === "media" ? "Body or notes" : "Details"}</span>
+                <textarea name="detail" required />
+              </label>
+            </>
           )}
           {create.isError && (
             <div className="form-error field--full">
               {message(create.error)}
             </div>
           )}
+          {uploadError && <div className="form-error field--full">{uploadError}</div>}
         </form>
       </Modal>
       <Modal
@@ -1715,21 +1914,72 @@ function LiveModuleOperationsPage({
             </Button>
             {selected &&
               canActOnRecord &&
-              ["workers", "communication", "assets", "cms"].includes(
+              ["workers", "communication", "assets", "cms", "media"].includes(
                 module,
-              ) && (
-                <Button
-                  loading={recordAction.isPending}
-                  onClick={() => recordAction.mutate(selected)}
-                >
-                  {module === "workers"
-                    ? "Acknowledge assignment"
-                    : module === "communication"
-                      ? "Confirm and send"
-                      : module === "assets"
-                        ? "Record issue"
-                        : "Publish content"}
-                </Button>
+              ) &&
+              !((module === "cms" || module === "media") && selected.status === "IN_REVIEW" && !canReviewContent) &&
+              !((module === "cms" || module === "media") && selected.status === "SCHEDULED" && Boolean(selected.publishAt && new Date(selected.publishAt) > new Date())) && (
+                <>
+                  {(module === "cms" || module === "media") &&
+                    selected.status === "IN_REVIEW" &&
+                    canReviewContent && (
+                      <Button
+                        variant="ghost"
+                        onClick={() => {
+                          setRejectionReason("");
+                          setRejecting(selected);
+                        }}
+                      >
+                        Request changes
+                      </Button>
+                    )}
+                  {module === "assets" ? (
+                    <>
+                      {(selected.status === "AVAILABLE" || selected.status === "LOW_STOCK" || selected.status === "ISSUED") && (
+                        <Button
+                          loading={recordAction.isPending}
+                          onClick={() => recordAction.mutate({ row: selected })}
+                        >
+                          {selected.status === "ISSUED" ? "Record return" : "Record issue"}
+                        </Button>
+                      )}
+                      {(selected.status === "AVAILABLE" || selected.status === "LOW_STOCK") && (
+                        <Button
+                          variant="ghost"
+                          disabled={recordAction.isPending}
+                          onClick={() => recordAction.mutate({ row: selected, action: "maintenance_start" })}
+                        >
+                          Send to maintenance
+                        </Button>
+                      )}
+                      {selected.status === "MAINTENANCE" && (
+                        <Button
+                          loading={recordAction.isPending}
+                          onClick={() => recordAction.mutate({ row: selected, action: "maintenance_complete" })}
+                        >
+                          Complete maintenance
+                        </Button>
+                      )}
+                    </>
+                  ) : (
+                    <Button
+                      loading={recordAction.isPending}
+                      onClick={() => recordAction.mutate({ row: selected })}
+                    >
+                      {module === "workers"
+                        ? "Acknowledge assignment"
+                        : module === "communication"
+                          ? "Confirm and send"
+                          : selected.status === "DRAFT" || selected.status === "REJECTED"
+                            ? "Submit for review"
+                            : selected.status === "IN_REVIEW"
+                              ? "Approve content"
+                              : selected.status === "PUBLISHED"
+                                ? "Archive content"
+                                : "Publish content"}
+                    </Button>
+                  )}
+                </>
               )}
           </>
         }
@@ -1752,15 +2002,106 @@ function LiveModuleOperationsPage({
             <strong>{module}</strong>
           </div>
         </div>
-        {module === "cms" && (
-          <div className="cms-preview">
-            <small>Content preview</small>
-            <h2>{selected?.primary}</h2>
-            <p>{selected?.detail}</p>
+        {module === "assets" && selected && (
+          <div className="inventory-ledger" aria-label="Asset inventory detail">
+            <div><small>Stock</small><strong>{selected.quantityOnHand ?? 0} {selected.unitOfMeasure || "item"}{selected.lowStock ? " · low stock" : ""}</strong></div>
+            <div><small>Location</small><strong>{selected.locationName || "Not assigned"}</strong></div>
+            <div><small>Custodian</small><strong>{selected.custodianName || "In store"}</strong></div>
+            <div><small>Condition</small><strong>{selected.condition?.toLowerCase() || "Not recorded"}</strong></div>
+            <div><small>Asset tag</small><strong>{selected.assetTag || "Stock item"}</strong></div>
+            <div><small>Maintenance</small><strong>{selected.nextMaintenanceAt || "Not scheduled"}</strong></div>
           </div>
+        )}
+        {module === "assets" && selected && (
+          <section className="asset-history" aria-live="polite">
+            <h3>Register history</h3>
+            {assetHistory.isPending ? (
+              <p>Loading movements and maintenance historyâ€¦</p>
+            ) : assetHistory.isError ? (
+              <p className="form-error">The history could not be loaded. Try opening this asset again.</p>
+            ) : (
+              <div className="detail-grid">
+                <div>
+                  <small>Latest movement</small>
+                  <strong>{assetHistory.data?.movements[0]
+                    ? `${assetHistory.data.movements[0].type.replaceAll("_", " ")} Â· ${assetHistory.data.movements[0].quantityAfter}`
+                    : "No movements recorded"}</strong>
+                </div>
+                <div>
+                  <small>Maintenance record</small>
+                  <strong>{assetHistory.data?.maintenance[0]
+                    ? `${assetHistory.data.maintenance[0].title} Â· ${assetHistory.data.maintenance[0].status}`
+                    : "No maintenance scheduled"}</strong>
+                </div>
+              </div>
+            )}
+          </section>
+        )}
+        {(module === "cms" || module === "media") && (
+          <>
+            <div className="publication-rail" aria-label="Publication workflow">
+              {["DRAFT", "IN_REVIEW", "APPROVED", "PUBLISHED"].map((status) => (
+                <span
+                  key={status}
+                  className={
+                    selected?.status === status ||
+                    (status === "APPROVED" && selected?.status === "SCHEDULED")
+                      ? "publication-rail__step publication-rail__step--current"
+                      : "publication-rail__step"
+                  }
+                >
+                  {status === "IN_REVIEW" ? "Review" : status.toLowerCase()}
+                </span>
+              ))}
+            </div>
+            <div className="cms-preview">
+              <small>{selected?.contentType?.replaceAll("_", " ") || "Content preview"}</small>
+              <h2>{selected?.primary}</h2>
+              {selected?.authorName && <p>By {selected.authorName}</p>}
+              <p>{selected?.detail}</p>
+              {selected?.rejectionReason && (
+                <p className="form-error">Changes requested: {selected.rejectionReason}</p>
+              )}
+            </div>
+          </>
         )}
         {recordAction.isError && (
           <div className="form-error">{message(recordAction.error)}</div>
+        )}
+      </Modal>
+      <Modal
+        open={Boolean(rejecting)}
+        onClose={() => setRejecting(null)}
+        title="Request content changes"
+        description="Explain what must be corrected before this item can be approved."
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setRejecting(null)}>
+              Cancel
+            </Button>
+            <Button
+              loading={rejectContent.isPending}
+              disabled={!rejectionReason.trim()}
+              onClick={() =>
+                rejecting &&
+                rejectContent.mutate({ row: rejecting, reason: rejectionReason.trim() })
+              }
+            >
+              Send changes
+            </Button>
+          </>
+        }
+      >
+        <label className="field field--full">
+          <span>Required changes</span>
+          <textarea
+            value={rejectionReason}
+            onChange={(event) => setRejectionReason(event.target.value)}
+            required
+          />
+        </label>
+        {rejectContent.isError && (
+          <div className="form-error">{message(rejectContent.error)}</div>
         )}
       </Modal>
     </>

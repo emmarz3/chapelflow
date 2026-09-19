@@ -1,18 +1,78 @@
 from rest_framework import viewsets
+from rest_framework.permissions import BasePermission, IsAuthenticated, SAFE_METHODS
+from rest_framework.views import APIView
 from common.viewsets import StandardModelViewSet
 
 from common.constants.roles import Roles, PermissionCodes
-from common.permissions.rbac import IsPastoralAuthorized
+from common.permissions.rbac import user_has_completed_required_mfa
+from common.utils.responses import error_response, success_response
 from apps.audit.services import write_audit_log
 from apps.audit.models import AuditAction
 from .models import PastoralCase, PastoralNote
-from .serializers import PastoralCaseSerializer, PastoralNoteSerializer
+from .serializers import CounsellingRequestSerializer, PastoralCaseSerializer, PastoralNoteSerializer
 from .notifications import (
     notify_case_assigned,
     notify_case_escalated,
     notify_case_closed,
     notify_urgent_case_created,
 )
+
+
+class CounsellingRequestView(APIView):
+    """Allow a member to ask for confidential counselling without exposing the care queue."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        member = getattr(request.user, "member_profile", None)
+        if member is None:
+            return error_response("A student profile is required to request counselling.", status=403)
+        serializer = CounsellingRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        case = PastoralCase.objects.create(
+            branch=member.branch,
+            member=member,
+            category="COUNSELLING",
+            summary=serializer.validated_data["summary"],
+            priority="MEDIUM",
+            next_follow_up_date=serializer.validated_data.get("preferred_date"),
+            created_by=request.user,
+            updated_by=request.user,
+        )
+
+
+class PastoralCaseAccess(BasePermission):
+    """Members use the dedicated request endpoint; case records are staff-managed."""
+
+    def has_permission(self, request, view):
+        user = request.user
+        if not (user and user.is_authenticated and user.is_active):
+            return False
+        role = user.get_role_code() if hasattr(user, "get_role_code") else user.role
+        if request.method not in SAFE_METHODS:
+            return role in Roles.PASTORAL_ACCESS_ROLES and user_has_completed_required_mfa(user)
+        return user_has_completed_required_mfa(user)
+
+    def has_object_permission(self, request, view, obj):
+        user = request.user
+        role = user.get_role_code() if hasattr(user, "get_role_code") else user.role
+        if role in Roles.PASTORAL_ACCESS_ROLES:
+            return user_has_completed_required_mfa(user)
+        if request.method not in SAFE_METHODS:
+            return False
+        return bool(obj.member_id and getattr(obj.member, "user_id", None) == user.id)
+        write_audit_log(
+            AuditAction.PASTORAL_CASE_CREATE,
+            "PastoralCase",
+            case.id,
+            metadata={"category": "COUNSELLING", "member_id": str(member.id)},
+            user=request.user,
+        )
+        return success_response(
+            PastoralCaseSerializer(case, context={"request": request}).data,
+            message="Counselling request received.",
+            status=201,
+        )
 
 
 class PastoralCaseViewSet(StandardModelViewSet):
@@ -27,7 +87,7 @@ class PastoralCaseViewSet(StandardModelViewSet):
     - Comprehensive audit logging
     """
     serializer_class = PastoralCaseSerializer
-    permission_classes = [IsPastoralAuthorized]
+    permission_classes = [PastoralCaseAccess]
     filterset_fields = ["branch", "status", "assigned_to", "priority"]
     permission_action_map = {
         "list": PermissionCodes.PASTORAL_VIEW,
@@ -178,7 +238,7 @@ class PastoralNoteViewSet(StandardModelViewSet):
     Phase 13: Pastoral notes with audit logging.
     """
     serializer_class = PastoralNoteSerializer
-    permission_classes = [IsPastoralAuthorized]
+    permission_classes = [PastoralCaseAccess]
     filterset_fields = ["case"]
     permission_action_map = {
         "list": PermissionCodes.PASTORAL_VIEW,
@@ -196,8 +256,7 @@ class PastoralNoteViewSet(StandardModelViewSet):
             return qs
         if user.role in Roles.PASTORAL_ACCESS_ROLES:
             return qs.filter(case__branch_id=user.branch_id)
-        from django.db.models import Q
-        return qs.filter(Q(case__assigned_to=user) | Q(case__member__user=user))
+        return qs.none()
 
     def perform_create(self, serializer):
         """

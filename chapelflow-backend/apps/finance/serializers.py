@@ -15,6 +15,28 @@ class GivingCategorySerializer(serializers.ModelSerializer):
         fields = ["id", "name", "description", "is_active"]
 
 
+class PaystackCheckoutSerializer(serializers.Serializer):
+    """Validated, intentionally small payload accepted from a giver's dashboard."""
+
+    giving_type = serializers.ChoiceField(choices=["OFFERING", "TITHE"])
+    amount = serializers.DecimalField(max_digits=14, decimal_places=2, min_value=Decimal("1.00"))
+    note = serializers.CharField(max_length=500, required=False, allow_blank=True)
+    terms_accepted = serializers.BooleanField()
+
+    def validate_terms_accepted(self, value):
+        if not value:
+            raise serializers.ValidationError("Please confirm the checkout notice before continuing.")
+        return value
+
+
+class PaystackReferenceSerializer(serializers.Serializer):
+    reference = serializers.RegexField(
+        regex=r"^[A-Za-z0-9.=\-]+$",
+        max_length=100,
+        error_messages={"invalid": "Enter a valid payment reference."},
+    )
+
+
 class GivingSerializer(ScopedFKValidationMixin, serializers.ModelSerializer):
     """
     Phase 8 hardened: Critical mass assignment vulnerabilities fixed.
@@ -27,16 +49,19 @@ class GivingSerializer(ScopedFKValidationMixin, serializers.ModelSerializer):
     - payment: Read-only (webhook-controlled)
     - status: Read-only (service-controlled)
     """
+    category_name = serializers.CharField(source="category.name", read_only=True)
+
     class Meta:
         model = Giving
         fields = [
-            "id", "branch", "member", "category", "amount", "currency",
+            "id", "branch", "member", "category", "category_name", "amount", "currency",
             "source", "status", "payment", "event", "group",
             "given_at", "recorded_by", "note", "created_at",
         ]
         read_only_fields = [
             "id", "recorded_by", "created_at", "status", "payment", "given_at"
         ]
+        extra_kwargs = {"branch": {"required": False}, "member": {"required": False}}
     
     def validate_amount(self, value):
         """Phase 8: Validate amount > 0."""

@@ -1,6 +1,7 @@
 import os
 
 from celery import Celery
+from celery.schedules import crontab
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings.development")
 
@@ -40,6 +41,18 @@ app.conf.beat_schedule = {
     "flag-absent-members": {
         "task": "apps.attendance.tasks.flag_absent_members",
         "schedule": 604800.0,  # once weekly (7 days)
+    },
+    "publish-scheduled-content": {
+        "task": "apps.operations.tasks.publish_scheduled_content",
+        "schedule": 60.0,
+    },
+    "dispatch-scheduled-announcements": {
+        "task": "apps.communications.tasks.dispatch_scheduled_announcements",
+        "schedule": 60.0,
+    },
+    "birthday-notifications": {
+        "task": "apps.notifications.tasks.send_birthday_notifications",
+        "schedule": crontab(hour=8, minute=0),
     },
     # Phase 13: Pastoral case follow-up reminders
     "pastoral-follow-up-reminders": {

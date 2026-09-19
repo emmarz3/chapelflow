@@ -115,3 +115,8 @@ class PastoralCaseSerializer(ScopedFKValidationMixin, serializers.ModelSerialize
                 instance.closed_at = timezone.now()
         
         return super().update(instance, validated_data)
+
+
+class CounsellingRequestSerializer(serializers.Serializer):
+    summary = serializers.CharField(max_length=5000)
+    preferred_date = serializers.DateField(required=False, allow_null=True)

@@ -11,6 +11,11 @@ npm install
 npm run dev
 ```
 
+On a fresh local database, open `http://localhost:5173/setup/admin` to create
+the single Super Admin. The account is signed in immediately and redirected to
+the full dashboard. This one-time browser setup is disabled outside local
+development and closes after the first Super Admin exists.
+
 This starts the frontend and API together. Local development uses an embedded persistent PostgreSQL-compatible database in `.chapelflow-data`, runs migrations automatically, and approves local student registrations immediately so they can sign in. These conveniences are disabled in production.
 
 To start either process separately:

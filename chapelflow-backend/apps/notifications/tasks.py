@@ -1,4 +1,5 @@
 from celery import shared_task
+from django.utils import timezone
 
 from .models import Notification, NotificationChannel, NotificationStatus
 from .providers import email_provider, push_provider, sms_provider
@@ -31,13 +32,20 @@ def deliver_notification(self, notification_id):
             response = sms_provider.send(to=notification.recipient.phone_number, body=notification.body)
         elif notification.channel == NotificationChannel.PUSH:
             response = push_provider.send(device_token="", title=notification.title, body=notification.body)
+        elif notification.channel == NotificationChannel.IN_APP:
+            # The persisted notification is the in-app delivery itself; no external
+            # provider is involved and it is immediately available in the inbox.
+            notification.status = NotificationStatus.DELIVERED
+            notification.provider_response = {"status": "delivered", "provider": "in_app"}
+            notification.sent_at = timezone.now()
+            notification.save(update_fields=["status", "provider_response", "sent_at"])
+            return
         else:
             notification.status = NotificationStatus.FAILED
             notification.provider_response = {"error": "No valid recipient address for this channel."}
             notification.save(update_fields=["status", "provider_response"])
             return
 
-        from django.utils import timezone
         status = _status_for_provider_response(response)
         notification.status = status
         notification.provider_response = response
@@ -85,3 +93,56 @@ def send_notification_to_members(member_ids, title, body, channel=NotificationCh
             source_announcement_id=announcement_id,
         )
         deliver_notification.delay(str(notification.id))
+
+
+@shared_task
+def send_birthday_notifications():
+    """Create one private in-app birthday notification for each active branch user."""
+    from django.contrib.auth import get_user_model
+    from django.db import IntegrityError, transaction
+    from apps.members.models import Member, MembershipStatus
+    from .models import BirthdayAnnouncement
+
+    today = timezone.localdate()
+    celebrants = Member.objects.filter(
+        membership_status=MembershipStatus.ACTIVE,
+        date_of_birth__month=today.month,
+        date_of_birth__day=today.day,
+    ).select_related("branch")
+    User = get_user_model()
+    celebrations_created = 0
+    notifications_created = 0
+
+    for member in celebrants.iterator():
+        try:
+            with transaction.atomic():
+                birthday, created = BirthdayAnnouncement.objects.get_or_create(
+                    member=member,
+                    celebrated_on=today,
+                )
+                if not created:
+                    continue
+                recipients = list(User.objects.filter(branch_id=member.branch_id, is_active=True).only("id"))
+                Notification.objects.bulk_create([
+                    Notification(
+                        recipient=recipient,
+                        birthday_announcement=birthday,
+                        channel=NotificationChannel.IN_APP,
+                        title=f"Happy birthday, {member.first_name}!",
+                        body=f"Join the ChapelFlow community in celebrating {member.full_name} today.",
+                        status=NotificationStatus.DELIVERED,
+                        provider_response={"status": "delivered", "provider": "in_app", "kind": "birthday"},
+                        sent_at=timezone.now(),
+                    )
+                    for recipient in recipients
+                ])
+                celebrations_created += 1
+                notifications_created += len(recipients)
+        except IntegrityError:
+            # The unique constraint makes a retry or overlapping worker safe.
+            continue
+
+    return {
+        "celebrations_created": celebrations_created,
+        "notifications_created": notifications_created,
+    }

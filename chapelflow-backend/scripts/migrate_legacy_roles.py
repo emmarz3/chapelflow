@@ -22,7 +22,7 @@ django.setup()
 
 from django.db import transaction  # noqa: E402
 
-from apps.accounts.models import User  # noqa: E402
+from apps.accounts.models import Role, User  # noqa: E402
 from apps.groups.models import GroupMembership, GroupRole  # noqa: E402
 from common.constants.roles import Roles  # noqa: E402
 
@@ -46,10 +46,12 @@ TIER_2_ROLES = [
 def apply_tier_1(dry_run=False):
     changed = 0
     for old_role, new_role in TIER_1_MAP.items():
-        qs = User.objects.filter(role=old_role)
+        qs = User.objects.filter(role=old_role) | User.objects.filter(role_obj__code=old_role)
+        qs = qs.distinct()
         count = qs.count()
         if count and not dry_run:
-            qs.update(role=new_role)
+            new_role_obj = Role.objects.get(code=new_role)
+            qs.update(role=new_role, role_obj=new_role_obj)
         print(f"{old_role} -> {new_role}: {count} user(s)")
         changed += count
 

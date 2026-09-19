@@ -11,12 +11,12 @@ test("public chapel site exposes primary journeys", async ({ page }) => {
   await page.goto("/", { waitUntil: "domcontentloaded" });
   await expect(page).toHaveTitle(/ChapelFlow/);
   await expect(
-    page.getByRole("heading", { name: /chapel community for every part/i }),
+    page.getByRole("heading", { name: /where faith becomes community/i }),
   ).toBeVisible();
-  await page.getByRole("link", { name: /watch latest sermon/i }).click();
-  await expect(page).toHaveURL(/\/sermons$/);
+  await page.getByRole("link", { name: /see all programmes/i }).click();
+  await expect(page).toHaveURL(/\/events$/);
   await expect(
-    page.getByRole("heading", { name: /truth for the life/i }),
+    page.getByRole("heading", { name: /events that bring us together/i }),
   ).toBeVisible();
 });
 

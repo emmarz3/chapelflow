@@ -148,99 +148,264 @@ def merge_members(keep, merged, changed_by):
     the full audit trail showing what actions were taken on the merged member
     before deactivation.
     """
-    from django.db import transaction
+    from django.core.exceptions import ObjectDoesNotExist
+
+    def related(instance, accessor):
+        try:
+            return getattr(instance, accessor)
+        except ObjectDoesNotExist:
+            return None
 
     reassigned = {}
-    with transaction.atomic():
-        # Phase 4: Comprehensive relationship reassignment
-        # FK relationships using reverse manager
-        fk_relationships = [
-            "group_memberships",  # existing
-            "tags",               # existing
-        ]
-        
-        # Phase 4: Add conditional relationships based on installed apps
-        # Event registrations
-        if hasattr(merged, 'event_registrations'):
-            fk_relationships.append('event_registrations')
-        
-        # Attendance records
-        if hasattr(merged, 'attendance_records'):
-            fk_relationships.append('attendance_records')
-        
-        # Visitor attendance (if member was visitor who converted)
-        if hasattr(merged, 'visitor_attendances'):
-            fk_relationships.append('visitor_attendances')
-        
-        # Pastoral cases
-        if hasattr(merged, 'pastoral_cases'):
-            fk_relationships.append('pastoral_cases')
-        
-        # Prayer requests
-        if hasattr(merged, 'prayer_requests'):
-            fk_relationships.append('prayer_requests')
-        
-        # Giving records
-        if hasattr(merged, 'giving_records'):
-            fk_relationships.append('giving_records')
-        
-        # Pledges
-        if hasattr(merged, 'pledges'):
-            fk_relationships.append('pledges')
-        
-        # Notifications
-        if hasattr(merged, 'notifications'):
-            fk_relationships.append('notifications')
-        
-        # Phase 11: Follow-ups
-        if hasattr(merged, 'follow_ups'):
-            fk_relationships.append('follow_ups')
-        
-        # Reassign all FK relationships
-        for related_name in fk_relationships:
-            manager = getattr(merged, related_name, None)
-            if manager is None:
-                continue
-            count = manager.all().update(member=keep)
-            if count:
-                reassigned[related_name] = count
 
-        # volunteer_profile is a OneToOne, not a reverse-FK manager, so it
-        # needs its own attribute-error-safe handling.
-        try:
-            vp = merged.volunteer_profile
-        except Exception:  # noqa: BLE001 - RelatedObjectDoesNotExist, not worth importing
-            vp = None
-        if vp is not None and not hasattr(keep, "volunteer_profile"):
-            vp.member = keep
-            vp.save(update_fields=["member"])
-            reassigned["volunteer_profile"] = 1
-        
-        # Phase 11: engagement_metrics is a OneToOne relationship
-        # If merged has metrics and keep doesn't, reassign
-        # If both have metrics, delete merged's (keep's takes precedence)
-        try:
-            merged_metrics = merged.engagement_metrics
-        except Exception:  # noqa: BLE001 - RelatedObjectDoesNotExist
-            merged_metrics = None
-        
-        if merged_metrics is not None:
-            try:
-                keep_metrics = keep.engagement_metrics
-                # Both exist - delete merged's metrics (keep's are authoritative)
-                merged_metrics.delete()
-                reassigned["engagement_metrics_deleted"] = 1
-            except Exception:  # noqa: BLE001 - keep has no metrics
-                # Only merged has metrics - reassign to keep
-                merged_metrics.member = keep
-                merged_metrics.save()
-                reassigned["engagement_metrics"] = 1
+    def add_count(name, count=1):
+        if count:
+            reassigned[name] = reassigned.get(name, 0) + count
+
+    with transaction.atomic():
+        # Lock both identities so concurrent merge requests cannot move the
+        # same related rows twice or create conflicting canonical records.
+        locked = {
+            member.id: member
+            for member in Member.objects.select_for_update().select_related("user").filter(
+                id__in=[keep.id, merged.id]
+            )
+        }
+        keep = locked.get(keep.id)
+        merged = locked.get(merged.id)
+        if keep is None or merged is None:
+            raise ValueError("One or both members no longer exist.")
+        if keep.id == merged.id:
+            raise ValueError("A member cannot be merged into itself.")
+        if keep.branch_id != merged.branch_id:
+            raise ValueError("Members must belong to the same branch before they can be merged.")
+
+        previous_status = merged.membership_status
+
+        # Preserve the usable login identity. If both records have accounts,
+        # the non-canonical account is disabled but retained for audit history.
+        if merged.user_id and not keep.user_id:
+            keep.user = merged.user
+            keep.save(update_fields=["user", "updated_at"])
+            merged.user = None
+            add_count("user_account")
+        elif merged.user_id and keep.user_id and merged.user_id != keep.user_id:
+            merged.user.is_active = False
+            merged.user.save(update_fields=["is_active"])
+            add_count("user_account_deactivated")
+
+        # Relationships without a per-member uniqueness constraint can move
+        # in one SQL statement. Field names are explicit: not every model uses
+        # `member` (notifications use recipient_member, scans use student).
+        simple_relations = [
+            ("invited_visitors_v2", "invited_by"),
+            ("headed_households", "head"),
+            ("led_groups", "leader"),
+            ("group_tasks", "assignee"),
+            ("attendance_scan_attempts", "student"),
+            ("invited_visitors", "invited_by"),
+            ("giving_records", "member"),
+            ("pledges", "member"),
+            ("payments", "member"),
+            ("notifications", "recipient_member"),
+            ("prayer_requests", "member"),
+            ("pastoral_cases", "member"),
+        ]
+        for accessor, field_name in simple_relations:
+            count = getattr(merged, accessor).all().update(**{field_name: keep})
+            add_count(accessor, count)
+
+        # Tags are unique by (member, label). Duplicate labels collapse.
+        for item in list(merged.tags.select_for_update()):
+            if keep.tags.filter(label=item.label).exists():
+                item.delete()
+                add_count("tags_consolidated")
+            else:
+                item.member = keep
+                item.save(update_fields=["member"])
+                add_count("tags")
+
+        # Group membership keeps the strongest role, earliest join date and
+        # active state when the same person appears twice in one group.
+        role_rank = {"MEMBER": 0, "ASSISTANT_LEADER": 1, "LEADER": 2}
+        for item in list(merged.group_memberships.select_for_update()):
+            existing = keep.group_memberships.filter(group=item.group).first()
+            if existing is None:
+                item.member = keep
+                item.save(update_fields=["member"])
+                add_count("group_memberships")
+                continue
+            if role_rank.get(item.role, 0) > role_rank.get(existing.role, 0):
+                existing.role = item.role
+            existing.is_active = existing.is_active or item.is_active
+            existing.joined_at = min(existing.joined_at, item.joined_at)
+            existing.save(update_fields=["role", "is_active", "joined_at"])
+            item.delete()
+            add_count("group_memberships_consolidated")
+
+        # Reviewable join requests are unique by (group, member). Prefer an
+        # approved result, then a pending one, while retaining resolution data.
+        request_rank = {"REJECTED": 0, "PENDING": 1, "APPROVED": 2}
+        for item in list(merged.group_join_requests.select_for_update()):
+            existing = keep.group_join_requests.filter(group=item.group).first()
+            if existing is None:
+                item.member = keep
+                item.save(update_fields=["member"])
+                add_count("group_join_requests")
+                continue
+            if request_rank.get(item.status, 0) > request_rank.get(existing.status, 0):
+                existing.status = item.status
+                existing.resolved_at = item.resolved_at
+                existing.resolved_by = item.resolved_by
+            if not existing.message and item.message:
+                existing.message = item.message
+            existing.save(update_fields=["status", "resolved_at", "resolved_by", "message"])
+            item.delete()
+            add_count("group_join_requests_consolidated")
+
+        for item in list(merged.group_meeting_attendance.select_for_update()):
+            existing = keep.group_meeting_attendance.filter(meeting=item.meeting).first()
+            if existing is None:
+                item.member = keep
+                item.save(update_fields=["member"])
+                add_count("group_meeting_attendance")
+                continue
+            existing.present = existing.present or item.present
+            existing.save(update_fields=["present", "recorded_at"])
+            item.delete()
+            add_count("group_meeting_attendance_consolidated")
+
+        registration_rank = {"CANCELLED": 0, "WAITLISTED": 1, "CONFIRMED": 2}
+        for item in list(merged.event_registrations.select_for_update()):
+            existing = keep.event_registrations.filter(schedule=item.schedule).first()
+            if existing is None:
+                item.member = keep
+                item.save(update_fields=["member"])
+                add_count("event_registrations")
+                continue
+            if registration_rank.get(item.status, 0) > registration_rank.get(existing.status, 0):
+                existing.status = item.status
+                existing.cancelled_at = item.cancelled_at
+            existing.attended = existing.attended or item.attended
+            existing.save(update_fields=["status", "cancelled_at", "attended"])
+            item.delete()
+            add_count("event_registrations_consolidated")
+
+        # One attendance record per member/session is a hard database rule.
+        # When both duplicates attended, consolidate corrections and retain the
+        # strongest status and earliest check-in on the canonical record.
+        attendance_rank = {"ABSENT": 0, "EXCUSED": 1, "LATE": 2, "PRESENT": 3}
+        for item in list(merged.attendance_records.select_for_update()):
+            existing = keep.attendance_records.filter(session=item.session).first()
+            if existing is None:
+                item.member = keep
+                item.save(update_fields=["member"])
+                add_count("attendance_records")
+                continue
+            item.corrections.update(record=existing)
+            existing.checked_in_at = min(existing.checked_in_at, item.checked_in_at)
+            if attendance_rank.get(item.status, 0) > attendance_rank.get(existing.status, 0):
+                existing.status = item.status
+            if item.checked_out_at and (not existing.checked_out_at or item.checked_out_at > existing.checked_out_at):
+                existing.checked_out_at = item.checked_out_at
+            existing.save(update_fields=["checked_in_at", "checked_out_at", "status"])
+            item.delete()
+            add_count("attendance_records_consolidated")
+
+        # Follow-up milestones are unique. A completed touchpoint wins; notes,
+        # assignee and reminder state are retained wherever the canonical row
+        # does not already carry them.
+        for item in list(merged.follow_ups.select_for_update()):
+            existing = keep.follow_ups.filter(milestone=item.milestone).first()
+            if existing is None:
+                item.member = keep
+                item.save(update_fields=["member"])
+                add_count("follow_ups")
+                continue
+            existing.scheduled_for = min(existing.scheduled_for, item.scheduled_for)
+            existing.completed_at = existing.completed_at or item.completed_at
+            existing.assigned_to = existing.assigned_to or item.assigned_to
+            existing.reminder_sent_at = existing.reminder_sent_at or item.reminder_sent_at
+            if not existing.notes and item.notes:
+                existing.notes = item.notes
+            existing.save(update_fields=[
+                "scheduled_for", "completed_at", "assigned_to",
+                "reminder_sent_at", "notes", "updated_at",
+            ])
+            item.delete()
+            add_count("follow_ups_consolidated")
+
+        # One-to-one records need explicit collision behavior.
+        merged_qr = related(merged, "qr_code")
+        keep_qr = related(keep, "qr_code")
+        if merged_qr and keep_qr is None:
+            merged_qr.member = keep
+            merged_qr.save(update_fields=["member"])
+            add_count("qr_code")
+        elif merged_qr:
+            merged_qr.is_active = False
+            merged_qr.save(update_fields=["is_active"])
+            add_count("qr_code_deactivated")
+
+        merged_metrics = related(merged, "engagement_metrics")
+        keep_metrics = related(keep, "engagement_metrics")
+        if merged_metrics and keep_metrics is None:
+            merged_metrics.member = keep
+            merged_metrics.save(update_fields=["member"])
+            add_count("engagement_metrics")
+        elif merged_metrics:
+            merged_metrics.delete()
+            add_count("engagement_metrics_consolidated")
+
+        merged_preference = related(merged, "communication_preference")
+        keep_preference = related(keep, "communication_preference")
+        if merged_preference and keep_preference is None:
+            merged_preference.member = keep
+            merged_preference.save(update_fields=["member"])
+            add_count("communication_preference")
+        elif merged_preference:
+            # Preserve the most restrictive choice across both identities.
+            for field in ("email_enabled", "sms_enabled", "push_enabled", "announcements_enabled"):
+                setattr(keep_preference, field, getattr(keep_preference, field) and getattr(merged_preference, field))
+            keep_preference.save(update_fields=[
+                "email_enabled", "sms_enabled", "push_enabled",
+                "announcements_enabled", "updated_at",
+            ])
+            merged_preference.delete()
+            add_count("communication_preference_consolidated")
+
+        merged_profile = related(merged, "volunteer_profile")
+        keep_profile = related(keep, "volunteer_profile")
+        if merged_profile and keep_profile is None:
+            merged_profile.member = keep
+            merged_profile.save(update_fields=["member"])
+            add_count("volunteer_profile")
+        elif merged_profile:
+            add_count("volunteer_assignments", merged_profile.assignments.update(volunteer=keep_profile))
+            add_count("volunteer_availability", merged_profile.availability.update(volunteer=keep_profile))
+            keep_profile.skills = sorted(set((keep_profile.skills or []) + (merged_profile.skills or [])))
+            keep_profile.save(update_fields=["skills"])
+            merged_profile.delete()
+            add_count("volunteer_profile_consolidated")
+
+        merged_origin = related(merged, "visitor_origin")
+        keep_origin = related(keep, "visitor_origin")
+        if merged_origin and keep_origin is None:
+            merged_origin.converted_member = keep
+            merged_origin.save(update_fields=["converted_member"])
+            add_count("visitor_origin")
+        elif merged_origin:
+            # Both conversions are historical records and Visitor permits only
+            # one origin per member. Retain the second link to the inactive
+            # duplicate rather than destroying conversion history.
+            add_count("visitor_origin_retained")
 
         merged.membership_status = MembershipStatus.INACTIVE
-        merged.save(update_fields=["membership_status"])
+        merged.save(update_fields=["user", "membership_status", "updated_at"])
 
         MembershipHistory.objects.create(
-            member=merged, previous_status=merged.membership_status,
+            member=merged,
+            previous_status=previous_status,
             new_status=MembershipStatus.INACTIVE,
             note=f"Merged into member {keep.id}",
             changed_by=changed_by,
@@ -345,6 +510,7 @@ def self_register_member(data):
             college=data.get("college"),
             department=data.get("department"),
             community=data.get("community", ""),
+            academic_level=data.get("academic_level", ""),
             membership_status=MembershipStatus.ACTIVE,
         )
         MemberQRCode.objects.get_or_create(member=member)

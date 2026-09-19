@@ -1,9 +1,11 @@
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 
 from common.permissions.scoping import BranchScopedQuerysetMixin
+from common.permissions.media import user_has_media_management_access
 from common.utils.responses import error_response, success_response
 from common.viewsets import StandardReadOnlyModelViewSet
 
@@ -23,12 +25,21 @@ class UploadView(APIView):
         if not file_obj:
             return error_response("A 'file' is required.", status=400)
 
+        category = request.data.get("category", UploadCategory.OTHER)
+        if category not in UploadCategory.values:
+            return error_response("Select a valid upload category.", status=400)
+        if category == UploadCategory.MEDIA_CONTENT and not user_has_media_management_access(request.user):
+            return error_response("Only the Chaplain, Media Unit Leader, or Social Media Unit Leader can upload public media.", status=403)
+
+        max_size_mb = (
+            getattr(settings, "MAX_MEDIA_UPLOAD_SIZE_MB", 100)
+            if category == UploadCategory.MEDIA_CONTENT
+            else None
+        )
         try:
-            validate_upload(file_obj)
+            validate_upload(file_obj, max_size_mb=max_size_mb)
         except ValidationError as exc:
             return error_response(str(exc), status=400)
-
-        category = request.data.get("category", UploadCategory.OTHER)
         storage = get_storage_service()
         filename = generate_storage_filename(file_obj.name, prefix=category.lower())
         file_url = storage.upload_bytes(file_obj.read(), filename, content_type=file_obj.content_type)

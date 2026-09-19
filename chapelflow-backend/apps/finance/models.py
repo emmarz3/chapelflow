@@ -94,7 +94,7 @@ class Giving(models.Model):
         ]
         constraints = [
             models.CheckConstraint(
-                check=models.Q(amount__gt=0),
+                condition=models.Q(amount__gt=0),
                 name="finance_giving_amount_positive"
             ),
         ]
@@ -132,11 +132,11 @@ class Pledge(models.Model):
         db_table = "finance_pledge"
         constraints = [
             models.CheckConstraint(
-                check=models.Q(amount_pledged__gt=0),
+                condition=models.Q(amount_pledged__gt=0),
                 name="finance_pledge_amount_pledged_positive"
             ),
             models.CheckConstraint(
-                check=models.Q(amount_fulfilled__gte=0) & models.Q(amount_fulfilled__lte=models.F("amount_pledged")),
+                condition=models.Q(amount_fulfilled__gte=0) & models.Q(amount_fulfilled__lte=models.F("amount_pledged")),
                 name="finance_pledge_amount_fulfilled_valid"
             ),
         ]
@@ -166,6 +166,23 @@ class Payment(models.Model):
     member = models.ForeignKey(
         "members.Member", null=True, blank=True, on_delete=models.SET_NULL, related_name="payments"
     )
+    initiated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="initiated_payments",
+        help_text="Authenticated account that started the gateway checkout.",
+    )
+    giving_category = models.ForeignKey(
+        GivingCategory,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="payment_attempts",
+        help_text="The purpose selected before the gateway checkout.",
+    )
+    giving_note = models.CharField(max_length=500, blank=True)
     provider = models.CharField(
         max_length=20, choices=[("PAYSTACK", "Paystack"), ("FLUTTERWAVE", "Flutterwave")]
     )
@@ -183,7 +200,7 @@ class Payment(models.Model):
         indexes = [models.Index(fields=["provider", "provider_reference"])]
         constraints = [
             models.CheckConstraint(
-                check=models.Q(amount__gt=0),
+                condition=models.Q(amount__gt=0),
                 name="finance_payment_amount_positive"
             ),
         ]
@@ -967,7 +984,7 @@ class Refund(models.Model):
         indexes = [models.Index(fields=["original_giving", "refunded_at"])]
         constraints = [
             models.CheckConstraint(
-                check=models.Q(amount__gt=0),
+                condition=models.Q(amount__gt=0),
                 name="finance_refund_amount_positive"
             ),
         ]

@@ -1,3 +1,6 @@
+import uuid
+
+from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
 from django.utils.decorators import method_decorator
@@ -13,13 +16,20 @@ from common.constants.roles import PermissionCodes
 from common.permissions.rbac import IsFinanceAuthorized
 from common.permissions.scoping import BranchScopedQuerysetMixin
 from common.utils.responses import error_response, success_response
-from .models import FinancialStatement, Giving, GivingCategory, GivingStatus, Payment, Pledge, Reconciliation, Refund
+from .models import FinancialStatement, Giving, GivingCategory, GivingStatus, Payment, PaymentStatus, Pledge, Reconciliation, Refund
 from .serializers import (
     FinancialStatementSerializer, GivingCategorySerializer, GivingSerializer,
-    MemberGivingHistorySerializer, PaymentSerializer, PledgeSerializer,
+    MemberGivingHistorySerializer, PaystackCheckoutSerializer, PaystackReferenceSerializer,
+    PaymentSerializer, PledgeSerializer,
     ReconciliationSerializer, RefundSerializer,
 )
-from .services import WebhookVerificationError, process_webhook
+from .services import (
+    PaymentProviderError,
+    WebhookVerificationError,
+    initialize_paystack_checkout,
+    process_webhook,
+    verify_paystack_transaction,
+)
 
 
 class GivingCategoryViewSet(StandardModelViewSet):
@@ -388,6 +398,103 @@ class FinancialDashboardView(APIView):
         
         dashboard_data = branch_financial_dashboard(branch, start_date, end_date)
         return success_response(dashboard_data)
+
+
+class PaystackCheckoutInitializeView(APIView):
+    """
+    Starts an authenticated user's offering or tithe checkout.
+
+    The browser receives a short-lived Paystack authorization URL only. The
+    Paystack secret key, amount validation, category selection, and payer
+    ownership remain server-side.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = PaystackCheckoutSerializer(data=request.data)
+        if not serializer.is_valid():
+            return error_response("Validation failed.", errors=serializer.errors, status=400)
+
+        user = request.user
+        member = getattr(user, "member_profile", None)
+        branch = member.branch if member else user.branch
+        email = (user.email or (member.email if member else "")).strip()
+        if not branch:
+            return error_response("Your account is not linked to a chapel branch.", status=400)
+        if not email:
+            return error_response("Add an email address to your profile before giving online.", status=400)
+
+        giving_type = serializer.validated_data["giving_type"]
+        category = GivingCategory.objects.filter(
+            name__iexact=giving_type.title(), is_active=True
+        ).first()
+        if not category:
+            return error_response("Online giving is temporarily unavailable. Please contact the chapel office.", status=503)
+
+        payment = Payment.objects.create(
+            branch=branch,
+            member=member,
+            initiated_by=user,
+            giving_category=category,
+            giving_note=serializer.validated_data.get("note", ""),
+            provider="PAYSTACK",
+            provider_reference=f"CF-{uuid.uuid4().hex}",
+            amount=serializer.validated_data["amount"],
+            currency="NGN",
+            idempotency_key=f"paystack-giving:{uuid.uuid4().hex}",
+        )
+        try:
+            authorization_url = initialize_paystack_checkout(
+                payment,
+                email=email,
+                callback_url=settings.PAYSTACK_CALLBACK_URL,
+            )
+        except PaymentProviderError as exc:
+            payment.status = PaymentStatus.FAILED
+            payment.save(update_fields=["status"])
+            return error_response(str(exc), status=503)
+
+        return success_response(
+            {"authorization_url": authorization_url, "reference": payment.provider_reference},
+            message="Secure Paystack checkout created.",
+            status=201,
+        )
+
+
+class PaystackCheckoutVerifyView(APIView):
+    """Verifies only the signed-in payer's return reference with Paystack."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = PaystackReferenceSerializer(data=request.data)
+        if not serializer.is_valid():
+            return error_response("Validation failed.", errors=serializer.errors, status=400)
+
+        reference = serializer.validated_data["reference"]
+        payment = Payment.objects.filter(
+            provider="PAYSTACK",
+            provider_reference=reference,
+            initiated_by=request.user,
+        ).select_related("giving_category").first()
+        if not payment:
+            return error_response("This payment reference does not belong to your account.", status=404)
+
+        try:
+            payment = verify_paystack_transaction(payment)
+        except PaymentProviderError as exc:
+            return error_response(str(exc), status=502)
+
+        return success_response(
+            {
+                "reference": payment.provider_reference,
+                "status": payment.status,
+                "amount": str(payment.amount),
+                "currency": payment.currency,
+                "giving_recorded": hasattr(payment, "giving_record"),
+            }
+        )
 
 
 @method_decorator(csrf_exempt, name="dispatch")

@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { buildDemoUser, hasPermission } from "../lib/permissions";
+import {
+  buildDemoUser,
+  getAuthenticatedHomePath,
+  getAccountMenuItem,
+  getMobilePrimaryItem,
+  hasPermission,
+} from "../lib/permissions";
 
 describe("role permissions", () => {
   it("keeps member access scoped to personal portal features", () => {
@@ -34,5 +40,37 @@ describe("role permissions", () => {
     expect(hasPermission(usher, "members:read")).toBe(false);
     expect(hasPermission(usher, "finance:read")).toBe(false);
     expect(hasPermission(usher, "settings:manage")).toBe(false);
+  });
+
+  it("sends every account type to an allowed opening page", () => {
+    expect(getAuthenticatedHomePath(buildDemoUser("attendance_usher"))).toBe(
+      "/usher/attendance",
+    );
+    expect(getAuthenticatedHomePath(buildDemoUser("member"))).toBe(
+      "/app/chapel-pass",
+    );
+    expect(
+      getAuthenticatedHomePath({
+        ...buildDemoUser("member"),
+        community: "staff",
+      }),
+    ).toBe("/app");
+    expect(
+      getAuthenticatedHomePath({
+        ...buildDemoUser("member"),
+        community: "guest",
+      }),
+    ).toBe("/app");
+  });
+
+  it("connects unit-leader navigation only to authorized pages", () => {
+    expect(getMobilePrimaryItem("unit_leader")).toEqual({
+      label: "Operations",
+      path: "/app/operations",
+    });
+    expect(getAccountMenuItem("unit_leader")).toEqual({
+      label: "Operational workspace",
+      path: "/app/operations",
+    });
   });
 });

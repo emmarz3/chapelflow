@@ -1,7 +1,11 @@
 import hashlib
 import hmac
+import json
 import logging
 from decimal import Decimal
+from urllib.error import HTTPError, URLError
+from urllib.parse import quote
+from urllib.request import Request, urlopen
 
 from django.conf import settings
 from django.db import transaction
@@ -12,6 +16,12 @@ payments_logger = logging.getLogger("chapelflow.payments")
 
 
 class WebhookVerificationError(Exception):
+    pass
+
+
+class PaymentProviderError(Exception):
+    """A safe, user-facing failure while communicating with a payment gateway."""
+
     pass
 
 
@@ -32,6 +42,9 @@ class PaystackService(PaymentService):
     provider_code = "PAYSTACK"
 
     def verify_webhook_signature(self, request) -> bool:
+        if not settings.PAYSTACK_SECRET_KEY:
+            payments_logger.error("paystack_webhook_received_without_secret")
+            return False
         secret = settings.PAYSTACK_SECRET_KEY.encode()
         signature = request.headers.get("X-Paystack-Signature", "")
         computed = hmac.new(secret, request.body, hashlib.sha512).hexdigest()
@@ -49,6 +62,7 @@ class PaystackService(PaymentService):
             "reference": data.get("reference"),
             "status": status_map.get(payload.get("event", "").split(".")[-1], PaymentStatus.PENDING),
             "amount": amount_naira,
+            "currency": data.get("currency", "NGN"),
         }
 
 
@@ -91,7 +105,6 @@ def process_webhook(provider_key: str, request) -> Payment:
         payments_logger.warning("webhook_signature_invalid provider=%s", provider_key)
         raise WebhookVerificationError("Invalid webhook signature.")
 
-    import json
     payload = json.loads(request.body)
     event = service.parse_webhook_event(payload)
 
@@ -109,24 +122,122 @@ def process_webhook(provider_key: str, request) -> Payment:
             )
             raise WebhookVerificationError("No matching payment record for this reference.")
 
+        if payment.provider.lower() != provider_key:
+            raise WebhookVerificationError("Payment provider does not match this transaction.")
+
+        if Decimal(str(event["amount"])) != payment.amount or event.get("currency", payment.currency) != payment.currency:
+            payments_logger.warning("webhook_payment_mismatch reference=%s", event["reference"])
+            raise WebhookVerificationError("Payment amount or currency does not match this transaction.")
+
         if payment.status in (PaymentStatus.SUCCESSFUL, PaymentStatus.FAILED, PaymentStatus.REFUNDED):
             # Already in a terminal state -> idempotent no-op, even if the
             # gateway redelivers the same webhook multiple times.
             payments_logger.info("webhook_idempotent_skip reference=%s status=%s", event["reference"], payment.status)
             return payment
 
-        from django.utils import timezone
-        payment.status = event["status"]
-        payment.raw_webhook_payload = payload
-        if event["status"] == PaymentStatus.SUCCESSFUL:
-            payment.confirmed_at = timezone.now()
-        payment.save(update_fields=["status", "raw_webhook_payload", "confirmed_at"])
+        payment = apply_gateway_result(payment, event["status"], payload)
 
         payments_logger.info(
             "webhook_processed provider=%s reference=%s status=%s", provider_key, event["reference"], payment.status
         )
 
     return payment
+
+
+PAYSTACK_API_BASE_URL = "https://api.paystack.co"
+
+
+def _paystack_request(path: str, *, method: str = "GET", payload: dict | None = None) -> dict:
+    """Call Paystack only from the server; the secret key is never sent to the browser."""
+    secret = settings.PAYSTACK_SECRET_KEY
+    if not secret:
+        raise PaymentProviderError("Online giving is not configured yet. Please contact the chapel office.")
+
+    body = json.dumps(payload).encode("utf-8") if payload is not None else None
+    request = Request(
+        f"{PAYSTACK_API_BASE_URL}{path}",
+        data=body,
+        method=method,
+        headers={
+            "Authorization": f"Bearer {secret}",
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        },
+    )
+    try:
+        with urlopen(request, timeout=15) as response:  # nosec B310 - fixed Paystack HTTPS endpoint
+            decoded = json.loads(response.read().decode("utf-8"))
+    except (HTTPError, URLError, TimeoutError, json.JSONDecodeError) as exc:
+        payments_logger.warning("paystack_api_request_failed path=%s error=%s", path, type(exc).__name__)
+        raise PaymentProviderError("Paystack is temporarily unavailable. Please try again shortly.") from exc
+
+    if not decoded.get("status") or not isinstance(decoded.get("data"), dict):
+        payments_logger.warning("paystack_api_unsuccessful_response path=%s", path)
+        raise PaymentProviderError("Paystack could not complete this request. Please try again shortly.")
+    return decoded["data"]
+
+
+def initialize_paystack_checkout(payment: Payment, *, email: str, callback_url: str = "") -> str:
+    """Create a Paystack hosted checkout and return only its one-time authorization URL."""
+    payload = {
+        "email": email,
+        "amount": str(int(payment.amount * Decimal("100"))),
+        "currency": payment.currency,
+        "reference": payment.provider_reference,
+        "metadata": json.dumps(
+            {
+                "payment_id": str(payment.id),
+                "giving_type": payment.giving_category.name if payment.giving_category else "Giving",
+            }
+        ),
+    }
+    if callback_url:
+        payload["callback_url"] = callback_url
+
+    response = _paystack_request("/transaction/initialize", method="POST", payload=payload)
+    if response.get("reference") != payment.provider_reference or not response.get("authorization_url"):
+        payments_logger.error("paystack_initialize_invalid_response reference=%s", payment.provider_reference)
+        raise PaymentProviderError("Paystack could not start checkout. Please try again shortly.")
+    return str(response["authorization_url"])
+
+
+def apply_gateway_result(payment: Payment, payment_status: str, payload: dict) -> Payment:
+    """Persist a verified provider result and create one immutable giving record when successful."""
+    from django.utils import timezone
+
+    payment.status = payment_status
+    payment.raw_webhook_payload = payload
+    if payment_status == PaymentStatus.SUCCESSFUL:
+        payment.confirmed_at = timezone.now()
+    payment.save(update_fields=["status", "raw_webhook_payload", "confirmed_at"])
+    if payment_status == PaymentStatus.SUCCESSFUL:
+        auto_create_giving_from_payment(payment)
+    return payment
+
+
+def verify_paystack_transaction(payment: Payment) -> Payment:
+    """Verify a return reference with Paystack before recording it as successful."""
+    response = _paystack_request(f"/transaction/verify/{quote(payment.provider_reference, safe='')}")
+    amount = Decimal(str(response.get("amount", 0))) / Decimal("100")
+    if (
+        response.get("reference") != payment.provider_reference
+        or amount != payment.amount
+        or response.get("currency") != payment.currency
+    ):
+        payments_logger.warning("paystack_verify_mismatch reference=%s", payment.provider_reference)
+        raise PaymentProviderError("Payment verification did not match this giving request.")
+
+    status_map = {
+        "success": PaymentStatus.SUCCESSFUL,
+        "failed": PaymentStatus.FAILED,
+        "abandoned": PaymentStatus.FAILED,
+    }
+    result_status = status_map.get(str(response.get("status", "")).lower(), PaymentStatus.PENDING)
+    with transaction.atomic():
+        locked_payment = Payment.objects.select_for_update().get(pk=payment.pk)
+        if locked_payment.status in (PaymentStatus.SUCCESSFUL, PaymentStatus.FAILED, PaymentStatus.REFUNDED):
+            return locked_payment
+        return apply_gateway_result(locked_payment, result_status, response)
 
 
 
@@ -267,15 +378,16 @@ def auto_create_giving_from_payment(payment):
     if hasattr(payment, 'giving_record') and payment.giving_record:
         return payment.giving_record
     
-    # Find default online giving category
+    # Respect the category selected before checkout. Older gateway payments
+    # keep their previous online/default category fallback.
     from .models import Giving, GivingCategory, GivingSource, GivingStatus
     
-    default_category = GivingCategory.objects.filter(
+    default_category = payment.giving_category or GivingCategory.objects.filter(
         name__icontains="online"
     ).first() or GivingCategory.objects.first()
     
     if not default_category:
-        logger.warning(f"No giving category found for payment {payment.id}")
+        payments_logger.warning("payment_giving_category_missing payment=%s", payment.id)
         return None
     
     # Create giving record
@@ -289,13 +401,10 @@ def auto_create_giving_from_payment(payment):
         status=GivingStatus.CONFIRMED,
         payment=payment,
         given_at=payment.confirmed_at or payment.created_at,
-        note=f"Auto-created from payment {payment.provider}:{payment.provider_reference}"
+        note=payment.giving_note or f"Online {payment.giving_category.name if payment.giving_category else 'giving'} via {payment.provider}."
     )
     
-    logger.info(
-        f"Auto-created giving {giving.id} from payment {payment.id} "
-        f"(amount: {payment.amount} {payment.currency})"
-    )
+    payments_logger.info("giving_created_from_payment giving=%s payment=%s", giving.id, payment.id)
     
     # Phase 12: Check if this giving fulfills any pledges
     fulfill_pledge_from_giving(giving)
@@ -310,15 +419,15 @@ def fulfill_pledge_from_giving(giving):
     Matches giving to open pledges and marks fulfillment:
     - Same member
     - Same branch
-    - Matching currency
+    - Matching giving category
     - Pledge not yet fulfilled
     - Amount matches or exceeds pledge
     
     Strategy:
     - Prioritizes oldest unfulfilled pledges first
     - Can partially fulfill multiple pledges
-    - Updates pledge.fulfilled_amount
-    - Marks pledge as fulfilled when amount_pledged == fulfilled_amount
+    - Updates pledge.amount_fulfilled
+    - Deactivates a pledge when amount_pledged == amount_fulfilled
     
     Called by:
     - Webhook processor (online giving)
@@ -331,7 +440,9 @@ def fulfill_pledge_from_giving(giving):
     Returns:
         list of (Pledge, amount_fulfilled) tuples
     """
-    from .models import Pledge, PledgeStatus
+    from django.db.models import F
+
+    from .models import Pledge
     from decimal import Decimal
     
     if not giving.member:
@@ -342,8 +453,9 @@ def fulfill_pledge_from_giving(giving):
     unfulfilled_pledges = Pledge.objects.filter(
         member=giving.member,
         branch=giving.branch,
-        currency=giving.currency,
-        status=PledgeStatus.ACTIVE
+        category=giving.category,
+        is_active=True,
+        amount_fulfilled__lt=F("amount_pledged"),
     ).order_by('created_at')  # FIFO: fulfill oldest pledges first
     
     remaining_amount = giving.amount
@@ -354,7 +466,7 @@ def fulfill_pledge_from_giving(giving):
             break
         
         # Calculate unfulfilled portion
-        unfulfilled = pledge.amount_pledged - (pledge.fulfilled_amount or Decimal('0.00'))
+        unfulfilled = pledge.amount_pledged - (pledge.amount_fulfilled or Decimal('0.00'))
         
         if unfulfilled <= Decimal('0.00'):
             # Pledge already fulfilled (shouldn't happen with status filter)
@@ -364,21 +476,23 @@ def fulfill_pledge_from_giving(giving):
         allocation = min(remaining_amount, unfulfilled)
         
         # Update pledge
-        pledge.fulfilled_amount = (pledge.fulfilled_amount or Decimal('0.00')) + allocation
+        pledge.amount_fulfilled = (pledge.amount_fulfilled or Decimal('0.00')) + allocation
         
         # Check if pledge is now fully fulfilled
-        if pledge.fulfilled_amount >= pledge.amount_pledged:
-            pledge.status = PledgeStatus.FULFILLED
-            pledge.fulfilled_at = giving.given_at
+        if pledge.amount_fulfilled >= pledge.amount_pledged:
+            pledge.is_active = False
         
         pledge.save()
         
         fulfilled.append((pledge, allocation))
         remaining_amount -= allocation
         
-        logger.info(
-            f"Fulfilled pledge {pledge.id} with {allocation} {giving.currency} "
-            f"from giving {giving.id} (pledge status: {pledge.status})"
+        payments_logger.info(
+            "pledge_fulfilled pledge=%s giving=%s amount=%s currency=%s",
+            pledge.id,
+            giving.id,
+            allocation,
+            giving.currency,
         )
     
     return fulfilled

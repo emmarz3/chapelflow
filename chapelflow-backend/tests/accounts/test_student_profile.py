@@ -1,4 +1,9 @@
 from django.test import TestCase
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import override_settings
+from datetime import timedelta
+from django.utils import timezone
+from tempfile import TemporaryDirectory
 from rest_framework.test import APIClient
 
 from apps.accounts.models import User
@@ -24,6 +29,32 @@ class StudentProfileTests(TestCase):
         self.member.refresh_from_db()
         self.assertEqual(self.student.phone_number, "08000000000")
         self.assertEqual(self.member.emergency_contact_name, "Parent")
+
+    def test_member_can_add_a_birthday_and_upload_a_device_photo(self):
+        client = APIClient()
+        client.force_authenticate(self.student)
+        birthday = timezone.localdate() - timedelta(days=20 * 365)
+        updated = client.patch("/api/v1/auth/profile/", {"date_of_birth": birthday.isoformat()}, format="json")
+        self.assertEqual(updated.status_code, 200)
+        self.member.refresh_from_db()
+        self.assertEqual(self.member.date_of_birth, birthday)
+
+        with TemporaryDirectory() as media_root, override_settings(MEDIA_ROOT=media_root):
+            photo = SimpleUploadedFile("profile.jpg", b"image-bytes", content_type="image/jpeg")
+            uploaded = client.post("/api/v1/auth/profile/photo/", {"file": photo}, format="multipart")
+        self.assertEqual(uploaded.status_code, 200)
+        self.member.refresh_from_db()
+        self.assertIn("/media/member-photo/", self.member.photo_url)
+
+    def test_member_cannot_save_a_future_birthday(self):
+        client = APIClient()
+        client.force_authenticate(self.student)
+        response = client.patch(
+            "/api/v1/auth/profile/",
+            {"date_of_birth": (timezone.localdate() + timedelta(days=1)).isoformat()},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
 
     def test_staff_cannot_use_student_profile_endpoint(self):
         client = APIClient()

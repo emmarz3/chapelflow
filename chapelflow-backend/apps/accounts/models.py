@@ -405,7 +405,7 @@ class RolePermission(models.Model):
         # Ensure at least one role reference exists
         constraints = [
             models.CheckConstraint(
-                check=(
+                condition=(
                     models.Q(role_obj__isnull=False, legacy_role_code__isnull=True) |
                     models.Q(role_obj__isnull=True, legacy_role_code__isnull=False)
                 ),

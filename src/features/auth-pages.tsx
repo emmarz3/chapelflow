@@ -19,13 +19,14 @@ import {
 import { AnimatePresence, motion } from "framer-motion";
 import { useQuery } from "@tanstack/react-query";
 import { z } from "zod";
-import { Brand, Button, Field } from "../components/ui";
+import { Button, Field } from "../components/ui";
 import { useAuthMotion } from "../components/motion/motion-system";
 import { useAuth } from "./auth-context";
 import type { Role } from "../types/domain";
 import { ApiError, api } from "../lib/api";
 import { isDjangoBackend } from "../lib/backend";
 import { isDemoMode } from "../lib/fixtures";
+import { getAuthenticatedHomePath } from "../lib/permissions";
 import { authService, communityService } from "../services/chapelflow";
 
 const loginSchema = z.object({
@@ -35,29 +36,92 @@ const loginSchema = z.object({
   password: z.string().min(8, "Password must contain at least 8 characters."),
 });
 
+const adminSetupSchema = z
+  .object({
+    first_name: z.string().trim().min(1, "Enter your first name."),
+    last_name: z.string().trim().min(1, "Enter your last name."),
+    email: z.string().email("Enter a valid email address."),
+    password: z.string().min(12, "Use at least 12 characters."),
+    confirm_password: z.string(),
+  })
+  .refine((values) => values.password === values.confirm_password, {
+    message: "Passwords do not match.",
+    path: ["confirm_password"],
+  });
+
+export function SuperAdminSetupPage() {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError("");
+    const form = new FormData(event.currentTarget);
+    const parsed = adminSetupSchema.safeParse(Object.fromEntries(form));
+    if (!parsed.success) {
+      setError(parsed.error.issues[0]?.message || "Check the form and try again.");
+      return;
+    }
+    setLoading(true);
+    try {
+      const payload = {
+        first_name: parsed.data.first_name,
+        last_name: parsed.data.last_name,
+        email: parsed.data.email,
+        password: parsed.data.password,
+      };
+      await api.post("/auth/setup/super-admin", payload);
+      window.location.assign("/app");
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Could not create the account.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="auth-card">
+      <div className="auth-heading">
+        <span className="auth-icon"><ShieldCheck /></span>
+        <p className="eyebrow">One-time setup</p>
+        <h1>Create the Super Admin</h1>
+        <p>Create the first local administrator, then continue directly to the full dashboard.</p>
+      </div>
+      <form onSubmit={submit} noValidate>
+        <Field name="first_name" label="First name" required autoComplete="given-name" />
+        <Field name="last_name" label="Last name" required autoComplete="family-name" />
+        <Field name="email" label="Admin email" type="email" required autoComplete="email" />
+        <Field name="password" label="Password" type="password" required minLength={12} autoComplete="new-password" />
+        <Field name="confirm_password" label="Confirm password" type="password" required minLength={12} autoComplete="new-password" />
+        <div className="inline-alert">This setup page works only in local development and closes after the first Super Admin is created.</div>
+        {error && <div className="form-error" role="alert">{error}</div>}
+        <Button className="full-button" type="submit" loading={loading}>
+          Create account and open dashboard <ArrowRight size={18} />
+        </Button>
+      </form>
+      <p className="auth-switch">Already created it? <Link to="/login">Sign in</Link></p>
+    </div>
+  );
+}
+
 export function AuthLayout({ children }: { children: React.ReactNode }) {
   const location = useLocation();
   const rootRef = useRef<HTMLDivElement>(null);
+  const registration = location.pathname === "/register";
   useAuthMotion(rootRef, location.pathname);
   return (
-    <div className="auth-layout" ref={rootRef}>
+    <div className={`auth-layout auth-layout--${registration ? "register" : "login"}`} ref={rootRef}>
       <aside className="auth-visual">
-        <img src="/chapel-hero.png" alt="" />
+        <img
+          src={registration ? "/chapelflow-auth-register-visual.png" : "/chapelflow-auth-login-visual.png"}
+          alt="Students gathered at Chrisland University Chapel"
+        />
         <div className="auth-visual__shade" />
-        <Link to="/">
-          <Brand inverse />
-        </Link>
-        <blockquote>
-          “A community where faith becomes the foundation for purpose,
-          character, and service.”
-        </blockquote>
-        <p>Chrisland University Chapel · Abeokuta</p>
       </aside>
       <main className="auth-main">
-        <Link className="auth-back" to="/">
-          <ArrowLeft size={17} /> Back to chapel website
-        </Link>
+        <div className="auth-main__bar"><Link className="auth-back" to="/"><ArrowLeft size={17} /> Back to chapel website</Link><span><ShieldCheck size={15} /> Your information is secure</span></div>
         {children}
+        <p className="auth-main__signature">Chrisland University Chapel<br /><span>Nurturing faith. Shaping lives. Impacting Nigeria.</span></p>
       </main>
     </div>
   );
@@ -71,16 +135,12 @@ export function LoginPage() {
   const [error, setError] = useState("");
   const [role, setRole] = useState<Role>("chapel_admin");
   if (user?.mfaRequired) return <MfaEnrollment />;
+  if (user?.passwordChangeRequired)
+    return <Navigate to="/change-password-required" replace />;
   if (user)
     return (
       <Navigate
-        to={
-          user.role === "attendance_usher"
-            ? "/usher/attendance"
-            : user.role === "member"
-              ? "/app/chapel-pass"
-              : "/app"
-        }
+        to={getAuthenticatedHomePath(user)}
         replace
       />
     );
@@ -106,13 +166,7 @@ export function LoginPage() {
         role,
         String(form.get("otp") || ""),
       );
-      navigate(
-        authenticated.role === "attendance_usher"
-          ? "/usher/attendance"
-          : authenticated.role === "member"
-            ? "/app/chapel-pass"
-            : "/app",
-      );
+      navigate(getAuthenticatedHomePath(authenticated));
     } catch (caught) {
       setError(
         caught instanceof ApiError
@@ -134,6 +188,11 @@ export function LoginPage() {
       {reason === "expired" && (
         <div className="inline-alert">
           Your session ended securely. Sign in to continue.
+        </div>
+      )}
+      {reason === "password-changed" && (
+        <div className="inline-alert">
+          Password changed successfully. Sign in with your new password.
         </div>
       )}
       <form onSubmit={submit} noValidate>
@@ -326,6 +385,7 @@ function MfaEnrollment() {
 }
 
 const registrationSteps = ["Account", "Profile", "Membership", "Consent"];
+const academicLevels = ["JUPEB", "100", "200", "300", "400", "500", "600"];
 
 function registrationPayload(values: Record<string, string>) {
   return {
@@ -350,6 +410,7 @@ export function RegisterPage() {
   const [verificationRequired, setVerificationRequired] = useState(true);
   const [approvalRequired, setApprovalRequired] = useState(false);
   const [values, setValues] = useState<Record<string, string>>({});
+  const [memberType, setMemberType] = useState("Student");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const communities = useQuery({
@@ -413,7 +474,9 @@ export function RegisterPage() {
               expires in 30 minutes.
             </>
           ) : (
-            "Sign in with your email or matric number to open your ChapelFlow account."
+            memberType === "Student"
+              ? "Sign in with your email or matric number to open your ChapelFlow account."
+              : "Sign in with the email address you registered to open your ChapelFlow account."
           )}
         </p>
         <Link className="button button--primary full-button" to="/login">
@@ -427,8 +490,8 @@ export function RegisterPage() {
         <p className="eyebrow">Join the community</p>
         <h1>Create your ChapelFlow account</h1>
         <p>
-          Use your university information so the chapel team can verify your
-          membership.
+          Choose the registration type that matches you. Student information is
+          requested only for student accounts.
         </p>
       </div>
       <ol className="stepper" aria-label="Registration progress">
@@ -449,13 +512,31 @@ export function RegisterPage() {
         >
           {step === 0 && (
             <div className="form-grid">
+              <label className="field field--full">
+                <span>Registration type</span>
+                <select
+                  name="memberType"
+                  value={memberType}
+                  onChange={(event) => setMemberType(event.target.value)}
+                >
+                  <option value="Student">Student</option>
+                  <option value="Staff">Staff</option>
+                  <option value="Guest">Guest</option>
+                </select>
+              </label>
               <Field
                 name="email"
                 defaultValue={values.email}
-                label="University email"
+                label={
+                  memberType === "Student"
+                    ? "University email"
+                    : memberType === "Staff"
+                      ? "Work email"
+                      : "Email address"
+                }
                 type="email"
                 autoComplete="email"
-                placeholder="name@example.edu.ng"
+                placeholder={memberType === "Guest" ? "name@example.com" : "name@example.edu.ng"}
                 required
               />
               <Field
@@ -486,14 +567,16 @@ export function RegisterPage() {
                 autoComplete="family-name"
                 required
               />
-              <Field
-                name="identifier"
-                defaultValue={values.identifier}
-                label="Matric number or staff ID"
-                hint="Use your university identifier, for example CU/2026/001."
-                pattern="[A-Za-z]{2,6}/[0-9]{2,4}/[0-9]{3,6}"
-                required
-              />
+              {memberType === "Student" && (
+                <Field
+                  name="identifier"
+                  defaultValue={values.identifier}
+                  label="Matric number"
+                  hint="Use your university matric number, for example CU/2026/001."
+                  pattern="[A-Za-z]{2,6}/[0-9]{2,4}/[0-9]{3,6}"
+                  required
+                />
+              )}
               <Field
                 name="phone"
                 defaultValue={values.phone}
@@ -505,19 +588,29 @@ export function RegisterPage() {
           )}
           {step === 2 && (
             <div className="form-grid">
-              <label className="field">
-                <span>Member type</span>
-                <select name="memberType" defaultValue={values.memberType}>
-                  <option>Student</option>
-                  <option>Staff</option>
-                  {!isDjangoBackend && <option>Community member</option>}
-                </select>
-              </label>
               {isDjangoBackend ? (
-                <p className="form-note">
-                  Your account will be registered with Chrisland University
-                  Chapel.
-                </p>
+                <>
+                  <p className="form-note">
+                    {memberType === "Student"
+                      ? "Student records are organized by academic level."
+                      : memberType === "Staff"
+                        ? "Staff registration uses your email address. A staff ID is not required."
+                        : "Guest registration uses your email address. No university ID is required."}
+                  </p>
+                  {memberType === "Student" && (
+                    <label className="field">
+                      <span>Academic level</span>
+                      <select name="level" defaultValue={values.level || ""} required>
+                        <option value="" disabled>Select your current level</option>
+                        {academicLevels.map((level) => (
+                          <option key={level} value={level}>
+                            {level === "JUPEB" ? level : `${level} Level`}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
+                </>
               ) : (
                 <>
                   <Field
@@ -528,11 +621,9 @@ export function RegisterPage() {
                   <label className="field">
                     <span>Academic level</span>
                     <select name="level" defaultValue={values.level}>
-                      <option>100</option>
-                      <option>200</option>
-                      <option>300</option>
-                      <option>400</option>
-                      <option>500</option>
+                      {academicLevels.map((level) => (
+                        <option key={level}>{level}</option>
+                      ))}
                       <option>Not applicable</option>
                     </select>
                   </label>
@@ -654,76 +745,85 @@ export function RegisterPage() {
 }
 
 export function ForgotPasswordPage() {
-  const [sent, setSent] = useState(false);
+  return (
+    <div className="auth-card">
+      <div className="auth-heading">
+        <span className="auth-icon">
+          <Mail />
+        </span>
+        <p className="eyebrow">Account recovery</p>
+        <h1>Contact the Super Admin</h1>
+        <p>
+          Ask the ChapelFlow Super Admin to reset your account. They will give
+          you a temporary password that must be changed immediately after you
+          sign in.
+        </p>
+      </div>
+      <div className="security-note">
+        <ShieldCheck />
+        <p>
+          Your existing password cannot be viewed by anyone. The Super Admin
+          can only replace it with a temporary password.
+        </p>
+      </div>
+      <Link className="button button--secondary full-button" to="/login">
+        Return to sign in
+      </Link>
+    </div>
+  );
+}
+
+export function RequiredPasswordChangePage() {
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  if (!user) return <Navigate to="/login" replace />;
+  if (!user.passwordChangeRequired) return <Navigate to="/app" replace />;
+
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setError("");
+    const data = new FormData(event.currentTarget);
+    const currentPassword = String(data.get("currentPassword"));
+    const nextPassword = String(data.get("nextPassword"));
+    const confirmation = String(data.get("confirmation"));
+    if (nextPassword.length < 8) {
+      setError("Use at least 8 characters for your new password.");
+      return;
+    }
+    if (nextPassword !== confirmation) {
+      setError("The new passwords do not match.");
+      return;
+    }
     setLoading(true);
+    setError("");
     try {
-      if (!isDemoMode)
-        await authService.forgotPassword(
-          String(new FormData(event.currentTarget).get("identifier")),
-        );
-      setSent(true);
+      await authService.changePassword(currentPassword, nextPassword);
+      await logout();
+      navigate("/login?reason=password-changed", { replace: true });
     } catch (caught) {
-      setError(
-        caught instanceof Error
-          ? caught.message
-          : "The request could not be submitted.",
-      );
+      setError(caught instanceof Error ? caught.message : "The password could not be changed.");
     } finally {
       setLoading(false);
     }
   }
+
   return (
     <div className="auth-card">
-      {sent ? (
-        <div className="auth-success">
-          <span className="auth-icon auth-icon--success">
-            <Mail />
-          </span>
-          <p className="eyebrow">Check your inbox</p>
-          <h1>Password reset email sent.</h1>
-          <p>
-            If an account matches that information, a secure reset link will
-            arrive shortly.
-          </p>
-          <Link className="button button--secondary full-button" to="/login">
-            Return to sign in
-          </Link>
-        </div>
-      ) : (
-        <>
-          <div className="auth-heading">
-            <span className="auth-icon">
-              <Mail />
-            </span>
-            <p className="eyebrow">Account recovery</p>
-            <h1>Reset your password</h1>
-            <p>
-              Enter your email or account identifier. We will send instructions
-              if a matching account exists.
-            </p>
-          </div>
-          <form onSubmit={(event) => void submit(event)}>
-            <Field
-              name="identifier"
-              label="Email or account identifier"
-              required
-            />
-            {error && (
-              <div className="form-error" role="alert">
-                {error}
-              </div>
-            )}
-            <Button type="submit" className="full-button" loading={loading}>
-              Send reset instructions
-            </Button>
-          </form>
-        </>
-      )}
+      <div className="auth-heading">
+        <span className="auth-icon"><LockKeyhole /></span>
+        <p className="eyebrow">Temporary password</p>
+        <h1>Create your private password</h1>
+        <p>You must replace the temporary password before opening ChapelFlow.</p>
+      </div>
+      <form onSubmit={(event) => void submit(event)}>
+        <Field name="currentPassword" label="Temporary password" type="password" required autoComplete="current-password" />
+        <Field name="nextPassword" label="New password" type="password" minLength={8} required autoComplete="new-password" />
+        <Field name="confirmation" label="Confirm new password" type="password" minLength={8} required autoComplete="new-password" />
+        {error && <div className="form-error" role="alert">{error}</div>}
+        <Button type="submit" className="full-button" loading={loading}>Save new password</Button>
+      </form>
     </div>
   );
 }

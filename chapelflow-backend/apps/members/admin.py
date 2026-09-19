@@ -2,7 +2,22 @@ from django.contrib import admin
 from django.utils.html import format_html
 from rangefilter.filters import NumericRangeFilterBuilder
 
-from .models import Member, MemberQRCode, MembershipHistory, MemberTag, MemberFollowUp, EngagementMetrics
+from .models import (
+    AcademicLevel,
+    EngagementMetrics,
+    JupebStudent,
+    Level100Student,
+    Level200Student,
+    Level300Student,
+    Level400Student,
+    Level500Student,
+    Level600Student,
+    Member,
+    MemberFollowUp,
+    MemberQRCode,
+    MembershipHistory,
+    MemberTag,
+)
 
 
 class MemberTagInline(admin.TabularInline):
@@ -12,10 +27,59 @@ class MemberTagInline(admin.TabularInline):
 
 @admin.register(Member)
 class MemberAdmin(admin.ModelAdmin):
-    list_display = ["full_name", "branch", "membership_status", "email", "phone_number"]
-    list_filter = ["branch", "membership_status", "gender"]
-    search_fields = ["first_name", "last_name", "email", "phone_number"]
+    list_display = ["full_name", "academic_level", "branch", "membership_status", "email", "phone_number"]
+    list_filter = ["academic_level", "branch", "membership_status", "gender"]
+    search_fields = ["first_name", "last_name", "user__matric_no", "email", "phone_number"]
+    ordering = ["academic_level", "last_name", "first_name"]
     inlines = [MemberTagInline]
+
+    def has_add_permission(self, request):
+        return False
+
+
+class AcademicLevelMemberAdmin(MemberAdmin):
+    academic_level = None
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).filter(
+            community="STUDENT",
+            academic_level=self.academic_level,
+        )
+
+
+@admin.register(JupebStudent)
+class JupebStudentAdmin(AcademicLevelMemberAdmin):
+    academic_level = AcademicLevel.JUPEB
+
+
+@admin.register(Level100Student)
+class Level100StudentAdmin(AcademicLevelMemberAdmin):
+    academic_level = AcademicLevel.LEVEL_100
+
+
+@admin.register(Level200Student)
+class Level200StudentAdmin(AcademicLevelMemberAdmin):
+    academic_level = AcademicLevel.LEVEL_200
+
+
+@admin.register(Level300Student)
+class Level300StudentAdmin(AcademicLevelMemberAdmin):
+    academic_level = AcademicLevel.LEVEL_300
+
+
+@admin.register(Level400Student)
+class Level400StudentAdmin(AcademicLevelMemberAdmin):
+    academic_level = AcademicLevel.LEVEL_400
+
+
+@admin.register(Level500Student)
+class Level500StudentAdmin(AcademicLevelMemberAdmin):
+    academic_level = AcademicLevel.LEVEL_500
+
+
+@admin.register(Level600Student)
+class Level600StudentAdmin(AcademicLevelMemberAdmin):
+    academic_level = AcademicLevel.LEVEL_600
 
 
 @admin.register(MembershipHistory)

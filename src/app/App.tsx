@@ -11,8 +11,10 @@ import {
   ForgotPasswordPage,
   LoginPage,
   OtpPage,
+  RequiredPasswordChangePage,
   RegisterPage,
   ResetPasswordPage,
+  SuperAdminSetupPage,
   VerifyEmailPage,
 } from "../features/auth-pages";
 import { AttendanceKioskPage } from "../features/attendance-kiosk";
@@ -21,6 +23,7 @@ import { UsherAttendancePage } from "../features/usher-attendance";
 import { InstitutionalAccountsPage } from "../features/institutional-accounts";
 import { AdminOperationsPage } from "../features/admin-operations";
 import { RoleOperationsPage } from "../features/role-operations";
+import { GivingPage } from "../features/giving-page";
 import {
   StudentAttendanceHistoryPage,
   StudentAnnouncementsPage,
@@ -35,8 +38,11 @@ import {
   NotFoundPage,
   PortalShell,
   ProtectedRoute,
+  StudentOnlyRoute,
 } from "../features/portal-shell";
 import {
+  AboutPage,
+  CookieConsent,
   HomePage,
   LegalPage,
   PublicContentPage,
@@ -100,6 +106,21 @@ const LeadershipAdminPage = lazy(() =>
     default: module.LeadershipAdminPage,
   })),
 );
+const FinanceWorkspacePage = lazy(() =>
+  import("../features/ministry-workspaces").then((module) => ({
+    default: module.FinanceWorkspacePage,
+  })),
+);
+const VolunteerWorkspacePage = lazy(() =>
+  import("../features/ministry-workspaces").then((module) => ({
+    default: module.VolunteerWorkspacePage,
+  })),
+);
+const CareWorkspacePage = lazy(() =>
+  import("../features/ministry-workspaces").then((module) => ({
+    default: module.CareWorkspacePage,
+  })),
+);
 
 function RouteLoader() {
   return (
@@ -122,7 +143,7 @@ export function App() {
               <Route path="/" element={<HomePage />} />
               <Route
                 path="/about"
-                element={<PublicContentPage page="about" />}
+                element={<AboutPage />}
               />
               <Route
                 path="/mission"
@@ -164,6 +185,10 @@ export function App() {
                 path="/gallery"
                 element={<PublicInfoPage page="gallery" />}
               />
+              <Route
+                path="/gallery/:galleryId"
+                element={<PublicDetailPage kind="gallery" />}
+              />
               <Route path="/news" element={<PublicInfoPage page="news" />} />
               <Route
                 path="/news/:articleId"
@@ -176,6 +201,8 @@ export function App() {
               <Route path="/faq" element={<PublicInfoPage page="faq" />} />
               <Route path="/privacy" element={<LegalPage type="privacy" />} />
               <Route path="/terms" element={<LegalPage type="terms" />} />
+              <Route path="/cookies" element={<LegalPage type="cookies" />} />
+              <Route path="/community-standards" element={<LegalPage type="community" />} />
               <Route
                 path="/accessibility"
                 element={<LegalPage type="accessibility" />}
@@ -199,10 +226,26 @@ export function App() {
               }
             />
             <Route
+              path="/setup/admin"
+              element={
+                <AuthLayout>
+                  <SuperAdminSetupPage />
+                </AuthLayout>
+              }
+            />
+            <Route
               path="/forgot-password"
               element={
                 <AuthLayout>
                   <ForgotPasswordPage />
+                </AuthLayout>
+              }
+            />
+            <Route
+              path="/change-password-required"
+              element={
+                <AuthLayout>
+                  <RequiredPasswordChangePage />
                 </AuthLayout>
               }
             />
@@ -250,6 +293,7 @@ export function App() {
             <Route element={<ProtectedRoute />}>
               <Route element={<PortalShell />}>
                 <Route path="/app" element={<DashboardPage />} />
+                <Route path="/app/giving" element={<GivingPage />} />
                 <Route element={<ProtectedRoute roles={["chaplain", "student_chaplain", "unit_leader", "fellowship_leader"]} />}>
                   <Route path="/app/operations" element={<RoleOperationsPage />} />
                 </Route>
@@ -266,7 +310,7 @@ export function App() {
                 >
                   <Route path="/app/attendance" element={<AttendancePage />} />
                 </Route>
-                <Route element={<ProtectedRoute roles={["member"]} />}>
+                <Route element={<StudentOnlyRoute />}>
                   <Route
                     path="/app/chapel-pass"
                     element={<StudentAttendancePassPage />}
@@ -280,10 +324,12 @@ export function App() {
                     element={<StudentIdentityPassPage />}
                   />
                   <Route path="/app/profile" element={<StudentProfilePage />} />
-                  <Route path="/app/profile/edit" element={<StudentProfileEditorPage />} />
-                  <Route path="/app/notifications" element={<StudentNotificationsPage />} />
-                  <Route path="/app/announcements" element={<StudentAnnouncementsPage />} />
                   <Route path="/app/join-community" element={<StudentJoinCommunityPage />} />
+                </Route>
+                <Route element={<ProtectedRoute roles={["member"]} />}>
+                  <Route path="/app/profile/edit" element={<StudentProfileEditorPage />} />
+                  <Route path="/app/announcements" element={<StudentAnnouncementsPage />} />
+                  <Route path="/app/notifications" element={<StudentNotificationsPage />} />
                 </Route>
                 <Route element={<ProtectedRoute permission="events:read" />}>
                   <Route path="/app/events" element={<EventsPage />} />
@@ -298,6 +344,7 @@ export function App() {
                     element={<CommunityWorkspacePage />}
                   />
                 </Route>
+                <Route path="/app/care" element={<CareWorkspacePage />} />
                 <Route
                   element={<ProtectedRoute permission="leadership:view" />}
                 >
@@ -335,7 +382,7 @@ export function App() {
                 <Route element={<ProtectedRoute permission="workers:read" />}>
                   <Route
                     path="/app/workers"
-                    element={<OperationsPage module="workers" />}
+                    element={<VolunteerWorkspacePage />}
                   />
                 </Route>
                 <Route
@@ -355,7 +402,7 @@ export function App() {
                 <Route element={<ProtectedRoute permission="finance:read" />}>
                   <Route
                     path="/app/finance"
-                    element={<OperationsPage module="finance" />}
+                    element={<FinanceWorkspacePage />}
                   />
                 </Route>
                 <Route element={<ProtectedRoute permission="assets:read" />}>
@@ -409,7 +456,7 @@ export function App() {
                 element={<AttendanceKioskPage />}
               />
             </Route>
-            <Route element={<ProtectedRoute permission="attendance:scan" />}>
+            <Route element={<ProtectedRoute roles={["attendance_usher"]} />}>
               <Route
                 path="/usher/attendance"
                 element={<UsherAttendancePage />}
@@ -433,6 +480,7 @@ export function App() {
             <Route path="*" element={<Navigate to="/404" replace />} />
           </Routes>
         </Suspense>
+        <CookieConsent />
         <OfflineAttendanceSync />
         <PwaPrompt />
       </ToastProvider>

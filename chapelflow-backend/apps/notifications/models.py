@@ -19,6 +19,22 @@ class NotificationStatus(models.TextChoices):
     STUBBED = "STUBBED", "Stubbed (provider not configured)"
 
 
+class BirthdayAnnouncement(models.Model):
+    """One branch-safe, idempotent birthday celebration per member per day."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    member = models.ForeignKey("members.Member", on_delete=models.CASCADE, related_name="birthday_announcements")
+    celebrated_on = models.DateField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "notifications_birthday_announcement"
+        constraints = [
+            models.UniqueConstraint(fields=["member", "celebrated_on"], name="unique_member_birthday_announcement"),
+        ]
+        indexes = [models.Index(fields=["celebrated_on"], name="notificatio_celebra_e72f02_idx")]
+
+
 class Notification(models.Model):
     """
     A single notification delivery attempt to a user, on a specific
@@ -35,6 +51,10 @@ class Notification(models.Model):
         "communications.Announcement", null=True, blank=True, on_delete=models.SET_NULL, related_name="notifications",
         help_text="Set when this notification was fanned out from a communications.Announcement, "
                   "so delivery state can be tracked/aggregated per-campaign.",
+    )
+    birthday_announcement = models.ForeignKey(
+        BirthdayAnnouncement, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="notifications",
     )
     channel = models.CharField(max_length=10, choices=NotificationChannel.choices)
     title = models.CharField(max_length=255)

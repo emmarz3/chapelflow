@@ -5,9 +5,12 @@ from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.test import TestCase
 from rest_framework import serializers
+from rest_framework.test import APIClient
+from rest_framework_simplejwt.tokens import AccessToken
 
 from apps.accounts.models import User
 from apps.accounts.serializers import InstitutionalAccountSerializer
+from apps.audit.models import AuditLog
 from apps.organizations.models import Branch, Organization
 
 
@@ -53,3 +56,76 @@ class SuperAdminAccountTests(TestCase):
         with patch.dict("os.environ", {"SUPER_ADMIN_EMAIL": "other@example.edu", "SUPER_ADMIN_PASSWORD": "not-used"}):
             with self.assertRaises(CommandError):
                 call_command("bootstrap_super_admin")
+
+    def test_super_admin_issues_temporary_password_and_user_must_replace_it(self):
+        account = User.objects.create_user(
+            email="leader@example.edu",
+            password="Original-password-123!",
+            role="UNIT_HEAD",
+            branch=self.branch,
+        )
+        client = APIClient()
+        client.force_authenticate(self.admin)
+
+        response = client.post(f"/api/v1/auth/institutional-accounts/{account.id}/password-reset/")
+
+        self.assertEqual(response.status_code, 200)
+        temporary_password = response.data["data"]["temporary_password"]
+        self.assertGreaterEqual(len(temporary_password), 12)
+        account.refresh_from_db()
+        self.assertTrue(account.check_password(temporary_password))
+        self.assertFalse(account.check_password("Original-password-123!"))
+        self.assertTrue(account.password_change_required)
+
+        audit = AuditLog.objects.get(
+            action="PASSWORD_CHANGE",
+            resource_id=str(account.id),
+            user=self.admin,
+        )
+        self.assertNotIn(temporary_password, str(audit.metadata))
+
+        # A real JWT is restricted to identity/password endpoints until the
+        # temporary credential has been replaced.
+        client.force_authenticate(user=None)
+        client.credentials(HTTP_AUTHORIZATION=f"Bearer {AccessToken.for_user(account)}")
+        blocked = client.get("/api/v1/auth/sessions/")
+        self.assertEqual(blocked.status_code, 401)
+
+        changed = client.post("/api/v1/auth/change-password/", {
+            "old_password": temporary_password,
+            "new_password": "A-new-private-password-456!",
+        })
+        self.assertEqual(changed.status_code, 200)
+        account.refresh_from_db()
+        self.assertFalse(account.password_change_required)
+        self.assertTrue(account.check_password("A-new-private-password-456!"))
+
+    def test_non_super_admin_cannot_issue_temporary_password(self):
+        account = User.objects.create_user(
+            email="leader2@example.edu",
+            password="Original-password-123!",
+            role="UNIT_HEAD",
+            branch=self.branch,
+        )
+        chapel_admin = User.objects.create_user(
+            email="chapel-admin@example.edu",
+            password="Chapel-admin-password-123!",
+            role="CHAPEL_ADMIN",
+            branch=self.branch,
+        )
+        client = APIClient()
+        client.force_authenticate(chapel_admin)
+
+        response = client.post(f"/api/v1/auth/institutional-accounts/{account.id}/password-reset/")
+
+        self.assertEqual(response.status_code, 403)
+        account.refresh_from_db()
+        self.assertTrue(account.check_password("Original-password-123!"))
+
+    def test_public_password_reset_request_directs_user_to_super_admin(self):
+        client = APIClient()
+
+        response = client.post("/api/v1/auth/password-reset/", {"email": "unknown@example.edu"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Super Admin", response.data["message"])

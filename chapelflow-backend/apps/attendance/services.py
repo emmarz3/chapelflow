@@ -8,7 +8,7 @@ from django.core import signing
 from django.db import IntegrityError, transaction
 from django.utils import timezone
 
-from apps.members.models import Member, MemberQRCode
+from apps.members.models import Member, MemberQRCode, is_student_community_member
 from common.permissions.scoping import user_can_access_branch
 from .models import (
     AttendanceCheckpoint, AttendanceMethod, AttendanceRecord, AttendanceScanAttempt,
@@ -72,7 +72,7 @@ def _record_scan_attempt(*, token: str, result: str, session=None, checkpoint=No
 def student_scan_usher_token(*, token: str, user):
     """Record the logged-in student's scan of a live usher QR, never a personal QR."""
     member = Member.objects.select_related("branch").filter(user=user).first()
-    if user.get_role_code() != "MEMBER" or not member:
+    if user.get_role_code() != "MEMBER" or not is_student_community_member(member):
         _record_scan_attempt(token=token, result="unauthorized_role")
         raise AttendanceError("Only authenticated student accounts can record attendance.")
     if not user.is_active or member.membership_status != "ACTIVE":

@@ -12,8 +12,10 @@ import type {
   CommunityMessage,
   CommunityAnnouncement,
   CommunityEvent,
+  CommunityResource,
   CommunityMember,
   LeadershipDirectoryEntry,
+  Role,
 } from "../types/domain";
 
 export type QueryParams = Record<string, string | number | boolean | undefined>;
@@ -23,6 +25,43 @@ export interface ListRow {
   secondary: string;
   detail: string;
   status: string;
+  contentType?: string;
+  slug?: string;
+  mediaUrl?: string;
+  coverImageUrl?: string;
+  authorName?: string;
+  publishAt?: string | null;
+  publishedAt?: string | null;
+  rejectionReason?: string;
+  categoryName?: string;
+  locationName?: string;
+  assetTag?: string;
+  serialNumber?: string;
+  trackingMode?: string;
+  quantityOnHand?: number;
+  reorderLevel?: number;
+  unitOfMeasure?: string;
+  condition?: string;
+  custodianName?: string;
+  nextMaintenanceAt?: string | null;
+  lowStock?: boolean;
+}
+export interface AssetHistoryPayload {
+  movements: {
+    id: string;
+    type: string;
+    quantityChange: number;
+    quantityAfter: number;
+    reason: string;
+    createdAt: string;
+  }[];
+  maintenance: {
+    id: string;
+    title: string;
+    dueAt: string;
+    status: string;
+    completedAt: string | null;
+  }[];
 }
 export interface DashboardPayload {
   metrics: {
@@ -45,6 +84,80 @@ export interface RoleWorkspacePayload {
     pending_reports: number;
   };
   live_sessions: { id: string; label: string; state: string; opens_at: string; closes_at: string | null; check_ins: number }[];
+}
+export interface InventoryAlertsPayload {
+  lowStock: ListRow[];
+  maintenanceDue: {
+    id: string;
+    assetId: string;
+    title: string;
+    details: string;
+    dueAt: string;
+    status: string;
+  }[];
+}
+export interface FinanceDashboardPayload {
+  totalGiving: string;
+  givingCount: number;
+  uniqueContributors: number;
+  paymentPending: number;
+  paymentFailed: number;
+  byCategory: { name: string; total: string }[];
+  pledgeSummary: { totalPledged: string; totalFulfilled: string; totalRemaining: string };
+}
+export interface GivingEntry {
+  id: string;
+  categoryName: string;
+  amount: string;
+  currency: string;
+  source: string;
+  status: string;
+  givenAt: string;
+  note: string;
+}
+export interface VolunteerProfileEntry {
+  id: string;
+  memberId: string;
+  memberName: string;
+  skills: string;
+  status: string;
+  isActive: boolean;
+}
+export interface VolunteerAssignmentEntry {
+  id: string;
+  volunteerName: string;
+  eventTitle: string;
+  groupName: string;
+  role: string;
+  status: string;
+  notes: string;
+  hoursLogged: string;
+}
+export interface PrayerEntry {
+  id: string;
+  category: string;
+  details: string;
+  privacyLevel: string;
+  status: string;
+  createdAt: string;
+}
+export interface PastoralCaseEntry {
+  id: string;
+  category: string;
+  summary: string;
+  priority: string;
+  status: string;
+  nextFollowUpDate: string | null;
+  createdAt: string;
+}
+export interface TestimonyEntry {
+  id: string;
+  title: string;
+  details: string;
+  consentToPublish: boolean;
+  status: string;
+  rejectionReason: string;
+  createdAt: string;
 }
 export interface AttendancePayload {
   session: {
@@ -148,6 +261,10 @@ export const queryKeys = {
   events: (params: QueryParams) => ["events", params] as const,
   operations: (module: OperationsModule, params: QueryParams) =>
     [module, params] as const,
+  inventoryAlerts: () => ["inventory-alerts"] as const,
+  financeDashboard: () => ["finance-dashboard"] as const,
+  volunteerAssignments: () => ["volunteer-assignments"] as const,
+  care: () => ["care"] as const,
   analytics: (params: QueryParams) => ["analytics", params] as const,
   communities: () => ["communities"] as const,
   community: (slug: string) => ["communities", slug] as const,
@@ -193,6 +310,11 @@ export const authService = {
     api.get<{ data: StudentProfile }>("/account/profile"),
   updateStudentProfile: (payload: Partial<StudentProfile>) =>
     api.patch<{ data: StudentProfile }>("/account/profile", payload),
+  uploadStudentProfilePhoto: (file: File) => {
+    const body = new FormData();
+    body.set("file", file);
+    return api.postForm<{ data: StudentProfile }>("/account/profile/photo", body);
+  },
 };
 
 export interface StudentProfile {
@@ -200,12 +322,29 @@ export interface StudentProfile {
   phone_number: string;
   address: string;
   photo_url: string;
+  date_of_birth: string | null;
   emergency_contact_name: string;
   emergency_contact_phone: string;
   matric_no: string;
   department: string | null;
   role: string;
 }
+
+export interface UploadResult {
+  id: string;
+  file_url: string;
+  content_type: string;
+  size_bytes: number;
+}
+
+export const uploadService = {
+  upload: (file: File, category: "MEDIA_CONTENT") => {
+    const body = new FormData();
+    body.set("file", file);
+    body.set("category", category);
+    return api.postForm<{ data: UploadResult }>("/uploads", body);
+  },
+};
 
 const demoCommunities: CommunitySummary[] = [
   {
@@ -312,6 +451,14 @@ export const communityService = {
       `/communities/${encodeURIComponent(slug)}/events`,
       payload,
     ),
+  resources: (slug: string) =>
+    api.get<{ data: CommunityResource[] }>(
+      `/communities/${encodeURIComponent(slug)}/resources`,
+    ),
+  addResource: (slug: string, payload: { title: string; url: string; description?: string }) =>
+    api.post<{ data: CommunityResource }>(
+      `/communities/${encodeURIComponent(slug)}/resources`, payload,
+    ),
   members: (slug: string, status?: string) =>
     api.get<{ data: CommunityMember[] }>(
       `/communities/${encodeURIComponent(slug)}/members${queryString({ status })}`,
@@ -386,9 +533,9 @@ export const notificationService = {
 };
 
 export const dashboardService = {
-  get: (branchId: string) =>
+  get: (branchId: string, role: Role) =>
     api.get<{ data: DashboardPayload }>(
-      `/dashboard${queryString({ branchId })}`,
+      `/dashboard${queryString({ branchId, role })}`,
     ),
 };
 
@@ -415,6 +562,70 @@ export const roleWorkspaceService = {
   createMeeting: (payload: Record<string, unknown>) => api.post<{ data: Record<string, unknown> }>("/role/meetings", payload),
   meetingAttendance: (id: string) => api.get<{ data: Record<string, unknown>[] }>(`/role/meetings/${encodeURIComponent(id)}/attendance`),
   markMeetingAttendance: (id: string, member: string, present = true) => api.post<{ data: Record<string, unknown> }>(`/role/meetings/${encodeURIComponent(id)}/attendance`, { member, present }),
+};
+
+/** Inventory exceptions are available only to Chapel Protocol and Chapel leadership. */
+export const inventoryService = {
+  alerts: () => api.get<{ data: InventoryAlertsPayload }>("/assets/alerts"),
+};
+export const financeService = {
+  dashboard: () => api.get<{ data: FinanceDashboardPayload }>("/finance/dashboard"),
+  giving: () => api.get<PagedResponse<GivingEntry>>("/finance/giving"),
+  categories: () => api.get<{ data: { id: string; name: string }[] }>("/finance/categories"),
+  recordGiving: (payload: { category: string; amount: number; source: string; note?: string }) =>
+    api.post<{ data: GivingEntry }>("/finance/giving", payload),
+};
+
+export type PersonalGivingType = "OFFERING" | "TITHE";
+
+export interface PaystackCheckout {
+  authorizationUrl: string;
+  reference: string;
+}
+
+export interface PaystackVerification {
+  reference: string;
+  status: "PENDING" | "SUCCESSFUL" | "FAILED" | "REFUNDED";
+  amount: string;
+  currency: string;
+  givingRecorded: boolean;
+}
+
+/** Personal giving is available to signed-in ChapelFlow accounts only. */
+export const givingService = {
+  beginPaystackCheckout: (payload: {
+    givingType: PersonalGivingType;
+    amount: string;
+    note?: string;
+    termsAccepted: boolean;
+  }) => api.post<{ data: PaystackCheckout }>("/giving/checkout", payload),
+  verifyPaystackCheckout: (reference: string) =>
+    api.post<{ data: PaystackVerification }>("/giving/checkout/verify", { reference }),
+};
+export const volunteerService = {
+  profiles: () => api.get<PagedResponse<VolunteerProfileEntry>>("/volunteers/profiles"),
+  assignments: () => api.get<PagedResponse<VolunteerAssignmentEntry>>("/volunteers/assignments"),
+  createAssignment: (payload: { volunteer: string; role: string; notes?: string }) =>
+    api.post<{ data: VolunteerAssignmentEntry }>("/volunteers/assignments", payload),
+  confirm: (id: string) => api.post<{ data: VolunteerAssignmentEntry }>(`/volunteers/assignments/${encodeURIComponent(id)}/confirm`),
+  complete: (id: string, hoursLogged: number) => api.post<{ data: VolunteerAssignmentEntry }>(`/volunteers/assignments/${encodeURIComponent(id)}/complete`, { hours_logged: hoursLogged }),
+};
+export const careService = {
+  prayers: () => api.get<PagedResponse<PrayerEntry>>("/care/prayers"),
+  submitPrayer: (payload: { category: string; details: string; privacyLevel: "PRIVATE" | "PASTORAL" }) =>
+    api.post<{ data: PrayerEntry }>("/care/prayers", payload),
+  counsellingRequests: () => api.get<PagedResponse<PastoralCaseEntry>>("/care/pastoral-cases"),
+  updateCounsellingCase: (id: string, payload: { status: string; closureReason?: string }) =>
+    api.patch<{ data: PastoralCaseEntry }>(`/care/pastoral-cases/${encodeURIComponent(id)}`, payload),
+  requestCounselling: (payload: { summary: string; preferredDate?: string }) =>
+    api.post<{ data: PastoralCaseEntry }>("/care/counselling-requests", payload),
+  testimonies: () => api.get<PagedResponse<TestimonyEntry>>("/care/testimonies"),
+  submitTestimony: (payload: { title: string; details: string; consentToPublish: boolean }) =>
+    api.post<{ data: TestimonyEntry }>("/care/testimonies", payload),
+  approveTestimony: (id: string) =>
+    api.post<{ data: TestimonyEntry }>(`/care/testimonies/${encodeURIComponent(id)}/approve`),
+  rejectTestimony: (id: string, reason: string) =>
+    api.post<{ data: TestimonyEntry }>(`/care/testimonies/${encodeURIComponent(id)}/reject`, { reason }),
 };
 export const memberService = {
   list: (params: QueryParams) =>
@@ -548,7 +759,12 @@ export const institutionalAccountService = {
       payload,
     ),
   resetPassword: (id: string) =>
-    api.post<void>(
+    api.post<{
+      data: {
+        temporary_password: string;
+        password_change_required: boolean;
+      };
+    }>(
       `/institutional-accounts/${encodeURIComponent(id)}/password-reset`,
     ),
 };
@@ -666,16 +882,19 @@ export const eventService = {
     api.get<PagedResponse<EventSummary>>(`/events${queryString(params)}`),
   create: (payload: Partial<EventSummary>) =>
     api.post<{ data: EventSummary }>("/events", payload),
-  register: (eventId: string, answers: Record<string, unknown>) =>
-    api.post<{ data: { confirmationCode: string; waitlisted: boolean } }>(
+  register: (eventId: string, answers: Record<string, unknown> = {}) =>
+    api.post<{ data: { id: string; status: "CONFIRMED" | "WAITLISTED" | "CANCELLED" } }>(
       `/events/${encodeURIComponent(eventId)}/registrations`,
       answers,
     ),
   cancelRegistration: (eventId: string) =>
     api.delete<void>(`/events/${encodeURIComponent(eventId)}/registrations/me`),
 };
-export const studentContentService = {
+export const accountContentService = {
   announcements: () => api.get<{ data: { id: string; title: string; body: string; published_at: string }[] }>("/student/announcements"),
+};
+export const studentContentService = {
+  announcements: accountContentService.announcements,
   joinRequests: () => api.get<{ data: { groups: { id: string; name: string; type: string; description: string }[]; requests: { id: string; group: string; status: string; message: string; requested_at: string }[] } }>("/student/join-requests"),
   requestJoin: (group: string, message: string) => api.post<{ data: { id: string; status: string } }>("/student/join-requests", { group, message }),
 };
@@ -716,8 +935,21 @@ export const operationsService = {
     ),
   assetMovement: (assetId: string, payload: Record<string, unknown>) =>
     api.post<void>(`/assets/${encodeURIComponent(assetId)}/movements`, payload),
+  assetHistory: (assetId: string) =>
+    api.get<{ data: AssetHistoryPayload }>(
+      `/assets/${encodeURIComponent(assetId)}/history`,
+    ),
   publishContent: (contentId: string) =>
     api.post<void>(`/cms/content/${encodeURIComponent(contentId)}/publish`),
+  contentWorkflow: (
+    contentId: string,
+    action: "submit" | "approve" | "reject" | "publish" | "archive",
+    payload: Record<string, unknown> = {},
+  ) =>
+    api.post<{ data: ListRow }>(
+      `/cms/content/${encodeURIComponent(contentId)}/${action}`,
+      payload,
+    ),
 };
 export const analyticsService = {
   get: (params: QueryParams) =>
@@ -726,11 +958,11 @@ export const analyticsService = {
     ),
 };
 export const publicService = {
-  content: (slug: string) =>
+  content: (slug: string, search = "") =>
     api.get<{ data: PublicContentPayload }>(
-      `/public/content/${encodeURIComponent(slug)}`,
+      `/public/content/${encodeURIComponent(slug)}${queryString({ search })}`,
     ),
-  detail: (kind: "events" | "sermons" | "news", id: string) =>
+  detail: (kind: "events" | "sermons" | "news" | "gallery", id: string) =>
     api.get<{ data: PublicContentPayload }>(
       `/public/${kind}/${encodeURIComponent(id)}`,
     ),

@@ -19,10 +19,10 @@ class MemberViewSet(BranchScopedQuerysetMixin, StandardModelViewSet):
     # Phase 4: Expanded filter fields to include academic and chapel relationships
     filterset_fields = [
         "branch", "household", "membership_status", "gender",
-        "college", "department", "community", "fellowship"
+        "college", "department", "community", "academic_level", "fellowship"
     ]
     search_fields = ["first_name", "last_name", "email", "phone_number"]
-    ordering_fields = ["last_name", "created_at", "membership_date"]
+    ordering_fields = ["academic_level", "last_name", "created_at", "membership_date"]
 
     # Deliberately NOT wired through the generic group_field_lookup
     # mechanism: BranchScopedQuerysetMixin._apply_leader_scope only knows
@@ -240,7 +240,10 @@ class MemberViewSet(BranchScopedQuerysetMixin, StandardModelViewSet):
         if not keep or not merged:
             return error_response("One or both members were not found in your scope.", status=404)
 
-        result = merge_members(keep=keep, merged=merged, changed_by=request.user)
+        try:
+            result = merge_members(keep=keep, merged=merged, changed_by=request.user)
+        except ValueError as exc:
+            return error_response(str(exc), status=400)
         from apps.audit.services import write_audit_log
         from apps.audit.models import AuditAction
         write_audit_log(

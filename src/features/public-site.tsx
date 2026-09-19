@@ -3,7 +3,7 @@ import {
   CalendarDays,
   CheckCircle2,
   Clock3,
-  Headphones,
+  Cookie,
   MapPin,
   Menu,
   Play,
@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { useRef, useState, type ReactNode } from "react";
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
-import { Brand, Button, PageHeader, SectionLink } from "../components/ui";
+import { Button, PageHeader, SectionLink } from "../components/ui";
 import { usePublicMotion } from "../components/motion/motion-system";
 import { isDemoMode } from "../lib/fixtures";
 import { LivePublicDetailPage, LivePublicPage } from "./live-public";
@@ -32,13 +32,13 @@ export function PublicLayout() {
   const mainRef = useRef<HTMLElement>(null);
   usePublicMotion(mainRef, location.pathname);
   return (
-    <div className="public-shell">
+    <div className={`public-shell ${location.pathname === "/" ? "public-shell--home" : ""}`}>
       <a className="skip-link" href="#main-content">
         Skip to content
       </a>
       <header className="public-nav">
         <Link to="/" aria-label="ChapelFlow home">
-          <Brand />
+          <PublicWordmark />
         </Link>
         <nav aria-label="Public navigation">
           {publicNav.map(([label, path]) => (
@@ -52,7 +52,7 @@ export function PublicLayout() {
             Sign in
           </Link>
           <Link className="button button--primary" to="/register">
-            Join the chapel
+            Create account <ArrowRight size={16} />
           </Link>
         </div>
         <button
@@ -72,7 +72,7 @@ export function PublicLayout() {
           >
             <X />
           </button>
-          <Brand />
+          <PublicWordmark />
           {publicNav.map(([label, path]) => (
             <Link onClick={() => setOpen(false)} key={path} to={path}>
               {label}
@@ -86,7 +86,7 @@ export function PublicLayout() {
             className="button button--primary"
             to="/register"
           >
-            Join the chapel
+            Create account <ArrowRight size={16} />
           </Link>
         </div>
       )}
@@ -103,7 +103,7 @@ function PublicFooter() {
     <footer className="public-footer">
       <div className="public-footer__main">
         <div>
-          <Brand inverse />
+          <PublicWordmark inverse />
           <p>
             A connected chapel community for worship, service, and growth at
             Chrisland University, Abeokuta.
@@ -129,6 +129,8 @@ function PublicFooter() {
           <h3>Policies</h3>
           <Link to="/privacy">Privacy policy</Link>
           <Link to="/terms">Terms of use</Link>
+          <Link to="/cookies">Cookie policy</Link>
+          <Link to="/community-standards">Community standards</Link>
           <Link to="/accessibility">Accessibility</Link>
         </div>
       </div>
@@ -140,147 +142,166 @@ function PublicFooter() {
   );
 }
 
+function PublicWordmark({ inverse = false }: { inverse?: boolean }) {
+  return (
+    <span className={`cuc-wordmark ${inverse ? "cuc-wordmark--inverse" : ""}`}>
+      <strong>Chapel<em>Flow</em></strong>
+      <small>Chrisland University Chapel</small>
+    </span>
+  );
+}
+
 export function HomePage() {
-  if (!isDemoMode) return <LivePublicPage slug="home" />;
   return <DemoHomePage />;
 }
 
 function DemoHomePage() {
   return (
-    <>
-      <section className="hero">
-        <img
-          src="/chapel-hero.png"
-          alt="Students approaching a university chapel in the morning"
-        />
-        <div className="hero__shade" />
-        <div className="hero__content">
-          <span className="hero__kicker">Faith. Fellowship. Formation.</span>
-          <h1>A chapel community for every part of university life.</h1>
-          <p>
-            Join us as we worship, grow, and serve together at Chrisland
-            University Chapel, Abeokuta.
-          </p>
-          <div>
-            <Link className="button button--gold" to="/events">
-              Plan your visit <ArrowRight size={18} />
-            </Link>
-            <Link className="button button--glass" to="/sermons">
-              <Play size={17} /> Watch latest sermon
-            </Link>
+    <div className="cuc-home">
+      <div className="cuc-home__gathering">
+        <span>Next gathering</span>
+        <strong>Combined Chapel Service · Sunday, 10:00 AM</strong>
+        <Link to="/events">View programmes <ArrowRight size={15} /></Link>
+      </div>
+      <section className="cuc-home__hero">
+        <div className="cuc-home__hero-copy">
+          <p className="cuc-home__eyebrow">Chrisland University Chapel</p>
+          <h1>Where faith becomes <em>community.</em></h1>
+          <p className="cuc-home__lede">One beautiful place to worship, belong, grow, and stay connected to chapel life at CUC.</p>
+          <div className="cuc-home__actions">
+            <Link className="button button--primary" to="/register">Create your ChapelFlow account <ArrowRight size={18} /></Link>
+            <Link className="button button--ghost" to="/about">Explore ChapelFlow</Link>
           </div>
+          <dl className="cuc-home__stats">
+            <div><dt>2,500+</dt><dd>Students connected</dd></div>
+            <div><dt>20+</dt><dd>Chapel communities</dd></div>
+            <div><dt>48</dt><dd>Programmes yearly</dd></div>
+          </dl>
         </div>
-        <div className="service-ribbon">
-          <span className="service-ribbon__icon">
-            <Clock3 />
-          </span>
-          <div>
-            <small>Next gathering</small>
-            <strong>Sunday Worship Service</strong>
-          </div>
-          <div>
-            <small>Sunday, 30 August</small>
-            <strong>9:00 AM · University Chapel</strong>
-          </div>
-          <Link to="/events">
-            View service details <ArrowRight size={17} />
-          </Link>
-        </div>
+        <figure className="cuc-home__hero-image">
+          <img src="/chapel-hero.png" alt="Chrisland University students arriving for chapel" />
+          <figcaption>“A deeper faith. A stronger community.”</figcaption>
+        </figure>
       </section>
-      <section className="welcome section">
-        <div className="section-heading">
-          <p className="eyebrow">Welcome home</p>
-          <h2>A place to belong, believe, and become.</h2>
-        </div>
-        <div className="welcome__copy">
-          <p>
-            Our chapel is at the heart of campus life — a warm, thoughtful
-            community where students and staff encounter God, build lasting
-            relationships, and discover meaningful ways to serve.
-          </p>
-          <Link to="/about">
-            <SectionLink>Discover our story</SectionLink>
-          </Link>
-        </div>
-      </section>
-      <UpcomingSection />
-      <section className="sermon-feature section">
-        <div className="sermon-feature__visual">
-          <img src="/chapel-hero.png" alt="University chapel exterior" />
-          <span className="play-button">
-            <Play fill="currentColor" />
-          </span>
-        </div>
+      <section className="cuc-home__belonging">
         <div>
-          <p className="eyebrow">Latest message</p>
-          <h2>Steady faith in changing seasons</h2>
-          <p className="sermon-meta">Pastor Daniel Eze · 23 August 2026</p>
-          <p>
-            Faith is not the absence of uncertainty. It is choosing where to
-            stand while the world around us changes.
-          </p>
-          <div className="tag-row">
-            <span>Hebrews 10:23</span>
-            <span>Faith</span>
-            <span>Student life</span>
-          </div>
-          <Link className="button button--secondary" to="/sermons">
-            <Headphones size={18} /> Listen to message
-          </Link>
+          <p className="cuc-home__eyebrow">One chapel · one community · one flow</p>
+          <h2>A richer campus life, rooted in purpose.</h2>
+          <p>ChapelFlow is the digital home for worship, fellowship, service, and spiritual growth at Chrisland University Chapel.</p>
+          <p className="cuc-home__quote">“Faith is lived best when it is lived together.”</p>
+        </div>
+        <div className="cuc-home__photo-rail" aria-label="Chapel community moments">
+          <img src="/chapel-hero.png" alt="" /><img src="/chapel-hero.png" alt="" /><img src="/chapel-hero.png" alt="" />
+        </div>
+        <div className="cuc-home__pillars">
+          {[['Worship together', 'Services and shared moments'], ['Belong deeply', 'Units and fellowships'], ['Grow in faith', 'Sermons and resources'], ['Serve with purpose', 'Community and leadership']].map(([title, detail]) => <article key={title}><strong>{title}</strong><span>{detail}</span></article>)}
         </div>
       </section>
-      <section className="ministries section">
-        <div className="section-heading centered">
-          <p className="eyebrow">Find your place</p>
-          <h2>There is room for your gift here.</h2>
-          <p>
-            Grow in community and make a difference through one of our service
-            teams.
-          </p>
+      <section className="cuc-home__attendance">
+        <div>
+          <p className="cuc-home__eyebrow">Secure chapel attendance</p>
+          <h2>Present in the moment.<br />Confirmed in seconds.</h2>
+          <p>Students scan the official QR shown by an authorized usher. Every live code refreshes automatically and one attendance record is kept for each service.</p>
+          <ol><li><span>01</span> Official usher QR</li><li><span>02</span> Rotates every 45 seconds</li><li><span>03</span> Scan with ChapelFlow</li><li><span>04</span> One attendance per service</li></ol>
         </div>
-        <div className="ministry-grid">
+        <div className="cuc-home__attendance-art">
+          <img src="/chapel-hero.png" alt="Students gathering at the chapel" />
+          <div className="cuc-home__qr-card"><small>Official usher QR</small><strong>QR</strong><span>00:45</span></div>
+        </div>
+      </section>
+      <section className="cuc-home__programmes">
+        <p className="cuc-home__eyebrow">Upcoming programmes</p>
+        <div className="cuc-home__section-head"><h2>Moments worth showing up for.</h2><Link to="/events">See all programmes <ArrowRight size={17} /></Link></div>
+        <div className="cuc-home__programme-grid">
+          {[['Sunday · 10:00 AM', 'Combined Chapel Service', 'left'], ['Wednesday · 5:30 PM', 'Word & Life', 'center'], ['Friday · 6:00 PM', 'Night of Worship', 'right']].map(([time, title, position]) => <Link to="/events" className="cuc-home__programme" key={title}><img className={`cuc-home__programme-image cuc-home__programme-image--${position}`} src="/chapel-hero.png" alt="" /><span>{time}</span><strong>{title}</strong></Link>)}
+        </div>
+      </section>
+      <section className="cuc-home__wisdom">
+        <div className="cuc-home__wisdom-image"><img src="/chapel-hero.png" alt="Students walking into Chrisland University Chapel" /><p>Anchored in a changing world.</p></div>
+        <div><p className="cuc-home__eyebrow">Sermons and media</p><h2>Wisdom for the journey.</h2>{['Faith that works', 'A campus of influence', 'Living with purpose'].map((title, index) => <Link to="/sermons" className="cuc-home__sermon" key={title}><span>0{index + 1} · {18 + index * 6} minutes</span><strong>{title}</strong><ArrowRight size={17} /></Link>)}</div>
+      </section>
+      <section className="cuc-home__closing">
+        <img src="/chapel-hero.png" alt="" />
+        <div><p className="cuc-home__eyebrow">Chrisland University Chapel</p><h2>Stay connected to everything happening at CUC.</h2><p>Join ChapelFlow and become part of a growing community of faith, purpose, and impact.</p><Link className="button button--primary" to="/register">Join the chapel community <ArrowRight size={18} /></Link></div>
+      </section>
+    </div>
+  );
+}
+
+export function AboutPage() {
+  return (
+    <div className="cuc-about">
+      <section className="cuc-about__hero">
+        <div>
+          <p className="cuc-home__eyebrow">About Chrisland University Chapel</p>
+          <h1>A place to meet God, find your people, and serve with purpose.</h1>
+          <p>Chrisland University Chapel is a welcoming spiritual home for students, staff, guests, and the wider university community.</p>
+          <Link className="button button--primary" to="/register">Create your ChapelFlow account <ArrowRight size={18} /></Link>
+        </div>
+        <img src="/chapelflow-auth-register-visual.png" alt="Chrisland University students gathered outside the chapel" />
+      </section>
+      <section className="cuc-about__story">
+        <div>
+          <p className="cuc-home__eyebrow">Why we are here</p>
+          <h2>Faith has a place in the whole of university life.</h2>
+        </div>
+        <div className="cuc-about__story-copy">
+          <p>We gather to worship, learn from Scripture, pray for one another, and grow into people of faith, character, and service. Chapel is not an extra activity—it is a community that walks with you through university life.</p>
+          <p>Whether you are arriving as a new student, looking for a fellowship, serving in a unit, or simply seeking a place to belong, there is room for you here.</p>
+        </div>
+      </section>
+      <section className="cuc-about__rhythm">
+        <header><p className="cuc-home__eyebrow">Our shared rhythm</p><h2>Worship. Belonging. Formation. Service.</h2></header>
+        <div>
           {[
-            [
-              "Music & worship",
-              "Lead our community in thoughtful, excellent worship.",
-            ],
-            [
-              "Welcome & hospitality",
-              "Help every person feel seen from the moment they arrive.",
-            ],
-            [
-              "Media & production",
-              "Use technology and creativity to carry the message further.",
-            ],
-            [
-              "Prayer & care",
-              "Stand with our community through prayer and practical support.",
-            ],
-          ].map(([name, copy], index) => (
-            <article key={name}>
-              <span>0{index + 1}</span>
-              <h3>{name}</h3>
-              <p>{copy}</p>
-              <Link to="/register">
-                Learn more <ArrowRight size={16} />
-              </Link>
-            </article>
-          ))}
+            ["Worship together", "Gather in chapel services that centre worship, Scripture, prayer, and a Christ-shaped life."],
+            ["Belong deeply", "Find your people through fellowships, units, care, and campus friendships that last beyond a semester."],
+            ["Grow in faith", "Build steady habits through messages, discipleship, thoughtful conversations, and pastoral support."],
+            ["Serve with purpose", "Use your gifts in chapel ministry and practical service to the university and wider community."],
+          ].map(([title, detail]) => <article key={title}><span>CUC</span><h3>{title}</h3><p>{detail}</p></article>)}
         </div>
       </section>
-      <section className="livestream-strip">
-        <div>
-          <Radio />
-          <span>
-            <small>Join from anywhere</small>
-            <strong>Sunday service streams live at 9:00 AM</strong>
-          </span>
-        </div>
-        <Link className="button button--gold" to="/livestream">
-          Watch livestream
-        </Link>
+      <section className="cuc-about__invitation">
+        <div><p className="cuc-home__eyebrow">Your place is here</p><h2>Come as you are. Grow as you go.</h2><p>Join ChapelFlow to follow programmes, find a community, receive chapel updates, and take part in the life of CUC.</p></div>
+        <div><Link className="button button--primary" to="/register">Create account <ArrowRight size={18} /></Link><Link className="button button--ghost" to="/contact">Contact the chapel</Link></div>
       </section>
-    </>
+    </div>
+  );
+}
+
+const cookieConsentKey = "chapelflow:cookie-consent-v1";
+type CookieConsentChoice = "all" | "necessary";
+
+function savedCookieConsent(): CookieConsentChoice | null {
+  try {
+    const record: unknown = JSON.parse(localStorage.getItem(cookieConsentKey) || "null");
+    if (record && typeof record === "object" && "choice" in record) {
+      const choice = record.choice;
+      return choice === "all" || choice === "necessary" ? choice : null;
+    }
+  } catch {
+    // Storage may be unavailable in a privacy-restricted browser.
+  }
+  return null;
+}
+
+export function CookieConsent() {
+  const [choice, setChoice] = useState<CookieConsentChoice | null>(savedCookieConsent);
+  const save = (nextChoice: CookieConsentChoice) => {
+    try {
+      localStorage.setItem(cookieConsentKey, JSON.stringify({ choice: nextChoice, version: 1, savedAt: new Date().toISOString() }));
+    } catch {
+      // The preference remains active for this page session when storage is unavailable.
+    }
+    setChoice(nextChoice);
+  };
+  if (choice) return null;
+  return (
+    <section className="cookie-consent" role="dialog" aria-modal="false" aria-labelledby="cookie-consent-title">
+      <Cookie aria-hidden="true" />
+      <div><strong id="cookie-consent-title">Your privacy, your choice</strong><p>ChapelFlow uses essential cookies for secure sign-in and reliable service. We do not enable optional analytics or marketing cookies unless they are configured and you choose to allow them.</p><Link to="/cookies">Read the Cookie Policy</Link></div>
+      <div className="cookie-consent__actions"><button className="button button--secondary" type="button" onClick={() => save("necessary")}>Use necessary only</button><button className="button button--primary" type="button" onClick={() => save("all")}>Accept cookies</button></div>
+    </section>
   );
 }
 
@@ -501,107 +522,71 @@ export function PublicContentPage({ page }: { page: keyof typeof pageCopy }) {
   );
 }
 
-export function LegalPage({
-  type,
-}: {
-  type: "privacy" | "terms" | "accessibility";
-}) {
-  const privacy = type === "privacy";
-  const title = privacy
-    ? "Privacy Policy"
-    : type === "terms"
-      ? "Terms of Use"
-      : "Accessibility Statement";
+type LegalPolicy = "privacy" | "terms" | "cookies" | "community" | "accessibility";
+
+const legalPolicies: Record<LegalPolicy, { title: string; description: string; sections: Array<{ id: string; title: string; paragraphs: string[] }> }> = {
+  privacy: {
+    title: "Privacy Policy",
+    description: "How Chrisland University Chapel handles information within ChapelFlow.",
+    sections: [
+      { id: "overview", title: "Our commitment", paragraphs: ["ChapelFlow supports worship, membership, attendance, events, communication, giving, and administration for Chrisland University Chapel. Information is used only for legitimate chapel and university purposes, with access limited by role and responsibility."] },
+      { id: "information", title: "Information we use", paragraphs: ["Depending on your use of ChapelFlow, this may include account identity, student or membership details, attendance, programme registrations, giving records, communication preferences, and technical security information.", "These records help operate chapel services, maintain accurate administration, communicate relevant updates, protect accounts, and meet institutional obligations."] },
+      { id: "sharing", title: "Access, security, and retention", paragraphs: ["Authorized chapel and university personnel may access only the information needed for their responsibilities. Service providers may process limited information under appropriate contractual and security arrangements. Personal data is not sold.", "Administrative, technical, and organizational controls protect records. Information is retained according to approved institutional requirements, then securely deleted or anonymized where appropriate."] },
+      { id: "choices", title: "Your choices", paragraphs: ["You may request access to or correction of your information, manage communication preferences, and submit an account or data request where institutional policy permits. Some records may need to be retained for legitimate administrative, financial, security, or legal reasons."] },
+    ],
+  },
+  terms: {
+    title: "Terms of Use",
+    description: "The rules that keep ChapelFlow reliable, respectful, and secure for the CUC community.",
+    sections: [
+      { id: "overview", title: "Using ChapelFlow", paragraphs: ["ChapelFlow is provided to connect the Chrisland University Chapel community. Use the service lawfully, provide accurate information, and keep your sign-in details private. You are responsible for activity carried out through your account."] },
+      { id: "conduct", title: "Respect for the community", paragraphs: ["Do not use ChapelFlow to harass, impersonate, exploit, deceive, distribute harmful content, or interfere with another person’s access. Respect the privacy and rights of members, staff, guests, and chapel leaders."] },
+      { id: "access", title: "Access and availability", paragraphs: ["ChapelFlow access is role-based. The chapel may update, suspend, or restrict access where security, safeguarding, institutional policy, or reliable operation requires it. Features and schedules may change as chapel services develop."] },
+      { id: "contact", title: "Questions and reports", paragraphs: ["If you identify a security issue, an account concern, or harmful conduct, contact the chapel office promptly. Do not share another person’s information while making a report."] },
+    ],
+  },
+  cookies: {
+    title: "Cookie Policy",
+    description: "How ChapelFlow uses essential browser storage and records your cookie choice.",
+    sections: [
+      { id: "overview", title: "Essential cookies", paragraphs: ["ChapelFlow uses essential cookies and local storage to keep sign-in sessions secure, protect requests from forgery, remember accessibility and display preferences, and make the service work reliably. These are necessary for the service to operate."] },
+      { id: "optional", title: "Optional technologies", paragraphs: ["ChapelFlow does not enable optional analytics or marketing cookies in this version. If an optional technology is added later, it will be described here and enabled only after the appropriate choice has been recorded."] },
+      { id: "choice", title: "Your choice", paragraphs: ["The cookie request records whether you accepted all cookies or chose necessary cookies only. You can remove ChapelFlow site data from your browser settings to show the request again. Removing essential cookies may require you to sign in again."] },
+      { id: "contact", title: "More information", paragraphs: ["Read the Privacy Policy for details about information handling. Contact the chapel office if you need help with your ChapelFlow account or privacy preferences."] },
+    ],
+  },
+  community: {
+    title: "Community Standards",
+    description: "The shared expectations for conversations, media, events, and care within ChapelFlow.",
+    sections: [
+      { id: "overview", title: "Build one another up", paragraphs: ["Use ChapelFlow in ways that reflect dignity, honesty, care, and respect. Disagreement is welcome when it is constructive; personal attacks, discrimination, threats, and deliberate disruption are not."] },
+      { id: "media", title: "Media and shared moments", paragraphs: ["Share only media you are authorized to publish. Do not post personal information, private prayer requests, or images of others without the appropriate permission. Chapel leaders may review or remove content to protect the community."] },
+      { id: "care", title: "Care and safeguarding", paragraphs: ["ChapelFlow is not an emergency service. If someone may be in immediate danger, contact the appropriate emergency or university support service. Sensitive care concerns should be directed to an authorized chaplain or the chapel office."] },
+      { id: "report", title: "Report a concern", paragraphs: ["Report harmful content, suspected impersonation, or safeguarding concerns promptly through the chapel office. Reports are handled as confidentially as the situation and institutional process allow."] },
+    ],
+  },
+  accessibility: {
+    title: "Accessibility Statement",
+    description: "Our commitment to making ChapelFlow usable for the widest possible CUC community.",
+    sections: [
+      { id: "overview", title: "Our approach", paragraphs: ["ChapelFlow is designed to support keyboard navigation, readable text, responsive layouts, visible focus states, reduced motion preferences, and clear form feedback. We continue to improve the experience as the service grows."] },
+      { id: "support", title: "Where you may need support", paragraphs: ["Some uploaded media or third-party services may not yet meet the same standard. Chapel teams should provide alternative information where a feature creates a barrier, especially for essential programme, attendance, or care information."] },
+      { id: "feedback", title: "Tell us about a barrier", paragraphs: ["If a ChapelFlow page is difficult to use with your device or assistive technology, contact the chapel office with the page, what you were trying to do, and the support you need. We will use that feedback to prioritize a practical alternative or improvement."] },
+    ],
+  },
+};
+
+export function LegalPage({ type }: { type: LegalPolicy }) {
+  const policy = legalPolicies[type];
   return (
     <div className="legal-page">
-      <PageHeader
-        eyebrow="ChapelFlow policies"
-        title={title}
-        description={
-          privacy
-            ? "How Chrisland University Chapel handles information within ChapelFlow."
-            : "Important information about using ChapelFlow."
-        }
-      />
+      <PageHeader eyebrow="ChapelFlow policies" title={policy.title} description={policy.description} />
       <div className="legal-layout">
-        <aside>
-          <strong>On this page</strong>
-          <a href="#overview">Overview</a>
-          <a href="#information">Information and use</a>
-          <a href="#choices">Your choices</a>
-          <a href="#contact">Contact</a>
-        </aside>
+        <aside><strong>On this page</strong>{policy.sections.map((section) => <a href={`#${section.id}`} key={section.id}>{section.title}</a>)}</aside>
         <article className="legal-copy">
-          <div className="legal-notice">
-            This policy template is structured for Nigerian institutional use
-            and requires final legal review before production publication.
-            Official privacy contact details must be configured.
-          </div>
-          <section id="overview">
-            <h2>Overview</h2>
-            <p>
-              ChapelFlow supports worship, membership, attendance, events,
-              communication, giving, and administration for Chrisland University
-              Chapel. We handle information only for legitimate chapel and
-              institutional purposes, with access limited by role and
-              responsibility.
-            </p>
-          </section>
-          <section id="information">
-            <h2>
-              {privacy
-                ? "Information we collect and why"
-                : "Using this service"}
-            </h2>
-            <p>
-              {privacy
-                ? "Depending on how you use ChapelFlow, records may include account identity, student or membership information, attendance, event registrations, giving transactions, communication preferences, and technical device information. These records help operate chapel services, maintain accurate administration, communicate relevant updates, protect accounts, and meet institutional obligations."
-                : "Use ChapelFlow lawfully, protect your account credentials, provide accurate information, and respect the privacy and rights of other members. Access may be restricted when platform security or institutional policy requires it."}
-            </p>
-            <h3>Access and sharing</h3>
-            <p>
-              Authorized chapel and university personnel may access only the
-              information needed for their responsibilities. Service providers
-              may process limited information under appropriate contractual and
-              security arrangements. Personal data is not sold.
-            </p>
-            <h3>Storage, security, and retention</h3>
-            <p>
-              Administrative, technical, and organizational controls are used to
-              protect information. Records are retained according to
-              institutional requirements and then securely deleted or anonymized
-              where appropriate.
-            </p>
-          </section>
-          <section id="choices">
-            <h2>Your choices and rights</h2>
-            <p>
-              You may request access to or correction of your information,
-              manage communication preferences, and submit an account or data
-              request where institutional policy permits. Some records may need
-              to be retained for legitimate administrative, financial, security,
-              or legal reasons.
-            </p>
-            <h3>Cookies and local storage</h3>
-            <p>
-              Essential browser storage may be used for security, theme
-              preferences, accessibility, and reliable operation. Optional
-              analytics or communication technologies should be enabled only
-              where configured and appropriately disclosed.
-            </p>
-          </section>
-          <section id="contact">
-            <h2>Questions and requests</h2>
-            <p>
-              Privacy and policy enquiries should be sent to the official
-              contact configured by Chrisland University Chapel. No official
-              contact has been configured in this frontend.
-            </p>
-            <p>
-              <strong>Effective date:</strong> To be approved ·{" "}
-              <strong>Last reviewed:</strong> 27 August 2026
-            </p>
-          </section>
+          <div className="legal-notice">These public policies must be approved by Chrisland University before production publication. Add the official policy contact, retention schedule, and effective date during that approval.</div>
+          {policy.sections.map((section) => <section id={section.id} key={section.id}><h2>{section.title}</h2>{section.paragraphs.map((paragraph) => <p key={paragraph}>{paragraph}</p>)}</section>)}
+          <p className="legal-copy__review"><strong>Publication status:</strong> Pending institutional approval · <strong>Last product review:</strong> 19 September 2026</p>
         </article>
       </div>
     </div>
@@ -751,13 +736,19 @@ export function PublicInfoPage({ page }: { page: keyof typeof infoPages }) {
 export function PublicDetailPage({
   kind,
 }: {
-  kind: "event" | "sermon" | "article";
+  kind: "event" | "sermon" | "article" | "gallery";
 }) {
   if (!isDemoMode)
     return (
       <LivePublicDetailPage
         kind={
-          kind === "event" ? "events" : kind === "sermon" ? "sermons" : "news"
+          kind === "event"
+            ? "events"
+            : kind === "sermon"
+              ? "sermons"
+              : kind === "gallery"
+                ? "gallery"
+                : "news"
         }
       />
     );
@@ -774,7 +765,13 @@ export function PublicDetailPage({
             title: "Steady faith in changing seasons",
             description: "Pastor Daniel Eze · 23 August 2026 · Hebrews 10:23",
           }
-        : {
+        : kind === "gallery"
+          ? {
+              eyebrow: "Chapel gallery",
+              title: "Life in our chapel community",
+              description: "Published photographs from chapel events and services.",
+            }
+          : {
             eyebrow: "Chapel news",
             title: "Beginning the session with purpose",
             description: "Published 25 August 2026 · Chapel Office",
@@ -787,7 +784,9 @@ export function PublicDetailPage({
           <h2>
             {kind === "event"
               ? "A shared beginning"
-              : "A message for our community"}
+              : kind === "gallery"
+                ? "A shared moment"
+                : "A message for our community"}
           </h2>
           <p>
             Join the Chrisland University Chapel community for a thoughtful time
@@ -801,14 +800,18 @@ export function PublicDetailPage({
                 ? "/register"
                 : kind === "sermon"
                   ? "/sermons"
-                  : "/news"
+                  : kind === "gallery"
+                    ? "/gallery"
+                    : "/news"
             }
           >
             {kind === "event"
               ? "Register for this event"
               : kind === "sermon"
                 ? "Play message"
-                : "Share article"}
+                : kind === "gallery"
+                  ? "Back to gallery"
+                  : "Share article"}
           </Link>
         </div>
         <aside>

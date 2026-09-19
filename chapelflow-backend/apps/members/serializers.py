@@ -47,7 +47,7 @@ class MemberSerializer(ScopedFKValidationMixin, serializers.ModelSerializer):
             "other_names", "full_name", "gender", "date_of_birth", "email",
             "phone_number", "address", "photo_url", "membership_status",
             "membership_date", "emergency_contact_name", "emergency_contact_phone",
-            "college", "department", "community", "fellowship",
+            "college", "department", "community", "academic_level", "fellowship",
             "tags", "qr_code", "created_at", "updated_at",
         ]
         read_only_fields = ["id", "created_at", "updated_at"]

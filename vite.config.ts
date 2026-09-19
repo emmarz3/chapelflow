@@ -18,6 +18,13 @@ export default defineConfig(({ mode }) => {
         "/api": env.API_PROXY_TARGET || "http://127.0.0.1:8000",
       },
     },
+    preview: {
+      port: 5173,
+      strictPort: true,
+      proxy: {
+        "/api": env.API_PROXY_TARGET || "http://127.0.0.1:8000",
+      },
+    },
     build: {
       rollupOptions: {
         output: {
@@ -38,7 +45,7 @@ export default defineConfig(({ mode }) => {
     plugins: [
       react(),
       VitePWA({
-        registerType: "prompt",
+        registerType: "autoUpdate",
         includeAssets: [
           "chapelflow-mark.svg",
           "chapelflow-brand.jpg",
@@ -63,6 +70,8 @@ export default defineConfig(({ mode }) => {
           ],
         },
         workbox: {
+          clientsClaim: true,
+          skipWaiting: true,
           navigateFallback: "/index.html",
           runtimeCaching: [
             {

@@ -48,6 +48,12 @@ class PrayerPrivacyLevel(models.TextChoices):
     PUBLIC = "PUBLIC", "Public (All Branch Members)"
 
 
+class TestimonyStatus(models.TextChoices):
+    PENDING = "PENDING", "Pending pastoral review"
+    APPROVED = "APPROVED", "Approved for sharing"
+    REJECTED = "REJECTED", "Not approved"
+
+
 class PrayerRequest(models.Model):
     """
     Phase 13: Prayer request with enhanced privacy and lifecycle management.
@@ -215,3 +221,37 @@ class PrayerNote(models.Model):
         if self.pk:
             raise ValidationError("Prayer notes cannot be modified once created (append-only).")
         super().save(*args, **kwargs)
+
+
+class Testimony(models.Model):
+    """A member-submitted testimony that never becomes public without review."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    branch = models.ForeignKey("organizations.Branch", on_delete=models.CASCADE, related_name="testimonies")
+    member = models.ForeignKey("members.Member", on_delete=models.CASCADE, related_name="testimonies")
+    title = models.CharField(max_length=180)
+    details = models.TextField()
+    consent_to_publish = models.BooleanField(default=False)
+    status = models.CharField(max_length=12, choices=TestimonyStatus.choices, default=TestimonyStatus.PENDING)
+    reviewed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="reviewed_testimonies"
+    )
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    rejection_reason = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "prayer_testimony"
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["branch", "status"], name="prayer_tes_branch_status_idx"),
+            models.Index(fields=["member", "status"], name="prayer_tes_member_status_idx"),
+        ]
+
+    def clean(self):
+        super().clean()
+        if self.status == TestimonyStatus.APPROVED and not self.consent_to_publish:
+            raise ValidationError("Explicit consent is required before a testimony can be approved for sharing.")
+        if self.status == TestimonyStatus.REJECTED and not self.rejection_reason:
+            raise ValidationError("A rejection reason is required.")

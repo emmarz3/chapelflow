@@ -27,6 +27,21 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
+let authBootstrapRequest: ReturnType<typeof loadCurrentUser> | null = null;
+
+function loadCurrentUser() {
+  return api.get<{ data: User }>("/auth/me");
+}
+
+function getCurrentUserOnce() {
+  if (!authBootstrapRequest) {
+    authBootstrapRequest = loadCurrentUser().finally(() => {
+      authBootstrapRequest = null;
+    });
+  }
+  return authBootstrapRequest;
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
   const [user, setUser] = useState<User | null>(() => {
@@ -40,8 +55,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (isDemoMode) return;
     let active = true;
-    api
-      .get<{ data: User }>("/auth/me")
+    getCurrentUserOnce()
       .then((response) => {
         if (active) setUser(response.data);
       })

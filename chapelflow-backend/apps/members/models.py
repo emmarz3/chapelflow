@@ -21,6 +21,17 @@ class CommunityClassification(models.TextChoices):
     """
     STUDENT = "STUDENT", "Student"
     STAFF = "STAFF", "Staff Community"
+    GUEST = "GUEST", "Guest"
+
+
+class AcademicLevel(models.TextChoices):
+    JUPEB = "JUPEB", "JUPEB"
+    LEVEL_100 = "100", "100 Level"
+    LEVEL_200 = "200", "200 Level"
+    LEVEL_300 = "300", "300 Level"
+    LEVEL_400 = "400", "400 Level"
+    LEVEL_500 = "500", "500 Level"
+    LEVEL_600 = "600", "600 Level"
 
 
 class Member(models.Model):
@@ -53,6 +64,13 @@ class Member(models.Model):
     community = models.CharField(
         max_length=10, choices=CommunityClassification.choices, blank=True,
         help_text="Student or Staff Community. A classification, not a role — see CommunityClassification.",
+    )
+    academic_level = models.CharField(
+        max_length=5,
+        choices=AcademicLevel.choices,
+        blank=True,
+        db_index=True,
+        help_text="Required for students; not applicable to staff community members.",
     )
     fellowship = models.ForeignKey(
         "ministries.Group", null=True, blank=True, on_delete=models.SET_NULL,
@@ -95,6 +113,60 @@ class Member(models.Model):
     @property
     def full_name(self):
         return f"{self.first_name} {self.last_name}".strip()
+
+
+def is_student_community_member(member):
+    """True only for student records; legacy blank classifications remain students."""
+    return bool(member) and (member.community or CommunityClassification.STUDENT) == CommunityClassification.STUDENT
+
+
+class JupebStudent(Member):
+    class Meta:
+        proxy = True
+        verbose_name = "JUPEB student"
+        verbose_name_plural = "JUPEB students"
+
+
+class Level100Student(Member):
+    class Meta:
+        proxy = True
+        verbose_name = "100 Level student"
+        verbose_name_plural = "100 Level students"
+
+
+class Level200Student(Member):
+    class Meta:
+        proxy = True
+        verbose_name = "200 Level student"
+        verbose_name_plural = "200 Level students"
+
+
+class Level300Student(Member):
+    class Meta:
+        proxy = True
+        verbose_name = "300 Level student"
+        verbose_name_plural = "300 Level students"
+
+
+class Level400Student(Member):
+    class Meta:
+        proxy = True
+        verbose_name = "400 Level student"
+        verbose_name_plural = "400 Level students"
+
+
+class Level500Student(Member):
+    class Meta:
+        proxy = True
+        verbose_name = "500 Level student"
+        verbose_name_plural = "500 Level students"
+
+
+class Level600Student(Member):
+    class Meta:
+        proxy = True
+        verbose_name = "600 Level student"
+        verbose_name_plural = "600 Level students"
 
 
 class MemberTag(models.Model):

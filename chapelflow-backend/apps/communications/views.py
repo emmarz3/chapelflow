@@ -50,12 +50,12 @@ class MyCommunicationPreferenceView(APIView):
 
 
 class StudentAnnouncementFeedView(APIView):
-    """Published branch/group announcements visible only to the signed-in student."""
+    """Published chapel announcements for a signed-in member account."""
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
         if request.user.get_role_code() != "MEMBER":
-            return error_response("This feed is available only to student accounts.", status=403)
+            return error_response("This feed is available only to member accounts.", status=403)
         member = getattr(request.user, "member_profile", None)
         if member is None:
             return error_response("No member profile associated with this account.", status=403)
@@ -64,10 +64,20 @@ class StudentAnnouncementFeedView(APIView):
             branch=member.branch,
             status=AnnouncementStatus.COMPLETED,
             publish_at__lte=now,
-        ).filter(Q(expires_at__isnull=True) | Q(expires_at__gt=now)).filter(
-            Q(target_groups__isnull=True)
-            | Q(target_groups__memberships__member=member, target_groups__memberships__is_active=True)
-        ).distinct().order_by("-publish_at")[:50]
+        ).filter(Q(expires_at__isnull=True) | Q(expires_at__gt=now))
+        if member.community in {"STAFF", "GUEST"}:
+            # Staff and guests receive chapel-wide news only. Group-targeted
+            # messages remain exclusive to the student community platform.
+            feed = feed.filter(
+                Q(audience_type="EVERYONE")
+                | Q(audience_type="CUSTOM", target_groups__isnull=True, target_community="")
+            )
+        else:
+            feed = feed.filter(
+                Q(target_groups__isnull=True)
+                | Q(target_groups__memberships__member=member, target_groups__memberships__is_active=True)
+            )
+        feed = feed.distinct().order_by("-publish_at")[:50]
         return success_response([
             {"id": str(item.id), "title": item.title, "body": item.body, "published_at": item.completed_at or item.publish_at}
             for item in feed
@@ -111,7 +121,11 @@ class AnnouncementViewSet(BranchScopedQuerysetMixin, StandardModelViewSet):
     }
 
     def get_base_queryset(self):
-        return Announcement.objects.select_related("branch").prefetch_related("target_groups")
+        return (
+            Announcement.objects.select_related("branch")
+            .prefetch_related("target_groups")
+            .order_by("-created_at", "-id")
+        )
 
     def perform_create(self, serializer):
         """
@@ -192,6 +206,14 @@ class AnnouncementViewSet(BranchScopedQuerysetMixin, StandardModelViewSet):
                 status=status.HTTP_403_FORBIDDEN
             )
         
+        # Future campaigns stay SCHEDULED until the beat task releases them.
+        # This avoids a Celery worker delivering a future-dated campaign early.
+        if announcement.publish_at > timezone.now():
+            announcement.status = AnnouncementStatus.SCHEDULED
+            announcement.save(update_fields=["status"])
+            response_serializer = self.get_serializer(announcement)
+            return Response({"data": response_serializer.data, "message": "Announcement scheduled for delivery."})
+
         # Transition to QUEUED
         announcement.status = AnnouncementStatus.QUEUED
         announcement.save(update_fields=["status"])

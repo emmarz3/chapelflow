@@ -15,10 +15,24 @@ class CookieJWTAuthentication(JWTAuthentication):
     csrf_cookie_name = "chapelflow_csrf"
     csrf_header_name = "HTTP_X_CHAPELFLOW_CSRF"
 
+    password_change_paths = {
+        "/api/v1/auth/change-password/",
+        "/api/v1/auth/logout/",
+        "/api/v1/auth/me/",
+    }
+
+    def _enforce_required_password_change(self, request, result):
+        if result is None:
+            return None
+        user, _ = result
+        if user.password_change_required and request.path not in self.password_change_paths:
+            raise AuthenticationFailed("You must change your temporary password before continuing.")
+        return result
+
     def authenticate(self, request):
         header_result = super().authenticate(request)
         if header_result is not None:
-            return header_result
+            return self._enforce_required_password_change(request, header_result)
 
         raw_token = request.COOKIES.get(self.cookie_name)
         if not raw_token:
@@ -29,4 +43,6 @@ class CookieJWTAuthentication(JWTAuthentication):
             if not cookie_token or not header_token or cookie_token != header_token:
                 raise AuthenticationFailed("CSRF validation failed.")
         validated_token = self.get_validated_token(raw_token)
-        return self.get_user(validated_token), validated_token
+        return self._enforce_required_password_change(
+            request, (self.get_user(validated_token), validated_token)
+        )

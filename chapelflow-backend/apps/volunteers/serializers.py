@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from rest_framework import serializers
 
 from common.serializers.validators import ScopedFKValidationMixin
@@ -13,9 +15,11 @@ class VolunteerProfileSerializer(ScopedFKValidationMixin, serializers.ModelSeria
     - status: writable to allow staff to manage lifecycle (PENDING -> ACTIVE transitions)
     - created_at: read-only (server-controlled)
     """
+    member_name = serializers.CharField(source="member.full_name", read_only=True)
+
     class Meta:
         model = VolunteerProfile
-        fields = ["id", "member", "skills", "availability_notes", "is_active", "status", "created_at"]
+        fields = ["id", "member", "member_name", "skills", "availability_notes", "is_active", "status", "created_at"]
         read_only_fields = ["id", "created_at"]
     
     def validate_member(self, member):
@@ -75,10 +79,14 @@ class VolunteerAssignmentSerializer(ScopedFKValidationMixin, serializers.ModelSe
     - role: validated against VolunteerRole choices
     - notes: free text for assignment context
     """
+    volunteer_name = serializers.CharField(source="volunteer.member.full_name", read_only=True)
+    event_title = serializers.CharField(source="event_schedule.event.title", read_only=True)
+    group_name = serializers.CharField(source="group.name", read_only=True)
+
     class Meta:
         model = VolunteerAssignment
         fields = [
-            "id", "volunteer", "event_schedule", "group", "role", "status", "confirmed",
+            "id", "volunteer", "volunteer_name", "event_schedule", "event_title", "group", "group_name", "role", "status", "confirmed",
             "notes", "hours_logged", "responded_at", "completed_at", "reminder_sent_at", "created_at"
         ]
         read_only_fields = [
@@ -125,7 +133,7 @@ class AssignmentCompleteSerializer(serializers.Serializer):
     hours_logged = serializers.DecimalField(
         max_digits=5, 
         decimal_places=2, 
-        min_value=0,
+        min_value=Decimal("0.00"),
         required=True,
         help_text="Number of service hours logged (0.00 - 999.99)"
     )

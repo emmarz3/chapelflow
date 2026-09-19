@@ -2,7 +2,7 @@ from django.test import TestCase
 from rest_framework.test import APIClient
 
 from apps.accounts.models import User
-from apps.attendance.models import AttendanceCheckpoint, AttendanceRecord, AttendanceSession
+from apps.attendance.models import AttendanceCheckpoint, AttendanceRecord, AttendanceSession, AttendanceSessionState
 from apps.attendance.services import AttendanceError, issue_checkpoint_token, student_scan_usher_token
 from apps.members.models import CommunityClassification, Member
 from apps.organizations.models import Branch, Organization
@@ -28,6 +28,18 @@ class UsherQrAttendanceTests(TestCase):
         _, created = student_scan_usher_token(token=token, user=self.student_user)
         self.assertFalse(created)
         self.assertEqual(AttendanceRecord.objects.filter(session=self.session, member=self.student).count(), 1)
+
+    def test_authenticated_usher_can_open_their_attendance_checkpoint(self):
+        self.session.is_open = True
+        self.session.state = AttendanceSessionState.OPEN
+        self.session.save(update_fields=["is_open", "state"])
+        client = APIClient()
+        client.force_authenticate(self.usher)
+
+        response = client.get("/api/v1/attendance/checkpoint/token/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["data"]["checkpoint_id"], str(self.checkpoint.id))
 
     def test_modified_token_is_rejected(self):
         token = issue_checkpoint_token(self.checkpoint)["token"] + "tampered"
@@ -56,3 +68,33 @@ class UsherQrAttendanceTests(TestCase):
         client.force_authenticate(self.usher)
         response = client.get("/api/v1/attendance/identity-pass/")
         self.assertEqual(response.status_code, 403)
+
+    def test_staff_and_guest_members_cannot_use_student_attendance_endpoints(self):
+        token = issue_checkpoint_token(self.checkpoint)["token"]
+        for community in (CommunityClassification.STAFF, CommunityClassification.GUEST):
+            user = User.objects.create_user(
+                email=f"{community.lower()}@example.edu",
+                password="safe-password-123",
+                first_name=community.title(),
+                last_name="Member",
+                role=Roles.MEMBER,
+                branch=self.branch,
+            )
+            Member.objects.create(
+                user=user,
+                branch=self.branch,
+                first_name=community.title(),
+                last_name="Member",
+                community=community,
+            )
+            client = APIClient()
+            client.force_authenticate(user)
+            for path in (
+                "/api/v1/attendance/pass/",
+                "/api/v1/attendance/identity-pass/",
+                "/api/v1/attendance/history/me/",
+            ):
+                self.assertEqual(client.get(path).status_code, 403)
+            self.assertEqual(client.post("/api/v1/attendance/student-scan/", {"token": token}).status_code, 403)
+            with self.assertRaises(AttendanceError):
+                student_scan_usher_token(token=token, user=user)

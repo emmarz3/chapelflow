@@ -5,18 +5,24 @@ from common.viewsets import StandardModelViewSet
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 from common.utils.responses import error_response, success_response
+from apps.members.models import Member, is_student_community_member
 
 from django.db import transaction
 from django.utils import timezone
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from .models import GroupJoinRequest, GroupMeeting, GroupMeetingAttendance, GroupMembership, GroupRole, GroupTask, JoinRequestStatus
+from .models import GroupJoinRequest, GroupMeeting, GroupMeetingAttendance, GroupMembership, GroupMessage, GroupResource, GroupRole, GroupTask, JoinRequestStatus
 from .serializers import GroupJoinRequestSerializer, GroupMeetingAttendanceSerializer, GroupMeetingSerializer, GroupMembershipSerializer, GroupTaskSerializer
 
 
 def _community_type(group_type):
     return {"UNIT": "unit", "FELLOWSHIP": "campus_fellowship"}.get(group_type, "other")
+
+
+def _has_student_community_access(request):
+    member = Member.objects.filter(user=request.user).only("id", "community").first()
+    return is_student_community_member(member)
 
 
 def _community_summary(membership):
@@ -25,7 +31,7 @@ def _community_summary(membership):
         "id": str(group.id), "slug": str(group.id), "name": group.name,
         "type": _community_type(group.group_type), "description": group.description,
         "status": "active" if group.is_active else "inactive", "requires_approval": False,
-        "members_can_post": False, "chat_enabled": False,
+        "members_can_post": True, "chat_enabled": True,
         "membership_status": "active" if membership.is_active else "suspended",
         "is_leader": membership.role in {GroupRole.LEADER, GroupRole.ASSISTANT_LEADER},
         "unreadCount": 0, "member_count": group.memberships.filter(is_active=True).count(), "pending_count": 0,
@@ -37,6 +43,8 @@ class MyCommunityListView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        if not _has_student_community_access(request):
+            return error_response("Communities are available only to student accounts.", status=403)
         memberships = GroupMembership.objects.filter(
             member__user=request.user, is_active=True, group__is_active=True
         ).select_related("group").order_by("group__name")
@@ -48,6 +56,8 @@ class MyCommunityDetailView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, group_id):
+        if not _has_student_community_access(request):
+            return error_response("Communities are available only to student accounts.", status=403)
         membership = GroupMembership.objects.filter(
             member__user=request.user, group_id=group_id, is_active=True, group__is_active=True
         ).select_related("group").first()
@@ -60,10 +70,311 @@ class MyCommunityDetailView(APIView):
         return success_response({
             **summary, "membershipStatus": summary["membership_status"],
             "memberCount": summary["member_count"],
-            "access": {"isLeader": summary["is_leader"], "canPost": False, "canManage": summary["is_leader"]},
+            "access": {"isLeader": summary["is_leader"], "canPost": True, "canManage": summary["is_leader"]},
             "leaders": [{"position": "Group leader", "name": leader.member.full_name} for leader in leaders],
             "pinnedAnnouncement": None, "nextEvent": None,
         })
+
+
+class CommunityMessageView(APIView):
+    """Group chat constrained to an active membership at every request."""
+
+    permission_classes = [IsAuthenticated]
+
+    def _membership(self, request, group_id):
+        return GroupMembership.objects.filter(
+            member__user=request.user, group_id=group_id, is_active=True, group__is_active=True
+        ).select_related("group").first()
+
+    @staticmethod
+    def _data(item):
+        return {
+            "id": str(item.id), "body": item.body, "reply_to_id": None, "pinned": False,
+            "created_at": item.created_at, "edited_at": None,
+            "sender_id": str(item.author_id), "sender_name": item.author.get_full_name() or item.author.email,
+        }
+
+    def get(self, request, group_id):
+        if not _has_student_community_access(request):
+            return error_response("Communities are available only to student accounts.", status=403)
+        membership = self._membership(request, group_id)
+        if not membership:
+            return error_response("Community not found.", status=404)
+        messages = GroupMessage.objects.filter(group=membership.group).select_related("author")
+        search = str(request.query_params.get("search", "")).strip()
+        if search:
+            messages = messages.filter(body__icontains=search)
+        return success_response([self._data(item) for item in messages[:200]])
+
+    def post(self, request, group_id):
+        if not _has_student_community_access(request):
+            return error_response("Communities are available only to student accounts.", status=403)
+        membership = self._membership(request, group_id)
+        if not membership:
+            return error_response("Community not found.", status=404)
+        body = str(request.data.get("body", "")).strip()
+        if not body:
+            return error_response("Write a message before sending it.", status=400)
+        if len(body) > 4000:
+            return error_response("Messages cannot exceed 4,000 characters.", status=400)
+        message = GroupMessage.objects.create(group=membership.group, author=request.user, body=body)
+        return success_response(self._data(message), status=201)
+
+
+class CommunityResourceView(APIView):
+    """A member-readable and leader-managed resource library for a group."""
+
+    permission_classes = [IsAuthenticated]
+
+    def _membership(self, request, group_id):
+        return GroupMembership.objects.filter(
+            member__user=request.user, group_id=group_id, is_active=True, group__is_active=True
+        ).select_related("group").first()
+
+    @staticmethod
+    def _data(item):
+        return {
+            "id": str(item.id), "title": item.title, "url": item.url, "description": item.description,
+            "created_at": item.created_at, "created_by_name": item.created_by.get_full_name() if item.created_by else "",
+        }
+
+    def get(self, request, group_id):
+        if not _has_student_community_access(request):
+            return error_response("Communities are available only to student accounts.", status=403)
+        membership = self._membership(request, group_id)
+        if not membership:
+            return error_response("Community not found.", status=404)
+        resources = GroupResource.objects.filter(group=membership.group).select_related("created_by")
+        return success_response([self._data(item) for item in resources])
+
+    def post(self, request, group_id):
+        if not _has_student_community_access(request):
+            return error_response("Communities are available only to student accounts.", status=403)
+        membership = self._membership(request, group_id)
+        if not membership:
+            return error_response("Community not found.", status=404)
+        if membership.role not in {GroupRole.LEADER, GroupRole.ASSISTANT_LEADER}:
+            return error_response("Only community leaders can add resources.", status=403)
+        title = str(request.data.get("title", "")).strip()
+        url = str(request.data.get("url", "")).strip()
+        description = str(request.data.get("description", "")).strip()
+        if not title or not url:
+            return error_response("A resource title and valid link are required.", status=400)
+        from django.core.validators import URLValidator
+        from django.core.exceptions import ValidationError as DjangoValidationError
+        try:
+            URLValidator(schemes=["http", "https"])(url)
+        except DjangoValidationError:
+            return error_response("Use a valid http or https resource link.", status=400)
+        resource = GroupResource.objects.create(
+            group=membership.group, title=title[:180], url=url, description=description, created_by=request.user
+        )
+        return success_response(self._data(resource), status=201)
+
+
+class _CommunityMemberView(APIView):
+    """Shared membership lookup for community-only endpoints."""
+
+    permission_classes = [IsAuthenticated]
+
+    def initial(self, request, *args, **kwargs):
+        super().initial(request, *args, **kwargs)
+        if not _has_student_community_access(request):
+            self.permission_denied(request, message="Communities are available only to student accounts.")
+
+    def membership(self, request, group_id):
+        return GroupMembership.objects.filter(
+            member__user=request.user, group_id=group_id, is_active=True, group__is_active=True
+        ).select_related("group").first()
+
+    def leader_membership(self, request, group_id):
+        membership = self.membership(request, group_id)
+        if membership is None:
+            return None, error_response("Community not found.", status=404)
+        if membership.role not in {GroupRole.LEADER, GroupRole.ASSISTANT_LEADER}:
+            return None, error_response("Only community leaders can manage this workspace.", status=403)
+        return membership, None
+
+
+class CommunityAnnouncementView(_CommunityMemberView):
+    """Official group announcements, delivered through the existing communications workflow."""
+
+    @staticmethod
+    def _data(item):
+        return {
+            "id": str(item.id), "title": item.title, "content": item.body, "pinned": False,
+            "priority": "normal", "published_at": item.completed_at or item.publish_at,
+            "expires_at": item.expires_at, "author_name": item.created_by.get_full_name() if item.created_by else "",
+        }
+
+    def get(self, request, group_id):
+        membership = self.membership(request, group_id)
+        if not membership:
+            return error_response("Community not found.", status=404)
+        from apps.communications.models import Announcement, AnnouncementStatus
+        rows = Announcement.objects.filter(
+            branch=membership.group.branch,
+            target_groups=membership.group,
+            status__in=[AnnouncementStatus.QUEUED, AnnouncementStatus.SENDING, AnnouncementStatus.COMPLETED],
+        ).select_related("created_by").order_by("-publish_at")[:100]
+        return success_response([self._data(item) for item in rows])
+
+    def post(self, request, group_id):
+        membership, error = self.leader_membership(request, group_id)
+        if error:
+            return error
+        title = str(request.data.get("title", "")).strip()
+        body = str(request.data.get("content", "")).strip()
+        if not title or not body:
+            return error_response("An announcement needs a title and message.", status=400)
+        from apps.communications.models import Announcement, AnnouncementStatus, AudienceType
+        from apps.communications.services import authorize_audience
+        from apps.communications.tasks import dispatch_announcement
+        try:
+            authorize_audience(request.user, membership.group.branch, AudienceType.CUSTOM, [membership.group], "")
+        except Exception as exc:
+            return error_response(str(exc), status=403)
+        announcement = Announcement.objects.create(
+            branch=membership.group.branch, title=title[:255], body=body,
+            audience_type=AudienceType.CUSTOM, channels=["PUSH"], publish_at=timezone.now(),
+            created_by=request.user, status=AnnouncementStatus.QUEUED,
+        )
+        announcement.target_groups.add(membership.group)
+        dispatch_announcement.delay(str(announcement.id))
+        return success_response(self._data(announcement), status=201)
+
+
+class CommunityMeetingView(_CommunityMemberView):
+    """Group meeting calendar visible to active members and edited by its leaders."""
+
+    @staticmethod
+    def _data(item):
+        return {
+            "id": str(item.id), "title": item.title, "description": item.agenda, "venue": item.location,
+            "starts_at": item.starts_at, "ends_at": item.ends_at or item.starts_at,
+            "status": "completed" if item.ends_at and item.ends_at < timezone.now() else "upcoming",
+        }
+
+    def get(self, request, group_id):
+        membership = self.membership(request, group_id)
+        if not membership:
+            return error_response("Community not found.", status=404)
+        rows = GroupMeeting.objects.filter(group=membership.group).order_by("starts_at")[:100]
+        return success_response([self._data(item) for item in rows])
+
+    def post(self, request, group_id):
+        membership, error = self.leader_membership(request, group_id)
+        if error:
+            return error
+        from django.utils.dateparse import parse_datetime
+        title = str(request.data.get("title", "")).strip()
+        starts_at = parse_datetime(str(request.data.get("starts_at", "")))
+        ends_at = parse_datetime(str(request.data.get("ends_at", "")))
+        if not title or starts_at is None or ends_at is None:
+            return error_response("A title, start time and end time are required.", status=400)
+        if timezone.is_naive(starts_at):
+            starts_at = timezone.make_aware(starts_at)
+        if timezone.is_naive(ends_at):
+            ends_at = timezone.make_aware(ends_at)
+        if ends_at <= starts_at:
+            return error_response("The meeting end time must be after its start time.", status=400)
+        meeting = GroupMeeting.objects.create(
+            group=membership.group, title=title[:180], starts_at=starts_at, ends_at=ends_at,
+            location=str(request.data.get("venue", "")).strip()[:255],
+            agenda=str(request.data.get("description", "")).strip(), created_by=request.user,
+        )
+        return success_response(self._data(meeting), status=201)
+
+
+class CommunityMemberDirectoryView(_CommunityMemberView):
+    """Leader-only membership directory and controlled approval/suspension actions."""
+
+    @staticmethod
+    def _membership_data(item):
+        member = item.member
+        return {
+            "id": str(item.id), "user_id": str(member.user_id), "name": member.full_name,
+            "identifier": member.user.matric_no if member.user_id else None,
+            "programme": getattr(member.department, "name", None), "level": member.academic_level,
+            "status": "active" if item.is_active else "suspended", "is_primary": item.role == GroupRole.LEADER,
+            "joined_at": item.joined_at,
+        }
+
+    @staticmethod
+    def _request_data(item):
+        member = item.member
+        return {
+            "id": str(item.id), "user_id": str(member.user_id), "name": member.full_name,
+            "identifier": member.user.matric_no if member.user_id else None,
+            "programme": getattr(member.department, "name", None), "level": member.academic_level,
+            "status": "pending", "is_primary": False, "joined_at": item.requested_at,
+        }
+
+    def get(self, request, group_id):
+        membership, error = self.leader_membership(request, group_id)
+        if error:
+            return error
+        requested_status = str(request.query_params.get("status", "pending")).lower()
+        if requested_status == "pending":
+            rows = GroupJoinRequest.objects.filter(group=membership.group, status=JoinRequestStatus.PENDING).select_related("member", "member__user", "member__department")
+            return success_response([self._request_data(item) for item in rows])
+        rows = GroupMembership.objects.filter(group=membership.group, is_active=requested_status == "active").select_related("member", "member__user", "member__department")
+        return success_response([self._membership_data(item) for item in rows])
+
+    def patch(self, request, group_id, record_id):
+        membership, error = self.leader_membership(request, group_id)
+        if error:
+            return error
+        next_status = str(request.data.get("status", "")).lower()
+        if next_status in {"active", "rejected"}:
+            request_row = GroupJoinRequest.objects.filter(group=membership.group, id=record_id, status=JoinRequestStatus.PENDING).first()
+            if not request_row:
+                return error_response("Pending membership request not found.", status=404)
+            if next_status == "active":
+                GroupMembership.objects.update_or_create(group=membership.group, member=request_row.member, defaults={"is_active": True, "role": GroupRole.MEMBER})
+                request_row.status = JoinRequestStatus.APPROVED
+            else:
+                request_row.status = JoinRequestStatus.REJECTED
+            request_row.resolved_by, request_row.resolved_at = request.user, timezone.now()
+            request_row.save(update_fields=["status", "resolved_by", "resolved_at"])
+            return success_response({"id": str(request_row.id), "status": next_status})
+        if next_status == "suspended":
+            record = GroupMembership.objects.filter(group=membership.group, id=record_id).first()
+            if not record:
+                return error_response("Membership not found.", status=404)
+            if record.role == GroupRole.LEADER:
+                return error_response("Assign another leader before suspending this leader.", status=400)
+            record.is_active = False
+            record.save(update_fields=["is_active"])
+            return success_response({"id": str(record.id), "status": "suspended"})
+        return error_response("Unsupported membership status.", status=400)
+
+
+class CommunityLeadershipDirectoryView(APIView):
+    """An authenticated, contact-free directory of active group leaders."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        if not _has_student_community_access(request):
+            return error_response("Communities are available only to student accounts.", status=403)
+        rows = GroupMembership.objects.filter(
+            group__is_active=True,
+            is_active=True,
+            role__in=[GroupRole.LEADER, GroupRole.ASSISTANT_LEADER],
+        ).select_related("group", "member").order_by("group__name", "role", "joined_at")
+        return success_response([
+            {
+                "position": "Group leader" if row.role == GroupRole.LEADER else "Assistant group leader",
+                "leader_name": row.member.full_name,
+                "community_name": row.group.name,
+                "community_slug": str(row.group_id),
+                "community_type": _community_type(row.group.group_type),
+                "starts_at": row.joined_at,
+                "ends_at": None,
+            }
+            for row in rows
+        ])
 
 
 def _audit_leadership_change(instance, user, verb):
@@ -138,7 +449,9 @@ class GroupJoinRequestViewSet(BranchScopedQuerysetMixin, StandardModelViewSet):
     permission_action_map = {"list": PermissionCodes.GROUPS_VIEW, "retrieve": PermissionCodes.GROUPS_VIEW, "create": PermissionCodes.GROUPS_MANAGE_MEMBERS, "approve": PermissionCodes.GROUPS_MANAGE_MEMBERS, "reject": PermissionCodes.GROUPS_MANAGE_MEMBERS}
 
     def get_base_queryset(self):
-        return GroupJoinRequest.objects.select_related("group", "member")
+        return GroupJoinRequest.objects.select_related("group", "member").order_by(
+            "-requested_at", "-id"
+        )
 
     @action(detail=True, methods=["post"])
     def approve(self, request, pk=None):
@@ -173,7 +486,8 @@ class MyGroupJoinRequestView(APIView):
     def _member(self, request):
         if request.user.get_role_code() != "MEMBER":
             return None
-        return getattr(request.user, "member_profile", None)
+        member = getattr(request.user, "member_profile", None)
+        return member if is_student_community_member(member) else None
 
     def get(self, request):
         member = self._member(request)
@@ -216,7 +530,9 @@ class GroupTaskViewSet(BranchScopedQuerysetMixin, StandardModelViewSet):
     permission_action_map = {action: PermissionCodes.GROUPS_MANAGE_MEMBERS for action in ("list", "retrieve", "create", "update", "partial_update", "destroy")}
 
     def get_base_queryset(self):
-        return GroupTask.objects.select_related("group", "assignee")
+        return GroupTask.objects.select_related("group", "assignee").order_by(
+            "-created_at", "-id"
+        )
 
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
@@ -231,7 +547,11 @@ class GroupMeetingViewSet(BranchScopedQuerysetMixin, StandardModelViewSet):
     permission_action_map = {action: PermissionCodes.GROUPS_MANAGE_MEMBERS for action in ("list", "retrieve", "create", "update", "partial_update", "destroy", "attendance")}
 
     def get_base_queryset(self):
-        return GroupMeeting.objects.select_related("group").prefetch_related("attendance")
+        return (
+            GroupMeeting.objects.select_related("group")
+            .prefetch_related("attendance")
+            .order_by("-starts_at", "-id")
+        )
 
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)

@@ -7,7 +7,7 @@ from rest_framework.views import APIView
 from django.utils import timezone
 from django.db import models
 
-from apps.members.models import Member, MemberQRCode
+from apps.members.models import Member, MemberQRCode, is_student_community_member
 from common.constants.roles import PermissionCodes, Roles
 from common.permissions.rbac import HasRolePermission
 from common.permissions.scoping import BranchScopedQuerysetMixin, user_can_access_branch
@@ -334,6 +334,9 @@ class StudentUsherScanView(APIView):
     throttle_scope = "attendance_scan"
 
     def post(self, request):
+        member = Member.objects.filter(user=request.user).first()
+        if request.user.get_role_code() != Roles.MEMBER or not is_student_community_member(member):
+            return error_response("Attendance is available only to student accounts.", status=403)
         from .serializers import StudentUsherScanSerializer
         serializer = StudentUsherScanSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -456,11 +459,9 @@ class MemberAttendancePassView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        if request.user.get_role_code() != Roles.MEMBER:
-            return error_response("This pass is available only to student accounts.", status=403)
         member = Member.objects.select_related("department").filter(user=request.user).first()
-        if not member:
-            return error_response("No member profile associated with this account.", status=403)
+        if request.user.get_role_code() != Roles.MEMBER or not is_student_community_member(member):
+            return error_response("This pass is available only to student accounts.", status=403)
         session = (
             AttendanceSession.objects.filter(branch=member.branch, is_open=True)
             .order_by("-opened_at")
@@ -483,7 +484,7 @@ class MemberAttendancePassView(APIView):
                 "name": member.full_name,
                 "identifier": request.user.matric_no or request.user.email or "",
                 "programme": getattr(member.department, "name", None),
-                "level": None,
+                "level": member.academic_level or None,
                 "photoUrl": member.photo_url or None,
             },
             "passStatus": "active" if member.membership_status == "ACTIVE" else "inactive",
@@ -519,11 +520,9 @@ class MemberIdentityPassView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        if request.user.get_role_code() != Roles.MEMBER:
-            return error_response("This pass is available only to student accounts.", status=403)
         member = Member.objects.filter(user=request.user).first()
-        if not member:
-            return error_response("No member profile associated with this account.", status=403)
+        if request.user.get_role_code() != Roles.MEMBER or not is_student_community_member(member):
+            return error_response("This pass is available only to student accounts.", status=403)
         qr, _ = MemberQRCode.objects.get_or_create(member=member)
         if not qr.is_active:
             return error_response("Your chapel identity pass is inactive.", status=403)
@@ -536,8 +535,8 @@ class MemberAttendanceHistoryView(APIView):
 
     def get(self, request):
         member = Member.objects.filter(user=request.user).first()
-        if not member:
-            return error_response("No member profile associated with this account.", status=403)
+        if request.user.get_role_code() != Roles.MEMBER or not is_student_community_member(member):
+            return error_response("Attendance is available only to student accounts.", status=403)
         records = AttendanceRecord.objects.filter(member=member).select_related("session").order_by("-checked_in_at")[:100]
         return success_response([
             {
@@ -573,8 +572,8 @@ class SelfCheckInView(APIView):
         
         # CRITICAL: Derive member from authenticated user (server-side)
         member = Member.objects.filter(user=request.user).first()
-        if not member:
-            return error_response("No member profile associated with this account.", status=403)
+        if request.user.get_role_code() != Roles.MEMBER or not is_student_community_member(member):
+            return error_response("Attendance is available only to student accounts.", status=403)
         
         session = AttendanceSession.objects.filter(id=data["session_id"]).first()
         if not session:

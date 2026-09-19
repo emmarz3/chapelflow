@@ -1,5 +1,15 @@
 from .base import *  # noqa
 
+from django.core.exceptions import ImproperlyConfigured
+
+if not SECRET_KEY or SECRET_KEY in {  # noqa: F405
+    DEVELOPMENT_SECRET_KEY,
+    LEGACY_DEVELOPMENT_SECRET_KEY,
+}:
+    raise ImproperlyConfigured(
+        "SECRET_KEY must be set to a non-development value in production."
+    )
+
 DEBUG = False
 
 SECURE_SSL_REDIRECT = True

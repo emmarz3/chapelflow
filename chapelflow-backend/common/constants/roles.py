@@ -85,13 +85,13 @@ class Roles:
     # FINANCE_OFFICER are kept here only so already-existing accounts of
     # those roles keep their current MFA/audit posture until migrated.
     PRIVILEGED_ROLES = {
-        SUPER_ADMIN, CHAPEL_ADMIN, CHAPLAIN, PASTOR, FINANCE_OFFICER,
+        SUPER_ADMIN, CHAPEL_ADMIN, CHAPLAIN, STUDENT_CHAPLAIN, PASTOR, FINANCE_OFFICER,
     }
 
     # Roles allowed to view pastoral care records (in addition to record
     # owner and explicitly assigned pastoral staff). Chaplain's access here
     # is a permission grant, not a superuser flag (spec section 9/15).
-    PASTORAL_ACCESS_ROLES = {SUPER_ADMIN, CHAPEL_ADMIN, CHAPLAIN, PASTOR}
+    PASTORAL_ACCESS_ROLES = {SUPER_ADMIN, CHAPEL_ADMIN, CHAPLAIN, STUDENT_CHAPLAIN, PASTOR}
 
     FINANCE_ACCESS_ROLES = {SUPER_ADMIN, CHAPEL_ADMIN, FINANCE_OFFICER}
 

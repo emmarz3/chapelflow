@@ -4,12 +4,14 @@ from . import views
 
 urlpatterns = [
     path("register/", views.RegisterView.as_view(), name="auth-register"),
+    path("setup/super-admin/", views.LocalSuperAdminSetupView.as_view(), name="auth-super-admin-setup"),
     path("login/", views.LoginView.as_view(), name="auth-login"),
     path("refresh/", views.RefreshView.as_view(), name="auth-refresh"),
     path("logout/", views.LogoutView.as_view(), name="auth-logout"),
     path("me/", views.MeView.as_view(), name="auth-me"),
     path("change-password/", views.ChangePasswordView.as_view(), name="auth-change-password"),
     path("profile/", views.StudentProfileView.as_view(), name="auth-student-profile"),
+    path("profile/photo/", views.ProfilePhotoUploadView.as_view(), name="auth-profile-photo-upload"),
     path("mfa/enroll/", views.MFAEnrollView.as_view(), name="auth-mfa-enroll"),
     path("mfa/confirm/", views.MFAConfirmView.as_view(), name="auth-mfa-confirm"),
     path("mfa/reset/", views.MFAResetView.as_view(), name="auth-mfa-reset"),

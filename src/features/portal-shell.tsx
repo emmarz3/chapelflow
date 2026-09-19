@@ -10,6 +10,7 @@ import {
   Coins,
   FileText,
   Gauge,
+  HeartHandshake,
   Menu,
   MessageSquareText,
   Moon,
@@ -34,8 +35,14 @@ import { Brand, Modal } from "../components/ui";
 import { usePortalMotion } from "../components/motion/motion-system";
 import { hasPermission, useAuth } from "./auth-context";
 import { isDemoMode } from "../lib/fixtures";
-import type { Permission, Role } from "../types/domain";
-import { communityService, notificationService } from "../services/chapelflow";
+import {
+  getAuthenticatedHomePath,
+  getAccountMenuItem,
+  getMobilePrimaryItem,
+  isStudentMember,
+} from "../lib/permissions";
+import type { Permission, Role, User } from "../types/domain";
+import { authService, communityService, notificationService } from "../services/chapelflow";
 
 interface NavItem {
   label: string;
@@ -84,6 +91,11 @@ const navGroups: { label: string; items: NavItem[] }[] = [
         path: "/app/communities",
         icon: <Users />,
         permission: "community:view",
+      },
+      {
+        label: "Prayer and care",
+        path: "/app/care",
+        icon: <HeartHandshake />,
       },
     ],
   },
@@ -201,6 +213,7 @@ function studentNavGroups(communities: { type: string }[]): { label: string; ite
         { label: "My attendance", path: "/app/my-attendance", icon: <ClipboardCheck />, roles: ["member"] },
         { label: "Chapel schedule & events", path: "/app/events", icon: <CalendarDays />, roles: ["member"] },
         { label: "Join a community", path: "/app/join-community", icon: <Users />, roles: ["member"] },
+        { label: "Prayer and care", path: "/app/care", icon: <HeartHandshake />, roles: ["member"] },
         ...(hasFellowship ? [{ label: "My fellowship", path: "/app/communities", icon: <Users />, roles: ["member"] as Role[] }] : []),
         ...(hasUnit ? [{ label: "My chapel unit", path: "/app/communities", icon: <Building2 />, roles: ["member"] as Role[] }] : []),
       ],
@@ -209,6 +222,7 @@ function studentNavGroups(communities: { type: string }[]): { label: string; ite
       label: "My account",
       items: [
         { label: "My QR pass", path: "/app/identity-pass", icon: <ShieldCheck />, roles: ["member"] },
+        { label: "Offerings & tithes", path: "/app/giving", icon: <Coins />, roles: ["member"] },
         { label: "Announcements", path: "/app/announcements", icon: <MessageSquareText />, roles: ["member"] },
         { label: "Notifications", path: "/app/notifications", icon: <Bell />, roles: ["member"] },
         { label: "Profile and security", path: "/app/profile/edit", icon: <UserRound />, roles: ["member"] },
@@ -218,16 +232,39 @@ function studentNavGroups(communities: { type: string }[]): { label: string; ite
   ];
 }
 
-function operationalNavGroups(role: Role): { label: string; items: NavItem[] }[] | null {
+function memberAccountNavGroups(): { label: string; items: NavItem[] }[] {
+  return [
+    {
+      label: "My account",
+      items: [
+        { label: "Overview", path: "/app", icon: <Gauge />, roles: ["member"] },
+        { label: "Service times", path: "/service-times", icon: <CalendarDays />, roles: ["member"] },
+        { label: "Chapel events", path: "/events", icon: <CalendarDays />, roles: ["member"] },
+        { label: "Offerings & tithes", path: "/app/giving", icon: <Coins />, roles: ["member"] },
+        { label: "Announcements", path: "/app/announcements", icon: <Bell />, roles: ["member"] },
+        { label: "Notifications", path: "/app/notifications", icon: <Bell />, roles: ["member"] },
+        { label: "Profile and security", path: "/app/profile/edit", icon: <UserRound />, roles: ["member"] },
+        { label: "Help and support", path: "/contact", icon: <MessageSquareText />, roles: ["member"] },
+      ],
+    },
+  ];
+}
+
+function operationalNavGroups(user: User): { label: string; items: NavItem[] }[] | null {
+  const { role } = user;
   const overview: NavItem = { label: "Overview", path: "/app", icon: <Gauge />, roles: [role] };
   const members: NavItem = { label: "Students", path: "/app/members", icon: <Users />, permission: "members:read", roles: [role] };
   const events: NavItem = { label: "Events and programmes", path: "/app/events", icon: <CalendarDays />, permission: "events:read", roles: [role] };
   const operations: NavItem = { label: "Operations", path: "/app/operations", icon: <Activity />, roles: [role] };
-  if (role === "chaplain") return [{ label: "Chapel oversight", items: [overview, operations, members, events] }];
-  if (role === "student_chaplain") return [{ label: "Student operations", items: [overview, operations, members, { ...events, label: "Chapel services" }] }];
+  const care: NavItem = { label: "Prayer and care", path: "/app/care", icon: <HeartHandshake />, roles: [role] };
+  const giving: NavItem = { label: "Offerings & tithes", path: "/app/giving", icon: <Coins />, roles: [role] };
+  const inventory: NavItem = { label: "Inventory", path: "/app/assets", icon: <Package />, permission: "assets:read", roles: [role] };
+  const inventoryItems = hasPermission(user, "assets:read") ? [inventory] : [];
+  if (role === "chaplain") return [{ label: "Chapel oversight", items: [overview, operations, care, giving, ...inventoryItems, members, events] }];
+  if (role === "student_chaplain") return [{ label: "Student operations", items: [overview, operations, care, giving, ...inventoryItems, members, { ...events, label: "Chapel services" }] }];
   if (role === "unit_leader" || role === "fellowship_leader") {
     const label = role === "unit_leader" ? "Unit" : "Fellowship";
-    return [{ label: `${label} workspace`, items: [overview, operations, { ...members, label: "Members" }, { ...events, label: "Meetings and programmes" }] }];
+    return [{ label: `${label} workspace`, items: [overview, operations, care, giving, ...inventoryItems, { ...members, label: "Members" }, { ...events, label: "Meetings and programmes" }] }];
   }
   return null;
 }
@@ -262,6 +299,8 @@ export function ProtectedRoute({
       </div>
     );
   if (!user) return <Navigate to="/login" replace />;
+  if (user.passwordChangeRequired)
+    return <Navigate to="/change-password-required" replace />;
   if (roles && !roles.includes(user.role))
     return <Navigate to="/access-denied" replace />;
   if (!hasPermission(user, permission))
@@ -269,10 +308,19 @@ export function ProtectedRoute({
   return <Outlet />;
 }
 
+export function StudentOnlyRoute() {
+  const { user } = useAuth();
+  if (!user) return <Navigate to="/login" replace />;
+  if (!isStudentMember(user)) return <Navigate to="/app" replace />;
+  return <Outlet />;
+}
+
 export function PortalShell() {
   const { user, logout, switchDemoRole } = useAuth();
   const location = useLocation();
   const online = useNetworkStatus();
+  const isStudent = isStudentMember(user);
+  const isLimitedMember = user?.role === "member" && !isStudent;
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -292,7 +340,7 @@ export function PortalShell() {
   const studentCommunities = useQuery({
     queryKey: ["communities"],
     queryFn: async () => (await communityService.mine()).data,
-    enabled: user?.role === "member",
+    enabled: isStudent,
   });
   const unreadNotifications =
     notificationQuery.data?.filter((item) => !item.read_at).length ?? 0;
@@ -314,8 +362,10 @@ export function PortalShell() {
   const visibleGroups = useMemo(
     () =>
       (user?.role === "member"
-        ? studentNavGroups(studentCommunities.data ?? [])
-        : user ? operationalNavGroups(user.role) ?? navGroups : navGroups)
+        ? isStudent
+          ? studentNavGroups(studentCommunities.data ?? [])
+          : memberAccountNavGroups()
+        : user ? operationalNavGroups(user) ?? navGroups : navGroups)
         .map((group) => ({
           ...group,
           items: group.items.filter(
@@ -325,11 +375,15 @@ export function PortalShell() {
           ),
         }))
         .filter((group) => group.items.length),
-    [user, studentCommunities.data],
+    [isStudent, user, studentCommunities.data],
   );
   usePortalMotion(contentRef, sidebarRef, location.pathname);
   if (!user) return null;
   if (user.mfaRequired) return <Navigate to="/login" replace />;
+  const accountMenuItem = getAccountMenuItem(user.role);
+  const mobilePrimaryItem = isLimitedMember
+    ? { label: "Services", path: "/service-times" }
+    : getMobilePrimaryItem(user.role);
   return (
     <div
       className={`portal-shell ${collapsed ? "portal-shell--collapsed" : ""}`}
@@ -457,14 +511,14 @@ export function PortalShell() {
               <span className="avatar">{user.initials}</span>
               <span>
                 <strong>{user.name}</strong>
-                <small>{user.role.replaceAll("_", " ")}</small>
+                <small>{isLimitedMember ? `${user.community} account` : user.role.replaceAll("_", " ")}</small>
               </span>
               <ChevronDown />
             </button>
           </div>
           {profileOpen && (
             <div className="profile-menu">
-              <Link to={user.role === "member" ? "/app/profile/edit" : "/app/settings"}>Profile and settings</Link>
+              <Link to={accountMenuItem.path}>{accountMenuItem.label}</Link>
               {isDemoMode && (
                 <label>
                   Preview role
@@ -487,7 +541,7 @@ export function PortalShell() {
             </div>
           )}
           {notificationsOpen && (
-            <NotificationPanel onClose={() => setNotificationsOpen(false)} />
+            <NotificationPanel onClose={() => setNotificationsOpen(false)} showCommunities={isStudent} />
           )}
         </header>
         <main ref={contentRef} id="portal-content" className="portal-content">
@@ -502,13 +556,15 @@ export function PortalShell() {
             Home
           </NavLink>
           <NavLink
-            to={user.role === "member" ? "/app/chapel-pass" : "/app/attendance"}
+            to={mobilePrimaryItem.path}
           >
-            <ClipboardCheck />
-            {user.role === "member" ? "Chapel Pass" : "Attendance"}
+            {isLimitedMember ? <CalendarDays /> : <ClipboardCheck />}
+            {mobilePrimaryItem.label}
           </NavLink>
-          {user.role === "member" ? (
+          {isStudent ? (
             <NavLink to="/app/my-attendance"><ClipboardCheck />My attendance</NavLink>
+          ) : isLimitedMember ? (
+            <NavLink to="/events"><CalendarDays />Events</NavLink>
           ) : (
             <NavLink to="/app/events"><CalendarDays />Events</NavLink>
           )}
@@ -517,13 +573,53 @@ export function PortalShell() {
             More
           </button>
         </nav>
+        {user.role === "member" && location.pathname === "/app" && !isDemoMode && <BirthdayPrompt userId={user.id} />}
       </div>
       {user.role !== "member" && <SearchModal open={searchOpen} onClose={() => setSearchOpen(false)} />}
     </div>
   );
 }
 
-function NotificationPanel({ onClose }: { onClose: () => void }) {
+function BirthdayPrompt({ userId }: { userId: string }) {
+  const client = useQueryClient();
+  const dismissalKey = `chapelflow-birthday-prompt-dismissed:${userId}`;
+  const [dismissed, setDismissed] = useState(() => sessionStorage.getItem(dismissalKey) === "1");
+  const profile = useQuery({
+    queryKey: ["student-profile"],
+    queryFn: async () => (await authService.studentProfile()).data,
+    enabled: !dismissed,
+  });
+  const save = useMutation({
+    mutationFn: (date_of_birth: string) => authService.updateStudentProfile({ date_of_birth }),
+    onSuccess: () => {
+      setDismissed(true);
+      void client.invalidateQueries({ queryKey: ["student-profile"] });
+    },
+  });
+  const open = profile.isSuccess && !profile.data.date_of_birth && !dismissed;
+  const defer = () => {
+    sessionStorage.setItem(dismissalKey, "1");
+    setDismissed(true);
+  };
+  return <Modal
+    open={open}
+    onClose={defer}
+    title="When is your birthday?"
+    description="Add it once so ChapelFlow can celebrate you with the chapel community. Your birth year is never shown."
+    footer={<><button className="button button--ghost" type="button" onClick={defer}>Not now</button><button className="button button--primary" type="submit" form="birthday-form" disabled={save.isPending}>{save.isPending ? "Saving…" : "Save birthday"}</button></>}
+  >
+    <form id="birthday-form" className="form-grid" onSubmit={(event) => {
+      event.preventDefault();
+      const date = String(new FormData(event.currentTarget).get("date_of_birth") || "");
+      if (date) save.mutate(date);
+    }}>
+      <label className="field field--full"><span>Birthday</span><input name="date_of_birth" type="date" max={new Date().toISOString().slice(0, 10)} required /></label>
+      {save.isError && <p className="form-error field--full">Your birthday could not be saved. Please try again.</p>}
+    </form>
+  </Modal>;
+}
+
+function NotificationPanel({ onClose, showCommunities }: { onClose: () => void; showCommunities: boolean }) {
   const client = useQueryClient();
   const query = useQuery({
     queryKey: ["notifications"],
@@ -569,9 +665,7 @@ function NotificationPanel({ onClose }: { onClose: () => void }) {
       {!items.length && (
         <p className="notification-panel__empty">No new notifications.</p>
       )}
-      <Link to="/app/communities" onClick={onClose}>
-        Open my communities
-      </Link>
+      {showCommunities && <Link to="/app/communities" onClick={onClose}>Open my communities</Link>}
     </div>
   );
 }
@@ -650,6 +744,8 @@ function SearchModal({
 }
 
 export function AccessDeniedPage() {
+  const { user } = useAuth();
+  const homePath = getAuthenticatedHomePath(user);
   return (
     <div className="status-page">
       <span>
@@ -661,8 +757,10 @@ export function AccessDeniedPage() {
         responsibilities have changed, ask a chapel administrator to review your
         access.
       </p>
-      <Link className="button button--primary" to="/app">
-        Return to dashboard
+      <Link className="button button--primary" to={homePath}>
+        {user?.role === "attendance_usher"
+          ? "Open attendance scanner"
+          : "Return to dashboard"}
       </Link>
     </div>
   );

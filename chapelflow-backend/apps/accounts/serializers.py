@@ -1,15 +1,21 @@
 from django.contrib.auth import authenticate
 from django.contrib.auth.password_validation import validate_password
 from django.db import transaction
+from django.utils import timezone
 from rest_framework import serializers
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from common.constants.roles import Roles
+from common.permissions.inventory import user_has_inventory_access
+from common.permissions.media import user_has_media_management_access
 from .models import InstitutionalAccountControl, Permission, RolePermission, User
 
 
 class UserPublicSerializer(serializers.ModelSerializer):
     effective_permissions = serializers.SerializerMethodField()
+    inventory_access = serializers.SerializerMethodField()
+    media_access = serializers.SerializerMethodField()
+    community = serializers.SerializerMethodField()
 
     def get_effective_permissions(self, user):
         """Return the server-evaluated grants used by the web client manifest."""
@@ -22,12 +28,27 @@ class UserPublicSerializer(serializers.ModelSerializer):
                 grants = dynamic
         return list(grants.values_list("permission__code", flat=True).distinct())
 
+    def get_inventory_access(self, user):
+        return user_has_inventory_access(user)
+
+    def get_media_access(self, user):
+        return user_has_media_management_access(user)
+
+    def get_community(self, user):
+        # Blank legacy member records predate account classification and keep
+        # their existing student experience rather than silently losing access.
+        from apps.members.models import CommunityClassification, Member
+
+        community = Member.objects.filter(user=user).values_list("community", flat=True).first()
+        return community or CommunityClassification.STUDENT
+
     class Meta:
         model = User
         fields = [
             "id", "email", "matric_no", "first_name", "last_name",
             "full_name", "phone_number", "role", "branch", "mfa_enabled",
             "is_active", "password_change_required", "date_joined", "effective_permissions",
+            "inventory_access", "media_access", "community",
         ]
         read_only_fields = fields
 
@@ -38,7 +59,7 @@ class StudentSelfProfileSerializer(serializers.Serializer):
     email = serializers.EmailField(required=False)
     phone_number = serializers.CharField(max_length=20, required=False, allow_blank=True)
     address = serializers.CharField(max_length=500, required=False, allow_blank=True)
-    photo_url = serializers.URLField(required=False, allow_blank=True)
+    date_of_birth = serializers.DateField(required=False, allow_null=True)
     emergency_contact_name = serializers.CharField(max_length=150, required=False, allow_blank=True)
     emergency_contact_phone = serializers.CharField(max_length=20, required=False, allow_blank=True)
 
@@ -47,6 +68,11 @@ class StudentSelfProfileSerializer(serializers.Serializer):
         if User.objects.exclude(pk=user.pk).filter(email__iexact=value).exists():
             raise serializers.ValidationError("This email address is already in use.")
         return value.lower()
+
+    def validate_date_of_birth(self, value):
+        if value and value > timezone.localdate():
+            raise serializers.ValidationError("Birthday cannot be in the future.")
+        return value
 
 
 class InstitutionalAccountSerializer(serializers.ModelSerializer):
@@ -132,6 +158,22 @@ class InstitutionalAccountSerializer(serializers.ModelSerializer):
         return instance
 
 
+class LocalSuperAdminSetupSerializer(serializers.Serializer):
+    """One-time local-development setup; the view is disabled outside DEBUG."""
+
+    email = serializers.EmailField()
+    first_name = serializers.CharField(max_length=150)
+    last_name = serializers.CharField(max_length=150)
+    password = serializers.CharField(write_only=True, trim_whitespace=False)
+
+    def validate_email(self, value):
+        return value.strip().lower()
+
+    def validate_password(self, value):
+        validate_password(value)
+        return value
+
+
 class LoginSerializer(serializers.Serializer):
     """
     Accepts either `matric_no` or `email` as the identifier, matching the
@@ -187,7 +229,20 @@ class RegisterSerializer(serializers.Serializer):
     date_of_birth = serializers.DateField(required=False, allow_null=True)
     college = serializers.UUIDField(required=False, allow_null=True)
     department = serializers.UUIDField(required=False, allow_null=True)
-    community = serializers.ChoiceField(choices=[("STUDENT", "Student"), ("STAFF", "Staff Community")], required=False, allow_blank=True)
+    community = serializers.ChoiceField(
+        choices=[
+            ("STUDENT", "Student"),
+            ("STAFF", "Staff Community"),
+            ("GUEST", "Guest"),
+        ],
+        required=False,
+        allow_blank=True,
+    )
+    academic_level = serializers.ChoiceField(
+        choices=["JUPEB", "100", "200", "300", "400", "500", "600"],
+        required=False,
+        allow_blank=True,
+    )
 
     def validate_password(self, value):
         validate_password(value)
@@ -233,8 +288,19 @@ class RegisterSerializer(serializers.Serializer):
         return value
 
     def validate(self, attrs):
-        if not attrs.get("email") and not attrs.get("matric_no"):
-            raise serializers.ValidationError({"email": ["Provide an email or a matriculation number."]})
+        community = attrs.get("community") or "STUDENT"
+        attrs["community"] = community
+        if community == "STUDENT":
+            if not attrs.get("matric_no"):
+                raise serializers.ValidationError({"matric_no": ["Student registration requires a matriculation number."]})
+            if not attrs.get("academic_level"):
+                raise serializers.ValidationError({"academic_level": ["Select JUPEB or your current academic level."]})
+        else:
+            if not attrs.get("email"):
+                raise serializers.ValidationError({"email": ["Staff and guest registration requires an email address."]})
+            # Staff and guests do not use a student matriculation number.
+            attrs.pop("matric_no", None)
+            attrs["academic_level"] = ""
         if not attrs.get("branch"):
             from apps.organizations.models import Branch
             attrs["branch"] = (

@@ -120,6 +120,66 @@
   color: var(--text-soft);
   line-height: 1.65;
 }
+.publication-rail {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  margin-top: 18px;
+}
+.publication-rail__step {
+  position: relative;
+  padding: 10px 8px;
+  border-top: 3px solid var(--border);
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: capitalize;
+}
+.publication-rail__step--current {
+  border-color: var(--gold-500);
+  color: var(--text);
+}
+
+.inventory-ledger {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  margin-top: 18px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--border);
+}
+
+.inventory-ledger > div {
+  min-height: 78px;
+  padding: 14px;
+  background: var(--surface);
+}
+
+.inventory-ledger small {
+  display: block;
+  margin-bottom: 7px;
+  color: var(--text-muted);
+  font-size: 0.69rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.inventory-ledger strong {
+  display: block;
+  color: var(--text);
+  font-size: 0.88rem;
+  line-height: 1.35;
+}
+
+@media (max-width: 650px) {
+  .inventory-ledger {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
 
 @media (max-width: 900px) {
   .settings-grid,
@@ -759,6 +819,69 @@
 }
 
 /* Student workspace: a private activity journal, not a reduced admin panel. */
+.account-home {
+  display: grid;
+  gap: 20px;
+  max-width: 1080px;
+}
+.account-home__welcome {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 28px;
+  align-items: end;
+  padding: clamp(24px, 4vw, 44px);
+  border-left: 5px solid var(--purple-500);
+  background: linear-gradient(110deg, var(--surface-raised), var(--surface-subtle));
+}
+.account-home__welcome h2,
+.account-home__card h2,
+.account-home__security h2 { margin: 5px 0 8px; }
+.account-home__welcome p:not(.eyebrow),
+.account-home__card > div > p,
+.account-home__security p { max-width: 62ch; margin: 0; color: var(--text-muted); line-height: 1.6; }
+.account-home__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+.account-home__card,
+.account-home__security {
+  display: grid;
+  gap: 16px;
+  align-items: start;
+}
+.account-home__card { grid-template-columns: auto minmax(0, 1fr); }
+.account-home__card > svg,
+.account-home__security > svg {
+  width: 26px;
+  height: 26px;
+  color: var(--purple-600);
+}
+.account-home__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 18px;
+}
+.account-home__links a {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  color: var(--purple-700);
+  font-size: .9rem;
+  font-weight: 800;
+  text-decoration: none;
+}
+.account-home__links svg { width: 14px; height: 14px; }
+.account-home__announcements { display: grid; gap: 10px; margin-top: 12px; }
+.account-home__announcements article { padding-top: 10px; border-top: 1px solid var(--border); }
+.account-home__announcements article:first-child { padding-top: 0; border-top: 0; }
+.account-home__announcements strong { display: block; font-size: .94rem; }
+.account-home__announcements p { margin-top: 3px !important; font-size: .88rem; }
+.account-home__security {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  padding: 22px;
+}
 .student-workspace {
   display: grid;
   gap: 20px;
@@ -856,6 +979,7 @@
 .student-password-form { display: grid; gap: 14px; }
 .student-password-form label { display: grid; gap: 6px; font-weight: 700; }
 .student-password-form input { min-height: 44px; padding: 8px 10px; border: 1px solid var(--border-strong); background: var(--surface); }
+.student-profile-editor__photo { width: 72px; height: 72px; object-fit: cover; border-radius: 50%; border: 2px solid var(--border); }
 .empty-copy { color: var(--text-muted); }
 .role-workspace-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
 .role-workspace-card { display: grid; grid-template-columns: auto 1fr; gap: 14px; min-height: 150px; padding: 22px; color: inherit; border: 1px solid var(--border); border-top: 3px solid var(--purple-500); background: var(--surface-raised); text-decoration: none; transition: transform .18s ease, box-shadow .18s ease; }
@@ -863,7 +987,30 @@
 .role-workspace-card > svg { width: 28px; height: 28px; color: var(--purple-600); }
 .role-workspace-card h2 { margin: 0 0 6px; font-size: 18px; }
 .role-workspace-card p { margin: 0; color: var(--text-muted); }
+.ministry-workspace-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin: 18px 0; }
+.ministry-workspace-grid .panel-heading { align-items: flex-start; }
+.ministry-workspace-grid .panel-heading h2 { margin: 3px 0 6px; }
+.ministry-rule-list { display: grid; gap: 0; margin-top: 18px; border-top: 1px solid var(--border); }
+.ministry-rule-list p { margin: 0; padding: 13px 0; border-bottom: 1px solid var(--border); color: var(--text-muted); font-size: .9rem; line-height: 1.5; }
+.role-workspace-card--inventory { border-top-color: var(--gold-500); }
+.role-workspace-card--inventory > svg { color: var(--gold-600); }
+.inventory-dashboard-panel { margin-top: 18px; border-top: 3px solid var(--gold-500); }
+.inventory-dashboard-panel .panel-heading { align-items: flex-start; gap: 20px; }
+.inventory-dashboard-panel .panel-heading h2 { margin: 3px 0 7px; }
+.inventory-dashboard-panel .panel-heading .button { flex: 0 0 auto; }
+.inventory-dashboard-panel__ledger { margin-top: 20px; }
+.inventory-dashboard-panel__notice { display: flex; align-items: center; gap: 8px; margin: 14px 0 0; color: var(--danger); font-size: .88rem; }
+.inventory-dashboard-panel__notice svg { flex: 0 0 auto; }
+.inventory-dashboard-panel__steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-top: 16px; }
+.inventory-dashboard-panel__steps p { display: flex; align-items: flex-start; gap: 9px; margin: 0; color: var(--text-muted); font-size: .84rem; line-height: 1.45; }
+.inventory-dashboard-panel__steps svg { flex: 0 0 auto; width: 17px; color: var(--gold-600); }
+.inventory-dashboard-panel__steps strong { display: block; margin-bottom: 2px; color: var(--text); }
 @media (max-width: 760px) {
+  .account-home__welcome,
+  .account-home__grid,
+  .account-home__security { grid-template-columns: 1fr; }
+  .account-home__welcome { align-items: start; }
+  .account-home__security .button { width: fit-content; }
   .student-attendance-card,
   .student-content-grid,
   .student-community-summary > div { grid-template-columns: 1fr; }
@@ -871,4 +1018,8 @@
   .student-summary-grid { grid-template-columns: 1fr; }
   .student-identity-pass { grid-template-columns: 1fr; }
   .role-workspace-grid { grid-template-columns: 1fr; }
+  .ministry-workspace-grid { grid-template-columns: 1fr; }
+  .inventory-dashboard-panel .panel-heading { display: grid; }
+  .inventory-dashboard-panel .panel-heading .button { width: fit-content; }
+  .inventory-dashboard-panel__steps { grid-template-columns: 1fr; }
 }

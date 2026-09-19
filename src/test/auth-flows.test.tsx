@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  ForgotPasswordPage,
   OtpPage,
   RegisterPage,
   ResetPasswordPage,
@@ -12,6 +13,18 @@ import {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("authentication recovery flows", () => {
+  it("directs forgotten-password users to the Super Admin without exposing passwords", () => {
+    render(
+      <MemoryRouter>
+        <ForgotPasswordPage />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole("heading", { name: /contact the super admin/i })).toBeInTheDocument();
+    expect(screen.getByText(/existing password cannot be viewed by anyone/i)).toBeInTheDocument();
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+  });
+
   it("validates a complete six-digit OTP before submission", async () => {
     const user = userEvent.setup();
     render(
@@ -98,7 +111,6 @@ describe("authentication recovery flows", () => {
     await user.type(screen.getByLabelText(/last name/i), "Okafor");
     await user.type(screen.getByLabelText(/matric number/i), "CU/26/101");
     await user.click(screen.getByRole("button", { name: /continue/i }));
-    await screen.findByLabelText(/member type/i);
     await user.selectOptions(
       await screen.findByLabelText(/chapel unit/i),
       "11111111-1111-4111-a111-111111111111",

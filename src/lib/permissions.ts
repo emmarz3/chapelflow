@@ -17,8 +17,6 @@ const rolePermissions: Record<Role, Permission[]> = {
     "workers:read",
     "workers:write",
     "workers:acknowledge",
-    "assets:read",
-    "assets:write",
     "media:write",
     "cms:write",
     "analytics:read",
@@ -48,8 +46,6 @@ const rolePermissions: Record<Role, Permission[]> = {
     "workers:read",
     "workers:write",
     "workers:acknowledge",
-    "assets:read",
-    "assets:write",
     "media:write",
     "cms:write",
     "analytics:read",
@@ -149,8 +145,49 @@ const rolePermissions: Record<Role, Permission[]> = {
   ],
 };
 
+const operationalWorkspaceRoles = new Set<Role>([
+  "chaplain",
+  "student_chaplain",
+  "unit_leader",
+  "fellowship_leader",
+]);
+
+export function getAccountMenuItem(role: Role) {
+  if (role === "member")
+    return { label: "Profile and security", path: "/app/profile/edit" };
+  if (role === "super_admin" || role === "chapel_admin")
+    return { label: "Profile and settings", path: "/app/settings" };
+  if (operationalWorkspaceRoles.has(role))
+    return { label: "Operational workspace", path: "/app/operations" };
+  if (role === "attendance_usher")
+    return { label: "Attendance scanner", path: "/usher/attendance" };
+  return { label: "Account overview", path: "/app" };
+}
+
+export function getMobilePrimaryItem(role: Role) {
+  if (role === "member")
+    return { label: "Chapel Pass", path: "/app/chapel-pass" };
+  if (role === "super_admin" || role === "chapel_admin")
+    return { label: "Attendance", path: "/app/attendance" };
+  if (operationalWorkspaceRoles.has(role))
+    return { label: "Operations", path: "/app/operations" };
+  if (role === "attendance_usher")
+    return { label: "Scanner", path: "/usher/attendance" };
+  return { label: "Overview", path: "/app" };
+}
+
 export function hasPermission(user: User | null, permission?: Permission) {
   return !permission || Boolean(user?.permissions.includes(permission));
+}
+
+export function isStudentMember(user: User | null | undefined) {
+  return user?.role === "member" && user.community !== "staff" && user.community !== "guest";
+}
+
+export function getAuthenticatedHomePath(user: User | null | undefined) {
+  if (user?.role === "attendance_usher") return "/usher/attendance";
+  if (isStudentMember(user)) return "/app/chapel-pass";
+  return "/app";
 }
 
 export function buildDemoUser(role: Role): User {

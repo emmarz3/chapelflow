@@ -92,6 +92,26 @@ def dispatch_announcement(announcement_id):
         raise
 
 
+@shared_task
+def dispatch_scheduled_announcements():
+    """Release due campaigns once, even if several beat workers overlap."""
+    from .models import Announcement, AnnouncementStatus
+
+    with transaction.atomic():
+        due_ids = list(
+            Announcement.objects.select_for_update(skip_locked=True)
+            .filter(status=AnnouncementStatus.SCHEDULED, publish_at__lte=timezone.now())
+            .values_list("id", flat=True)[:100]
+        )
+        if due_ids:
+            Announcement.objects.filter(id__in=due_ids, status=AnnouncementStatus.SCHEDULED).update(
+                status=AnnouncementStatus.QUEUED
+            )
+        for announcement_id in due_ids:
+            transaction.on_commit(lambda announcement_id=announcement_id: dispatch_announcement.delay(str(announcement_id)))
+    return {"dispatched": len(due_ids)}
+
+
 def get_announcement_delivery_summary(announcement_id):
     """
     Delivery tracking state handler (spec section 13): rolls up every

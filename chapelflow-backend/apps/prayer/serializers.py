@@ -1,7 +1,7 @@
 from rest_framework import serializers
 
 from common.serializers.validators import ScopedFKValidationMixin
-from .models import PrayerNote, PrayerRequest
+from .models import PrayerNote, PrayerRequest, Testimony
 
 
 class PrayerNoteSerializer(ScopedFKValidationMixin, serializers.ModelSerializer):
@@ -33,6 +33,28 @@ class PrayerRequestSerializer(ScopedFKValidationMixin, serializers.ModelSerializ
             "is_private",  # Auto-synced from privacy_level
             "answered_at",  # Auto-set when status=ANSWERED
         ]
+        extra_kwargs = {
+            "branch": {"required": False},
+            "member": {"required": False},
+            "assigned_to": {"required": False},
+        }
+
+    def validate(self, attrs):
+        request = self.context.get("request")
+        if not request or not request.user:
+            return attrs
+        from common.constants.roles import Roles
+
+        role = request.user.get_role_code() if hasattr(request.user, "get_role_code") else request.user.role
+        if role not in Roles.PASTORAL_ACCESS_ROLES:
+            protected_fields = {"branch", "member", "assigned_to", "status", "closure_reason"}
+            submitted = protected_fields.intersection(attrs)
+            if submitted:
+                raise serializers.ValidationError({field: "This field is managed by the pastoral team." for field in submitted})
+            privacy_level = attrs.get("privacy_level", getattr(self.instance, "privacy_level", "PRIVATE"))
+            if privacy_level not in {"PRIVATE", "PASTORAL"}:
+                raise serializers.ValidationError({"privacy_level": "Submit a private or pastoral request. A pastoral leader can approve wider sharing after consent."})
+        return attrs
     
     def validate_branch(self, branch):
         """Phase 3: Validate user can access this branch."""
@@ -94,3 +116,19 @@ class PrayerRequestSerializer(ScopedFKValidationMixin, serializers.ModelSerializ
                 instance.answered_at = timezone.now()
         
         return super().update(instance, validated_data)
+
+
+class TestimonySerializer(serializers.ModelSerializer):
+    member_name = serializers.CharField(source="member.full_name", read_only=True)
+    reviewer_name = serializers.CharField(source="reviewed_by.get_full_name", read_only=True)
+
+    class Meta:
+        model = Testimony
+        fields = [
+            "id", "branch", "member", "member_name", "title", "details", "consent_to_publish",
+            "status", "reviewed_by", "reviewer_name", "reviewed_at", "rejection_reason", "created_at", "updated_at",
+        ]
+        read_only_fields = [
+            "id", "branch", "member", "member_name", "status", "reviewed_by", "reviewer_name",
+            "reviewed_at", "rejection_reason", "created_at", "updated_at",
+        ]

@@ -40,19 +40,62 @@ def bulk_import_members_task(file_url, requesting_user_id):
             f"bulk_import_members_task: User {user.id} ({user.email}) no longer has "
             f"members.create permission - task aborted"
         )
-        return {
+        summary = {
             "error": "Permission denied - you no longer have members.create permission",
             "imported": 0,
             "failed": 0
         }
+        _notify_member_import_result(user, summary, succeeded=False)
+        return summary
 
-    with urllib.request.urlopen(file_url) as response:
-        content = response.read()
+    try:
+        with urllib.request.urlopen(file_url) as response:
+            content = response.read()
 
-    summary = parse_and_import_members(io.BytesIO(content), user)
+        summary = parse_and_import_members(io.BytesIO(content), user)
+    except Exception:
+        logger.exception(
+            "bulk_import_members_task: Import failed for requesting user %s",
+            user.id,
+        )
+        _notify_member_import_result(
+            user,
+            {"created": 0, "updated": 0, "failed": 0},
+            succeeded=False,
+        )
+        raise
 
-    # TODO: dispatch a notification (apps.notifications) to `user` with `summary`.
+    _notify_member_import_result(user, summary, succeeded=True)
     return summary
+
+
+def _notify_member_import_result(user, summary, *, succeeded):
+    from apps.notifications.models import Notification, NotificationChannel
+    from apps.notifications.tasks import deliver_notification
+
+    if succeeded:
+        created = summary.get("created", 0)
+        updated = summary.get("updated", 0)
+        failed = summary.get("failed", 0)
+        title = "Member import completed"
+        body = (
+            f"Your member import completed. Created: {created}. "
+            f"Updated: {updated}. Failed: {failed}."
+        )
+    else:
+        title = "Member import failed"
+        body = (
+            "Your member import could not be completed. No additional rows were "
+            "processed. Please review your access and file, then try again."
+        )
+
+    notification = Notification.objects.create(
+        recipient=user,
+        title=title,
+        body=body,
+        channel=NotificationChannel.EMAIL,
+    )
+    deliver_notification.delay(str(notification.id))
 
 
 

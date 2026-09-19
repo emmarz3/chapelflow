@@ -4,6 +4,7 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     FinancialDashboardView, FinancialStatementViewSet, GivingCategoryViewSet, GivingViewSet,
     MemberGivingHistoryView, MemberGivingSummaryView, MemberPledgeHistoryView,
+    PaystackCheckoutInitializeView, PaystackCheckoutVerifyView,
     PaymentViewSet, PaymentWebhookView, PledgeViewSet,
     ReconciliationViewSet, RefundViewSet,
 )
@@ -18,6 +19,8 @@ router.register("reconciliations", ReconciliationViewSet, basename="reconciliati
 router.register("refunds", RefundViewSet, basename="refund")
 
 urlpatterns = [
+    path("giving/checkout/", PaystackCheckoutInitializeView.as_view(), name="paystack-checkout"),
+    path("giving/checkout/verify/", PaystackCheckoutVerifyView.as_view(), name="paystack-checkout-verify"),
     path("payments/webhook/<str:provider>/", PaymentWebhookView.as_view(), name="payment-webhook"),
     path("me/giving/", MemberGivingHistoryView.as_view(), name="member-giving-history"),
     path("me/giving/summary/", MemberGivingSummaryView.as_view(), name="member-giving-summary"),

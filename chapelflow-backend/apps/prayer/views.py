@@ -1,18 +1,66 @@
+from django.utils import timezone
 from rest_framework import viewsets
 from common.viewsets import StandardModelViewSet
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import BasePermission, IsAuthenticated, SAFE_METHODS
+from rest_framework.decorators import action
+from rest_framework.exceptions import PermissionDenied, ValidationError
+from rest_framework.response import Response
 
 from common.constants.roles import Roles, PermissionCodes
 from apps.audit.services import write_audit_log
 from apps.audit.models import AuditAction
-from .models import PrayerNote, PrayerRequest
-from .serializers import PrayerNoteSerializer, PrayerRequestSerializer
+from .models import PrayerNote, PrayerRequest, Testimony, TestimonyStatus
+from .serializers import PrayerNoteSerializer, PrayerRequestSerializer, TestimonySerializer
 from .notifications import (
     notify_prayer_request_assigned,
     notify_prayer_request_answered,
     notify_prayer_request_created_to_team,
     notify_prayer_request_closed,
 )
+
+
+class PrayerRequestAccess(BasePermission):
+    """Protect private care records even when a request is visible to others."""
+
+    def has_permission(self, request, view):
+        user = request.user
+        if not (user and user.is_authenticated and user.is_active):
+            return False
+        role = user.get_role_code() if hasattr(user, "get_role_code") else user.role
+        if role in Roles.PASTORAL_ACCESS_ROLES:
+            from common.permissions.rbac import user_has_completed_required_mfa
+            return user_has_completed_required_mfa(user)
+        return True
+
+    def has_object_permission(self, request, view, obj):
+        user = request.user
+        role = user.get_role_code() if hasattr(user, "get_role_code") else user.role
+        from common.permissions.rbac import user_has_completed_required_mfa
+
+        if role in Roles.PASTORAL_ACCESS_ROLES:
+            return user_has_completed_required_mfa(user)
+        is_owner = bool(obj.member_id and getattr(obj.member, "user_id", None) == user.id)
+        if request.method in SAFE_METHODS:
+            return is_owner or (
+                obj.privacy_level == "PUBLIC"
+                and obj.branch_id == user.branch_id
+                and not obj.is_private
+            )
+        return is_owner and obj.status == "NEW"
+
+
+class PastoralStaffOnly(BasePermission):
+    """Follow-up notes are never available to a member, including their owner."""
+
+    def has_permission(self, request, view):
+        user = request.user
+        if not (user and user.is_authenticated and user.is_active):
+            return False
+        role = user.get_role_code() if hasattr(user, "get_role_code") else user.role
+        if role not in Roles.PASTORAL_ACCESS_ROLES:
+            return False
+        from common.permissions.rbac import user_has_completed_required_mfa
+        return user_has_completed_required_mfa(user)
 
 
 class PrayerRequestViewSet(StandardModelViewSet):
@@ -26,7 +74,7 @@ class PrayerRequestViewSet(StandardModelViewSet):
     - Comprehensive audit logging
     """
     serializer_class = PrayerRequestSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [PrayerRequestAccess]
     filterset_fields = ["branch", "status", "category", "assigned_to"]
     permission_action_map = {
         "list": PermissionCodes.PRAYER_VIEW,
@@ -46,12 +94,14 @@ class PrayerRequestViewSet(StandardModelViewSet):
                 return qs
             return qs.filter(branch_id=user.branch_id) if user.branch_id else qs.none()
 
-        # Ordinary members/leaders: own requests, or public (non-private) requests
-        # in their branch, or requests explicitly assigned to them.
+        # Ordinary users can see their own requests and moderated public
+        # requests in their branch. Fellowship and pastoral visibility is not
+        # inferred from a branch alone.
         from django.db.models import Q
         own_member_filter = Q(member__user=user)
         return qs.filter(
-            Q(branch_id=user.branch_id) & (own_member_filter | Q(is_private=False) | Q(assigned_to=user))
+            Q(branch_id=user.branch_id)
+            & (own_member_filter | Q(privacy_level="PUBLIC", is_private=False))
         )
 
     def perform_create(self, serializer):
@@ -59,9 +109,19 @@ class PrayerRequestViewSet(StandardModelViewSet):
         Phase 13: Auto-set member, branch, created_by, log creation, send notifications.
         """
         member = getattr(self.request.user, "member_profile", None)
+        role = self.request.user.get_role_code() if hasattr(self.request.user, "get_role_code") else self.request.user.role
+        if role not in Roles.PASTORAL_ACCESS_ROLES and member is None:
+            from rest_framework.exceptions import ValidationError
+
+            raise ValidationError({"member": "A student profile is required to submit a prayer request."})
+        branch = member.branch if member else serializer.validated_data.get("branch") or self.request.user.branch
+        if branch is None:
+            from rest_framework.exceptions import ValidationError
+
+            raise ValidationError({"branch": "Choose a chapel branch for this request."})
         instance = serializer.save(
             member=member, 
-            branch=member.branch if member else self.request.data.get("branch"),
+            branch=branch,
             created_by=self.request.user
         )
         
@@ -180,7 +240,7 @@ class PrayerNoteViewSet(StandardModelViewSet):
     Phase 13: Audit logging for note creation.
     """
     serializer_class = PrayerNoteSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [PastoralStaffOnly]
     filterset_fields = ["prayer_request"]
     permission_action_map = {
         "list": PermissionCodes.PRAYER_VIEW,
@@ -217,3 +277,71 @@ class PrayerNoteViewSet(StandardModelViewSet):
             },
             user=self.request.user
         )
+
+
+class TestimonyViewSet(viewsets.ModelViewSet):
+    """Private submissions and a pastoral moderation queue for testimonies."""
+
+    serializer_class = TestimonySerializer
+    permission_classes = [IsAuthenticated]
+    http_method_names = ["get", "post", "head", "options"]
+
+    def _is_moderator(self):
+        role = self.request.user.get_role_code() if hasattr(self.request.user, "get_role_code") else self.request.user.role
+        if role not in Roles.PASTORAL_ACCESS_ROLES:
+            return False
+        from common.permissions.rbac import user_has_completed_required_mfa
+        return user_has_completed_required_mfa(self.request.user)
+
+    def get_queryset(self):
+        qs = Testimony.objects.select_related("branch", "member", "reviewed_by")
+        user = self.request.user
+        if self._is_moderator():
+            if user.role in Roles.GLOBAL_SCOPE_ROLES:
+                return qs
+            return qs.filter(branch_id=user.branch_id) if user.branch_id else qs.none()
+        return qs.filter(member__user=user)
+
+    def perform_create(self, serializer):
+        member = getattr(self.request.user, "member_profile", None)
+        if member is None:
+            raise ValidationError({"member": "A student profile is required to submit a testimony."})
+        instance = serializer.save(member=member, branch=member.branch)
+        write_audit_log(
+            action=AuditAction.PRAYER_REQUEST_CREATE,
+            resource_type="Testimony",
+            resource_id=instance.id,
+            metadata={"branch_id": str(member.branch_id), "consent_to_publish": instance.consent_to_publish},
+            user=self.request.user,
+        )
+
+    @action(detail=True, methods=["post"])
+    def approve(self, request, pk=None):
+        if not self._is_moderator():
+            raise PermissionDenied("Only authorized pastoral staff can approve testimonies.")
+        instance = self.get_object()
+        if not instance.consent_to_publish:
+            raise ValidationError({"consent_to_publish": "The member has not consented to sharing this testimony."})
+        instance.status = TestimonyStatus.APPROVED
+        instance.rejection_reason = ""
+        instance.reviewed_by = request.user
+        instance.reviewed_at = timezone.now()
+        instance.full_clean()
+        instance.save(update_fields=["status", "rejection_reason", "reviewed_by", "reviewed_at", "updated_at"])
+        return Response(self.get_serializer(instance).data)
+
+    @action(detail=True, methods=["post"])
+    def reject(self, request, pk=None):
+        if not self._is_moderator():
+            raise PermissionDenied("Only authorized pastoral staff can review testimonies.")
+        reason = str(request.data.get("reason", "")).strip()
+        if not reason:
+            raise ValidationError({"reason": "Provide a reason so the member understands the decision."})
+        instance = self.get_object()
+        instance.status = TestimonyStatus.REJECTED
+        instance.rejection_reason = reason
+        instance.reviewed_by = request.user
+        instance.reviewed_at = timezone.now()
+        instance.full_clean()
+        instance.save(update_fields=["status", "rejection_reason", "reviewed_by", "reviewed_at", "updated_at"])
+        return Response(self.get_serializer(instance).data)

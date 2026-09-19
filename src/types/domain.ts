@@ -46,6 +46,7 @@ export type Permission =
 export interface User {
   mfaRequired?: boolean;
   passwordChangeRequired?: boolean;
+  community?: "student" | "staff" | "guest";
   id: string;
   name: string;
   email: string;
@@ -142,6 +143,7 @@ export interface AttendanceScanResult {
 
 export interface EventSummary {
   id: string;
+  scheduleId?: string | null;
   title: string;
   date: string;
   time: string;
@@ -221,6 +223,15 @@ export interface CommunityEvent {
   starts_at: string;
   ends_at: string;
   status: "upcoming" | "ongoing" | "completed" | "cancelled";
+}
+
+export interface CommunityResource {
+  id: string;
+  title: string;
+  url: string;
+  description: string;
+  created_at: string;
+  created_by_name: string;
 }
 
 export interface CommunityMember {

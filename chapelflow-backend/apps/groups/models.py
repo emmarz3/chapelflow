@@ -105,3 +105,35 @@ class GroupMeetingAttendance(models.Model):
     class Meta:
         db_table = "groups_meeting_attendance"
         constraints = [models.UniqueConstraint(fields=["meeting", "member"], name="unique_group_meeting_attendance")]
+
+
+class GroupMessage(models.Model):
+    """A membership-only conversation message; messages are intentionally append-only."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    group = models.ForeignKey("ministries.Group", on_delete=models.CASCADE, related_name="messages")
+    author = models.ForeignKey("accounts.User", on_delete=models.CASCADE, related_name="group_messages")
+    body = models.TextField(max_length=4000)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "groups_message"
+        ordering = ["created_at", "id"]
+        indexes = [models.Index(fields=["group", "created_at"], name="groups_mes_group_created_idx")]
+
+
+class GroupResource(models.Model):
+    """Leader-managed links for a group’s study, meeting and training material."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    group = models.ForeignKey("ministries.Group", on_delete=models.CASCADE, related_name="resources")
+    title = models.CharField(max_length=180)
+    url = models.URLField(max_length=2048)
+    description = models.TextField(blank=True)
+    created_by = models.ForeignKey("accounts.User", null=True, on_delete=models.SET_NULL, related_name="created_group_resources")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "groups_resource"
+        ordering = ["-created_at", "-id"]
+        indexes = [models.Index(fields=["group", "created_at"], name="groups_res_group_created_idx")]

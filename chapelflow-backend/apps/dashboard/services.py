@@ -900,17 +900,21 @@ def get_event_counts(
     total = qs.count()
     
     # Upcoming events (have schedules in the future)
-    upcoming = qs.filter(schedules__start_time__gte=now).distinct().count()
+    upcoming = qs.filter(
+        Q(schedules__occurrence_start__gte=now, schedules__is_cancelled=False)
+        | Q(schedules__isnull=True, start_time__gte=now)
+    ).distinct().count()
     
     # Completed events (all schedules in the past)
     completed = qs.filter(
-        schedules__end_time__lt=now
+        Q(schedules__occurrence_end__lt=now)
+        | Q(schedules__isnull=True, end_time__lt=now)
     ).exclude(
-        schedules__start_time__gte=now
+        schedules__occurrence_start__gte=now
     ).distinct().count()
-    
-    # Cancelled events (if status field exists)
-    cancelled = qs.filter(is_cancelled=True).count() if hasattr(Event, 'is_cancelled') else 0
+
+    # Cancellation belongs to concrete schedules, not the parent event.
+    cancelled = qs.filter(schedules__is_cancelled=True).distinct().count()
     
     return {
         "total_events": total,
@@ -1024,7 +1028,7 @@ def get_group_counts(user) -> Dict:
             "unit_count": int,
         }
     """
-    from apps.groups.models import Group, GroupType
+    from apps.ministries.models import Group, GroupType
     
     qs = get_scoped_queryset(Group, user)
     
@@ -1057,7 +1061,7 @@ def get_group_type_breakdown(user) -> List[Dict]:
             ...
         ]
     """
-    from apps.groups.models import Group
+    from apps.ministries.models import Group
     
     qs = get_scoped_queryset(Group, user)
     
@@ -1079,7 +1083,8 @@ def get_group_participation_stats(user) -> Dict:
             "average_group_size": float,
         }
     """
-    from apps.groups.models import Group, GroupMembership
+    from apps.groups.models import GroupMembership
+    from apps.ministries.models import Group
     
     group_qs = get_scoped_queryset(Group, user)
     membership_qs = get_scoped_queryset(GroupMembership, user, branch_field="group__branch")
@@ -1121,10 +1126,12 @@ def get_volunteer_counts(user) -> Dict:
             "completed_assignments": int,
         }
     """
-    from apps.volunteers.models import Volunteer, VolunteerAssignment
-    
-    volunteer_qs = get_scoped_queryset(Volunteer, user)
-    assignment_qs = get_scoped_queryset(VolunteerAssignment, user)
+    from apps.volunteers.models import VolunteerAssignment, VolunteerProfile
+
+    volunteer_qs = get_scoped_queryset(VolunteerProfile, user, "member__branch")
+    assignment_qs = get_scoped_queryset(
+        VolunteerAssignment, user, "volunteer__member__branch"
+    )
     
     total_volunteers = volunteer_qs.count()
     active_volunteers = volunteer_qs.filter(is_active=True).count()
@@ -1150,7 +1157,7 @@ def get_volunteer_participation_rate(user) -> Optional[float]:
         Participation rate percentage or None if no active members
     """
     from apps.members.models import Member, MembershipStatus
-    from apps.volunteers.models import Volunteer
+    from apps.volunteers.models import VolunteerProfile
     
     member_qs = get_scoped_queryset(Member, user)
     active_members = member_qs.filter(membership_status=MembershipStatus.ACTIVE).count()
@@ -1158,7 +1165,7 @@ def get_volunteer_participation_rate(user) -> Optional[float]:
     if active_members == 0:
         return None
     
-    volunteer_qs = get_scoped_queryset(Volunteer, user)
+    volunteer_qs = get_scoped_queryset(VolunteerProfile, user, "member__branch")
     active_volunteers = volunteer_qs.filter(is_active=True).count()
     
     return round((active_volunteers / active_members) * 100, 2)
@@ -1186,7 +1193,9 @@ def get_volunteer_trend(
         start_date, end_date, default_days=180
     )
     
-    qs = get_scoped_queryset(VolunteerAssignment, user)
+    qs = get_scoped_queryset(
+        VolunteerAssignment, user, "volunteer__member__branch"
+    )
     
     return aggregate_by_time_period(
         qs, "created_at", start_date, end_date, period=period

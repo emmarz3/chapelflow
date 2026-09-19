@@ -59,7 +59,7 @@ async function rawRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
       : controller.signal;
     const headers = new Headers(init.headers);
     headers.set("Accept", "application/json");
-    headers.set("Content-Type", "application/json");
+    if (!(init.body instanceof FormData)) headers.set("Content-Type", "application/json");
     headers.set("X-Requested-With", "XMLHttpRequest");
     const csrf = csrfCookie();
     if (csrf) headers.set("X-ChapelFlow-CSRF", csrf);
@@ -153,6 +153,8 @@ export const api = {
       method: "POST",
       body: body === undefined ? undefined : JSON.stringify(body),
     }),
+  postForm: <T>(path: string, body: FormData) =>
+    apiRequest<T>(path, { method: "POST", body }),
   patch: <T>(path: string, body: unknown) =>
     apiRequest<T>(path, { method: "PATCH", body: JSON.stringify(body) }),
   delete: <T>(path: string) => apiRequest<T>(path, { method: "DELETE" }),
