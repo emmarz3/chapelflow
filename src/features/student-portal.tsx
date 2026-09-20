@@ -6,6 +6,7 @@ import {
   Camera,
   CheckCircle2,
   Coins,
+  MessageCircle,
   Clock3,
   QrCode,
   Users,
@@ -100,6 +101,11 @@ export function StudentDashboardPage() {
         <Coins aria-hidden="true" />
         <div><p className="eyebrow">Personal giving</p><h2>Offerings and tithes</h2><p>Give securely through Paystack. ChapelFlow records only verified successful payments.</p></div>
         <Link className="button button--secondary" to="/app/giving">Give securely</Link>
+      </section>
+      <section className="student-giving-prompt student-upper-room-prompt">
+        <MessageCircle aria-hidden="true" />
+        <div><p className="eyebrow">CUC community</p><h2>Meet us in The Upper Room</h2><p>Share chapel moments, encourage others, and join the conversation with grace.</p></div>
+        <Link className="button button--secondary" to="/app/upper-room">Open The Upper Room</Link>
       </section>
 
       <div className="student-content-grid">

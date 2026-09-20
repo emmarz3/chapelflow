@@ -24,6 +24,8 @@ import { InstitutionalAccountsPage } from "../features/institutional-accounts";
 import { AdminOperationsPage } from "../features/admin-operations";
 import { RoleOperationsPage } from "../features/role-operations";
 import { GivingPage } from "../features/giving-page";
+import { UpperRoomPage } from "../features/upper-room";
+import { GalleryPage } from "../features/gallery-page";
 import {
   StudentAttendanceHistoryPage,
   StudentAnnouncementsPage,
@@ -183,7 +185,7 @@ export function App() {
               />
               <Route
                 path="/gallery"
-                element={<PublicInfoPage page="gallery" />}
+                element={<GalleryPage />}
               />
               <Route
                 path="/gallery/:galleryId"
@@ -294,6 +296,7 @@ export function App() {
               <Route element={<PortalShell />}>
                 <Route path="/app" element={<DashboardPage />} />
                 <Route path="/app/giving" element={<GivingPage />} />
+                <Route path="/app/upper-room" element={<UpperRoomPage />} />
                 <Route element={<ProtectedRoute roles={["chaplain", "student_chaplain", "unit_leader", "fellowship_leader"]} />}>
                   <Route path="/app/operations" element={<RoleOperationsPage />} />
                 </Route>

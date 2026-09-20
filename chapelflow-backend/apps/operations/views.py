@@ -69,7 +69,7 @@ def _branch_for_create(user):
 
 MEDIA_CONTENT_TYPES = {
     ContentType.SERMON, ContentType.SERMON_SERIES, ContentType.GALLERY,
-    ContentType.GALLERY_IMAGE, ContentType.LIVESTREAM, ContentType.MEDIA,
+    ContentType.GALLERY_IMAGE, ContentType.GALLERY_VIDEO, ContentType.LIVESTREAM, ContentType.MEDIA,
 }
 
 

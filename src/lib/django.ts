@@ -117,6 +117,35 @@ function user(value: Row): User {
   };
 }
 
+function upperRoomPost(value: Row) {
+  return {
+    id: str(value.id),
+    caption: str(value.caption),
+    createdAt: str(value.created_at),
+    updatedAt: str(value.updated_at),
+    authorName: str(value.author_name),
+    media: list(value.media).map((media) => ({
+      id: str(media.id),
+      url: str(media.url),
+      mediaType: str(media.media_type).toUpperCase() === "VIDEO" ? "VIDEO" as const : "IMAGE" as const,
+      position: Number(media.position || 0),
+    })),
+    likeCount: Number(value.like_count || 0),
+    commentCount: Number(value.comment_count || 0),
+    isLiked: Boolean(value.is_liked),
+  };
+}
+
+function upperRoomComment(value: Row) {
+  return {
+    id: str(value.id),
+    body: str(value.body),
+    createdAt: str(value.created_at),
+    authorName: str(value.author_name),
+    isAuthor: Boolean(value.is_author),
+  };
+}
+
 function member(value: Row): Member {
   return {
     id: str(value.id),
@@ -345,6 +374,39 @@ export async function djangoRequest(
     return call("/auth/profile/", method === "PATCH" ? json("PATCH", body) : undefined);
   if (route === "/uploads" && method === "POST")
     return call("/uploads/upload/", init);
+  if (route === "/social/posts") {
+    const response = await call("/social/posts/", init);
+    if (method === "POST") return { data: upperRoomPost(row(response.data)) };
+    const feed = row(response.data);
+    return {
+      data: {
+        items: list(feed.items).map(upperRoomPost),
+        page: Number(feed.page || 1),
+        hasMore: Boolean(feed.has_more),
+      },
+    };
+  }
+  const socialPost = route.match(/^\/social\/posts\/([^/]+)$/);
+  if (socialPost && method === "DELETE")
+    return call(`/social/posts/${encodeURIComponent(socialPost[1]!)}/`, { method: "DELETE" });
+  const socialLike = route.match(/^\/social\/posts\/([^/]+)\/like$/);
+  if (socialLike && method === "POST") {
+    const response = await call(`/social/posts/${encodeURIComponent(socialLike[1]!)}/like/`, json("POST", {}));
+    const liked = row(response.data);
+    return { data: { liked: Boolean(liked.liked), likeCount: Number(liked.like_count || 0) } };
+  }
+  const socialComments = route.match(/^\/social\/posts\/([^/]+)\/comments$/);
+  if (socialComments) {
+    const response = await call(
+      `/social/posts/${encodeURIComponent(socialComments[1]!)}/comments/`,
+      method === "POST" ? json("POST", { body: body.body }) : init,
+    );
+    if (method === "POST") return { data: upperRoomComment(row(response.data)) };
+    return { data: list(response.data).map(upperRoomComment) };
+  }
+  const socialComment = route.match(/^\/social\/posts\/([^/]+)\/comments\/([^/]+)$/);
+  if (socialComment && method === "DELETE")
+    return call(`/social/posts/${encodeURIComponent(socialComment[1]!)}/comments/${encodeURIComponent(socialComment[2]!)}/`, { method: "DELETE" });
   if (route === "/student/announcements")
     return call("/communications/announcements/me/");
   if (route === "/student/join-requests")

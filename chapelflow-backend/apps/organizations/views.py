@@ -48,8 +48,10 @@ class PublicContentView(APIView):
                     "imageUrl": entry.cover_image_url or None,
                     "imageAlt": entry.title if entry.cover_image_url else "",
                     "action": {
-                        "label": "View series" if entry.content_type == ContentType.SERMON_SERIES else (
+                        "label": "Open collection" if entry.content_type == ContentType.GALLERY else (
+                            "View series" if entry.content_type == ContentType.SERMON_SERIES else (
                             "Open resource" if entry.content_type == ContentType.MEDIA else "Play message"
+                            )
                         ),
                         "href": f"{prefix}/{entry.slug}",
                     },
@@ -157,7 +159,7 @@ class PublicDetailView(APIView):
             images = ContentEntry.objects.filter(
                 parent=entry,
                 status=ContentStatus.PUBLISHED,
-                content_type=ContentType.GALLERY_IMAGE,
+                content_type__in=(ContentType.GALLERY_IMAGE, ContentType.GALLERY_VIDEO),
             ).order_by("sort_order", "published_at", "updated_at")
             sections = [{
                 "id": str(image.id),
@@ -165,6 +167,7 @@ class PublicDetailView(APIView):
                 "body": image.summary or image.details,
                 "imageUrl": image.media_url or image.cover_image_url or None,
                 "imageAlt": image.title,
+                "mediaType": "video" if image.content_type == ContentType.GALLERY_VIDEO else "image",
             } for image in images]
         elif entry.content_type == ContentType.SERMON_SERIES:
             sermons = ContentEntry.objects.filter(

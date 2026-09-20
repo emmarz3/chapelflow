@@ -41,6 +41,7 @@ urlpatterns = [
     path("api/v1/uploads/", include("apps.uploads.urls")),
     path("api/v1/audit/", include("apps.audit.urls")),
     path("api/v1/", include("apps.operations.urls")),
+    path("api/v1/social/", include("apps.social.urls")),
 ]
 
 if settings.DEBUG:

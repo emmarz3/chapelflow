@@ -11,6 +11,7 @@ class UploadCategory(models.TextChoices):
     DOCUMENT = "DOCUMENT", "Document"
     SERMON_AUDIO = "SERMON_AUDIO", "Sermon Audio"
     MEDIA_CONTENT = "MEDIA_CONTENT", "Published media content"
+    SOCIAL_POST = "SOCIAL_POST", "Upper Room community post"
     OTHER = "OTHER", "Other"
 
 

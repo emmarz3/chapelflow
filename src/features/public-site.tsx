@@ -22,6 +22,7 @@ const publicNav = [
   ["About", "/about"],
   ["Events", "/events"],
   ["Sermons", "/sermons"],
+  ["Gallery", "/gallery"],
   ["Livestream", "/livestream"],
   ["Giving", "/giving"],
 ] as const;
@@ -103,7 +104,7 @@ function PublicFooter() {
     <footer className="public-footer">
       <div className="public-footer__main">
         <div>
-          <PublicWordmark inverse />
+          <PublicWordmark />
           <p>
             A connected chapel community for worship, service, and growth at
             Chrisland University, Abeokuta.
@@ -216,6 +217,10 @@ function DemoHomePage() {
           {[['Sunday · 10:00 AM', 'Combined Chapel Service', 'left'], ['Wednesday · 5:30 PM', 'Word & Life', 'center'], ['Friday · 6:00 PM', 'Night of Worship', 'right']].map(([time, title, position]) => <Link to="/events" className="cuc-home__programme" key={title}><img className={`cuc-home__programme-image cuc-home__programme-image--${position}`} src="/chapel-hero.png" alt="" /><span>{time}</span><strong>{title}</strong></Link>)}
         </div>
       </section>
+      <section className="cuc-home__gallery-entry">
+        <div><p className="cuc-home__eyebrow">Chapel gallery</p><h2>Keep the moments close.</h2><p>Browse photographs and videos from worship, fellowship, service, and the life of the chapel.</p></div>
+        <Link className="button button--secondary" to="/gallery">Open the gallery <ArrowRight size={17} /></Link>
+      </section>
       <section className="cuc-home__wisdom">
         <div className="cuc-home__wisdom-image"><img src="/chapel-hero.png" alt="Students walking into Chrisland University Chapel" /><p>Anchored in a changing world.</p></div>
         <div><p className="cuc-home__eyebrow">Sermons and media</p><h2>Wisdom for the journey.</h2>{['Faith that works', 'A campus of influence', 'Living with purpose'].map((title, index) => <Link to="/sermons" className="cuc-home__sermon" key={title}><span>0{index + 1} · {18 + index * 6} minutes</span><strong>{title}</strong><ArrowRight size={17} /></Link>)}</div>
@@ -295,7 +300,7 @@ export function CookieConsent() {
     }
     setChoice(nextChoice);
   };
-  if (choice) return null;
+  if (choice || import.meta.env.VITE_E2E_TEST === "true") return null;
   return (
     <section className="cookie-consent" role="dialog" aria-modal="false" aria-labelledby="cookie-consent-title">
       <Cookie aria-hidden="true" />

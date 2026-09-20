@@ -240,6 +240,7 @@ class ContentType(models.TextChoices):
     SERMON_SERIES = "SERMON_SERIES", "Sermon series"
     GALLERY = "GALLERY", "Gallery album"
     GALLERY_IMAGE = "GALLERY_IMAGE", "Gallery image"
+    GALLERY_VIDEO = "GALLERY_VIDEO", "Gallery video"
     LIVESTREAM = "LIVESTREAM", "Livestream"
     MEDIA = "MEDIA", "Media resource"
 

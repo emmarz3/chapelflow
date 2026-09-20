@@ -146,16 +146,16 @@ class ContentEntrySerializer(serializers.ModelSerializer):
         author_name = attrs.get("author_name", getattr(self.instance, "author_name", ""))
         if content_type in {
             ContentType.SERMON, ContentType.MEDIA,
-            ContentType.GALLERY_IMAGE, ContentType.LIVESTREAM,
+            ContentType.GALLERY_IMAGE, ContentType.GALLERY_VIDEO, ContentType.LIVESTREAM,
         } and not media_url:
             raise serializers.ValidationError({"media_url": ["A media or stream URL is required for this content type."]})
         if content_type == ContentType.SERMON and not author_name:
             raise serializers.ValidationError({"author_name": ["A speaker name is required for a sermon."]})
         parent = attrs.get("parent", getattr(self.instance, "parent", None))
-        if content_type == ContentType.GALLERY_IMAGE and (
+        if content_type in {ContentType.GALLERY_IMAGE, ContentType.GALLERY_VIDEO} and (
             parent is None or parent.content_type != ContentType.GALLERY
         ):
-            raise serializers.ValidationError({"parent": ["Gallery images must belong to a gallery album."]})
+            raise serializers.ValidationError({"parent": ["Gallery media must belong to a gallery album."]})
         return attrs
 
 

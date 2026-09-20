@@ -171,4 +171,5 @@ def test_published_gallery_exposes_only_published_images(
         "body": "Students gathered for worship.",
         "imageUrl": "https://media.example.edu/opening-worship.jpg",
         "imageAlt": "Opening worship",
+        "mediaType": "image",
     }]

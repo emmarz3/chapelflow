@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Bell, CalendarDays, Coins, Contact, ExternalLink, UserRound } from "lucide-react";
+import { Bell, CalendarDays, Coins, Contact, ExternalLink, MessageCircle, UserRound } from "lucide-react";
 import { Link } from "react-router-dom";
 import { PageHeader } from "../components/ui";
 import { accountContentService } from "../services/chapelflow";
@@ -36,6 +36,10 @@ export function MemberAccountHomePage() {
         </Link>
       </section>
       <div className="account-home__grid">
+        <section className="panel account-home__card account-home__card--upper-room">
+          <MessageCircle />
+          <div><p className="eyebrow">Community space</p><h2>The Upper Room</h2><p>Share an encouraging thought or a chapel moment with your community.</p><div className="account-home__links"><Link to="/app/upper-room">Open The Upper Room <ExternalLink /></Link></div></div>
+        </section>
         <section className="panel account-home__card account-home__card--giving">
           <Coins />
           <div>

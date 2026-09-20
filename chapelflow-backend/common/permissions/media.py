@@ -31,4 +31,9 @@ def user_has_media_management_access(user) -> bool:
     if not getattr(user, "is_authenticated", False):
         return False
     role = user.get_role_code() if hasattr(user, "get_role_code") else user.role
-    return role in {Roles.SUPER_ADMIN, Roles.CHAPEL_ADMIN, Roles.CHAPLAIN} or is_media_unit_leader(user)
+    return role in {
+        Roles.SUPER_ADMIN,
+        Roles.CHAPEL_ADMIN,
+        Roles.CHAPLAIN,
+        Roles.STUDENT_CHAPLAIN,
+    } or is_media_unit_leader(user)

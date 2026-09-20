@@ -56,7 +56,9 @@ export function LivePublicPage({ slug }: { slug: string }) {
       <div className="cms-public-sections section">
         {content.sections.map((section) => (
           <section key={section.id}>
-            {section.imageUrl && (
+            {section.imageUrl && section.mediaType === "video" ? (
+              <video controls preload="metadata"><source src={section.imageUrl} /></video>
+            ) : section.imageUrl && (
               <img
                 src={section.imageUrl}
                 alt={section.imageAlt || ""}
@@ -141,7 +143,9 @@ function LiveDetailContent({
       <article className="cms-article section">
         {content.sections.map((section) => (
           <section key={section.id}>
-            {section.imageUrl && (
+            {section.imageUrl && section.mediaType === "video" ? (
+              <video controls preload="metadata"><source src={section.imageUrl} /></video>
+            ) : section.imageUrl && (
               <img
                 src={section.imageUrl}
                 alt={section.imageAlt || ""}

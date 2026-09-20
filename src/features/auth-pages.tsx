@@ -571,7 +571,7 @@ export function RegisterPage() {
                 <Field
                   name="identifier"
                   defaultValue={values.identifier}
-                  label="Matric number"
+                  label="Matric number or staff ID"
                   hint="Use your university matric number, for example CU/2026/001."
                   pattern="[A-Za-z]{2,6}/[0-9]{2,4}/[0-9]{3,6}"
                   required

@@ -11,6 +11,9 @@ import {
   FileText,
   Gauge,
   HeartHandshake,
+  House,
+  Image,
+  MessagesSquare,
   Menu,
   MessageSquareText,
   Moon,
@@ -61,6 +64,7 @@ const navGroups: { label: string; items: NavItem[] }[] = [
         icon: <Gauge />,
         permission: "dashboard:view",
       },
+      { label: "The Upper Room", path: "/app/upper-room", icon: <MessagesSquare /> },
       {
         label: "Members",
         path: "/app/members",
@@ -214,6 +218,7 @@ function studentNavGroups(communities: { type: string }[]): { label: string; ite
         { label: "Chapel schedule & events", path: "/app/events", icon: <CalendarDays />, roles: ["member"] },
         { label: "Join a community", path: "/app/join-community", icon: <Users />, roles: ["member"] },
         { label: "Prayer and care", path: "/app/care", icon: <HeartHandshake />, roles: ["member"] },
+        { label: "The Upper Room", path: "/app/upper-room", icon: <MessagesSquare />, roles: ["member"] },
         ...(hasFellowship ? [{ label: "My fellowship", path: "/app/communities", icon: <Users />, roles: ["member"] as Role[] }] : []),
         ...(hasUnit ? [{ label: "My chapel unit", path: "/app/communities", icon: <Building2 />, roles: ["member"] as Role[] }] : []),
       ],
@@ -240,6 +245,7 @@ function memberAccountNavGroups(): { label: string; items: NavItem[] }[] {
         { label: "Overview", path: "/app", icon: <Gauge />, roles: ["member"] },
         { label: "Service times", path: "/service-times", icon: <CalendarDays />, roles: ["member"] },
         { label: "Chapel events", path: "/events", icon: <CalendarDays />, roles: ["member"] },
+        { label: "The Upper Room", path: "/app/upper-room", icon: <MessagesSquare />, roles: ["member"] },
         { label: "Offerings & tithes", path: "/app/giving", icon: <Coins />, roles: ["member"] },
         { label: "Announcements", path: "/app/announcements", icon: <Bell />, roles: ["member"] },
         { label: "Notifications", path: "/app/notifications", icon: <Bell />, roles: ["member"] },
@@ -257,14 +263,17 @@ function operationalNavGroups(user: User): { label: string; items: NavItem[] }[]
   const events: NavItem = { label: "Events and programmes", path: "/app/events", icon: <CalendarDays />, permission: "events:read", roles: [role] };
   const operations: NavItem = { label: "Operations", path: "/app/operations", icon: <Activity />, roles: [role] };
   const care: NavItem = { label: "Prayer and care", path: "/app/care", icon: <HeartHandshake />, roles: [role] };
+  const upperRoom: NavItem = { label: "The Upper Room", path: "/app/upper-room", icon: <MessagesSquare />, roles: [role] };
+  const officialGallery: NavItem = { label: "Official gallery", path: "/app/media", icon: <Image />, permission: "media:write", roles: [role] };
+  const mediaItems = hasPermission(user, "media:write") ? [officialGallery] : [];
   const giving: NavItem = { label: "Offerings & tithes", path: "/app/giving", icon: <Coins />, roles: [role] };
   const inventory: NavItem = { label: "Inventory", path: "/app/assets", icon: <Package />, permission: "assets:read", roles: [role] };
   const inventoryItems = hasPermission(user, "assets:read") ? [inventory] : [];
-  if (role === "chaplain") return [{ label: "Chapel oversight", items: [overview, operations, care, giving, ...inventoryItems, members, events] }];
-  if (role === "student_chaplain") return [{ label: "Student operations", items: [overview, operations, care, giving, ...inventoryItems, members, { ...events, label: "Chapel services" }] }];
+  if (role === "chaplain") return [{ label: "Chapel oversight", items: [overview, operations, care, upperRoom, giving, ...mediaItems, ...inventoryItems, members, events] }];
+  if (role === "student_chaplain") return [{ label: "Student operations", items: [overview, operations, care, upperRoom, giving, ...mediaItems, ...inventoryItems, members, { ...events, label: "Chapel services" }] }];
   if (role === "unit_leader" || role === "fellowship_leader") {
     const label = role === "unit_leader" ? "Unit" : "Fellowship";
-    return [{ label: `${label} workspace`, items: [overview, operations, care, giving, ...inventoryItems, { ...members, label: "Members" }, { ...events, label: "Meetings and programmes" }] }];
+    return [{ label: `${label} workspace`, items: [overview, operations, care, upperRoom, giving, ...mediaItems, ...inventoryItems, { ...members, label: "Members" }, { ...events, label: "Meetings and programmes" }] }];
   }
   return null;
 }
@@ -463,6 +472,10 @@ export function PortalShell() {
           >
             <Menu />
           </button>
+          <Link className="topbar__home-link" to="/" aria-label="Open Chapel homepage">
+            <House />
+            <span>Chapel homepage</span>
+          </Link>
           {user.role !== "member" && <button className="global-search" onClick={() => setSearchOpen(true)}>
             <Search />
             <span>Search members, events, records…</span>

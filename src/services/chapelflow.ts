@@ -198,6 +198,7 @@ export interface PublicContentPayload {
     body: string;
     imageUrl?: string;
     imageAlt?: string;
+    mediaType?: "image" | "video";
     action?: { label: string; href: string };
   }[];
   updatedAt: string;
@@ -337,6 +338,33 @@ export interface UploadResult {
   size_bytes: number;
 }
 
+export interface UpperRoomMedia {
+  id: string;
+  url: string;
+  mediaType: "IMAGE" | "VIDEO";
+  position: number;
+}
+
+export interface UpperRoomPost {
+  id: string;
+  caption: string;
+  createdAt: string;
+  updatedAt: string;
+  authorName: string;
+  media: UpperRoomMedia[];
+  likeCount: number;
+  commentCount: number;
+  isLiked: boolean;
+}
+
+export interface UpperRoomComment {
+  id: string;
+  body: string;
+  createdAt: string;
+  authorName: string;
+  isAuthor: boolean;
+}
+
 export const uploadService = {
   upload: (file: File, category: "MEDIA_CONTENT") => {
     const body = new FormData();
@@ -344,6 +372,21 @@ export const uploadService = {
     body.set("category", category);
     return api.postForm<{ data: UploadResult }>("/uploads", body);
   },
+};
+
+export const upperRoomService = {
+  feed: (page = 1) => api.get<{ data: { items: UpperRoomPost[]; page: number; hasMore: boolean } }>(`/social/posts${queryString({ page, pageSize: 15 })}`),
+  createPost: (caption: string, files: File[]) => {
+    const body = new FormData();
+    body.set("caption", caption);
+    files.forEach((file) => body.append("files", file));
+    return api.postForm<{ data: UpperRoomPost }>("/social/posts", body);
+  },
+  deletePost: (postId: string) => api.delete<void>(`/social/posts/${encodeURIComponent(postId)}`),
+  toggleLike: (postId: string) => api.post<{ data: { liked: boolean; likeCount: number } }>(`/social/posts/${encodeURIComponent(postId)}/like`),
+  comments: (postId: string) => api.get<{ data: UpperRoomComment[] }>(`/social/posts/${encodeURIComponent(postId)}/comments`),
+  createComment: (postId: string, body: string) => api.post<{ data: UpperRoomComment }>(`/social/posts/${encodeURIComponent(postId)}/comments`, { body }),
+  deleteComment: (postId: string, commentId: string) => api.delete<void>(`/social/posts/${encodeURIComponent(postId)}/comments/${encodeURIComponent(commentId)}`),
 };
 
 const demoCommunities: CommunitySummary[] = [

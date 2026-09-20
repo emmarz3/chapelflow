@@ -104,7 +104,7 @@ export function StudentAttendancePassPage() {
     <div className="motion-feature motion-feature--pass">
       <PageHeader
         eyebrow="Student attendance"
-        title="Scan the usher QR"
+        title="My Chapel Pass"
         description="Attendance is recorded only when you scan a live QR shown by an authorized usher."
       />
       <section className="chapel-pass">
@@ -114,7 +114,7 @@ export function StudentAttendancePassPage() {
           </div>
           <div>
             <small>Chrisland University Chapel</small>
-            <h2>Live attendance scanner</h2>
+            <h2>Scan the usher QR</h2>
           </div>
           <Badge
             tone={pass.data.passStatus === "active" ? "success" : "danger"}

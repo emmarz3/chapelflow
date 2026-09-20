@@ -4,6 +4,7 @@
 interface ImportMetaEnv {
   readonly VITE_API_BASE_URL?: string;
   readonly VITE_DATA_MODE?: "api" | "demo";
+  readonly VITE_E2E_TEST?: string;
   readonly VITE_INSTITUTION_NAME?: string;
   readonly VITE_PRIVACY_CONTACT?: string;
   readonly VITE_SUPPORT_CONTACT?: string;

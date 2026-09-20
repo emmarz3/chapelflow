@@ -1522,7 +1522,7 @@ function LiveModuleOperationsPage({
       delete payload.media_file;
       delete payload.cover_image_file;
       const contentType = String(payload.content_type || "");
-      const requiresUploadedMedia = ["SERMON", "MEDIA", "GALLERY_IMAGE"].includes(contentType);
+      const requiresUploadedMedia = ["SERMON", "MEDIA", "GALLERY_IMAGE", "GALLERY_VIDEO"].includes(contentType);
       if (requiresUploadedMedia && !(mediaFile instanceof File && mediaFile.name)) {
         setUploadError("Choose the image, video, audio, or document to publish.");
         return;
@@ -1816,6 +1816,7 @@ function LiveModuleOperationsPage({
                           <option value="SERMON_SERIES">Sermon series</option>
                           <option value="GALLERY">Gallery album</option>
                           <option value="GALLERY_IMAGE">Gallery image</option>
+                          <option value="GALLERY_VIDEO">Gallery video</option>
                           <option value="LIVESTREAM">Livestream</option>
                           <option value="MEDIA">Media resource</option>
                         </>
@@ -1842,7 +1843,7 @@ function LiveModuleOperationsPage({
                     <label className="field field--full">
                       <span>Gallery album</span>
                       <select name="parent">
-                        <option value="">Not a gallery image</option>
+                        <option value="">Not gallery media</option>
                         {rows
                           .filter((row) => row.contentType === "GALLERY")
                           .map((row) => <option key={row.id} value={row.id}>{row.primary}</option>)}
