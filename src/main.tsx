@@ -9,7 +9,6 @@ import "./extended.css";
 import "./components/intro/intro.css";
 import "./components/motion/motion.css";
 import "./community.css";
-import "./home.css";
 
 if (import.meta.env.DEV && "serviceWorker" in navigator) {
   void navigator.serviceWorker

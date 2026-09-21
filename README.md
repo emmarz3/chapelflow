@@ -50,8 +50,6 @@ npm run build
 - `server`: Express API, authentication, QR security, RBAC, attendance workflows, migrations, and seed scripts
 - `e2e`: Playwright journeys for desktop and mobile
 
-The public homepage (announcement ticker, countdown, verse of the day, service schedule, events, sermons, ministries, calendar and gallery) is edited by the Super Admin in the Homepage studio; see [`docs/HOMEPAGE_STUDIO.md`](docs/HOMEPAGE_STUDIO.md).
-
 The proposed endpoint catalogue and role/permission matrix are documented in [`docs/API_CONTRACT.md`](docs/API_CONTRACT.md). Production-readiness and external-provider dependencies are tracked in [`docs/PRODUCTION_CHECKLIST.md`](docs/PRODUCTION_CHECKLIST.md).
 
 Authentication assumes secure HttpOnly cookies. No authentication token is stored in `localStorage`; only the non-sensitive theme preference is persisted there. Backend authorization remains authoritative.

@@ -1,9 +1,5 @@
 from django.urls import path
 
-from .homepage import (
-    HomepageAdminView, HomepageRequestDetailView, HomepageRequestListView,
-    PublicHomepageRequestView, PublicHomepageView,
-)
 from .views import (
     AnalyticsOverviewView, AssetCategoryCollectionView, AssetCollectionView,
     AssetHistoryView, AssetLocationCollectionView, AssetMaintenanceActionView,
@@ -17,13 +13,6 @@ from .views import (
 
 
 urlpatterns = [
-    # Public homepage document and visitor requests. These live under ``site/``
-    # because ``public/<kind>/<slug>/`` in the organizations app would shadow them.
-    path("site/homepage/", PublicHomepageView.as_view(), name="public-homepage"),
-    path("site/homepage/requests/", PublicHomepageRequestView.as_view(), name="public-homepage-requests"),
-    path("operations/homepage/", HomepageAdminView.as_view(), name="operations-homepage"),
-    path("operations/homepage/requests/", HomepageRequestListView.as_view(), name="operations-homepage-requests"),
-    path("operations/homepage/requests/<uuid:pk>/", HomepageRequestDetailView.as_view(), name="operations-homepage-request"),
     path("operations/communication/", CommunicationOperationsView.as_view(), name="operations-communication"),
     path("operations/communication/<uuid:pk>/send/", CommunicationSendView.as_view(), name="operations-communication-send"),
     path("operations/branches/", BranchOperationsView.as_view(), name="operations-branches"),

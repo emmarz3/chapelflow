@@ -311,7 +311,7 @@ class AssetMovementView(APIView):
 
         with transaction.atomic():
             asset = _scope(
-                Asset.objects.select_for_update(of=("self",)).select_related("location", "custodian"), request.user
+                Asset.objects.select_for_update().select_related("location", "custodian"), request.user
             ).filter(pk=pk).first()
             if not asset:
                 raise PermissionDenied("Asset not found in your branch scope.")

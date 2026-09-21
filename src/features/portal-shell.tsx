@@ -20,7 +20,6 @@ import {
   Package,
   PanelLeftClose,
   PanelLeftOpen,
-  PanelsTopLeft,
   Radio,
   Search,
   Settings,
@@ -129,12 +128,6 @@ const navGroups: { label: string; items: NavItem[] }[] = [
         label: "Institutional accounts",
         path: "/app/admin/accounts",
         icon: <UserRound />,
-        roles: ["super_admin"],
-      },
-      {
-        label: "Homepage studio",
-        path: "/app/admin/homepage",
-        icon: <PanelsTopLeft />,
         roles: ["super_admin"],
       },
       {

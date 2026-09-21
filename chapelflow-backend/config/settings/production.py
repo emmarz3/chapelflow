@@ -27,11 +27,3 @@ SESSION_COOKIE_AGE = 60 * 60 * 8  # 8 hours
 EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
 
 CORS_ALLOW_ALL_ORIGINS = False
-
-# --------------------------------------------------------------------------
-# Reverse-proxy support (Render, Cloudflare, nginx, ...)
-# --------------------------------------------------------------------------
-if env.bool("TRUST_PROXY_SSL_HEADER", default=False):  # noqa: F405
-    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
-
-SECURE_REDIRECT_EXEMPT = [r"^health/?$", r"^liveness/?$", r"^readiness/?$"]

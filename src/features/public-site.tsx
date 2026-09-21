@@ -4,25 +4,18 @@ import {
   CheckCircle2,
   Clock3,
   Cookie,
-  Facebook,
-  Instagram,
-  Mail,
   MapPin,
   Menu,
-  Phone,
   Play,
   Radio,
   Users,
   X,
-  Youtube,
 } from "lucide-react";
 import { useRef, useState, type ReactNode } from "react";
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import { Button, PageHeader, SectionLink } from "../components/ui";
 import { usePublicMotion } from "../components/motion/motion-system";
 import { isDemoMode } from "../lib/fixtures";
-import { safeHref } from "../lib/homepage-content";
-import { usePublicHomepage } from "./home/use-homepage";
 import { LivePublicDetailPage, LivePublicPage } from "./live-public";
 
 const publicNav = [
@@ -106,23 +99,7 @@ export function PublicLayout() {
   );
 }
 
-function XLogo() {
-  return (
-    <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true">
-      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
-    </svg>
-  );
-}
-
 function PublicFooter() {
-  const { content } = usePublicHomepage();
-  const contact = content?.contact;
-  const socials = [
-    { label: "Facebook", href: safeHref(contact?.facebook), icon: <Facebook size={18} /> },
-    { label: "X (Twitter)", href: safeHref(contact?.x), icon: <XLogo /> },
-    { label: "Instagram", href: safeHref(contact?.instagram), icon: <Instagram size={18} /> },
-    { label: "YouTube", href: safeHref(contact?.youtube), icon: <Youtube size={18} /> },
-  ].filter((social) => social.href);
   return (
     <footer className="public-footer">
       <div className="public-footer__main">
@@ -132,29 +109,14 @@ function PublicFooter() {
             A connected chapel community for worship, service, and growth at
             Chrisland University, Abeokuta.
           </p>
-          {socials.length > 0 && (
-            <div className="hp-social">
-              {socials.map((social) => (
-                <a key={social.label} href={social.href} aria-label={social.label} target="_blank" rel="noopener noreferrer">
-                  {social.icon}
-                </a>
-              ))}
-            </div>
-          )}
         </div>
         <div>
           <h3>Visit</h3>
           <p>
-            {content?.siteName ?? "Chrisland University Chapel"}
+            Chrisland University Chapel
             <br />
-            {contact?.address || "Abeokuta Campus, Ogun State"}
+            Abeokuta Campus, Ogun State
           </p>
-          {contact?.email && (
-            <p className="hp-footer-line"><Mail size={15} aria-hidden="true" /><a href={`mailto:${contact.email}`}>{contact.email}</a></p>
-          )}
-          {contact?.phone && (
-            <p className="hp-footer-line"><Phone size={15} aria-hidden="true" /><a href={`tel:${contact.phone.replace(/[^\d+]/g, "")}`}>{contact.phone}</a></p>
-          )}
           <Link to="/contact">Contact the chapel</Link>
         </div>
         <div>
@@ -162,8 +124,6 @@ function PublicFooter() {
           <Link to="/about">About us</Link>
           <Link to="/events">Events</Link>
           <Link to="/sermons">Sermons</Link>
-          <Link to="/gallery">Gallery</Link>
-          <Link to="/giving">Giving</Link>
           <Link to="/faq">Frequently asked questions</Link>
         </div>
         <div>
@@ -176,7 +136,7 @@ function PublicFooter() {
         </div>
       </div>
       <div className="public-footer__legal">
-        <span>© 2026 {content?.siteName ?? "Chrisland University Chapel"}</span>
+        <span>© 2026 Chrisland University Chapel</span>
         <span>Powered by ChapelFlow</span>
       </div>
     </footer>
@@ -189,6 +149,87 @@ function PublicWordmark({ inverse = false }: { inverse?: boolean }) {
       <strong>Chapel<em>Flow</em></strong>
       <small>Chrisland University Chapel</small>
     </span>
+  );
+}
+
+export function HomePage() {
+  return <DemoHomePage />;
+}
+
+function DemoHomePage() {
+  return (
+    <div className="cuc-home">
+      <div className="cuc-home__gathering">
+        <span>Next gathering</span>
+        <strong>Combined Chapel Service · Sunday, 10:00 AM</strong>
+        <Link to="/events">View programmes <ArrowRight size={15} /></Link>
+      </div>
+      <section className="cuc-home__hero">
+        <div className="cuc-home__hero-copy">
+          <p className="cuc-home__eyebrow">Chrisland University Chapel</p>
+          <h1>Where faith becomes <em>community.</em></h1>
+          <p className="cuc-home__lede">One beautiful place to worship, belong, grow, and stay connected to chapel life at CUC.</p>
+          <div className="cuc-home__actions">
+            <Link className="button button--primary" to="/register">Create your ChapelFlow account <ArrowRight size={18} /></Link>
+            <Link className="button button--ghost" to="/about">Explore ChapelFlow</Link>
+          </div>
+          <dl className="cuc-home__stats">
+            <div><dt>2,500+</dt><dd>Students connected</dd></div>
+            <div><dt>20+</dt><dd>Chapel communities</dd></div>
+            <div><dt>48</dt><dd>Programmes yearly</dd></div>
+          </dl>
+        </div>
+        <figure className="cuc-home__hero-image">
+          <img src="/chapel-hero.png" alt="Chrisland University students arriving for chapel" />
+          <figcaption>“A deeper faith. A stronger community.”</figcaption>
+        </figure>
+      </section>
+      <section className="cuc-home__belonging">
+        <div>
+          <p className="cuc-home__eyebrow">One chapel · one community · one flow</p>
+          <h2>A richer campus life, rooted in purpose.</h2>
+          <p>ChapelFlow is the digital home for worship, fellowship, service, and spiritual growth at Chrisland University Chapel.</p>
+          <p className="cuc-home__quote">“Faith is lived best when it is lived together.”</p>
+        </div>
+        <div className="cuc-home__photo-rail" aria-label="Chapel community moments">
+          <img src="/chapel-hero.png" alt="" /><img src="/chapel-hero.png" alt="" /><img src="/chapel-hero.png" alt="" />
+        </div>
+        <div className="cuc-home__pillars">
+          {[['Worship together', 'Services and shared moments'], ['Belong deeply', 'Units and fellowships'], ['Grow in faith', 'Sermons and resources'], ['Serve with purpose', 'Community and leadership']].map(([title, detail]) => <article key={title}><strong>{title}</strong><span>{detail}</span></article>)}
+        </div>
+      </section>
+      <section className="cuc-home__attendance">
+        <div>
+          <p className="cuc-home__eyebrow">Secure chapel attendance</p>
+          <h2>Present in the moment.<br />Confirmed in seconds.</h2>
+          <p>Students scan the official QR shown by an authorized usher. Every live code refreshes automatically and one attendance record is kept for each service.</p>
+          <ol><li><span>01</span> Official usher QR</li><li><span>02</span> Rotates every 45 seconds</li><li><span>03</span> Scan with ChapelFlow</li><li><span>04</span> One attendance per service</li></ol>
+        </div>
+        <div className="cuc-home__attendance-art">
+          <img src="/chapel-hero.png" alt="Students gathering at the chapel" />
+          <div className="cuc-home__qr-card"><small>Official usher QR</small><strong>QR</strong><span>00:45</span></div>
+        </div>
+      </section>
+      <section className="cuc-home__programmes">
+        <p className="cuc-home__eyebrow">Upcoming programmes</p>
+        <div className="cuc-home__section-head"><h2>Moments worth showing up for.</h2><Link to="/events">See all programmes <ArrowRight size={17} /></Link></div>
+        <div className="cuc-home__programme-grid">
+          {[['Sunday · 10:00 AM', 'Combined Chapel Service', 'left'], ['Wednesday · 5:30 PM', 'Word & Life', 'center'], ['Friday · 6:00 PM', 'Night of Worship', 'right']].map(([time, title, position]) => <Link to="/events" className="cuc-home__programme" key={title}><img className={`cuc-home__programme-image cuc-home__programme-image--${position}`} src="/chapel-hero.png" alt="" /><span>{time}</span><strong>{title}</strong></Link>)}
+        </div>
+      </section>
+      <section className="cuc-home__gallery-entry">
+        <div><p className="cuc-home__eyebrow">Chapel gallery</p><h2>Keep the moments close.</h2><p>Browse photographs and videos from worship, fellowship, service, and the life of the chapel.</p></div>
+        <Link className="button button--secondary" to="/gallery">Open the gallery <ArrowRight size={17} /></Link>
+      </section>
+      <section className="cuc-home__wisdom">
+        <div className="cuc-home__wisdom-image"><img src="/chapel-hero.png" alt="Students walking into Chrisland University Chapel" /><p>Anchored in a changing world.</p></div>
+        <div><p className="cuc-home__eyebrow">Sermons and media</p><h2>Wisdom for the journey.</h2>{['Faith that works', 'A campus of influence', 'Living with purpose'].map((title, index) => <Link to="/sermons" className="cuc-home__sermon" key={title}><span>0{index + 1} · {18 + index * 6} minutes</span><strong>{title}</strong><ArrowRight size={17} /></Link>)}</div>
+      </section>
+      <section className="cuc-home__closing">
+        <img src="/chapel-hero.png" alt="" />
+        <div><p className="cuc-home__eyebrow">Chrisland University Chapel</p><h2>Stay connected to everything happening at CUC.</h2><p>Join ChapelFlow and become part of a growing community of faith, purpose, and impact.</p><Link className="button button--primary" to="/register">Join the chapel community <ArrowRight size={18} /></Link></div>
+      </section>
+    </div>
   );
 }
 

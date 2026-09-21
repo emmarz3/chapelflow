@@ -169,7 +169,7 @@ function member(value: Row): Member {
 function event(value: Row): EventSummary {
   const start = new Date(str(value.start_time));
   const schedules = list(value.schedules);
-  const nextSchedule = schedules.find((schedule) => !schedule.is_cancelled) ?? null;
+  const nextSchedule = schedules.find((schedule) => !Boolean(schedule.is_cancelled)) ?? null;
   return {
     id: str(value.id),
     scheduleId: nextSchedule ? str(nextSchedule.id) : null,
@@ -426,23 +426,6 @@ export async function djangoRequest(
       }),
     );
   if (route.startsWith("/auth/mfa/")) return call(`${route}/`, init);
-
-  if (route === "/site/homepage" && method === "GET") return call("/site/homepage/");
-  if (route === "/site/homepage/requests" && method === "POST")
-    return call("/site/homepage/requests/", json("POST", body));
-  if (route === "/admin/homepage") {
-    if (method === "PUT") return call("/operations/homepage/", json("PUT", body));
-    if (method === "DELETE") return call("/operations/homepage/", { method: "DELETE" });
-    return call("/operations/homepage/");
-  }
-  if (route === "/admin/homepage/requests" && method === "GET")
-    return call(`/operations/homepage/requests/${suffix}`);
-  const homepageRequest = route.match(/^\/admin\/homepage\/requests\/([^/]+)$/);
-  if (homepageRequest) {
-    const target = `/operations/homepage/requests/${encodeURIComponent(homepageRequest[1]!)}/`;
-    if (method === "PATCH") return call(target, json("PATCH", { status: body.status }));
-    if (method === "DELETE") return call(target, { method: "DELETE" });
-  }
 
   if (/^\/public\/content\/[^/]+$/.test(route)) return call(`${route}/${suffix}`);
   if (/^\/public\/(events|sermons|news|gallery)\/[^/]+$/.test(route))

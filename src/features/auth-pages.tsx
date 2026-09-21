@@ -168,18 +168,11 @@ export function LoginPage() {
       );
       navigate(getAuthenticatedHomePath(authenticated));
     } catch (caught) {
-      if (caught instanceof ApiError) {
-        const detail =
-          caught.fieldErrors?.non_field_errors?.[0] ||
-          (caught.fieldErrors && Object.values(caught.fieldErrors).flat()[0]);
-        setError(
-          detail ||
-            caught.message ||
-            "Sign in failed. Please check your credentials.",
-        );
-      } else {
-        setError("Sign in failed. Please try again.");
-      }
+      setError(
+        caught instanceof ApiError
+          ? caught.message
+          : "Sign in failed. Please try again.",
+      );
     }
   }
   return (

@@ -1,6 +1,5 @@
 import { API_BASE_URL, api } from "../lib/api";
 import { isDemoMode } from "../lib/fixtures";
-import type { HomepageContent, HomepageResponse } from "../lib/homepage-content";
 import type {
   AttendanceRecord,
   AttendancePass,
@@ -367,7 +366,7 @@ export interface UpperRoomComment {
 }
 
 export const uploadService = {
-  upload: (file: File, category: "MEDIA_CONTENT" | "EVENT_IMAGE") => {
+  upload: (file: File, category: "MEDIA_CONTENT") => {
     const body = new FormData();
     body.set("file", file);
     body.set("category", category);
@@ -1010,50 +1009,6 @@ export const publicService = {
     api.get<{ data: PublicContentPayload }>(
       `/public/${kind}/${encodeURIComponent(id)}`,
     ),
-};
-export interface HomepageRequestRow {
-  id: string;
-  kind: "EVENT" | "UNIT";
-  itemId: string;
-  itemTitle: string;
-  name: string;
-  email: string;
-  matricNo: string;
-  status: "NEW" | "CONTACTED" | "CLOSED";
-  createdAt: string;
-}
-export interface HomepageVisitorRequest {
-  kind: "event" | "unit";
-  itemId: string;
-  itemTitle: string;
-  name: string;
-  email: string;
-  matricNo: string;
-  consent: boolean;
-  /** Honeypot: must stay empty. */
-  website?: string;
-}
-const emptyHomepage: { data: HomepageResponse } = {
-  data: { content: null, version: 0, updatedAt: null, counts: {} },
-};
-export const homepageService = {
-  /** Public. Preview builds have no API, so they render the built-in defaults. */
-  get: (): Promise<{ data: HomepageResponse }> =>
-    isDemoMode ? Promise.resolve(emptyHomepage) : api.get<{ data: HomepageResponse }>("/site/homepage"),
-  adminGet: () => api.get<{ data: HomepageResponse }>("/admin/homepage"),
-  save: (content: HomepageContent, version: number) =>
-    api.put<{ data: HomepageResponse }>("/admin/homepage", { content, version }),
-  reset: () => api.delete<{ data: HomepageResponse }>("/admin/homepage"),
-  submitRequest: (payload: HomepageVisitorRequest) =>
-    api.post<{ data: { received: boolean } }>("/site/homepage/requests", payload),
-  requests: (params: QueryParams = {}) =>
-    api.get<{ data: { total: number; results: HomepageRequestRow[] } }>(
-      `/admin/homepage/requests${queryString(params)}`,
-    ),
-  updateRequest: (id: string, status: HomepageRequestRow["status"]) =>
-    api.patch<{ data: HomepageRequestRow }>(`/admin/homepage/requests/${encodeURIComponent(id)}`, { status }),
-  deleteRequest: (id: string) =>
-    api.delete<void>(`/admin/homepage/requests/${encodeURIComponent(id)}`),
 };
 export const privacyService = {
   preferences: () =>

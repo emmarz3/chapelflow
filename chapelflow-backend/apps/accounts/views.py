@@ -357,24 +357,13 @@ class RefreshView(APIView):
     LoginSerializer.create_tokens.
     """
     permission_classes = [AllowAny]
-    # The refresh token is the credential here. Running the access-cookie
-    # authenticator first would reject the request whenever a stale/expired
-    # access cookie is still present -- exactly when a refresh is needed.
-    authentication_classes = []
     throttle_classes = [ScopedRateThrottle]
     throttle_scope = "auth"
 
     def post(self, request):
-        body_token = request.data.get("refresh")
-        refresh_token = body_token or request.COOKIES.get(REFRESH_COOKIE)
+        refresh_token = request.data.get("refresh") or request.COOKIES.get(REFRESH_COOKIE)
         if not refresh_token:
             return error_response("Refresh token is required.", status=400)
-        if not body_token:
-            # Cookie-borne credential: keep double-submit CSRF protection.
-            csrf_cookie = request.COOKIES.get(CSRF_COOKIE, "")
-            csrf_header = request.META.get("HTTP_X_CHAPELFLOW_CSRF", "")
-            if not csrf_cookie or not secrets.compare_digest(csrf_cookie, csrf_header):
-                return error_response("CSRF validation failed.", status=403)
         try:
             old_refresh = RefreshToken(refresh_token)
         except TokenError:

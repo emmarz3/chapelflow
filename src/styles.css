@@ -4042,7 +4042,7 @@ button {
 }
 .public-shell--home .public-nav { border-bottom-color: #e8e3da; background: rgba(255, 255, 255, .96); }
 .public-shell--home .public-nav nav a { color: #21324a; }
-.public-shell--home .public-nav__actions .button--primary { background: var(--cuc-purple, #5637d7); border-color: var(--cuc-purple, #5637d7); color: #fff; }
+.public-shell--home .public-nav__actions .button--primary { background: var(--cuc-purple); border-color: var(--cuc-purple); color: #fff; }
 .public-shell--home .public-footer { background: var(--cuc-navy); }
 .cuc-wordmark { color: #102640; display: inline-grid; font-family: "DM Sans", sans-serif; line-height: 1; text-decoration: none; }
 .cuc-wordmark strong { font-size: 21px; font-weight: 800; letter-spacing: -.07em; }.cuc-wordmark em { color: #5637d7; font-style: normal; }.cuc-wordmark small { font-size: 6px; font-weight: 800; letter-spacing: .055em; margin-top: 3px; text-transform: uppercase; }.cuc-wordmark--inverse { color: #fff; }.cuc-wordmark--inverse em { color: #b49aff; }
@@ -4156,7 +4156,7 @@ button {
   justify-content: center;
 }
 .public-shell--home .public-nav__actions .button--primary {
-  background: var(--cuc-purple, #5637d7);
+  background: var(--cuc-purple);
   border-color: var(--cuc-purple);
   color: #fff;
   box-shadow: 0 7px 17px rgba(86, 55, 215, .24);

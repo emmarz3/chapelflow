@@ -42,11 +42,10 @@ import {
   ProtectedRoute,
   StudentOnlyRoute,
 } from "../features/portal-shell";
-import { HomePage } from "../features/home/home-page";
-import { HomepageAdminPage } from "../features/home/homepage-admin";
 import {
   AboutPage,
   CookieConsent,
+  HomePage,
   LegalPage,
   PublicContentPage,
   PublicDetailPage,
@@ -381,10 +380,6 @@ export function App() {
                   <Route
                     path="/app/admin/control-room"
                     element={<AdminOperationsPage />}
-                  />
-                  <Route
-                    path="/app/admin/homepage"
-                    element={<HomepageAdminPage />}
                   />
                 </Route>
                 <Route element={<ProtectedRoute permission="workers:read" />}>
