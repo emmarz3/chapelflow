@@ -1,0 +1,82 @@
+# ChapelFlow on Render (FREE tier, for TESTING only).
+# Repo layout expected: this file at the repo root, Django app in ./chapelflow-backend, React app at repo root.
+#
+# Free-tier reality: web service sleeps after ~15 min idle (30-60s cold start),
+# free Postgres is DELETED after 30 days with no backups, free Redis is not
+# persistent, and local disk is wiped on every restart -- do not put real data
+# on this until you've moved to a paid plan and/or Supabase.
+
+services:
+  - type: web
+    name: chapelflow-api
+    runtime: docker
+    plan: free
+    dockerfilePath: ./chapelflow-backend/Dockerfile
+    dockerContext: ./chapelflow-backend
+    healthCheckPath: /health/
+    dockerCommand: >-
+      sh -c "python manage.py migrate --noinput &&
+      python manage.py shell -c 'from scripts.seed_roles import seed_roles; seed_roles()' &&
+      python manage.py bootstrap_super_admin &&
+      exec gunicorn config.wsgi:application --bind 0.0.0.0:${PORT:-10000} --workers 1 --threads 4 --timeout 120"
+    envVars:
+      - key: DJANGO_SETTINGS_MODULE
+        value: config.settings.render_free
+      - key: TRUST_PROXY_SSL_HEADER
+        value: "true"
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: chapelflow-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: chapelflow-redis
+          property: connectionString
+      - key: STORAGE_PROVIDER
+        value: local
+      - key: ALLOWED_HOSTS
+        sync: false
+      - key: PUBLIC_BACKEND_URL
+        sync: false
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false
+      - key: CSRF_TRUSTED_ORIGINS
+        sync: false
+      - key: SUPER_ADMIN_EMAIL
+        sync: false
+      - key: SUPER_ADMIN_PASSWORD
+        sync: false
+
+  - type: web
+    name: chapelflow-web
+    runtime: static
+    buildCommand: npm ci && npx vite build
+    staticPublishPath: ./dist
+    envVars:
+      - key: VITE_BACKEND
+        value: django
+      - key: VITE_DATA_MODE
+        value: api
+      - key: VITE_API_BASE_URL
+        value: /api/v1
+    routes:
+      - type: rewrite
+        source: /api/*
+        destination: https://chapelflow-api.onrender.com/api/*
+      - type: rewrite
+        source: /*
+        destination: /index.html
+
+  - type: keyvalue
+    name: chapelflow-redis
+    plan: free
+    ipAllowList: []
+
+databases:
+  - name: chapelflow-db
+    plan: free
+    databaseName: chapelflow
+    user: chapelflow

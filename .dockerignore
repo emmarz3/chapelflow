@@ -1,0 +1,17 @@
+# Never bake secrets, local DB files, or dev artifacts into the image.
+.git
+.env
+.env.*
+!.env.example
+*.sqlite3
+node_modules
+__pycache__
+*.pyc
+.pytest_cache
+.venv
+venv
+media/
+staticfiles/
+*.log
+.DS_Store
+dist/
