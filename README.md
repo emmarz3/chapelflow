@@ -1,10 +1,10 @@
 # ChapelFlow
 
-Production-oriented chapel management platform for Chrisland University Chapel, Abeokuta. The repository contains the React/PWA frontend and a TypeScript/PostgreSQL API for secure student QR attendance.
+Chapel management platform for Chrisland University Chapel, Abeokuta. The repository contains a React/Vite frontend and a Django REST Framework backend. Django is the only supported backend.
 
 ## Run locally
 
-Requirement: Node.js 22+.
+Requirements: Node.js 22+ and Python 3.12+.
 
 ```bash
 npm install
@@ -16,7 +16,7 @@ the single Super Admin. The account is signed in immediately and redirected to
 the full dashboard. This one-time browser setup is disabled outside local
 development and closes after the first Super Admin exists.
 
-This starts the frontend and API together. Local development uses an embedded persistent PostgreSQL-compatible database in `.chapelflow-data`, runs migrations automatically, and approves local student registrations immediately so they can sign in. These conveniences are disabled in production.
+This starts Django and the frontend together. Install backend requirements in `chapelflow-backend` first (preferably in a virtual environment); `scripts/dev-django.mjs` uses `.venv` when present. Configure `chapelflow-backend/.env` with a local PostgreSQL `DATABASE_URL` and the other Django settings.
 
 To start either process separately:
 
@@ -47,14 +47,14 @@ npm run build
 - `src/lib/fixtures.ts`: development-only preview data
 - `src/services/chapelflow.ts`: typed feature contracts for every production module
 - `src/types`: shared API/domain types
-- `server`: Express API, authentication, QR security, RBAC, attendance workflows, migrations, and seed scripts
+- `chapelflow-backend`: Django REST Framework API, authentication, RBAC, attendance, migrations, and management commands
 - `e2e`: Playwright journeys for desktop and mobile
 
-The proposed endpoint catalogue and role/permission matrix are documented in [`docs/API_CONTRACT.md`](docs/API_CONTRACT.md). Production-readiness and external-provider dependencies are tracked in [`docs/PRODUCTION_CHECKLIST.md`](docs/PRODUCTION_CHECKLIST.md).
+The endpoint catalogue and role/permission matrix are documented in [`docs/API_CONTRACT.md`](docs/API_CONTRACT.md). Deployment checks and external-provider dependencies are tracked in [`docs/PRODUCTION_CHECKLIST.md`](docs/PRODUCTION_CHECKLIST.md).
 
 Authentication assumes secure HttpOnly cookies. No authentication token is stored in `localStorage`; only the non-sensitive theme preference is persisted there. Backend authorization remains authoritative.
 
-Student passes use short-lived HMAC-signed tokens bound to the active attendance session. Attendance writes derive the usher from the server session, record an audit event, use an idempotency key, and enforce `UNIQUE(attendance_session_id, student_id)` in PostgreSQL.
+Attendance uses Django attendance sessions, student passes, usher checkpoints, and audited corrections. Backend authorization and branch scope remain authoritative.
 
 In production, public student registrations remain inactive until a chapel administrator verifies and approves them from the member directory. Approval is server-authorized and audited; ushers cannot approve accounts.
 
@@ -62,24 +62,14 @@ Production routes fetch backend-authorized content and show explicit loading, em
 
 ## Required environment
 
-- `VITE_API_BASE_URL`: backend API origin/path
-- `VITE_DATA_MODE`: `api` for production or explicitly `demo` for preview
-- `VITE_INSTITUTION_NAME`: display name override
-- `VITE_PRIVACY_CONTACT`: approved privacy contact, currently intentionally blank
-- `VITE_SUPPORT_CONTACT`: approved support contact
-- `VITE_MAP_URL`: approved chapel map/location URL
-- `VITE_LIVESTREAM_URL`: configured stream provider URL
-- `DATABASE_URL`: PostgreSQL connection string
-- `APP_ORIGIN`: exact trusted frontend origin
-- `PORT`: API port, default `8000`
-- `CHAPELFLOW_SESSION_SECRET`: at least 32 random characters
-- `CHAPELFLOW_QR_SIGNING_SECRET`: a different secret of at least 32 random characters
-- `CHAPELFLOW_ADMIN_USERNAME` / `CHAPELFLOW_ADMIN_EMAIL` / `CHAPELFLOW_ADMIN_NAME` / `CHAPELFLOW_ADMIN_PASSWORD`: initial super-administrator seed
-- `CHAPELFLOW_USHER_01_USERNAME` / `CHAPELFLOW_USHER_01_PASSWORD`: first restricted usher seed
-- `CHAPELFLOW_USHER_02_USERNAME` / `CHAPELFLOW_USHER_02_PASSWORD`: second restricted usher seed
+- `VITE_BACKEND=django`: only supported backend; set at frontend build time
+- `VITE_API_BASE_URL`: backend API origin/path, set at frontend build time
+- `VITE_DATA_MODE=api`: production data mode, set at frontend build time
+- `VITE_INSTITUTION_NAME`, `VITE_PRIVACY_CONTACT`, `VITE_SUPPORT_CONTACT`, `VITE_MAP_URL`, `VITE_LIVESTREAM_URL`: optional frontend build-time values
+- Backend runtime variables such as `DATABASE_URL`, `SECRET_KEY`, `ALLOWED_HOSTS`, `CSRF_TRUSTED_ORIGINS`, `PUBLIC_BACKEND_URL`, `SUPER_ADMIN_EMAIL`, and `SUPER_ADMIN_PASSWORD` belong on the Django service. See [`chapelflow-backend/.env.example`](chapelflow-backend/.env.example).
 
 ## Deployment
 
-Production requires PostgreSQL 15+ and a completed `.env` based on `.env.example`. Run `npm run build`, `npm run db:migrate`, and `npm run db:seed`, then start the compiled API with `npm run server`. Serve `dist` with SPA fallback and reverse-proxy `/api` to the API process. Use HTTPS, persistent PostgreSQL, secure environment variables, backups, and the exact production `APP_ORIGIN`. The seed is idempotent and preserves existing administrator and usher passwords.
+Deploy the backend as a Docker web service using `chapelflow-backend/Dockerfile` and the frontend as a static site. Set `SUPER_ADMIN_EMAIL` and `SUPER_ADMIN_PASSWORD` on the backend service. The Dockerfile runs migrations and both bootstrap commands at container startup. Clear any Render **Docker Command** override so Render uses the Dockerfile `CMD`. Set frontend `VITE_BACKEND=django`, `VITE_DATA_MODE=api`, and `VITE_API_BASE_URL` before the static-site build; `VITE_*` values are embedded at build time. Configure the frontend rewrite for `/api/*` to the backend and `/*` to `/index.html`.
 
 The generated campus-chapel hero is stored at `public/chapel-hero.png`. It contains no text or logos and should be replaced with approved institutional photography when available.

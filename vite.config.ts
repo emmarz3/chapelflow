@@ -7,9 +7,7 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
   return {
     define: {
-      "import.meta.env.VITE_BACKEND": JSON.stringify(
-        env.VITE_BACKEND || (mode === "test" ? "typescript" : "django"),
-      ),
+      "import.meta.env.VITE_BACKEND": JSON.stringify("django"),
     },
     server: {
       port: 5173,
@@ -93,7 +91,7 @@ export default defineConfig(({ mode }) => {
       environment: "jsdom",
       setupFiles: "./src/test/setup.ts",
       css: true,
-      include: ["src/**/*.test.{ts,tsx}", "server/**/*.test.ts"],
+      include: ["src/**/*.test.{ts,tsx}"],
     },
   };
 });

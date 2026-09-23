@@ -23,7 +23,7 @@ export default defineConfig({
     command: `npm run dev:web -- --host 127.0.0.1 --port ${webPort}`,
     url: `http://127.0.0.1:${webPort}`,
     reuseExistingServer: !process.env.CI,
-    env: { VITE_DATA_MODE: "demo", VITE_BACKEND: "typescript", VITE_E2E_TEST: "true" },
+    env: { VITE_DATA_MODE: "demo", VITE_BACKEND: "django", VITE_E2E_TEST: "true" },
     timeout: 120_000,
   },
 });

@@ -56,5 +56,4 @@ otherwise shadow them.
 
 - Places shown as taken = the manual “places already taken” number + online sign-ups.
 - Times are West Africa Time (UTC+1, no daylight saving).
-- The legacy Express server in `server/` does not implement these endpoints; on that backend the
-  homepage falls back to the built-in defaults and the studio cannot save.
+- Homepage requests are served by the Django backend through the frontend adapter.

@@ -12,9 +12,10 @@
 - Set CSP, HSTS, referrer policy, permissions policy, monitoring, backups, retention, and incident procedures.
 - Test camera and kiosk flows on target Android tablets and lower-bandwidth mobile devices.
 - Verify WCAG 2.2 AA with keyboard, screen reader, contrast, zoom, and reduced-motion checks.
-- Provision PostgreSQL, apply `npm run db:migrate`, and verify the attendance uniqueness and partial active-session indexes.
-- Store the session, QR signing, initial administrator, and two usher password variables in the deployment secret manager; never commit them.
-- Run `npm run db:seed` after migration and confirm both restricted usher accounts can sign in to `/usher/attendance`.
-- Reverse-proxy same-origin `/api` traffic to the compiled API and set `APP_ORIGIN` to the exact HTTPS frontend origin.
+- Provision Django's PostgreSQL database and let the Docker startup command apply migrations and bootstrap the chapel.
+- Store `SECRET_KEY`, `SUPER_ADMIN_EMAIL`, and `SUPER_ADMIN_PASSWORD` in the backend deployment environment; never commit real credentials.
+- Set the frontend build variables `VITE_BACKEND=django`, `VITE_DATA_MODE=api`, and `VITE_API_BASE_URL` before building the static site.
+- Reverse-proxy same-origin `/api` traffic to Django and configure allowed, CORS, and CSRF trusted origins.
+- Clear any Render Docker Command override so the Dockerfile's startup `CMD` runs.
 - Test camera permissions and ZXing scanning on the actual usher Android/iOS devices before the first live service.
 - Confirm the chapel administration's identity-verification procedure before approving pending student registrations.

@@ -74,7 +74,7 @@ The authentication, student attendance, community, leadership, and notification 
 
 Expected errors use `{ code, message, fieldErrors?, requestId? }` with an appropriate HTTP status. Authentication errors must be generic. Mutations that can duplicate attendance or financial data should accept backend idempotency keys.
 
-All paths are represented behind the typed frontend service layer. Authentication, attendance, community, leadership, and notification paths are implemented under `server/`; unrelated product-module paths remain proposed integration points.
+All paths are represented behind the typed frontend service layer and map to the Django REST API. Paths still marked proposed in this catalogue need Django implementation before the corresponding frontend feature can be enabled.
 
 Paged list responses use `{ data: T[], page, pageSize, total }`. Single-record responses use `{ data: T }`. Dates are ISO 8601 strings. The backend must ignore client-supplied branch or actor identifiers that conflict with the authenticated session.
 

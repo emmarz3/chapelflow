@@ -14,7 +14,6 @@ services:
     dockerfilePath: ./chapelflow-backend/Dockerfile
     dockerContext: ./chapelflow-backend
     healthCheckPath: /health/
-    dockerCommand: ./start.sh
     envVars:
       - key: DJANGO_SETTINGS_MODULE
         value: config.settings.render_free
