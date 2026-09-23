@@ -10,21 +10,18 @@ describe("API error normalization", () => {
       vi.fn().mockResolvedValue(
         new Response(
           JSON.stringify({
-            code: "VALIDATION_ERROR",
             message: "Check the highlighted fields.",
-            fieldErrors: { email: ["Invalid email"] },
-            requestId: "req-123",
+            errors: { email: ["Invalid email"] },
           }),
           { status: 422, headers: { "Content-Type": "application/json" } },
         ),
       ),
     );
     await expect(
-      apiRequest("/members", { method: "POST" }),
+      apiRequest("/auth/me"),
     ).rejects.toMatchObject({
-      code: "VALIDATION_ERROR",
+      code: "REQUEST_FAILED",
       status: 422,
-      requestId: "req-123",
       fieldErrors: { email: ["Invalid email"] },
     } satisfies Partial<ApiError>);
   });

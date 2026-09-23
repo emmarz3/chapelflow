@@ -96,7 +96,7 @@ export interface AttendanceRecord {
   identifier: string;
   time: string;
   method: "qr" | "manual" | "kiosk";
-  status: "present" | "late" | "duplicate";
+  status: "present" | "late" | "absent" | "excused" | "duplicate";
 }
 
 export interface AttendancePass {
@@ -123,21 +123,6 @@ export interface AttendancePass {
     attended_services: number;
     missed_services: number;
     percentage: number | null;
-  };
-}
-
-export interface AttendanceScanResult {
-  result: "recorded" | "duplicate";
-  record: {
-    id: string;
-    recordedAt: string;
-    student: {
-      name: string;
-      identifier: string;
-      programme: string | null;
-      level: string | null;
-    };
-    session: { id: string; title: string };
   };
 }
 

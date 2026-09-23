@@ -94,6 +94,58 @@ describe("Django API integration", () => {
     expect(fetch.mock.calls[0]?.[0]).toBe("/api/v1/auth/sessions/");
   });
 
+  it("derives the current chapel session and joins its attendance records", async () => {
+    const now = Date.now();
+    const opensAt = new Date(now - 60_000).toISOString();
+    const closesAt = new Date(now + 3_600_000).toISOString();
+    const fetch = vi.fn()
+      .mockResolvedValueOnce(response({ data: [{ id: "session-1", branch: "branch-1", label: "Sunday service", is_open: true, state: "OPEN", opened_at: opensAt, window_opens_at: opensAt, window_closes_at: closesAt, record_count: 1 }] }))
+      .mockResolvedValueOnce(response({ data: [{ id: "member-1", full_name: "Ada Okafor", email: "ada@example.edu", matric_no: "CU/26/101" }] }))
+      .mockResolvedValueOnce(response({ data: [{ id: "record-1", member: "member-1", method: "QR_CODE", status: "PRESENT", checked_in_at: opensAt }] }));
+    vi.stubGlobal("fetch", fetch);
+
+    await expect(apiRequest("/attendance/sessions/current?branch=branch-1")).resolves.toMatchObject({
+      data: {
+        session: { id: "session-1", title: "Sunday service", status: "open", count: 1 },
+        records: [{ id: "record-1", memberName: "Ada Okafor", method: "qr", status: "present" }],
+      },
+    });
+    expect(fetch.mock.calls.map(([url]) => url)).toEqual([
+      "/api/v1/attendance/sessions/?branch=branch-1&page_size=100",
+      "/api/v1/members/?branch=branch-1&page_size=100",
+      "/api/v1/attendance/records/?session=session-1&page_size=100",
+    ]);
+  });
+
+  it("maps attendance creation and correction to Django fields and methods", async () => {
+    const fetch = vi.fn()
+      .mockResolvedValueOnce(response({ data: { id: "session-2" } }, 201))
+      .mockResolvedValueOnce(response({ data: { id: "record-1" } }));
+    vi.stubGlobal("fetch", fetch);
+    const date = "2026-10-04";
+
+    await apiRequest("/attendance/sessions", {
+      method: "POST",
+      body: JSON.stringify({ title: "Sunday service", date, opensAt: "09:00", closesAt: "11:00", branchId: "branch-1", venue: "Ignored venue" }),
+    });
+    await apiRequest("/attendance/records/record-1", {
+      method: "PATCH",
+      body: JSON.stringify({ status: "LATE", reason: "Verified against the usher register." }),
+    });
+
+    const expectedOpen = new Date(`${date}T09:00`).toISOString();
+    const expectedClose = new Date(`${date}T11:00`).toISOString();
+    expect(fetch.mock.calls[0]?.[0]).toBe("/api/v1/attendance/sessions/");
+    expect(JSON.parse(fetch.mock.calls[0]?.[1].body)).toEqual({
+      branch: "branch-1",
+      label: "Sunday service",
+      window_opens_at: expectedOpen,
+      window_closes_at: expectedClose,
+    });
+    expect(fetch.mock.calls[1]?.[0]).toBe("/api/v1/attendance/records/record-1/correct/");
+    expect(fetch.mock.calls[1]?.[1]).toMatchObject({ method: "POST", body: JSON.stringify({ status: "LATE", reason: "Verified against the usher register." }) });
+  });
+
   it("uses the real JWT login endpoint without sending credentials to browser-only routes", async () => {
     const fetch = vi.fn().mockResolvedValue(response({
       data: { user: { id: "user-1", role: "MEMBER", first_name: "Ada", last_name: "Test", email: "ada@example.edu", effective_permissions: ["events.view"] } },

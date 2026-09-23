@@ -112,12 +112,8 @@ describe("authentication recovery flows", () => {
     await user.type(screen.getByLabelText(/matric number/i), "CU/26/101");
     await user.click(screen.getByRole("button", { name: /continue/i }));
     await user.selectOptions(
-      await screen.findByLabelText(/chapel unit/i),
-      "11111111-1111-4111-a111-111111111111",
-    );
-    await user.selectOptions(
-      screen.getByLabelText(/campus fellowship/i),
-      "22222222-2222-4222-a222-222222222222",
+      await screen.findByLabelText(/academic level/i),
+      "300",
     );
     await user.click(screen.getByRole("button", { name: /continue/i }));
     await user.click(await screen.findByLabelText(/read and accept/i));
@@ -136,10 +132,8 @@ describe("authentication recovery flows", () => {
       String(url).includes("/auth/register"),
     ) as [string, RequestInit];
     expect(JSON.parse(String(request.body))).toMatchObject({
-      acceptedPolicies: true,
-      programmeUpdates: false,
-      unitCommunityId: "11111111-1111-4111-a111-111111111111",
-      fellowshipCommunityId: "22222222-2222-4222-a222-222222222222",
+      academic_level: "300",
+      community: "STUDENT",
     });
   });
 });

@@ -3,7 +3,6 @@ import { isDemoMode } from "../lib/fixtures";
 import type {
   AttendanceRecord,
   AttendancePass,
-  AttendanceScanResult,
   EventSummary,
   Member,
   PagedResponse,
@@ -160,26 +159,26 @@ export interface TestimonyEntry {
   createdAt: string;
 }
 export interface AttendancePayload {
-  session: {
+  session: null | {
     id: string;
     title: string;
     status: "scheduled" | "open" | "closed";
     opensAt: string;
-    closesAt: string;
+    closesAt: string | null;
     count: number;
     lateCount: number;
     manualCount: number;
   };
   records: AttendanceRecord[];
+  sessions: AttendanceSessionSummary[];
 }
 export interface AttendanceSessionSummary {
   id: string;
   title: string;
-  serviceType: string;
-  date: string;
   startsAt: string;
-  endsAt: string;
-  status: "scheduled" | "active" | "closed";
+  endsAt: string | null;
+  status: "scheduled" | "active" | "paused" | "closed";
+  isOpen: boolean;
   createdAt: string;
 }
 export interface AnalyticsPayload {
@@ -258,7 +257,7 @@ function unavailable<T>(capability: string): Promise<T> {
 export const queryKeys = {
   dashboard: (branchId: string) => ["dashboard", branchId] as const,
   members: (params: QueryParams) => ["members", params] as const,
-  attendance: (sessionId: string) => ["attendance", sessionId] as const,
+  attendance: (sessionId: string, branchId?: string) => ["attendance", sessionId, branchId] as const,
   events: (params: QueryParams) => ["events", params] as const,
   operations: (module: OperationsModule, params: QueryParams) =>
     [module, params] as const,
@@ -687,17 +686,13 @@ export const memberService = {
     ),
 };
 export const attendanceService = {
-  current: () =>
-    api.get<{ data: AttendancePayload }>("/attendance/sessions/current"),
+  current: (branchId: string) =>
+    api.get<{ data: AttendancePayload }>(`/attendance/sessions/current?branch=${encodeURIComponent(branchId)}`),
   createSession: (payload: Record<string, unknown>) =>
     api.post<{ data: AttendancePayload["session"] }>(
       "/attendance/sessions",
       payload,
     ),
-  qrCode: (sessionId: string) =>
-    api.get<{
-      data: { imageDataUrl: string; expiresAt: string; reference: string };
-    }>(`/attendance/sessions/${encodeURIComponent(sessionId)}/qr`),
   checkIn: (
     sessionId: string,
     payload: {
@@ -734,22 +729,10 @@ export const attendanceService = {
             status: string;
           }[];
         }>("/attendance/history/me"),
-  activeScannerSession: () =>
-    api.get<{
-      data: null | {
-        session: AttendancePayload["session"];
-        recent: AttendanceRecord[];
-      };
-    }>("/attendance/sessions/active"),
-  sessions: (status?: AttendanceSessionSummary["status"]) =>
+  sessions: (branchId: string) =>
     api.get<{ data: AttendanceSessionSummary[] }>(
-      `/attendance/sessions${status ? `?status=${encodeURIComponent(status)}` : ""}`,
+      `/attendance/sessions?branch=${encodeURIComponent(branchId)}`,
     ),
-  scan: (payload: {
-    token: string;
-    sessionId: string;
-    idempotencyKey: string;
-  }) => api.post<{ data: AttendanceScanResult }>("/attendance/scan", payload),
   usherCheckpoint: () =>
     api.get<{
       data: {
@@ -770,14 +753,8 @@ export const attendanceService = {
   manual: (payload: {
     identifier: string;
     sessionId: string;
-    reason: string;
-    idempotencyKey: string;
-  }) => api.post<{ data: AttendanceScanResult }>("/attendance/manual", payload),
-  activateSession: (sessionId: string) =>
-    api.patch<{ data: { id: string; status: "active" } }>(
-      `/attendance/sessions/${encodeURIComponent(sessionId)}/activate`,
-      {},
-    ),
+    branchId: string;
+  }) => api.post<{ data: AttendanceRecord }>("/attendance/manual", payload),
   closeSession: (sessionId: string) =>
     api.patch<{ data: { id: string; status: "closed" } }>(
       `/attendance/sessions/${encodeURIComponent(sessionId)}/close`,

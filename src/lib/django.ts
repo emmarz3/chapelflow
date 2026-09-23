@@ -169,7 +169,7 @@ function member(value: Row): Member {
 function event(value: Row): EventSummary {
   const start = new Date(str(value.start_time));
   const schedules = list(value.schedules);
-  const nextSchedule = schedules.find((schedule) => !Boolean(schedule.is_cancelled)) ?? null;
+  const nextSchedule = schedules.find((schedule) => schedule.is_cancelled !== true) ?? null;
   return {
     id: str(value.id),
     scheduleId: nextSchedule ? str(nextSchedule.id) : null,
@@ -315,6 +315,10 @@ export async function djangoRequest(
   if (route === "/members" && query.has("status")) {
     query.set("membership_status", query.get("status")!.toUpperCase());
     query.delete("status");
+  }
+  if (route === "/members" && query.has("branchId")) {
+    query.set("branch", query.get("branchId")!);
+    query.delete("branchId");
   }
   const suffix = query.size ? `?${query}` : "";
 
@@ -607,6 +611,119 @@ export async function djangoRequest(
       "/attendance/student-scan/",
       json("POST", { token: body.token }),
     );
+  const attendanceSessions = async (branchId: string) => {
+    const response = await call(`/attendance/sessions/?branch=${encodeURIComponent(branchId)}&page_size=100`);
+    return list(response.data).map((session) => {
+      const opensAt = str(session.window_opens_at || session.opened_at);
+      const closesAt = session.window_closes_at ? str(session.window_closes_at) : null;
+      const startsInFuture = Boolean(opensAt && new Date(opensAt).getTime() > Date.now());
+      const closed = session.is_open !== true || str(session.state).toUpperCase() === "CLOSED";
+      const status = closed ? "closed" : str(session.state).toUpperCase() === "PAUSED" ? "paused" : startsInFuture ? "scheduled" : "active";
+      return {
+        id: str(session.id),
+        title: str(session.label || "Chapel service"),
+        startsAt: opensAt,
+        endsAt: closesAt,
+        status,
+        isOpen: session.is_open === true,
+        createdAt: str(session.opened_at),
+        recordCount: Number(session.record_count || 0),
+        raw: session,
+      };
+    });
+  };
+  if (route === "/attendance/sessions" && method === "GET") {
+    const branchId = query.get("branch") || "";
+    if (!branchId) unsupported("Assign a chapel branch to this account before viewing attendance sessions.");
+    const sessions = await attendanceSessions(branchId);
+    return { data: sessions.map((session) => ({
+      id: session.id, title: session.title, startsAt: session.startsAt,
+      endsAt: session.endsAt, status: session.status, isOpen: session.isOpen,
+      createdAt: session.createdAt,
+    })) };
+  }
+  if (route === "/attendance/sessions/current" && method === "GET") {
+    const branchId = query.get("branch") || "";
+    if (!branchId) unsupported("Assign a chapel branch to this account before viewing attendance sessions.");
+    const sessions = await attendanceSessions(branchId);
+    const now = Date.now();
+    const current = sessions.find((session) => {
+      if (!session.isOpen || str(session.raw.state).toUpperCase() !== "OPEN") return false;
+      const opensAt = session.startsAt ? new Date(session.startsAt).getTime() : 0;
+      const closesAt = session.endsAt ? new Date(session.endsAt).getTime() : Number.POSITIVE_INFINITY;
+      return opensAt <= now && now <= closesAt;
+    });
+    const summaries = sessions.map((session) => ({
+      id: session.id, title: session.title, startsAt: session.startsAt,
+      endsAt: session.endsAt, status: session.status, isOpen: session.isOpen,
+      createdAt: session.createdAt,
+    }));
+    if (!current) return { data: { session: null, records: [], sessions: summaries } };
+    const branchMembers = await call(`/members/?branch=${encodeURIComponent(branchId)}&page_size=100`);
+    const members = new Map(list(branchMembers.data).map((item) => [str(item.id), member(item)]));
+    const recordsResponse = await call(`/attendance/records/?session=${encodeURIComponent(current.id)}&page_size=100`);
+    const records = list(recordsResponse.data).map((record) => {
+      const person = members.get(str(record.member));
+      const method = str(record.method).toUpperCase();
+      return {
+        id: str(record.id),
+        memberName: person?.name || (record.visitor ? "Visitor" : "Member"),
+        identifier: person?.identifier || str(record.member || record.visitor),
+        time: record.checked_in_at ? new Date(str(record.checked_in_at)).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "",
+        method: method === "QR_CODE" ? "qr" : method === "KIOSK" ? "kiosk" : "manual",
+        status: str(record.status).toLowerCase(),
+      };
+    });
+    const raw = current.raw;
+    return {
+      data: {
+        session: {
+          id: current.id,
+          title: current.title,
+          status: "open",
+          opensAt: current.startsAt,
+          closesAt: current.endsAt,
+          count: Number(raw.record_count || records.length),
+          lateCount: records.filter((record) => record.status === "late").length,
+          manualCount: records.filter((record) => record.method === "manual").length,
+        },
+        records,
+        sessions: summaries,
+      },
+    };
+  }
+  if (route === "/attendance/sessions" && method === "POST") {
+    const branchId = str(body.branchId || body.branch);
+    if (!branchId) unsupported("Assign a chapel branch to this account before creating an attendance session.");
+    const opensAt = new Date(`${str(body.date)}T${str(body.opensAt)}`);
+    const closesAt = new Date(`${str(body.date)}T${str(body.closesAt)}`);
+    if (Number.isNaN(opensAt.getTime()) || Number.isNaN(closesAt.getTime())) unsupported("Enter a valid attendance date and time.");
+    return call("/attendance/sessions/", json("POST", {
+      branch: branchId,
+      label: body.title,
+      window_opens_at: opensAt.toISOString(),
+      window_closes_at: closesAt.toISOString(),
+    }));
+  }
+  if (route === "/attendance/manual" && method === "POST") {
+    const branchId = str(body.branchId);
+    const memberResponse = await call(`/members/?branch=${encodeURIComponent(branchId)}&search=${encodeURIComponent(str(body.identifier))}&page_size=100`);
+    const identifier = str(body.identifier).trim().toLowerCase();
+    const match = list(memberResponse.data).find((candidate) =>
+      str(candidate.matric_no).toLowerCase() === identifier || str(candidate.email).toLowerCase() === identifier,
+    );
+    if (!match) unsupported("No member with that email or matriculation number was found in your branch.");
+    return call("/attendance/manual/", json("POST", { member_id: match.id, session_id: body.sessionId }));
+  }
+  const attendanceClose = route.match(/^\/attendance\/sessions\/([^/]+)\/close$/);
+  if (attendanceClose && (method === "POST" || method === "PATCH"))
+    return call(`/attendance/sessions/${encodeURIComponent(attendanceClose[1]!)}/close/`, json("POST", {}));
+  const attendanceCorrection = route.match(/^\/attendance\/records\/([^/]+)$/);
+  if (attendanceCorrection && method === "PATCH")
+    return call(`/attendance/records/${encodeURIComponent(attendanceCorrection[1]!)}/correct/`, json("POST", {
+      status: str(body.status).toUpperCase(),
+      reason: body.reason,
+    }));
   if (route === "/institutional-accounts" && method === "GET")
     return call("/auth/institutional-accounts/");
   if (route === "/institutional-accounts" && method === "POST")

@@ -32,7 +32,7 @@ describe("ChapelFlow production workflow contracts", () => {
     });
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "/api/members?search=Ada+Okafor&branchId=abeokuta&status=active",
+      "/api/v1/members/?search=Ada+Okafor&membership_status=ACTIVE&branch=abeokuta",
       expect.objectContaining({ credentials: "include" }),
     );
   });
@@ -57,85 +57,24 @@ describe("ChapelFlow production workflow contracts", () => {
     await attendanceService.createSession({
       title: "Sunday Worship Service",
       branchId: "abeokuta",
+      date: "2026-08-30",
+      opensAt: "08:15",
+      closesAt: "10:15",
     });
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "/api/attendance/sessions",
+      "/api/v1/attendance/sessions/",
       expect.objectContaining({
         method: "POST",
-        body: JSON.stringify({
-          title: "Sunday Worship Service",
-          branchId: "abeokuta",
-        }),
+        body: expect.any(String),
       }),
     );
-  });
-
-  it("normalizes duplicate QR attendance without hiding the conflict", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue(
-        jsonResponse(
-          {
-            code: "DUPLICATE_ATTENDANCE",
-            message: "This member has already checked in.",
-            requestId: "req-att-2",
-          },
-          409,
-        ),
-      ),
-    );
-
-    await expect(
-      attendanceService.checkIn("session-1", {
-        qrToken: "rotating-token",
-        method: "qr",
-      }),
-    ).rejects.toMatchObject({
-      code: "DUPLICATE_ATTENDANCE",
-      status: 409,
-      requestId: "req-att-2",
+    expect(JSON.parse(fetchMock.mock.calls[0]?.[1]?.body as string)).toMatchObject({
+      branch: "abeokuta",
+      label: "Sunday Worship Service",
+      window_opens_at: expect.any(String),
+      window_closes_at: expect.any(String),
     });
-  });
-
-  it("submits only the signed pass, active session, and idempotency key when scanning", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(
-      jsonResponse({
-        data: {
-          result: "recorded",
-          record: {
-            id: "record-1",
-            recordedAt: "2026-08-30T08:17:00Z",
-            student: {
-              name: "Ada Okafor",
-              identifier: "CU/26/101",
-              programme: "Computer Science",
-              level: "300",
-            },
-            session: { id: "session-1", title: "Sunday Chapel" },
-          },
-        },
-      }),
-    );
-    vi.stubGlobal("fetch", fetchMock);
-
-    await attendanceService.scan({
-      token: "cf1.signed-token",
-      sessionId: "session-1",
-      idempotencyKey: "request-1",
-    });
-
-    expect(fetchMock).toHaveBeenCalledWith(
-      "/api/attendance/scan",
-      expect.objectContaining({
-        method: "POST",
-        body: JSON.stringify({
-          token: "cf1.signed-token",
-          sessionId: "session-1",
-          idempotencyKey: "request-1",
-        }),
-      }),
-    );
   });
 
   it("requires the correction reason in the attendance mutation contract", async () => {
@@ -159,15 +98,14 @@ describe("ChapelFlow production workflow contracts", () => {
     });
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "/api/attendance/records/record-1",
+      "/api/v1/attendance/records/record-1/correct/",
       expect.objectContaining({
-        method: "PATCH",
-        body: JSON.stringify({
-          status: "present",
-          reason: "Verified against the signed usher register.",
-        }),
+        method: "POST",
       }),
     );
+    expect(JSON.parse(fetchMock.mock.calls[0]?.[1]?.body as string)).toEqual({
+      status: "PRESENT", reason: "Verified against the signed usher register.",
+    });
   });
 
   it("uses scoped mutation endpoints for event registration and duty acknowledgement", async () => {
@@ -188,12 +126,12 @@ describe("ChapelFlow production workflow contracts", () => {
 
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
-      "/api/events/freshers-welcome/registrations",
+      "/api/v1/events/freshers-welcome/register/",
       expect.objectContaining({ method: "POST" }),
     );
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
-      "/api/worker-assignments/ushering-30-aug/acknowledge",
+      "/api/v1/operations/workers/ushering-30-aug/acknowledge/",
       expect.objectContaining({ method: "POST" }),
     );
   });
@@ -215,7 +153,7 @@ describe("ChapelFlow production workflow contracts", () => {
     await operationsService.create("workers", { title: "Sunday roster" });
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "/api/rosters",
+      "/api/v1/operations/workers/",
       expect.objectContaining({ method: "POST" }),
     );
   });
@@ -234,14 +172,13 @@ describe("ChapelFlow production workflow contracts", () => {
     });
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "/api/account/privacy-preferences",
+      "/api/v1/communications/preferences/me/",
       expect.objectContaining({
         method: "PATCH",
         body: JSON.stringify({
-          email: true,
-          sms: false,
-          push: true,
-          analytics: false,
+          email_enabled: true,
+          sms_enabled: false,
+          push_enabled: true,
         }),
       }),
     );

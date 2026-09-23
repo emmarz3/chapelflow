@@ -10,13 +10,11 @@ import {
   LockKeyhole,
   MoreHorizontal,
   Plus,
-  QrCode,
   Send,
   ShieldCheck,
   UserCheck,
   Users,
   WifiOff,
-  XCircle,
 } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -474,11 +472,11 @@ export function LiveMembersPage() {
 
 export function LiveAttendancePage() {
   const { user } = useAuth();
+  const branchId = user?.branchId ?? "";
   const canManage = hasPermission(user, "attendance:write");
   const [manualOpen, setManualOpen] = useState(false);
   const [sessionOpen, setSessionOpen] = useState(false);
   const [closeConfirmOpen, setCloseConfirmOpen] = useState(false);
-  const [qrOpen, setQrOpen] = useState(false);
   const [correction, setCorrection] = useState<AttendanceRecord | null>(null);
   const [pendingCount, setPendingCount] = useState(
     () => readPendingAttendance().length,
@@ -486,29 +484,29 @@ export function LiveAttendancePage() {
   const toast = useToast();
   const client = useQueryClient();
   const query = useQuery({
-    queryKey: queryKeys.attendance("current"),
-    queryFn: async () => (await attendanceService.current()).data,
+    queryKey: queryKeys.attendance("current", branchId),
+    queryFn: async () => (await attendanceService.current(branchId)).data,
+    enabled: Boolean(branchId),
   });
   const scheduled = useQuery({
-    queryKey: ["attendance-sessions", "scheduled"],
-    queryFn: async () => (await attendanceService.sessions("scheduled")).data,
-    enabled: canManage,
+    queryKey: ["attendance-sessions", branchId],
+    queryFn: async () => (await attendanceService.sessions(branchId)).data,
+    enabled: canManage && Boolean(branchId),
   });
   const manual = useMutation({
     mutationFn: ({
       sessionId,
       identifier,
-      reason,
+      branchId,
     }: {
       sessionId: string;
       identifier: string;
-      reason: string;
+      branchId: string;
     }) =>
       attendanceService.manual({
         sessionId,
         identifier,
-        reason,
-        idempotencyKey: crypto.randomUUID(),
+        branchId,
       }),
     onSuccess: () => {
       setManualOpen(false);
@@ -521,37 +519,19 @@ export function LiveAttendancePage() {
       attendanceService.createSession(payload),
     onSuccess: () => {
       setSessionOpen(false);
-      toast("Attendance session scheduled. Activate it when check-in opens.");
-      void client.invalidateQueries({ queryKey: ["attendance"] });
-      void client.invalidateQueries({ queryKey: ["attendance-sessions"] });
-    },
-  });
-  const activateSession = useMutation({
-    mutationFn: (sessionId: string) =>
-      attendanceService.activateSession(sessionId),
-    onSuccess: () => {
-      toast(
-        "Attendance session activated. Usher scanners can now check in students.",
-      );
+      toast("Attendance session created.");
       void client.invalidateQueries({ queryKey: ["attendance"] });
       void client.invalidateQueries({ queryKey: ["attendance-sessions"] });
     },
   });
   const closeSession = useMutation({
-    mutationFn: () => attendanceService.closeSession(query.data!.session.id),
+    mutationFn: () => attendanceService.closeSession(query.data!.session!.id),
     onSuccess: () => {
       setCloseConfirmOpen(false);
       toast("Attendance session closed. New scans are now blocked.");
       void client.invalidateQueries({ queryKey: ["attendance"] });
       void client.invalidateQueries({ queryKey: ["attendance-sessions"] });
     },
-  });
-  const qr = useQuery({
-    queryKey: ["attendance-qr", query.data?.session.id],
-    queryFn: async () =>
-      (await attendanceService.qrCode(query.data!.session.id)).data,
-    enabled: qrOpen && Boolean(query.data?.session.id),
-    refetchInterval: 45_000,
   });
   const correct = useMutation({
     mutationFn: ({
@@ -576,122 +556,51 @@ export function LiveAttendancePage() {
     return () =>
       window.removeEventListener(ATTENDANCE_QUEUE_EVENT, updatePendingCount);
   }, []);
+  if (!branchId)
+    return (
+      <>
+        <PageHeader eyebrow="Attendance" title="Attendance sessions" description="Attendance sessions are scoped to your chapel branch." />
+        <section className="panel"><p className="empty-copy">This account has no chapel branch assigned. Ask an administrator to assign a branch before managing attendance.</p></section>
+      </>
+    );
   if (query.isPending)
-    return <LoadingState label="Loading current attendance session" />;
+    return <LoadingState label="Loading attendance sessions" />;
   if (query.isError)
+    return <ErrorState description={message(query.error)} onRetry={() => void query.refetch()} />;
+  if (!query.data.session)
     return (
       <>
         <PageHeader
           eyebrow="Attendance"
           title="Attendance sessions"
-          description="Create or open an attendance session for this branch."
-          actions={
-            canManage && (
-              <Button icon={<Plus />} onClick={() => setSessionOpen(true)}>
-                Create session
-              </Button>
-            )
-          }
+          description="Create attendance windows for this branch. Sessions open when created; their time window determines when they are current."
+          actions={canManage && <Button icon={<Plus />} onClick={() => setSessionOpen(true)}>Create session</Button>}
         />
-        {query.error instanceof ApiError &&
-        query.error.code === "NO_ACTIVE_SESSION" ? (
-          <section className="table-panel">
-            <header>
-              <div className="panel-heading">
-                <div>
-                  <h2>Scheduled sessions</h2>
-                  <p>
-                    Activate one service when ushers are ready to begin
-                    scanning.
-                  </p>
-                </div>
-              </div>
-            </header>
-            {scheduled.isPending ? (
-              <LoadingState label="Loading scheduled attendance sessions" />
-            ) : scheduled.isError ? (
-              <ErrorState
-                description={message(scheduled.error)}
-                onRetry={() => void scheduled.refetch()}
-              />
-            ) : scheduled.data.length ? (
-              <table>
-                <thead>
-                  <tr>
-                    <th>Service</th>
-                    <th>Date</th>
-                    <th>Check-in window</th>
-                    <th>
-                      <span className="sr-only">Action</span>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {scheduled.data.map((item) => (
-                    <tr key={item.id}>
-                      <td>
-                        <strong>{item.title}</strong>
-                      </td>
-                      <td>{new Date(item.date).toLocaleDateString()}</td>
-                      <td>
-                        {new Date(item.startsAt).toLocaleTimeString()} –{" "}
-                        {new Date(item.endsAt).toLocaleTimeString()}
-                      </td>
-                      <td>
-                        <Button
-                          loading={
-                            activateSession.isPending &&
-                            activateSession.variables === item.id
-                          }
-                          onClick={() => activateSession.mutate(item.id)}
-                        >
-                          Activate session
-                        </Button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            ) : (
-              <EmptyState
-                icon={<CalendarDays />}
-                title="No scheduled attendance sessions"
-                description="Create the next chapel service before check-in begins."
-              />
-            )}
-            {activateSession.isError && (
-              <div className="form-error" role="alert">
-                {message(activateSession.error)}
-              </div>
-            )}
-          </section>
-        ) : (
-          <ErrorState
-            description={message(query.error)}
-            onRetry={() => void query.refetch()}
-          />
-        )}
-        <SessionModal
-          open={sessionOpen}
-          loading={createSession.isPending}
-          error={createSession.error}
-          onClose={() => setSessionOpen(false)}
-          onSubmit={(payload) => createSession.mutate(payload)}
-        />
+        <section className="table-panel">
+          <header className="panel-heading"><div><h2>Attendance sessions</h2><p>Students use their attendance pass; ushers use the checkpoint scanner.</p></div></header>
+          {scheduled.isPending ? <LoadingState label="Loading attendance sessions" /> : scheduled.isError ? (
+            <ErrorState description={message(scheduled.error)} onRetry={() => void scheduled.refetch()} />
+          ) : scheduled.data.length ? (
+            <table><thead><tr><th>Service</th><th>Check-in window</th><th>Status</th></tr></thead><tbody>
+              {scheduled.data.map((item) => <tr key={item.id}><td><strong>{item.title}</strong></td><td>{new Date(item.startsAt).toLocaleString()} – {item.endsAt ? new Date(item.endsAt).toLocaleTimeString() : "No closing time"}</td><td><Badge tone={item.status === "active" ? "success" : "neutral"}>{item.status}</Badge></td></tr>)}
+            </tbody></table>
+          ) : <EmptyState icon={<CalendarDays />} title="No attendance sessions" description="Create a session for your next chapel service." />}
+        </section>
+        <SessionModal open={sessionOpen} loading={createSession.isPending} error={createSession.error} onClose={() => setSessionOpen(false)} onSubmit={(payload) => createSession.mutate(payload)} />
       </>
     );
   const { session, records } = query.data;
+  if (!session) return null;
   function manualSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const identifier = String(
       new FormData(event.currentTarget).get("identifier"),
     );
-    const reason = String(new FormData(event.currentTarget).get("reason"));
     if (!navigator.onLine) {
       toast("Connection problem — attendance was not recorded.", "error");
       return;
     }
-    manual.mutate({ sessionId: session.id, identifier, reason });
+    manual.mutate({ sessionId: session.id, identifier, branchId });
   }
   return (
     <>
@@ -701,24 +610,12 @@ export function LiveAttendancePage() {
         description={`${session.status} session · ${new Date(session.opensAt).toLocaleString()}`}
         actions={
           <>
-            <Button
-              variant="secondary"
-              icon={<QrCode />}
-              onClick={() => setQrOpen(true)}
-            >
-              Display QR
-            </Button>
             {canManage && (
               <>
                 <Button icon={<Plus />} onClick={() => setManualOpen(true)}>
                   Manual entry
                 </Button>
-                <Button
-                  variant="danger"
-                  icon={<XCircle />}
-                  loading={closeSession.isPending}
-                  onClick={() => setCloseConfirmOpen(true)}
-                >
+                <Button variant="danger" loading={closeSession.isPending} onClick={() => setCloseConfirmOpen(true)}>
                   Close session
                 </Button>
               </>
@@ -732,7 +629,7 @@ export function LiveAttendancePage() {
           <div>
             <strong>Check-in is {session.status}</strong>
             <small>
-              Closes {new Date(session.closesAt).toLocaleTimeString()}
+              Closes {session.closesAt ? new Date(session.closesAt).toLocaleTimeString() : "not set"}
             </small>
           </div>
         </div>
@@ -766,8 +663,8 @@ export function LiveAttendancePage() {
         <header>
           <div className="panel-heading">
             <div>
-              <h2>Recent check-ins</h2>
-              <p>Sensitive identification is shown only to authorized roles.</p>
+              <h2>Attendance records</h2>
+              <p>Live check-in updates are not available yet. Refresh the page to load saved records.</p>
             </div>
           </div>
         </header>
@@ -817,7 +714,7 @@ export function LiveAttendancePage() {
           <EmptyState
             icon={<ClipboardCheck />}
             title="No one has checked in yet"
-            description="New verified check-ins will appear here while the session is open."
+            description="Records will appear here after a student scans an usher checkpoint."
           />
         )}
       </section>
@@ -851,7 +748,7 @@ export function LiveAttendancePage() {
         open={manualOpen}
         onClose={() => setManualOpen(false)}
         title="Manual attendance entry"
-        description="The backend records the actor, time, and reason for audit review."
+        description="Look up a member by email. The backend records the actor and time."
         footer={
           <>
             <Button variant="ghost" onClick={() => setManualOpen(false)}>
@@ -871,47 +768,15 @@ export function LiveAttendancePage() {
           <Field
             className="field--full"
             name="identifier"
-            label="Member identifier"
+            label="Member email"
             required
           />
-          <label className="field field--full">
-            <span>
-              Reason <em>Required</em>
-            </span>
-            <textarea name="reason" required />
-          </label>
           {manual.isError && (
             <div className="form-error field--full">
               {message(manual.error)}
             </div>
           )}
         </form>
-      </Modal>
-      <Modal
-        open={qrOpen}
-        onClose={() => setQrOpen(false)}
-        title="Session QR code"
-        description="The code is time-limited and refreshes automatically."
-      >
-        {qr.isPending ? (
-          <LoadingState />
-        ) : qr.isError ? (
-          <ErrorState
-            description={message(qr.error)}
-            onRetry={() => void qr.refetch()}
-          />
-        ) : (
-          <div className="qr-display">
-            <img
-              src={qr.data.imageDataUrl}
-              alt="Time-limited attendance QR code"
-            />
-            <strong>{qr.data.reference}</strong>
-            <small>
-              Expires {new Date(qr.data.expiresAt).toLocaleTimeString()}
-            </small>
-          </div>
-        )}
       </Modal>
       <CorrectionModal
         record={correction}
@@ -1014,7 +879,7 @@ function SessionModal({
       open={open}
       onClose={onClose}
       title="Create attendance session"
-      description="Opening and closing times are enforced by the backend."
+      description="This session is associated with your chapel branch and is available only during its check-in window."
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>
@@ -1041,7 +906,6 @@ function SessionModal({
           label="Service or event"
           required
         />
-        <Field name="venue" label="Venue" required />
         <Field name="date" label="Date" type="date" required />
         <Field name="opensAt" label="Opening time" type="time" required />
         <Field name="closesAt" label="Closing time" type="time" required />
