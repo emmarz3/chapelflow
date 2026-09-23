@@ -78,6 +78,22 @@ describe("Django API integration", () => {
     });
   });
 
+  it("maps Django sessions to the account security view model", async () => {
+    const fetch = vi.fn().mockResolvedValue(response({ data: [
+      { jti: "session-1", created_at: "2026-09-24T10:00:00Z", expires_at: "2026-10-24T10:00:00Z", is_current: true },
+      { jti: "session-2", created_at: "2026-09-23T10:00:00Z", expires_at: "2026-10-23T10:00:00Z", is_current: false },
+    ] }));
+    vi.stubGlobal("fetch", fetch);
+
+    await expect(apiRequest("/auth/sessions")).resolves.toMatchObject({
+      data: [
+        { id: "session-1", device: "Signed-in device", lastActiveAt: "2026-09-24T10:00:00Z", current: true },
+        { id: "session-2", device: "Signed-in device", lastActiveAt: "2026-09-23T10:00:00Z", current: false },
+      ],
+    });
+    expect(fetch.mock.calls[0]?.[0]).toBe("/api/v1/auth/sessions/");
+  });
+
   it("uses the real JWT login endpoint without sending credentials to browser-only routes", async () => {
     const fetch = vi.fn().mockResolvedValue(response({
       data: { user: { id: "user-1", role: "MEMBER", first_name: "Ada", last_name: "Test", email: "ada@example.edu", effective_permissions: ["events.view"] } },

@@ -420,25 +420,25 @@ export function AdminOperationsPage() {
             <table>
               <thead>
                 <tr>
-                  <th>Issued</th>
-                  <th>Expires</th>
+                  <th>Last active</th>
+                  <th>Device</th>
                   <th>Current</th>
                   <th />
                 </tr>
               </thead>
               <tbody>
                 {activeSessions.data.map((session) => (
-                  <tr key={session.jti}>
-                    <td>{new Date(session.created_at).toLocaleString()}</td>
-                    <td>{new Date(session.expires_at).toLocaleString()}</td>
+                  <tr key={session.id}>
+                    <td>{new Date(session.lastActiveAt).toLocaleString()}</td>
+                    <td>{session.device}</td>
                     <td>
-                      {session.is_current ? "This device" : "Another device"}
+                      {session.current ? "This device" : "Another device"}
                     </td>
                     <td>
-                      {!session.is_current && (
+                      {!session.current && (
                         <Button
                           variant="ghost"
-                          onClick={() => revoke.mutate(session.jti)}
+                          onClick={() => revoke.mutate(session.id)}
                         >
                           Revoke
                         </Button>

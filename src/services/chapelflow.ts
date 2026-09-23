@@ -908,12 +908,7 @@ export const securityService = {
   auditLogs: () => api.get<{ data: AdminAuditLog[] }>("/admin/audit-logs"),
   sessions: () =>
     api.get<{
-      data: Array<{
-        jti: string;
-        created_at: string;
-        expires_at: string;
-        is_current: boolean;
-      }>;
+      data: Array<{ id: string; device: string; lastActiveAt: string; current: boolean }>;
     }>("/auth/sessions"),
   revokeSession: (jti: string) =>
     api.post<void>("/auth/sessions/revoke", { jti }),

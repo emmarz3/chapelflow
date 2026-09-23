@@ -111,7 +111,7 @@ function user(value: Row): User {
       .slice(0, 2)
       .map((part) => part[0])
       .join(""),
-    mfaRequired: Boolean(value.mfa_required),
+    mfaRequired: value.mfa_required === true,
     passwordChangeRequired: Boolean(value.password_change_required),
     community,
   };
@@ -652,7 +652,20 @@ export async function djangoRequest(
   if (route === "/admin/attendance/scan-attempts")
     return call("/attendance/scan-attempts/");
   if (route === "/admin/audit-logs") return call("/audit/logs/");
-  if (route === "/auth/sessions") return call("/auth/sessions/");
+  if (route === "/auth/sessions") {
+    const response = await call("/auth/sessions/");
+    return {
+      data: list(response.data).map((session) => ({
+        id: str(session.jti),
+        device: "Signed-in device",
+        lastActiveAt: str(session.created_at),
+        current: session.is_current === true,
+      })),
+    };
+  }
+  const revokeSession = route.match(/^\/auth\/sessions\/([^/]+)$/);
+  if (revokeSession && method === "DELETE")
+    return call("/auth/sessions/revoke/", json("POST", { jti: decodeURIComponent(revokeSession[1]!) }));
   if (route === "/auth/sessions/revoke" && method === "POST")
     return call("/auth/sessions/revoke/", json("POST", body));
   if (route === "/auth/sessions/revoke-all" && method === "POST")

@@ -2109,9 +2109,10 @@ function LiveModuleOperationsPage({
   );
 }
 
-function LiveSettingsPage() {
-  const toast = useToast();
-  const query = useQuery({
+  function LiveSettingsPage() {
+    const toast = useToast();
+    const { user } = useAuth();
+    const query = useQuery({
     queryKey: ["privacy-preferences"],
     queryFn: async () => (await privacyService.preferences()).data,
   });
@@ -2158,7 +2159,9 @@ function LiveSettingsPage() {
           </header>
           {query.isPending ? (
             <LoadingState />
-          ) : query.isError ? (
+          ) : user?.role === "super_admin" ? (
+              <p className="empty-copy">Communication preferences apply to member accounts.</p>
+            ) : query.isError ? (
             <ErrorState
               description={message(query.error)}
               onRetry={() => void query.refetch()}
