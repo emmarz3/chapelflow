@@ -1,0 +1,221 @@
+.cf-intro {
+  --cf-deep-purple: #4c1798;
+  --cf-purple: #6d2dce;
+  --cf-indigo: #4b4fd8;
+  --cf-blue: #1685ee;
+  position: fixed;
+  z-index: 10000;
+  inset: 0;
+  overflow: hidden;
+  background: #fff;
+  color: #111827;
+  isolation: isolate;
+}
+
+body.cf-intro-active {
+  overflow: hidden;
+}
+
+.cf-intro__visuals,
+.cf-intro__brand-scene,
+.cf-intro__constructed-lockup {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+}
+
+.cf-intro__spark {
+  width: 2px;
+  height: 42px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, transparent, var(--cf-purple), var(--cf-blue), transparent);
+  transform-origin: center;
+}
+
+.cf-intro__constructed-lockup {
+  align-content: center;
+  gap: 8px;
+  padding-bottom: 2vh;
+}
+
+.cf-intro__mark {
+  width: clamp(172px, 18vw, 252px);
+  overflow: visible;
+  filter: drop-shadow(0 18px 26px rgb(76 23 152 / 0.1));
+}
+
+.cf-intro__wordmark {
+  margin-top: -10px;
+  font-family: "DM Sans", system-ui, sans-serif;
+  font-size: clamp(48px, 6vw, 82px);
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.cf-intro__wordmark span {
+  color: #080b2d;
+}
+
+.cf-intro__wordmark strong {
+  color: transparent;
+  background: linear-gradient(105deg, var(--cf-purple), var(--cf-blue));
+  background-clip: text;
+  -webkit-background-clip: text;
+  font-weight: 600;
+}
+
+.cf-intro__official-logo {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: min(590px, 78vw);
+  max-width: none;
+  mix-blend-mode: multiply;
+  translate: -50% -50%;
+}
+
+.cf-intro__sweep {
+  position: absolute;
+  z-index: 4;
+  inset: 0;
+  overflow: hidden;
+}
+
+.cf-intro__sweep span {
+  position: absolute;
+  top: -24vh;
+  left: -24vw;
+  width: 150vw;
+  height: 145vh;
+  border-radius: 48% 52% 42% 58% / 63% 48% 52% 37%;
+  box-shadow: 0 -2px 0 rgb(255 255 255 / 0.08) inset;
+  will-change: transform;
+}
+
+.cf-intro__sweep span:nth-child(1) {
+  z-index: 1;
+  transform: scale(1.08);
+}
+
+.cf-intro__sweep span:nth-child(2) {
+  z-index: 2;
+  transform: scale(1.02);
+}
+
+.cf-intro__sweep span:nth-child(3) {
+  z-index: 3;
+  transform: scale(0.96);
+}
+
+.cf-intro__sweep span:nth-child(4) {
+  z-index: 4;
+  transform: scale(0.9);
+}
+
+.cf-intro__sweep--reverse span {
+  top: -14vh;
+  left: -16vw;
+  border-radius: 58% 42% 56% 44% / 43% 58% 42% 57%;
+}
+
+.cf-intro__institution {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 18px;
+  padding: 28px;
+  text-align: center;
+}
+
+.cf-intro__institution img {
+  width: min(470px, 76vw);
+  max-height: 240px;
+  object-fit: contain;
+}
+
+.cf-intro__institution-rule {
+  display: block;
+  width: 52px;
+  height: 2px;
+  margin-top: -12px;
+  background: linear-gradient(90deg, var(--cf-purple), #f2a20c);
+}
+
+.cf-intro__institution p {
+  margin: 0;
+  color: #54475f;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.cf-intro__skip {
+  position: absolute;
+  z-index: 8;
+  top: max(22px, env(safe-area-inset-top));
+  right: max(24px, env(safe-area-inset-right));
+  padding: 8px 2px;
+  border-bottom: 1px solid rgb(17 24 39 / 0.25);
+  color: #4b4650;
+  background: transparent;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.cf-intro--transitionToInstitution .cf-intro__skip {
+  color: #fff;
+  border-color: rgb(255 255 255 / 0.5);
+}
+
+@media (max-width: 600px) {
+  .cf-intro__constructed-lockup {
+    gap: 12px;
+    padding-bottom: 4vh;
+  }
+
+  .cf-intro__mark {
+    width: min(53vw, 210px);
+  }
+
+  .cf-intro__wordmark {
+    margin-top: -4px;
+    font-size: clamp(43px, 14vw, 60px);
+  }
+
+  .cf-intro__official-logo {
+    width: min(490px, 98vw);
+  }
+
+  .cf-intro__sweep span {
+    top: -12vh;
+    left: -70vw;
+    width: 240vw;
+    height: 126vh;
+  }
+
+  .cf-intro__institution img {
+    width: min(92vw, 420px);
+  }
+
+  .cf-intro__institution p {
+    max-width: 280px;
+    font-size: 10px;
+    letter-spacing: 0.15em;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cf-intro__mark {
+    filter: none;
+  }
+
+  .cf-intro__sweep {
+    display: none;
+  }
+}
