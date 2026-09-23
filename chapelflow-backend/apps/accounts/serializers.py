@@ -8,11 +8,13 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from common.constants.roles import Roles
 from common.permissions.inventory import user_has_inventory_access
 from common.permissions.media import user_has_media_management_access
+from common.permissions.rbac import user_requires_mfa
 from .models import InstitutionalAccountControl, Permission, RolePermission, User
 
 
 class UserPublicSerializer(serializers.ModelSerializer):
     effective_permissions = serializers.SerializerMethodField()
+    mfa_required = serializers.SerializerMethodField()
     inventory_access = serializers.SerializerMethodField()
     media_access = serializers.SerializerMethodField()
     community = serializers.SerializerMethodField()
@@ -34,6 +36,9 @@ class UserPublicSerializer(serializers.ModelSerializer):
     def get_media_access(self, user):
         return user_has_media_management_access(user)
 
+    def get_mfa_required(self, user):
+        return user_requires_mfa(user) and not user.mfa_enabled
+
     def get_community(self, user):
         # Blank legacy member records predate account classification and keep
         # their existing student experience rather than silently losing access.
@@ -46,7 +51,7 @@ class UserPublicSerializer(serializers.ModelSerializer):
         model = User
         fields = [
             "id", "email", "matric_no", "first_name", "last_name",
-            "full_name", "phone_number", "role", "branch", "mfa_enabled",
+            "full_name", "phone_number", "role", "branch", "mfa_enabled", "mfa_required",
             "is_active", "password_change_required", "date_joined", "effective_permissions",
             "inventory_access", "media_access", "community",
         ]

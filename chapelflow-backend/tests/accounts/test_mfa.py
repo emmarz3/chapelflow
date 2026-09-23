@@ -97,6 +97,27 @@ class TestMFAConfirmation:
 @pytest.mark.django_db
 class TestMFAEnforcement:
     """
+
+    @override_settings(MFA_ENFORCED_ROLES=["SUPER_ADMIN"], MFA_ENFORCE_ROLE_OBJECTS=False)
+    def test_super_admin_me_reports_mfa_enrollment_requirement(self, api_client):
+        from apps.accounts.models import User
+
+        user = User.objects.create_superuser(
+            email="super-admin-mfa@test.com",
+            password="Pass12345!",
+            first_name="Super",
+            last_name="Admin",
+        )
+        api_client.force_authenticate(user=user)
+
+        response = api_client.get("/api/v1/auth/me/")
+        assert response.status_code == 200
+        assert response.data["data"]["mfa_required"] is True
+
+        user.mfa_enabled = True
+        user.save(update_fields=["mfa_enabled"])
+        response = api_client.get("/api/v1/auth/me/")
+        assert response.data["data"]["mfa_required"] is False
     Spec section 18: users whose role is in MFA_ENFORCED_ROLES must
     complete MFA setup before using any RBAC-protected endpoint. Test
     settings turn MFA_ENFORCED_ROLES off by default (see
