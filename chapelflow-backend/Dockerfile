@@ -15,6 +15,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 COPY start.sh /app/start.sh
 RUN chmod +x /app/start.sh
+RUN python manage.py collectstatic --noinput
 
 
 RUN useradd --create-home --shell /bin/bash chapelflow \
@@ -27,4 +28,4 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
     CMD curl -f http://localhost:8000/health/ || exit 1
 
-CMD ["gunicorn", "config.wsgi:application", "--bind", "0.0.0.0:8000", "--workers", "3", "--timeout", "60"]
+CMD ["sh", "-c", "python manage.py migrate --noinput && python manage.py bootstrap_super_admin && python manage.py bootstrap_chapel && exec gunicorn config.wsgi:application --bind 0.0.0.0:$PORT --workers 3 --timeout 60"]

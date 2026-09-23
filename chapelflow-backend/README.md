@@ -209,8 +209,10 @@ most sensitive data in the system.
 
 ### Bootstrap the single Super Admin
 
-After migrations, set `SUPER_ADMIN_EMAIL` and `SUPER_ADMIN_PASSWORD` in the
-runtime environment, then run `python manage.py bootstrap_super_admin`.
+Set `SUPER_ADMIN_EMAIL` and `SUPER_ADMIN_PASSWORD` as environment variables.
+On Render, clear any custom **Docker Command** override in the dashboard so
+the Dockerfile command runs migrations and bootstraps the admin and chapel at
+container startup. Locally, run `python manage.py bootstrap_super_admin`.
 The command is idempotent for that email and refuses to create a second Super
 Admin or proceed when it finds conflicting records. It never reads credentials
 from source control.
