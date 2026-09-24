@@ -29,7 +29,7 @@ class UploadView(APIView):
         if category not in UploadCategory.values:
             return error_response("Select a valid upload category.", status=400)
         if category == UploadCategory.MEDIA_CONTENT and not user_has_media_management_access(request.user):
-            return error_response("Only the Chaplain, Media Unit Leader, or Social Media Unit Leader can upload public media.", status=403)
+            return error_response("Only the Super Admin, Chaplain, Student Chaplain, Media Leader, or Social Media Leader can upload public media.", status=403)
 
         max_size_mb = (
             getattr(settings, "MAX_MEDIA_UPLOAD_SIZE_MB", 100)

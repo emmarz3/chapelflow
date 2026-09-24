@@ -108,6 +108,7 @@ export function LivePublicDetailPage({
     queryKey: ["public-detail", kind, id],
     queryFn: async () => (await publicService.detail(kind, id)).data,
     enabled: Boolean(id),
+    refetchInterval: kind === "gallery" ? 5_000 : false,
   });
   if (query.isPending)
     return (

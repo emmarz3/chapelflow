@@ -189,13 +189,14 @@ button.hp-day:hover { background: var(--hp-tint); }
 
 /* ------------------------------- Gallery --------------------------------- */
 .hp-gal { display: grid; gap: 14px; grid-auto-flow: dense; grid-auto-rows: 160px; grid-template-columns: repeat(4, minmax(0, 1fr)); }
-.hp-gt { color: #fff; cursor: pointer; isolation: isolate; overflow: hidden; position: relative; text-align: left; background: var(--cuc-navy); }
+.hp-gt { background: var(--cuc-navy); color: #fff; cursor: pointer; isolation: isolate; overflow: hidden; position: relative; text-align: left; text-decoration: none; }
+.hp-gt:focus-visible { outline: 3px solid var(--cuc-gold); outline-offset: -4px; }
 .hp-gt > img, .hp-gt > .hp-art { height: 100%; inset: 0; object-fit: cover; position: absolute; transition: transform .5s ease; width: 100%; z-index: -2; }
 .hp-gt:hover > img, .hp-gt:hover > .hp-art { transform: scale(1.05); }
 .hp-scrim { background: linear-gradient(180deg, transparent 40%, rgb(6 27 49 / .82)); inset: 0; position: absolute; z-index: -1; }
 .hp-cap { bottom: 14px; left: 16px; position: absolute; right: 16px; }
 .hp-cap b { display: block; font: 500 18px/1.2 "Newsreader", Georgia, serif; }
-.hp-cap small { font-size: 12.5px; opacity: .85; }
+.hp-cap small { display: block; font-size: 12.5px; opacity: .85; }
 .hp-cam { height: 18px; opacity: .75; position: absolute; right: 14px; top: 14px; width: 18px; }
 .hp-gt--1 { grid-column: span 2; grid-row: span 2; }
 .hp-gt--3 { grid-row: span 2; }

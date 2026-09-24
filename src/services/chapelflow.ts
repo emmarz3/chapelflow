@@ -806,6 +806,11 @@ export const chapelGroupService = {
         is_active: boolean;
       }>;
     }>("/chapel-groups"),
+  bootstrapChapelGroups: () =>
+    api.post<{ data: { created: Array<{ id: string; name: string }>; count: number } }>(
+      "/chapel-groups/bootstrap-groups",
+      {},
+    ),
 };
 
 export interface InstitutionalAccount {

@@ -20,7 +20,7 @@ import { UNIT_ICON_LABELS } from "./home-icons";
 import { ImageInput, ItemCard, NumberInput, SelectInput, TextArea, TextInput, Toggle } from "./homepage-admin-fields";
 import { HOMEPAGE_QUERY_KEY } from "./use-homepage";
 
-type Tab = "general" | "announcements" | "services" | "events" | "sermons" | "ministries" | "gallery" | "verses" | "contact" | "signups";
+type Tab = "general" | "announcements" | "services" | "events" | "ministries" | "gallery" | "verses" | "contact" | "signups";
 type Errors = Record<string, string[]>;
 
 const TABS: { key: Tab; label: string }[] = [
@@ -28,7 +28,6 @@ const TABS: { key: Tab; label: string }[] = [
   { key: "announcements", label: "Announcements" },
   { key: "services", label: "Services" },
   { key: "events", label: "Events" },
-  { key: "sermons", label: "Sermons" },
   { key: "ministries", label: "Ministries" },
   { key: "gallery", label: "Gallery" },
   { key: "verses", label: "Verses" },
@@ -37,10 +36,9 @@ const TABS: { key: Tab; label: string }[] = [
 ];
 
 const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"].map((label, value) => ({ value, label }));
-const SECTION_LABELS: Record<HomepageSectionKey, string> = {
+const SECTION_LABELS: Record<Exclude<HomepageSectionKey, "sermons">, string> = {
   schedule: "Service schedule",
   events: "Upcoming events",
-  sermons: "Recent sermons",
   ministries: "Ministries & units",
   calendar: "Chapel calendar",
   gallery: "Gallery",
@@ -50,7 +48,6 @@ const PATH_LABELS: Record<string, string> = {
   announcements: "Announcement",
   services: "Service",
   events: "Event",
-  sermons: "Sermon",
   units: "Ministry",
   gallery: "Photo",
   "verse.verses": "Verse",
@@ -238,7 +235,6 @@ export function HomepageAdminPage() {
       announcements: ["announcements"],
       services: ["services"],
       events: ["events"],
-      sermons: ["sermons"],
       ministries: ["units"],
       gallery: ["gallery"],
       verses: ["verse"],
@@ -261,7 +257,7 @@ export function HomepageAdminPage() {
       <PageHeader
         eyebrow="Website content"
         title="Homepage studio"
-        description="Edit the names, programmes, sermons and text that appear on the public homepage. Changes go live as soon as you save."
+        description="Edit the names, programmes and text that appear on the public homepage. Changes go live as soon as you save."
         actions={
           <>
             <a className="button button--secondary" href="/" target="_blank" rel="noopener noreferrer">
@@ -369,7 +365,7 @@ export function HomepageAdminPage() {
             <ListEditor
               items={draft.events}
               onChange={(events) => set({ events })}
-              create={() => ({ id: newId("evt"), category: "Event", title: "", repeat: "none" as const, weekday: 0, startDate: "", endDate: "", startTime: "09:00", time: "", venue: "", cta: "Register" as const, capacity: null, taken: 0, active: true })}
+              create={() => ({ id: newId("evt"), category: "Event", title: "", repeat: "none" as const, weekday: 0, startDate: "", endDate: "", startTime: "09:00", time: "", venue: "", host: "", cta: "Register" as const, capacity: null, taken: 0, active: true })}
               addLabel="Add event"
               path="events"
               errors={errors}
@@ -395,39 +391,9 @@ export function HomepageAdminPage() {
                   <TextInput required type="time" label="Start time" value={e.startTime} error={err(errors, `${p}.startTime`)} onChange={(startTime) => update({ startTime })} />
                   <TextInput required label="Time as shown on the card" hint="e.g. Fri 4:00 PM to Sun 2:00 PM" value={e.time} maxLength={80} error={err(errors, `${p}.time`)} onChange={(time) => update({ time })} />
                   <TextInput required label="Venue" value={e.venue} maxLength={140} error={err(errors, `${p}.venue`)} onChange={(venue) => update({ venue })} />
+                  <TextInput label="Host" hint="Name shown on the event card" value={e.host ?? ""} maxLength={140} error={err(errors, `${p}.host`)} onChange={(host) => update({ host })} />
                   <NumberInput label="Places available" hint="Leave empty for unlimited" min={1} value={e.capacity} error={err(errors, `${p}.capacity`)} onChange={(capacity) => update({ capacity })} />
                   <NumberInput label="Places already taken" hint="Offline sign-ups, added to online ones" min={0} value={e.taken} error={err(errors, `${p}.taken`)} onChange={(taken) => update({ taken: taken ?? 0 })} />
-                </>
-              )}
-            </ListEditor>
-          </Group>
-        )}
-
-        {tab === "sermons" && (
-          <Group title="Recent sermons" description="The newest six active messages appear on the homepage, ordered by date. Add links so visitors can play, listen or download.">
-            <ListEditor
-              items={draft.sermons}
-              onChange={(sermons) => set({ sermons })}
-              create={() => ({ id: newId("srm"), series: "", title: "", speaker: "", date: new Date().toISOString().slice(0, 10), duration: "", videoUrl: "", audioUrl: "", downloadUrl: "", imageUrl: "", active: true })}
-              addLabel="Add sermon"
-              path="sermons"
-              errors={errors}
-              max={40}
-              emptyText="No sermons yet."
-              summary={(s) => ({ title: s.title, subtitle: [s.speaker, s.date].filter(Boolean).join(" · ") })}
-              onDeleteRequest={ask}
-            >
-              {(s, update, p) => (
-                <>
-                  <TextInput wide required label="Title" value={s.title} maxLength={160} error={err(errors, `${p}.title`)} onChange={(title) => update({ title })} />
-                  <TextInput label="Speaker" value={s.speaker} maxLength={140} error={err(errors, `${p}.speaker`)} onChange={(speaker) => update({ speaker })} />
-                  <TextInput label="Series" value={s.series} maxLength={80} error={err(errors, `${p}.series`)} onChange={(series) => update({ series })} />
-                  <TextInput required type="date" label="Date preached" value={s.date} error={err(errors, `${p}.date`)} onChange={(date) => update({ date })} />
-                  <TextInput label="Length" hint="e.g. 42:18" value={s.duration} maxLength={12} error={err(errors, `${p}.duration`)} onChange={(duration) => update({ duration })} />
-                  <TextInput wide label="Video link" hint="Opens when visitors press Play" value={s.videoUrl} error={err(errors, `${p}.videoUrl`)} onChange={(videoUrl) => update({ videoUrl })} />
-                  <TextInput wide label="Audio link" value={s.audioUrl} error={err(errors, `${p}.audioUrl`)} onChange={(audioUrl) => update({ audioUrl })} />
-                  <TextInput wide label="Download link" value={s.downloadUrl} error={err(errors, `${p}.downloadUrl`)} onChange={(downloadUrl) => update({ downloadUrl })} />
-                  <ImageInput wide label="Cover image (optional)" value={s.imageUrl} error={err(errors, `${p}.imageUrl`)} onChange={(imageUrl) => update({ imageUrl })} />
                 </>
               )}
             </ListEditor>
@@ -461,16 +427,16 @@ export function HomepageAdminPage() {
         )}
 
         {tab === "gallery" && (
-          <Group title="Gallery highlights" description="Photos shown in “Moments of Grace”. Without an image a branded artwork tile is used. The first tile is displayed largest.">
+          <Group title="Moments of Grace" description="These are the six featured collections from last semester. Set a cover photo here. To add event photos and videos, open Admin → Media, create a Gallery album using that event's collection path, then upload Gallery images or videos and select the album as their parent.">
             <ListEditor
               items={draft.gallery}
               onChange={(gallery) => set({ gallery })}
               create={() => ({ id: newId("gal"), title: "", subtitle: "", imageUrl: "", active: true })}
-              addLabel="Add photo"
+              addLabel="Add collection"
               path="gallery"
               errors={errors}
               max={40}
-              emptyText="No photos yet."
+              emptyText="No collections yet."
               summary={(g) => ({ title: g.title, subtitle: g.subtitle })}
               onDeleteRequest={ask}
             >
@@ -478,6 +444,7 @@ export function HomepageAdminPage() {
                 <>
                   <TextInput required label="Caption" value={g.title} maxLength={120} error={err(errors, `${p}.title`)} onChange={(title) => update({ title })} />
                   <TextInput label="Sub-caption" hint="e.g. June 2026" value={g.subtitle} maxLength={80} error={err(errors, `${p}.subtitle`)} onChange={(subtitle) => update({ subtitle })} />
+                  <p className="hpa-hint">Collection path: <code>/gallery/{g.id}</code> · Use <code>{g.id}</code> as the album slug in Admin → Media.</p>
                   <ImageInput wide label="Photo" value={g.imageUrl} error={err(errors, `${p}.imageUrl`)} onChange={(imageUrl) => update({ imageUrl })} />
                 </>
               )}

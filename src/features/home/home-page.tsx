@@ -1,4 +1,4 @@
-import { ArrowRight, ArrowUp, BookOpen, CalendarDays, Copy, Heart, LogIn, Megaphone, Share2, Video, X } from "lucide-react";
+import { ArrowRight, ArrowUp, BookOpen, CalendarDays, ChevronLeft, ChevronRight, Copy, Heart, LogIn, Megaphone, Pause, Play, Share2, Video, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { LoadingState, useToast } from "../../components/ui";
@@ -15,7 +15,6 @@ import {
   GallerySection,
   MinistriesSection,
   ScheduleSection,
-  SermonsSection,
 } from "./home-sections";
 import { RequestModal, type RequestTarget } from "./request-modal";
 import { SmartLink } from "./smart-link";
@@ -24,6 +23,91 @@ import { useNow, usePublicHomepage, useRegistered } from "./use-homepage";
 /* ------------------------------- Ticker ---------------------------------- */
 
 const TICKER_KEY = "chapelflow:ticker-dismissed";
+
+const DEFAULT_HERO_IMAGE = "/chapel-hero.jpg";
+const HERO_SLIDES = [
+  { src: DEFAULT_HERO_IMAGE, alt: "Students worshipping together at Chrisland University Chapel" },
+  { src: "/chapel-slide-02.jpg", alt: "A student enjoying a chapel gathering" },
+  { src: "/chapel-slide-03.jpg", alt: "Students hosting a Christmas chapel event" },
+  { src: "/chapel-slide-04.jpg", alt: "Students leading a chapel programme" },
+  { src: "/chapel-slide-05.jpg", alt: "A student singing during worship" },
+  { src: "/chapel-slide-06.jpg", alt: "Students praising together at chapel" },
+  { src: "/chapel-slide-07.jpg", alt: "A student worshipping with the chapel community" },
+  { src: "/chapel-slide-08.jpg", alt: "Students sharing a moment during chapel" },
+  { src: "/chapel-slide-09.jpg", alt: "A student singing with the chapel community" },
+];
+
+function HeroSlideshow({ primaryImage, siteName, caption }: { primaryImage: string; siteName: string; caption?: string }) {
+  const slides = primaryImage === DEFAULT_HERO_IMAGE
+    ? HERO_SLIDES
+    : [{ ...HERO_SLIDES[0], src: primaryImage }, ...HERO_SLIDES.slice(1)];
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [paused, setPaused] = useState(false);
+  const [hovered, setHovered] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const [reducedMotion, setReducedMotion] = useState(false);
+  const shouldPause = paused || hovered || focused || reducedMotion;
+
+  useEffect(() => {
+    const query = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const update = () => setReducedMotion(query.matches);
+    update();
+    query.addEventListener("change", update);
+    return () => query.removeEventListener("change", update);
+  }, []);
+
+  useEffect(() => {
+    if (shouldPause) return;
+    const timer = window.setInterval(() => setActiveIndex((index) => (index + 1) % slides.length), 5600);
+    return () => window.clearInterval(timer);
+  }, [shouldPause, slides.length]);
+
+  const goTo = (index: number) => setActiveIndex((index + slides.length) % slides.length);
+
+  return (
+    <figure
+      className="cuc-home__hero-image"
+      role="region"
+      aria-roledescription="carousel"
+      aria-label={`${siteName} photos`}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      onFocus={() => setFocused(true)}
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setFocused(false);
+      }}
+      onKeyDown={(event) => {
+        if (event.key === "ArrowLeft") goTo(activeIndex - 1);
+        if (event.key === "ArrowRight") goTo(activeIndex + 1);
+      }}
+    >
+      {slides.map((slide, index) => (
+        <img
+          key={slide.src}
+          className={`cuc-home__hero-slide${index === activeIndex ? " is-active" : ""}`}
+          src={slide.src}
+          alt={slide.alt}
+          aria-hidden={index !== activeIndex}
+          fetchPriority={index === 0 ? "high" : "auto"}
+          decoding="async"
+        />
+      ))}
+      <div className="cuc-home__hero-controls" role="group" aria-label="Slideshow controls">
+        <button type="button" aria-label="Previous image" onClick={() => goTo(activeIndex - 1)}><ChevronLeft size={18} /></button>
+        <button type="button" aria-label={paused ? "Play slideshow" : "Pause slideshow"} aria-pressed={paused} onClick={() => setPaused((value) => !value)}>
+          {paused ? <Play size={15} /> : <Pause size={15} />}
+        </button>
+        <button type="button" aria-label="Next image" onClick={() => goTo(activeIndex + 1)}><ChevronRight size={18} /></button>
+      </div>
+      <div className="cuc-home__hero-pagination" role="group" aria-label="Choose an image">
+        {slides.map((slide, index) => (
+          <button key={slide.src} type="button" aria-label={`Show image ${index + 1}`} aria-current={index === activeIndex ? "true" : undefined} onClick={() => goTo(index)} />
+        ))}
+      </div>
+      {activeIndex === 0 && <figcaption>{caption || "Chrisland University Chapel"}</figcaption>}
+    </figure>
+  );
+}
 
 function hashOf(value: string) {
   let h = 0;
@@ -253,10 +337,7 @@ export function HomePage() {
             </dl>
           )}
         </div>
-        <figure className="cuc-home__hero-image">
-          <img src={hero.imageUrl || "/chapel-hero.png"} alt={`${content.siteName} community arriving for chapel`} />
-          {hero.imageCaption && <figcaption>{hero.imageCaption}</figcaption>}
-        </figure>
+        <HeroSlideshow primaryImage={hero.imageUrl || "/chapel-hero.jpg"} siteName={content.siteName} caption={hero.imageCaption} />
       </section>
 
       <VerseOfTheDay content={content} />
@@ -269,7 +350,9 @@ export function HomePage() {
           {belonging.quote && <p className="cuc-home__quote">{belonging.quote}</p>}
         </div>
         <div className="cuc-home__photo-rail" aria-label="Chapel community moments">
-          <img src="/chapel-hero.png" alt="" /><img src="/chapel-hero.png" alt="" /><img src="/chapel-hero.png" alt="" />
+          <img className="cuc-home__photo-rail-left" src="/chapel-community-left.jpg" alt="" />
+          <img className="cuc-home__photo-rail-center" src="/chapel-community-center.jpg" alt="" />
+          <img className="cuc-home__photo-rail-right" src="/chapel-community-right.jpg" alt="" />
         </div>
         {belonging.pillars.length > 0 && (
           <div className="cuc-home__pillars">
@@ -290,19 +373,18 @@ export function HomePage() {
           <ol><li><span>01</span> Official usher QR</li><li><span>02</span> Rotates every 45 seconds</li><li><span>03</span> Scan with ChapelFlow</li><li><span>04</span> One attendance per service</li></ol>
         </div>
         <div className="cuc-home__attendance-art">
-          <img src="/chapel-hero.png" alt="Students gathering at the chapel" />
+          <img src="/chapel-hero.jpg" alt="Students gathering at the chapel" />
           <div className="cuc-home__qr-card"><small>Official usher QR</small><strong>QR</strong><span>00:45</span></div>
         </div>
       </section>
 
       {sections.events.enabled && <EventsSection content={content} counts={counts} onRequest={setTarget} registered={registered} />}
-      {sections.sermons.enabled && <SermonsSection content={content} />}
       {sections.ministries.enabled && <MinistriesSection content={content} onRequest={setTarget} registered={registered} />}
       {sections.calendar.enabled && <CalendarSection content={content} />}
       {sections.gallery.enabled && <GallerySection content={content} />}
 
       <section className="cuc-home__closing">
-        <img src="/chapel-hero.png" alt="" />
+        <img src="/chapel-hero.jpg" alt="" />
         <div>
           {closing.eyebrow && <p className="cuc-home__eyebrow">{closing.eyebrow}</p>}
           <h2>{closing.title}</h2>

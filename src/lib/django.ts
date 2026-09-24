@@ -742,7 +742,10 @@ export async function djangoRequest(
     return call("/auth/institutional-accounts/");
   if (route === "/institutional-accounts" && method === "POST")
     return call("/auth/institutional-accounts/", json("POST", body));
-  if (route === "/chapel-groups") return call("/groups-catalog/");
+  if (route === "/chapel-groups" && method === "GET")
+    return call(`/groups-catalog/${suffix}`);
+  if (route === "/chapel-groups/bootstrap-groups" && method === "POST")
+    return call("/groups-catalog/bootstrap-chapel-groups/", json("POST", {}));
   if (/^\/institutional-accounts\/[^/]+$/.test(route) && method === "PATCH")
     return call(`/auth${route}/`, json("PATCH", body));
   if (
