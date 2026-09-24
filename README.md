@@ -72,4 +72,6 @@ Production routes fetch backend-authorized content and show explicit loading, em
 
 Deploy the backend as a Docker web service using `chapelflow-backend/Dockerfile` and the frontend as a static site. Set `SUPER_ADMIN_EMAIL` and `SUPER_ADMIN_PASSWORD` on the backend service. The Dockerfile runs migrations and both bootstrap commands at container startup. Clear any Render **Docker Command** override so Render uses the Dockerfile `CMD`. Set frontend `VITE_BACKEND=django`, `VITE_DATA_MODE=api`, and `VITE_API_BASE_URL` before the static-site build; `VITE_*` values are embedded at build time. Configure the frontend rewrite for `/api/*` to the backend and `/*` to `/index.html`.
 
+Redis is optional on the Render free plan. If `REDIS_URL` is unset, the backend uses in-memory caching and an in-memory Celery broker, and runs tasks synchronously. Set `REDIS_URL` to use Redis-backed caching and queuing.
+
 The generated campus-chapel hero is stored at `public/chapel-hero.png`. It contains no text or logos and should be replaced with approved institutional photography when available.

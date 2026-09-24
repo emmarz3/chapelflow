@@ -209,8 +209,38 @@ CSRF_TRUSTED_ORIGINS = env.list("CSRF_TRUSTED_ORIGINS", default=["http://localho
 # --------------------------------------------------------------------------
 # Celery / Redis
 # --------------------------------------------------------------------------
-REDIS_URL = env("REDIS_URL", default="redis://localhost:6379/0")
-CELERY_BROKER_URL = REDIS_URL
+def _redis_settings(redis_url: str | None) -> dict:
+    if redis_url:
+        return {
+            "CELERY_BROKER_URL": redis_url,
+            "CACHES": {
+                "default": {
+                    "BACKEND": "django_redis.cache.RedisCache",
+                    "LOCATION": redis_url,
+                    "OPTIONS": {
+                        "CLIENT_CLASS": "django_redis.client.DefaultClient",
+                        "IGNORE_EXCEPTIONS": True,
+                    },
+                }
+            },
+        }
+    return {
+        "CELERY_BROKER_URL": "memory://",
+        "CELERY_TASK_ALWAYS_EAGER": True,
+        "CACHES": {
+            "default": {
+                "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+                "LOCATION": "chapelflow-local-cache",
+            }
+        },
+    }
+
+
+REDIS_URL = env("REDIS_URL", default=None)
+_REDIS_SETTINGS = _redis_settings(REDIS_URL)
+CELERY_BROKER_URL = _REDIS_SETTINGS["CELERY_BROKER_URL"]
+if "CELERY_TASK_ALWAYS_EAGER" in _REDIS_SETTINGS:
+    CELERY_TASK_ALWAYS_EAGER = _REDIS_SETTINGS["CELERY_TASK_ALWAYS_EAGER"]
 CELERY_RESULT_BACKEND = "django-db"
 CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
@@ -218,13 +248,7 @@ CELERY_RESULT_SERIALIZER = "json"
 CELERY_TASK_TRACK_STARTED = True
 CELERY_TASK_TIME_LIMIT = 30 * 60
 
-CACHES = {
-    "default": {
-        "BACKEND": "django_redis.cache.RedisCache",
-        "LOCATION": REDIS_URL,
-        "OPTIONS": {"CLIENT_CLASS": "django_redis.client.DefaultClient"},
-    }
-}
+CACHES = _REDIS_SETTINGS["CACHES"]
 
 # --------------------------------------------------------------------------
 # File storage (Cloudinary / S3 / Supabase, provider abstraction lives in apps.uploads)
