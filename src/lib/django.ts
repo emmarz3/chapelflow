@@ -622,6 +622,7 @@ export async function djangoRequest(
       return {
         id: str(session.id),
         title: str(session.label || "Chapel service"),
+        venue: str(session.venue),
         startsAt: opensAt,
         endsAt: closesAt,
         status,
@@ -637,7 +638,7 @@ export async function djangoRequest(
     if (!branchId) unsupported("Assign a chapel branch to this account before viewing attendance sessions.");
     const sessions = await attendanceSessions(branchId);
     return { data: sessions.map((session) => ({
-      id: session.id, title: session.title, startsAt: session.startsAt,
+      id: session.id, title: session.title, venue: session.venue, startsAt: session.startsAt,
       endsAt: session.endsAt, status: session.status, isOpen: session.isOpen,
       createdAt: session.createdAt,
     })) };
@@ -654,7 +655,7 @@ export async function djangoRequest(
       return opensAt <= now && now <= closesAt;
     });
     const summaries = sessions.map((session) => ({
-      id: session.id, title: session.title, startsAt: session.startsAt,
+      id: session.id, title: session.title, venue: session.venue, startsAt: session.startsAt,
       endsAt: session.endsAt, status: session.status, isOpen: session.isOpen,
       createdAt: session.createdAt,
     }));
@@ -680,6 +681,7 @@ export async function djangoRequest(
         session: {
           id: current.id,
           title: current.title,
+          venue: current.venue,
           status: "open",
           opensAt: current.startsAt,
           closesAt: current.endsAt,
@@ -701,6 +703,7 @@ export async function djangoRequest(
     return call("/attendance/sessions/", json("POST", {
       branch: branchId,
       label: body.title,
+      venue: body.venue,
       window_opens_at: opensAt.toISOString(),
       window_closes_at: closesAt.toISOString(),
     }));

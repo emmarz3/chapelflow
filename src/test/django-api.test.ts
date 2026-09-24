@@ -99,14 +99,14 @@ describe("Django API integration", () => {
     const opensAt = new Date(now - 60_000).toISOString();
     const closesAt = new Date(now + 3_600_000).toISOString();
     const fetch = vi.fn()
-      .mockResolvedValueOnce(response({ data: [{ id: "session-1", branch: "branch-1", label: "Sunday service", is_open: true, state: "OPEN", opened_at: opensAt, window_opens_at: opensAt, window_closes_at: closesAt, record_count: 1 }] }))
+      .mockResolvedValueOnce(response({ data: [{ id: "session-1", branch: "branch-1", label: "Sunday service", venue: "Chapel", is_open: true, state: "OPEN", opened_at: opensAt, window_opens_at: opensAt, window_closes_at: closesAt, record_count: 1 }] }))
       .mockResolvedValueOnce(response({ data: [{ id: "member-1", full_name: "Ada Okafor", email: "ada@example.edu", matric_no: "CU/26/101" }] }))
       .mockResolvedValueOnce(response({ data: [{ id: "record-1", member: "member-1", method: "QR_CODE", status: "PRESENT", checked_in_at: opensAt }] }));
     vi.stubGlobal("fetch", fetch);
 
     await expect(apiRequest("/attendance/sessions/current?branch=branch-1")).resolves.toMatchObject({
       data: {
-        session: { id: "session-1", title: "Sunday service", status: "open", count: 1 },
+        session: { id: "session-1", title: "Sunday service", venue: "Chapel", status: "open", count: 1 },
         records: [{ id: "record-1", memberName: "Ada Okafor", method: "qr", status: "present" }],
       },
     });
@@ -115,6 +115,26 @@ describe("Django API integration", () => {
       "/api/v1/members/?branch=branch-1&page_size=100",
       "/api/v1/attendance/records/?session=session-1&page_size=100",
     ]);
+  });
+
+  it("includes venue when listing attendance sessions", async () => {
+    const fetch = vi.fn().mockResolvedValue(response({
+      data: [{
+        id: "session-3",
+        label: "Midweek Service",
+        venue: "Marquee",
+        is_open: true,
+        state: "OPEN",
+        opened_at: "2026-09-24T08:00:00Z",
+        window_opens_at: "2026-09-24T08:00:00Z",
+        window_closes_at: "2026-09-24T09:00:00Z",
+      }],
+    }));
+    vi.stubGlobal("fetch", fetch);
+
+    await expect(apiRequest("/attendance/sessions?branch=branch-1")).resolves.toMatchObject({
+      data: [{ id: "session-3", title: "Midweek Service", venue: "Marquee" }],
+    });
   });
 
   it("maps attendance creation and correction to Django fields and methods", async () => {
@@ -126,7 +146,7 @@ describe("Django API integration", () => {
 
     await apiRequest("/attendance/sessions", {
       method: "POST",
-      body: JSON.stringify({ title: "Sunday service", date, opensAt: "09:00", closesAt: "11:00", branchId: "branch-1", venue: "Ignored venue" }),
+      body: JSON.stringify({ title: "Sunday service", date, opensAt: "09:00", closesAt: "11:00", branchId: "branch-1", venue: "Marquee" }),
     });
     await apiRequest("/attendance/records/record-1", {
       method: "PATCH",
@@ -139,6 +159,7 @@ describe("Django API integration", () => {
     expect(JSON.parse(fetch.mock.calls[0]?.[1].body)).toEqual({
       branch: "branch-1",
       label: "Sunday service",
+      venue: "Marquee",
       window_opens_at: expectedOpen,
       window_closes_at: expectedClose,
     });

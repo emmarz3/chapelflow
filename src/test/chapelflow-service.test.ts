@@ -56,6 +56,7 @@ describe("ChapelFlow production workflow contracts", () => {
 
     await attendanceService.createSession({
       title: "Sunday Worship Service",
+      venue: "Auditorium",
       branchId: "abeokuta",
       date: "2026-08-30",
       opensAt: "08:15",
@@ -72,6 +73,7 @@ describe("ChapelFlow production workflow contracts", () => {
     expect(JSON.parse(fetchMock.mock.calls[0]?.[1]?.body as string)).toMatchObject({
       branch: "abeokuta",
       label: "Sunday Worship Service",
+      venue: "Auditorium",
       window_opens_at: expect.any(String),
       window_closes_at: expect.any(String),
     });

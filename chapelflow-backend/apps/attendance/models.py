@@ -84,6 +84,7 @@ class AttendanceSession(models.Model):
         "events.EventSchedule", null=True, blank=True, on_delete=models.SET_NULL, related_name="attendance_sessions"
     )
     label = models.CharField(max_length=255, blank=True)
+    venue = models.CharField(max_length=120, blank=True)
     opened_at = models.DateTimeField(auto_now_add=True)
     closed_at = models.DateTimeField(null=True, blank=True)
     is_open = models.BooleanField(default=True)

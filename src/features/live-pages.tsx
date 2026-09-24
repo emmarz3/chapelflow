@@ -581,8 +581,8 @@ export function LiveAttendancePage() {
           {scheduled.isPending ? <LoadingState label="Loading attendance sessions" /> : scheduled.isError ? (
             <ErrorState description={message(scheduled.error)} onRetry={() => void scheduled.refetch()} />
           ) : scheduled.data.length ? (
-            <table><thead><tr><th>Service</th><th>Check-in window</th><th>Status</th></tr></thead><tbody>
-              {scheduled.data.map((item) => <tr key={item.id}><td><strong>{item.title}</strong></td><td>{new Date(item.startsAt).toLocaleString()} – {item.endsAt ? new Date(item.endsAt).toLocaleTimeString() : "No closing time"}</td><td><Badge tone={item.status === "active" ? "success" : "neutral"}>{item.status}</Badge></td></tr>)}
+            <table><thead><tr><th>Service</th><th>Venue</th><th>Check-in window</th><th>Status</th></tr></thead><tbody>
+              {scheduled.data.map((item) => <tr key={item.id}><td><strong>{item.title}</strong></td><td>{item.venue || "—"}</td><td>{new Date(item.startsAt).toLocaleString()} – {item.endsAt ? new Date(item.endsAt).toLocaleTimeString() : "No closing time"}</td><td><Badge tone={item.status === "active" ? "success" : "neutral"}>{item.status}</Badge></td></tr>)}
             </tbody></table>
           ) : <EmptyState icon={<CalendarDays />} title="No attendance sessions" description="Create a session for your next chapel service." />}
         </section>
@@ -607,7 +607,7 @@ export function LiveAttendancePage() {
       <PageHeader
         eyebrow="Attendance"
         title={session.title}
-        description={`${session.status} session · ${new Date(session.opensAt).toLocaleString()}`}
+        description={`${session.status} session${session.venue ? ` · ${session.venue}` : ""} · ${new Date(session.opensAt).toLocaleString()}`}
         actions={
           <>
             {canManage && (
@@ -906,6 +906,19 @@ function SessionModal({
           label="Service or event"
           required
         />
+        <Field
+          className="field--full"
+          name="venue"
+          label="Venue"
+          list="attendance-venue-suggestions"
+          required
+        />
+        <datalist id="attendance-venue-suggestions">
+          <option value="Chapel" />
+          <option value="Marquee" />
+          <option value="Auditorium" />
+          <option value="Main Hall" />
+        </datalist>
         <Field name="date" label="Date" type="date" required />
         <Field name="opensAt" label="Opening time" type="time" required />
         <Field name="closesAt" label="Closing time" type="time" required />

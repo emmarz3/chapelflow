@@ -21,7 +21,7 @@ class AttendanceSessionSerializer(ScopedFKValidationMixin, serializers.ModelSeri
     class Meta:
         model = AttendanceSession
         fields = [
-            "id", "branch", "event_schedule", "label", "opened_at",
+            "id", "branch", "event_schedule", "label", "venue", "opened_at",
             "closed_at", "is_open", "state", "window_opens_at", "window_closes_at", "record_count",
         ]
         read_only_fields = ["id", "opened_at"]

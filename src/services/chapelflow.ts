@@ -162,6 +162,7 @@ export interface AttendancePayload {
   session: null | {
     id: string;
     title: string;
+    venue: string;
     status: "scheduled" | "open" | "closed";
     opensAt: string;
     closesAt: string | null;
@@ -175,6 +176,7 @@ export interface AttendancePayload {
 export interface AttendanceSessionSummary {
   id: string;
   title: string;
+  venue: string;
   startsAt: string;
   endsAt: string | null;
   status: "scheduled" | "active" | "paused" | "closed";
@@ -822,6 +824,7 @@ export interface InstitutionalAccount {
 export interface AdminAttendanceSession {
   id: string;
   label: string;
+  venue: string;
   state: "OPEN" | "PAUSED" | "CLOSED";
   is_open: boolean;
   opened_at: string;

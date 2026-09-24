@@ -5,7 +5,7 @@ from .models import AttendanceRecord, AttendanceSession, CheckInDevice, VisitorA
 
 @admin.register(AttendanceSession)
 class AttendanceSessionAdmin(admin.ModelAdmin):
-    list_display = ["label", "branch", "is_open", "opened_at"]
+    list_display = ["label", "venue", "branch", "is_open", "opened_at"]
     list_filter = ["branch", "is_open"]
 
 
