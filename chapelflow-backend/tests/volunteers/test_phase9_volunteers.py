@@ -304,6 +304,8 @@ class TestVolunteerPermissionCodes:
 
         assert PermissionCodes.VOLUNTEERS_VIEW in ROLE_GRANTS[Roles.UNIT_HEAD]
         assert PermissionCodes.VOLUNTEERS_VIEW in ROLE_GRANTS[Roles.MINISTRY_GROUP_LEADER]
+        assert PermissionCodes.VOLUNTEERS_CREATE in ROLE_GRANTS[Roles.UNIT_HEAD]
+        assert PermissionCodes.VOLUNTEERS_CREATE in ROLE_GRANTS[Roles.MINISTRY_GROUP_LEADER]
 
     def test_member_without_grant_is_denied(self, api_client, make_user, branch_a):
         """Fail-closed: a role with no VOLUNTEERS_VIEW grant gets 403, not an empty 200."""
@@ -316,3 +318,56 @@ class TestVolunteerPermissionCodes:
         api_client.force_authenticate(user=user)
         response = api_client.get("/api/v1/volunteers/profiles/")
         assert response.status_code == 403
+
+
+@pytest.mark.django_db
+class TestVolunteerProfileCreationAndDutyEligibility:
+    def test_created_profile_is_active_and_listed_for_duty(self, api_client, chapel_admin_a, branch_a, seed_member_permissions):
+        from apps.members.models import Member
+        from apps.volunteers.models import VolunteerProfile
+
+        member = Member.objects.create(branch=branch_a, first_name="Ada", last_name="Server")
+        api_client.force_authenticate(user=chapel_admin_a)
+        response = api_client.post(
+            "/api/v1/volunteers/profiles/",
+            {"member": str(member.id), "skills": ["ushering"], "availability_notes": "Sunday mornings"},
+            format="json",
+        )
+        assert response.status_code == 201
+        profile = VolunteerProfile.objects.get(member=member)
+        assert profile.status == "ACTIVE"
+        assert profile.is_active is True
+
+        dropdown = api_client.get("/api/v1/volunteers/profiles/?status=ACTIVE&is_active=true")
+        assert dropdown.status_code == 200
+        rows = dropdown.data["data"]["results"] if isinstance(dropdown.data["data"], dict) else dropdown.data["data"]
+        assert any(str(row["id"]) == str(profile.id) for row in rows)
+
+    def test_pending_profile_is_not_in_active_duty_results(self, api_client, chapel_admin_a, branch_a, seed_member_permissions):
+        from apps.members.models import Member
+        from apps.volunteers.models import VolunteerProfile
+
+        member = Member.objects.create(branch=branch_a, first_name="Pat", last_name="Pending")
+        pending = VolunteerProfile.objects.create(member=member, status="PENDING", is_active=False)
+        api_client.force_authenticate(user=chapel_admin_a)
+        response = api_client.get("/api/v1/volunteers/profiles/?status=ACTIVE&is_active=true")
+        assert response.status_code == 200
+        rows = response.data["data"]["results"] if isinstance(response.data["data"], dict) else response.data["data"]
+        assert all(str(row["id"]) != str(pending.id) for row in rows)
+
+    def test_non_admin_cannot_self_approve_profile(self, api_client, unit_head_user, unit_head_setup):
+        from apps.volunteers.models import VolunteerProfile
+        from common.constants.roles import PermissionCodes
+
+        _grant("UNIT_HEAD", PermissionCodes.VOLUNTEERS_CREATE)
+        member = unit_head_setup["leader_member"]
+        api_client.force_authenticate(user=unit_head_user)
+        response = api_client.post(
+            "/api/v1/volunteers/profiles/",
+            {"member": str(member.id), "status": "ACTIVE", "is_active": True},
+            format="json",
+        )
+        assert response.status_code == 201
+        profile = VolunteerProfile.objects.get(member=member)
+        assert profile.status == "PENDING"
+        assert profile.is_active is False

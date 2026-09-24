@@ -79,6 +79,7 @@ function user(value: Row): User {
     "groups.update": ["community:manage"],
     "groups.manage_members": ["community:manage"],
     "volunteers.view": ["workers:read"],
+    "volunteers.create": ["workers:write"],
     "volunteers.assign": ["workers:write"],
   };
   const grants = Array.isArray(value.effective_permissions)
@@ -541,7 +542,17 @@ export async function djangoRequest(
     return { data: list(response.data).map((category) => ({ id: str(category.id), name: str(category.name) })) };
   }
   if (route === "/volunteers/profiles" && method === "GET")
-    return paged(await call("/volunteers/profiles/"), volunteerProfile);
+    return paged(await call(`/volunteers/profiles/${suffix}`), volunteerProfile);
+  if (route === "/volunteers/profiles" && method === "POST") {
+    const response = await call("/volunteers/profiles/", json("POST", {
+      member: body.member,
+      skills: typeof body.skills === "string"
+        ? body.skills.split(",").map((skill) => skill.trim()).filter(Boolean)
+        : body.skills ?? [],
+      availability_notes: body.availabilityNotes ?? "",
+    }));
+    return { data: volunteerProfile(row(response.data)) };
+  }
   if (route === "/volunteers/assignments" && method === "GET")
     return paged(await call("/volunteers/assignments/"), volunteerAssignment);
   if (route === "/volunteers/assignments" && method === "POST") {

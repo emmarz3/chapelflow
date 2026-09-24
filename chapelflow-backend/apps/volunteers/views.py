@@ -53,6 +53,17 @@ class VolunteerProfileViewSet(BranchScopedQuerysetMixin, StandardModelViewSet):
 
     def get_base_queryset(self):
         return VolunteerProfile.objects.select_related("member")
+
+    def perform_create(self, serializer):
+        # Approval is a privilege reserved for organization/branch admins.
+        # Never trust a submitted status or is_active value for initial approval.
+        from common.constants.roles import Roles
+
+        approved = self.request.user.role in {Roles.SUPER_ADMIN, Roles.CHAPEL_ADMIN}
+        serializer.save(
+            status="ACTIVE" if approved else "PENDING",
+            is_active=approved,
+        )
     
     @action(detail=True, methods=["get"], url_path="history")
     def history(self, request, pk=None):

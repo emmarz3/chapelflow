@@ -122,6 +122,9 @@ export interface VolunteerProfileEntry {
   status: string;
   isActive: boolean;
 }
+export function isAssignableVolunteer(profile: VolunteerProfileEntry) {
+  return profile.isActive && profile.status === "ACTIVE";
+}
 export interface VolunteerAssignmentEntry {
   id: string;
   volunteerName: string;
@@ -647,7 +650,9 @@ export const givingService = {
     api.post<{ data: PaystackVerification }>("/giving/checkout/verify", { reference }),
 };
 export const volunteerService = {
-  profiles: () => api.get<PagedResponse<VolunteerProfileEntry>>("/volunteers/profiles"),
+  profiles: (params: QueryParams = {}) => api.get<PagedResponse<VolunteerProfileEntry>>(`/volunteers/profiles${queryString(params)}`),
+  createProfile: (payload: { member: string; skills: string; availabilityNotes?: string }) =>
+    api.post<{ data: VolunteerProfileEntry }>("/volunteers/profiles", payload),
   assignments: () => api.get<PagedResponse<VolunteerAssignmentEntry>>("/volunteers/assignments"),
   createAssignment: (payload: { volunteer: string; role: string; notes?: string }) =>
     api.post<{ data: VolunteerAssignmentEntry }>("/volunteers/assignments", payload),

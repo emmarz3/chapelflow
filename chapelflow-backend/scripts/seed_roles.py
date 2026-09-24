@@ -70,7 +70,7 @@ ROLE_GRANTS = {
         PermissionCodes.ATTENDANCE_VIEW, PermissionCodes.ATTENDANCE_CREATE,
         PermissionCodes.EVENTS_VIEW, PermissionCodes.EVENTS_CREATE, PermissionCodes.EVENTS_UPDATE,
         PermissionCodes.GROUPS_VIEW, PermissionCodes.GROUPS_MANAGE_MEMBERS,
-        PermissionCodes.VOLUNTEERS_VIEW, PermissionCodes.VOLUNTEERS_ASSIGN,
+        PermissionCodes.VOLUNTEERS_VIEW, PermissionCodes.VOLUNTEERS_CREATE, PermissionCodes.VOLUNTEERS_ASSIGN,
         PermissionCodes.COMMUNICATIONS_VIEW, PermissionCodes.COMMUNICATIONS_CREATE,
     ],
     Roles.COMMUNITY_LEADER: [
@@ -102,14 +102,14 @@ ROLE_GRANTS = {
         PermissionCodes.ATTENDANCE_VIEW, PermissionCodes.ATTENDANCE_CREATE,
         PermissionCodes.EVENTS_VIEW, PermissionCodes.EVENTS_CREATE,
         PermissionCodes.GROUPS_VIEW, PermissionCodes.GROUPS_MANAGE_MEMBERS,
-        PermissionCodes.VOLUNTEERS_VIEW, PermissionCodes.VOLUNTEERS_ASSIGN,
+        PermissionCodes.VOLUNTEERS_VIEW, PermissionCodes.VOLUNTEERS_CREATE, PermissionCodes.VOLUNTEERS_ASSIGN,
         PermissionCodes.COMMUNICATIONS_VIEW, PermissionCodes.COMMUNICATIONS_CREATE,
     ],
     Roles.MINISTRY_GROUP_LEADER: [
         PermissionCodes.MEMBERS_VIEW,
         PermissionCodes.ATTENDANCE_VIEW, PermissionCodes.ATTENDANCE_CREATE,
         PermissionCodes.EVENTS_VIEW, PermissionCodes.EVENTS_CREATE, PermissionCodes.EVENTS_UPDATE,
-        PermissionCodes.VOLUNTEERS_VIEW, PermissionCodes.VOLUNTEERS_ASSIGN,
+        PermissionCodes.VOLUNTEERS_VIEW, PermissionCodes.VOLUNTEERS_CREATE, PermissionCodes.VOLUNTEERS_ASSIGN,
     ],
     Roles.VOLUNTEER: [
         PermissionCodes.EVENTS_VIEW,
