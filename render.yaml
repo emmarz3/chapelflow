@@ -60,7 +60,7 @@ services:
     routes:
       - type: rewrite
         source: /api/*
-        destination: https://chapelflow-api.onrender.com/api/*
+        destination: https://chapelflow-api-yhqr.onrender.com/api/*
       - type: rewrite
         source: /*
         destination: /index.html
