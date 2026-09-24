@@ -4063,9 +4063,19 @@ button {
 .cuc-home__stats dt { color: var(--cuc-gold); font-family: "Newsreader", Georgia, serif; font-size: 29px; font-weight: 600; }
 .cuc-home__stats dd { color: #aebdd0; font-size: 9px; font-weight: 700; letter-spacing: .08em; margin: 4px 0 0; text-transform: uppercase; }
 .cuc-home__hero-image { margin: 0; min-height: 100%; overflow: hidden; position: relative; }
-.cuc-home__hero-image::after { background: linear-gradient(0deg, rgba(3,18,35,.62), transparent 55%); content: ""; inset: 0; position: absolute; }
-.cuc-home__hero-image img { height: 100%; object-fit: cover; object-position: 68% center; position: absolute; width: 100%; }
-.cuc-home__hero-image figcaption { bottom: 29px; color: #fff; font: 500 19px/1.1 "Newsreader", Georgia, serif; position: absolute; right: 28px; text-align: right; z-index: 1; }
+.cuc-home__hero-image::after { background: linear-gradient(0deg, rgba(3,18,35,.7), transparent 58%); content: ""; inset: 0; pointer-events: none; position: absolute; z-index: 1; }
+.cuc-home__hero-image .cuc-home__hero-slide { height: 100%; object-fit: cover; object-position: 68% center; opacity: 0; position: absolute; transform: scale(1.035); transition: opacity 900ms ease, transform 7s ease; width: 100%; }
+.cuc-home__hero-image .cuc-home__hero-slide.is-active { opacity: 1; transform: scale(1); }
+.cuc-home__hero-image figcaption { bottom: 29px; color: #fff; font: 500 19px/1.1 "Newsreader", Georgia, serif; position: absolute; right: 28px; text-align: right; z-index: 2; }
+.cuc-home__hero-controls { align-items: center; backdrop-filter: blur(12px); background: rgba(3,18,35,.5); border: 1px solid rgba(255,255,255,.25); border-radius: 999px; bottom: 25px; display: flex; gap: 3px; left: 25px; padding: 5px; position: absolute; z-index: 2; }
+.cuc-home__hero-controls button { align-items: center; background: transparent; border: 0; border-radius: 50%; color: #fff; cursor: pointer; display: inline-flex; height: 34px; justify-content: center; padding: 0; transition: background 180ms ease, transform 180ms ease; width: 34px; }
+.cuc-home__hero-controls button:hover { background: rgba(255,255,255,.2); transform: scale(1.06); }
+.cuc-home__hero-controls button:focus-visible, .cuc-home__hero-pagination button:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+.cuc-home__hero-count { color: #fff; font-size: 10px; font-variant-numeric: tabular-nums; font-weight: 700; letter-spacing: .08em; padding: 0 6px; }
+.cuc-home__hero-count i { color: rgba(255,255,255,.55); font-style: normal; padding: 0 3px; }
+.cuc-home__hero-pagination { align-items: center; bottom: 40px; display: flex; gap: 6px; left: 50%; position: absolute; transform: translateX(-50%); z-index: 2; }
+.cuc-home__hero-pagination button { background: rgba(255,255,255,.52); border: 0; border-radius: 5px; cursor: pointer; height: 4px; padding: 0; transition: background 220ms ease, width 220ms ease; width: 13px; }
+.cuc-home__hero-pagination button[aria-current="true"] { background: #fff; width: 27px; }
 .cuc-home__belonging { margin: 0 auto; max-width: 1280px; padding: clamp(64px, 9vw, 125px) clamp(25px, 6vw, 90px) 52px; }
 .cuc-home__belonging > div:first-child { display: grid; grid-template-columns: 1fr 1fr; gap: 25px 65px; }
 .cuc-home__belonging h2, .cuc-home__programmes h2, .cuc-home__wisdom h2, .cuc-home__attendance h2, .cuc-home__closing h2 { font-size: clamp(38px, 4.2vw, 63px); font-weight: 500; letter-spacing: -.05em; line-height: .95; margin: 0; }
@@ -4073,9 +4083,8 @@ button {
 .cuc-home__quote { color: #b48828; font: italic 21px/1.3 "Newsreader", Georgia, serif; grid-column: 1 / -1; margin: 4px 0 0; }
 .cuc-home__photo-rail { display: grid; gap: 10px; grid-template-columns: .8fr 1.15fr .7fr; height: 265px; margin: 54px 0; overflow: hidden; }
 .cuc-home__photo-rail img { height: 100%; object-fit: cover; width: 100%; }
-.cuc-home__photo-rail img:nth-child(1) { object-position: 28% center; transform: translateY(15px); }
-.cuc-home__photo-rail img:nth-child(2) { object-position: 65% center; }
-.cuc-home__photo-rail img:nth-child(3) { object-position: 85% center; transform: translateY(-18px); }
+.cuc-home__photo-rail-left { transform: translateY(15px); }
+.cuc-home__photo-rail-right { transform: translateY(-18px); }
 .cuc-home__pillars { border-top: 1px solid #e3ddd2; display: grid; grid-template-columns: repeat(4, 1fr); padding-top: 25px; }
 .cuc-home__pillars article { border-right: 1px solid #e3ddd2; display: grid; gap: 8px; min-height: 56px; padding: 0 18px; }
 .cuc-home__pillars article:first-child { padding-left: 0; }

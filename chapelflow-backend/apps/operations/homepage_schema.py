@@ -285,6 +285,7 @@ def _event(ctx, raw, p):
         "startTime": ctx.clock(raw.get("startTime"), f"{p}.startTime"),
         "time": ctx.text(raw.get("time"), f"{p}.time", 80, required=True),
         "venue": ctx.text(raw.get("venue"), f"{p}.venue", 140, required=True),
+        "host": ctx.text(raw.get("host"), f"{p}.host", 140),
         "cta": ctx.choice(raw.get("cta"), f"{p}.cta", EVENT_CTAS, "Register"),
         "capacity": ctx.integer(raw.get("capacity"), f"{p}.capacity", minimum=1, default=None),
         "taken": ctx.integer(raw.get("taken"), f"{p}.taken", default=0),

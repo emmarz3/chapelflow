@@ -22,7 +22,7 @@ from apps.organizations.models import Branch
 from common.constants.roles import PermissionCodes, Roles
 from common.permissions.rbac import user_has_completed_required_mfa
 from common.permissions.inventory import user_has_inventory_access
-from common.permissions.media import is_media_unit_leader, user_has_media_management_access
+from common.permissions.media import user_has_media_management_access
 from common.permissions.scoping import get_accessible_branch_ids
 from common.utils.responses import success_response
 
@@ -71,6 +71,9 @@ MEDIA_CONTENT_TYPES = {
     ContentType.SERMON, ContentType.SERMON_SERIES, ContentType.GALLERY,
     ContentType.GALLERY_IMAGE, ContentType.GALLERY_VIDEO, ContentType.LIVESTREAM, ContentType.MEDIA,
 }
+GALLERY_PUBLISH_TYPES = {
+    ContentType.GALLERY, ContentType.GALLERY_IMAGE, ContentType.GALLERY_VIDEO,
+}
 
 
 def _require_content_access(user):
@@ -84,14 +87,12 @@ def _require_media_access(user):
     if not user_has_completed_required_mfa(user):
         raise PermissionDenied("Complete required MFA before managing public media.")
     if not user_has_media_management_access(user):
-        raise PermissionDenied("Only the Chaplain, Media Unit Leader, or Social Media Unit Leader can manage public media.")
+        raise PermissionDenied("Only the Super Admin, Chaplain, Student Chaplain, Media Leader, or Social Media Leader can manage public media.")
 
 
 def _require_entry_content_access(user, entry):
     if entry.content_type in MEDIA_CONTENT_TYPES:
         _require_media_access(user)
-        if is_media_unit_leader(user) and entry.created_by_id != user.id:
-            raise PermissionDenied("Media unit leaders can manage only media they created.")
         return
     _require_content_access(user)
 
@@ -812,7 +813,7 @@ class MediaCollectionView(ContentCollectionView):
         _require_media_access(user)
 
     def restrict_queryset(self, queryset, user):
-        return queryset.filter(created_by=user) if is_media_unit_leader(user) else queryset
+        return queryset
 
 
 class ContentDetailView(APIView):
@@ -868,8 +869,12 @@ class ContentWorkflowView(APIView):
                 entry.submitted_at = now
                 entry.rejection_reason = ""
             elif action in {"approve", "reject"}:
-                if _role(request.user) not in self.reviewer_roles:
-                    raise PermissionDenied("Only a Super Admin or Chaplain can review public content.")
+                can_review_gallery = (
+                    entry.content_type in GALLERY_PUBLISH_TYPES
+                    and user_has_media_management_access(request.user)
+                )
+                if _role(request.user) not in self.reviewer_roles and not can_review_gallery:
+                    raise PermissionDenied("You do not have permission to review this public content.")
                 if entry.status != ContentStatus.IN_REVIEW:
                     raise ValidationError({"status": "Only content in review can be approved or rejected."})
                 entry.reviewed_by = request.user
@@ -885,13 +890,30 @@ class ContentWorkflowView(APIView):
                 else:
                     entry.status = ContentStatus.APPROVED
             elif action == "publish":
-                if entry.status not in {ContentStatus.APPROVED, ContentStatus.SCHEDULED}:
-                    raise ValidationError({"status": "Content must be approved before publication."})
-                if entry.publish_at and entry.publish_at > now:
-                    entry.status = ContentStatus.SCHEDULED
+                can_publish_gallery = (
+                    entry.content_type in GALLERY_PUBLISH_TYPES
+                    and user_has_media_management_access(request.user)
+                )
+                if can_publish_gallery:
+                    if entry.status not in {
+                        ContentStatus.DRAFT, ContentStatus.REJECTED,
+                        ContentStatus.IN_REVIEW, ContentStatus.APPROVED,
+                        ContentStatus.SCHEDULED,
+                    }:
+                        raise ValidationError({"status": "This gallery item cannot be published from its current status."})
+                    if entry.publish_at and entry.publish_at > now:
+                        entry.status = ContentStatus.SCHEDULED
+                    else:
+                        entry.status = ContentStatus.PUBLISHED
+                        entry.published_at = now
                 else:
-                    entry.status = ContentStatus.PUBLISHED
-                    entry.published_at = now
+                    if entry.status not in {ContentStatus.APPROVED, ContentStatus.SCHEDULED}:
+                        raise ValidationError({"status": "Content must be approved before publication."})
+                    if entry.publish_at and entry.publish_at > now:
+                        entry.status = ContentStatus.SCHEDULED
+                    else:
+                        entry.status = ContentStatus.PUBLISHED
+                        entry.published_at = now
             elif action == "archive":
                 if entry.status != ContentStatus.PUBLISHED:
                     raise ValidationError({"status": "Only published content can be archived."})

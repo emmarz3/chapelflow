@@ -11,9 +11,8 @@ import {
   MapPin,
   Play,
   UserRound,
-  X,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useToast } from "../../components/ui";
 import {
@@ -30,7 +29,6 @@ import {
   ymd,
   type CalendarKind,
   type HomepageContent,
-  type HomepageGalleryItem,
   type HomepageSectionKey,
   type HomepageSermon,
   type ServiceType,
@@ -173,6 +171,7 @@ export function EventsSection({
                   <h3>{event.title}</h3>
                   <p className="hp-meta"><Clock3 aria-hidden="true" />{event.time}</p>
                   <p className="hp-meta"><MapPin aria-hidden="true" />{event.venue}</p>
+                  {event.host && <p className="hp-meta"><UserRound aria-hidden="true" />{event.host}</p>}
                   <div className="hp-spots">
                     {event.capacity ? (
                       <>
@@ -494,62 +493,8 @@ export function CalendarSection({ content }: { content: HomepageContent }) {
 
 /* -------------------------------- Gallery -------------------------------- */
 
-function Lightbox({
-  items,
-  index,
-  onIndex,
-  onClose,
-}: {
-  items: HomepageGalleryItem[];
-  index: number;
-  onIndex: (i: number) => void;
-  onClose: () => void;
-}) {
-  const closeRef = useRef<HTMLButtonElement>(null);
-  const item = items[index];
-  useEffect(() => {
-    const previous = document.activeElement as HTMLElement | null;
-    closeRef.current?.focus();
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = "";
-      previous?.focus?.();
-    };
-  }, []);
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-      if (e.key === "ArrowLeft") onIndex((index - 1 + items.length) % items.length);
-      if (e.key === "ArrowRight") onIndex((index + 1) % items.length);
-    };
-    document.addEventListener("keydown", handler);
-    return () => document.removeEventListener("keydown", handler);
-  }, [index, items.length, onClose, onIndex]);
-  if (!item) return null;
-  return (
-    <div className="hp-lightbox" onMouseDown={onClose}>
-      <div className="hp-lightbox__card" role="dialog" aria-modal="true" aria-label={item.title} onMouseDown={(e) => e.stopPropagation()}>
-        <button ref={closeRef} type="button" className="hp-lightbox__x" aria-label="Close" onClick={onClose}><X aria-hidden="true" /></button>
-        <div className="hp-lightbox__img" role="img" aria-label={item.title}>
-          {item.imageUrl ? <img src={item.imageUrl} alt={item.title} /> : <div className={`hp-art hp-art--${(index % 7) + 1}`} />}
-        </div>
-        <div className="hp-lightbox__bar">
-          <div><b>{item.title}</b>{item.subtitle && <small>{item.subtitle}</small>}</div>
-          {items.length > 1 && (
-            <div className="hp-lightbox__btns">
-              <button type="button" aria-label="Previous photo" onClick={() => onIndex((index - 1 + items.length) % items.length)}><ChevronLeft aria-hidden="true" /></button>
-              <button type="button" aria-label="Next photo" onClick={() => onIndex((index + 1) % items.length)}><ChevronRight aria-hidden="true" /></button>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export function GallerySection({ content }: { content: HomepageContent }) {
   const items = content.gallery.filter((g) => g.active);
-  const [open, setOpen] = useState<number | null>(null);
   return (
     <section className="hp-section" id="gallery">
       <div className="hp-wrap">
@@ -557,12 +502,12 @@ export function GallerySection({ content }: { content: HomepageContent }) {
         {items.length ? (
           <div className="hp-gal">
             {items.map((g, i) => (
-              <button type="button" className={`hp-gt hp-gt--${i < 7 ? i + 1 : 0}`} key={g.id} aria-label={`Open photo: ${g.title}`} onClick={() => setOpen(i)}>
+              <Link to={`/gallery/${encodeURIComponent(g.id)}`} className={`hp-gt hp-gt--${i < 7 ? i + 1 : 0}`} key={g.id} aria-label={`Open collection: ${g.title}`}>
                 {g.imageUrl ? <img src={g.imageUrl} alt="" loading="lazy" /> : <div className={`hp-art hp-art--${(i % 7) + 1}`} />}
                 <span className="hp-scrim" />
                 <Camera className="hp-cam" aria-hidden="true" />
-                <span className="hp-cap"><b>{g.title}</b>{g.subtitle && <small>{g.subtitle}</small>}</span>
-              </button>
+                <span className="hp-cap"><b>{g.title}</b>{g.subtitle && <small>{g.subtitle}</small>}<small>View collection</small></span>
+              </Link>
             ))}
           </div>
         ) : (
@@ -572,7 +517,6 @@ export function GallerySection({ content }: { content: HomepageContent }) {
           <Link className="hp-link" to="/gallery">View full gallery <ArrowRight aria-hidden="true" /></Link>
         </div>
       </div>
-      {open !== null && <Lightbox items={items} index={open} onIndex={setOpen} onClose={() => setOpen(null)} />}
     </section>
   );
 }

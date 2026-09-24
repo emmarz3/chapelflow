@@ -1266,6 +1266,8 @@ export function LiveOperationsPage({ module }: { module: OperationsModule }) {
   return <LiveModuleOperationsPage module={module} />;
 }
 
+const GALLERY_PUBLISH_TYPES = new Set(["GALLERY", "GALLERY_IMAGE", "GALLERY_VIDEO"]);
+
 function LiveModuleOperationsPage({
   module,
 }: {
@@ -1290,8 +1292,6 @@ function LiveModuleOperationsPage({
     (module === "assets" && hasPermission(user, "assets:write")) ||
     (module === "cms" && hasPermission(user, "cms:write")) ||
     (module === "media" && hasPermission(user, "media:write"));
-  const canReviewContent =
-    user?.role === "super_admin" || user?.role === "chaplain";
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
   const [confirm, setConfirm] = useState(false);
@@ -1300,6 +1300,12 @@ function LiveModuleOperationsPage({
     unknown
   > | null>(null);
   const [selected, setSelected] = useState<ListRow | null>(null);
+  const canReviewContent =
+    user?.role === "super_admin" ||
+    user?.role === "chaplain" ||
+    (module === "media" &&
+      hasPermission(user, "media:write") &&
+      GALLERY_PUBLISH_TYPES.has(selected?.contentType || ""));
   const [rejecting, setRejecting] = useState<ListRow | null>(null);
   const [rejectionReason, setRejectionReason] = useState("");
   const [uploadError, setUploadError] = useState("");
@@ -1354,8 +1360,11 @@ function LiveModuleOperationsPage({
           action: action || (row.status === "ISSUED" ? "return" : "issue"),
         });
       if (module === "cms" || module === "media") {
-        const action =
-          row.status === "DRAFT" || row.status === "REJECTED"
+        const isInstantGalleryItem =
+          module === "media" && GALLERY_PUBLISH_TYPES.has(row.contentType || "");
+        const action = isInstantGalleryItem && row.status !== "PUBLISHED"
+          ? "publish"
+          : row.status === "DRAFT" || row.status === "REJECTED"
             ? "submit"
             : row.status === "IN_REVIEW"
               ? "approve"
@@ -1844,7 +1853,11 @@ function LiveModuleOperationsPage({
                       loading={recordAction.isPending}
                       onClick={() => recordAction.mutate({ row: selected })}
                     >
-                      {module === "workers"
+                      {module === "media" &&
+                      GALLERY_PUBLISH_TYPES.has(selected.contentType || "") &&
+                      selected.status !== "PUBLISHED"
+                        ? "Publish now"
+                        : module === "workers"
                         ? "Acknowledge assignment"
                         : module === "communication"
                           ? "Confirm and send"

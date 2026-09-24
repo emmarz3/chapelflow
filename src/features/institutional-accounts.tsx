@@ -8,6 +8,7 @@ import {
   LoadingState,
   Modal,
   PageHeader,
+  useToast,
 } from "../components/ui";
 import {
   chapelGroupService,
@@ -37,6 +38,7 @@ function validationMessage(error: unknown, field: string) {
 
 export function InstitutionalAccountsPage() {
   const client = useQueryClient();
+  const toast = useToast();
   const [open, setOpen] = useState(false);
   const [selectedRole, setSelectedRole] = useState<InstitutionalRole>("CHAPLAIN");
   const [selectedGroup, setSelectedGroup] = useState("");
@@ -57,6 +59,13 @@ export function InstitutionalAccountsPage() {
     onSuccess: () => {
       setOpen(false);
       refresh();
+    },
+  });
+  const addUnits = useMutation({
+    mutationFn: chapelGroupService.bootstrapChapelGroups,
+    onSuccess: (response) => {
+      toast(`${response.data.count} chapel group${response.data.count === 1 ? "" : "s"} added.`);
+      void client.invalidateQueries({ queryKey: ["chapel-groups"] });
     },
   });
   const update = useMutation({
@@ -108,11 +117,17 @@ export function InstitutionalAccountsPage() {
         title="Institutional accounts"
         description="Provision and safely manage chapel leadership and the two attendance usher accounts."
         actions={
-          <Button icon={<Plus />} onClick={() => setOpen((value) => !value)}>
-            Create account
-          </Button>
+          <div className="button-row">
+            <Button variant="secondary" loading={addUnits.isPending} onClick={() => addUnits.mutate()}>
+              Add chapel units & fellowships
+            </Button>
+            <Button icon={<Plus />} onClick={() => setOpen((value) => !value)}>
+              Create account
+            </Button>
+          </div>
         }
       />
+      {addUnits.isError && <p className="form-error" role="alert">{addUnits.error.message}</p>}
       {open && (
         <form
           className="panel form-grid"

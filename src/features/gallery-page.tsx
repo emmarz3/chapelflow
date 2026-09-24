@@ -6,21 +6,21 @@ import { isDemoMode } from "../lib/fixtures";
 import { publicService } from "../services/chapelflow";
 
 const previewAlbums = [
-  { id: "last-semester-worship", title: "Last semester in worship", body: "Services, worship nights, and shared moments from the chapel community.", imageUrl: "/chapel-hero.png" },
+  { id: "last-semester-worship", title: "Last semester in worship", body: "Services, worship nights, and shared moments from the chapel community.", imageUrl: "/chapel-hero.jpg" },
   { id: "community-in-motion", title: "Community in motion", body: "Fellowship, service, and life beyond the lecture hall.", imageUrl: "/chapelflow-auth-register-visual.png" },
 ];
 
 export function GalleryPage() {
-  const gallery = useQuery({ queryKey: ["public-content", "gallery"], queryFn: async () => (await publicService.content("gallery")).data, enabled: !isDemoMode });
+  const gallery = useQuery({ queryKey: ["public-content", "gallery"], queryFn: async () => (await publicService.content("gallery")).data, enabled: !isDemoMode, refetchInterval: isDemoMode ? false : 5_000 });
   if (!isDemoMode && gallery.isPending) return <div className="section"><LoadingState label="Opening the chapel gallery" /></div>;
   if (!isDemoMode && gallery.isError) return <div className="section"><ErrorState description="The gallery could not be loaded. Please try again." onRetry={() => void gallery.refetch()} /></div>;
-  const albums = isDemoMode ? previewAlbums : (gallery.data?.sections ?? []).map((item) => ({ id: item.id, title: item.heading || "Chapel moments", body: item.body, imageUrl: item.imageUrl || "/chapel-hero.png", href: item.action?.href || `/gallery/${item.id}` }));
+  const albums = isDemoMode ? previewAlbums : (gallery.data?.sections ?? []).map((item) => ({ id: item.id, title: item.heading || "Chapel moments", body: item.body, imageUrl: item.imageUrl || "/chapel-hero.jpg", href: item.action?.href || `/gallery/${item.id}` }));
   const featured = albums[0];
   const remaining = albums.slice(1);
   return <div className="chapel-gallery">
     <section className="chapel-gallery__hero">
       <div className="chapel-gallery__hero-copy"><p className="eyebrow">Chrisland University Chapel · Official media</p><h1>Life together, <em>in frames.</em></h1><p>Worship, fellowship, service, and the small moments that make chapel feel like home.</p><div className="chapel-gallery__hero-meta"><span><Camera /> Curated by the chapel media team</span><span>Updated each semester</span></div></div>
-      <div className="chapel-gallery__hero-art"><img src="/chapel-hero.png" alt="Students gathering at Chrisland University Chapel" /><span>01 / 04</span></div>
+      <div className="chapel-gallery__hero-art"><img src="/chapel-hero.jpg" alt="Students gathering at Chrisland University Chapel" /><span>01 / 04</span></div>
     </section>
     <main className="chapel-gallery__content">
       <header className="chapel-gallery__heading"><div><p className="eyebrow">The archive</p><h2>Recent collections</h2></div><p>Official photographs and videos, published with care and consent.</p></header>

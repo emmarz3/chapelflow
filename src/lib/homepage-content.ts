@@ -75,6 +75,7 @@ export interface HomepageEvent {
   /** Human-readable time text shown on the card. */
   time: string;
   venue: string;
+  host?: string;
   cta: "Register" | "RSVP";
   capacity: number | null;
   taken: number;
@@ -220,7 +221,7 @@ export const DEFAULT_HOMEPAGE: HomepageContent = {
     primaryHref: "/register",
     secondaryLabel: "Explore ChapelFlow",
     secondaryHref: "/about",
-    imageUrl: "/chapel-hero.png",
+    imageUrl: "/chapel-hero.jpg",
     imageCaption: "“A deeper faith. A stronger community.”",
     stats: [
       { value: "2,500+", label: "Students connected" },
@@ -231,10 +232,10 @@ export const DEFAULT_HOMEPAGE: HomepageContent = {
   sections: {
     schedule: { enabled: true, eyebrow: "Plan your visit", title: "Service Schedule", description: "" },
     events: { enabled: true, eyebrow: "What's coming up", title: "Upcoming Events", description: "Retreats, conferences, outreaches and rehearsals. Save your place before it fills up." },
-    sermons: { enabled: true, eyebrow: "Latest messages", title: "Recent Sermons", description: "Catch up on what you missed, or listen again on your way to lectures." },
+    sermons: { enabled: false, eyebrow: "Latest messages", title: "Recent Sermons", description: "" },
     ministries: { enabled: true, eyebrow: "Get involved", title: "Ministries & Units", description: "Belonging starts with serving. Find the team that fits your gifts and join it this semester." },
     calendar: { enabled: true, eyebrow: "Vigils & events", title: "Chapel Calendar", description: "Filter by service type, then select a day to see times and venues." },
-    gallery: { enabled: true, eyebrow: "Highlights", title: "Moments of Grace", description: "A look back at services, retreats and outreaches from the past year." },
+    gallery: { enabled: true, eyebrow: "Highlights", title: "Moments of Grace", description: "Photos and videos from last semester's chapel events." },
   },
   belonging: {
     eyebrow: "One chapel · one community · one flow",
@@ -261,21 +262,8 @@ export const DEFAULT_HOMEPAGE: HomepageContent = {
     { id: "ann-exam-week", text: "Exam-week schedule: extra prayer hours 6:00 to 8:00 AM in Chapel Hall A, Mon to Fri", linkLabel: "View calendar", linkHref: "#calendar", active: true },
     { id: "ann-freshers-retreat", text: "Freshers' Welcome Retreat registration closes Friday, 2 October", linkLabel: "Register", linkHref: "#events", active: true },
   ],
-  services: [
-    { id: "svc-sunday-first", type: "sunday", title: "Walking in Covenant Promise", venue: "Main Auditorium", minister: "Rev. Dr. Emmanuel Adeyemi", time: "09:00", duration: 120, rule: "weekly", weekday: 0, date: "", active: true },
-    { id: "svc-sunday-second", type: "sunday", title: "Renewed in Spirit", venue: "Chapel Hall B", minister: "Pastor Ruth Okonkwo", time: "11:30", duration: 120, rule: "weekly", weekday: 0, date: "", active: true },
-    { id: "svc-midweek-fellowship", type: "midweek", title: "Midweek Fellowship", venue: "Main Auditorium", minister: "Chaplaincy Team", time: "17:00", duration: 90, rule: "weekly", weekday: 3, date: "", active: true },
-    { id: "svc-bible-study", type: "midweek", title: "Bible Study Hour", venue: "Chapel Hall A", minister: "Bible Study Team", time: "16:00", duration: 60, rule: "weekly", weekday: 4, date: "", active: true },
-    { id: "svc-night-of-encounter", type: "vigil", title: "Night of Encounter", venue: "Main Auditorium", minister: "Prayer Team & Chaplaincy", time: "22:00", duration: 240, rule: "lastfri", weekday: 5, date: "", active: true },
-    { id: "svc-semester-vigil", type: "vigil", title: "Semester Prayer & Fasting Vigil", venue: "Main Auditorium", minister: "Rev. Dr. Emmanuel Adeyemi", time: "22:00", duration: 300, rule: "date", weekday: 5, date: "2026-10-16", active: true },
-    { id: "svc-carol-vigil", type: "vigil", title: "Carol Night Vigil", venue: "Main Auditorium", minister: "Choir & Chaplaincy", time: "21:00", duration: 180, rule: "date", weekday: 5, date: "2026-12-18", active: true },
-  ],
-  events: [
-    { id: "evt-freshers-retreat", category: "Retreat", title: "Freshers' Welcome Retreat", repeat: "none", weekday: 0, startDate: "2026-10-09", endDate: "2026-10-11", startTime: "16:00", time: "Fri 4:00 PM to Sun 2:00 PM", venue: "Chapel Retreat Grounds", cta: "Register", capacity: 120, taken: 74, active: true },
-    { id: "evt-leadership-conference", category: "Conference", title: "Leadership & Faith Conference", repeat: "none", weekday: 0, startDate: "2026-10-24", endDate: "", startTime: "09:00", time: "9:00 AM to 4:00 PM", venue: "Main Auditorium", cta: "Register", capacity: 400, taken: 212, active: true },
-    { id: "evt-community-outreach", category: "Outreach", title: "Owode-Ede Community Outreach", repeat: "none", weekday: 0, startDate: "2026-11-07", endDate: "", startTime: "08:00", time: "8:00 AM to 2:00 PM", venue: "Owode-Ede community", cta: "RSVP", capacity: 80, taken: 31, active: true },
-    { id: "evt-choir-rehearsal", category: "Choir Rehearsal", title: "Open Choir Rehearsal", repeat: "weekly", weekday: 2, startDate: "", endDate: "", startTime: "18:00", time: "6:00 PM to 8:00 PM", venue: "Music Room, Chapel Annex", cta: "RSVP", capacity: null, taken: 0, active: true },
-  ],
+  services: [],
+  events: [],
   sermons: [
     { id: "srm-covenant-promise", series: "Covenant Series", title: "Walking in Covenant Promise", speaker: "Rev. Dr. Emmanuel Adeyemi", date: "2026-09-13", duration: "42:18", videoUrl: "", audioUrl: "", downloadUrl: "", imageUrl: "", active: true },
     { id: "srm-renewed-in-spirit", series: "Spirit & Life", title: "Renewed in Spirit", speaker: "Pastor Ruth Okonkwo", date: "2026-09-06", duration: "38:05", videoUrl: "", audioUrl: "", downloadUrl: "", imageUrl: "", active: true },
@@ -290,13 +278,12 @@ export const DEFAULT_HOMEPAGE: HomepageContent = {
     { id: "unit-protocol", name: "Protocol", icon: "shield", description: "Host guests and keep programmes on time so every service runs smoothly.", meeting: "Briefings: Saturdays, 4:00 PM", active: true },
   ],
   gallery: [
-    { id: "gal-convocation", title: "Convocation Service", subtitle: "July 2026", imageUrl: "", active: true },
-    { id: "gal-baptism", title: "Baptism Sunday", subtitle: "June 2026", imageUrl: "", active: true },
-    { id: "gal-encounter", title: "Night of Encounter", subtitle: "Monthly vigil", imageUrl: "", active: true },
-    { id: "gal-choir-anniversary", title: "Choir Anniversary", subtitle: "May 2026", imageUrl: "", active: true },
-    { id: "gal-outreach", title: "Owode-Ede Community Outreach", subtitle: "November 2025", imageUrl: "", active: true },
-    { id: "gal-thanksgiving", title: "Thanksgiving Service", subtitle: "December 2025", imageUrl: "", active: true },
-    { id: "gal-leadership", title: "Leadership Conference", subtitle: "October 2025", imageUrl: "", active: true },
+    { id: "chapel-week", title: "Chapel Week", subtitle: "Last semester", imageUrl: "", active: true },
+    { id: "god-of-all-tribes", title: "God of All Tribes", subtitle: "Last semester", imageUrl: "", active: true },
+    { id: "thanksgiving-services", title: "Thanksgiving Services", subtitle: "Last semester", imageUrl: "", active: true },
+    { id: "old-school-sunday", title: "Old School Sunday", subtitle: "Last semester", imageUrl: "", active: true },
+    { id: "all-white-sunday", title: "All White Sunday", subtitle: "Last semester", imageUrl: "", active: true },
+    { id: "normal-sunday-services", title: "Normal Sunday Services", subtitle: "Last semester", imageUrl: "", active: true },
   ],
   // Contact channels are left for the Super Admin to confirm: the address
   // matches the public footer, but no unverified phone, email or social
@@ -314,8 +301,9 @@ export const DEFAULT_HOMEPAGE: HomepageContent = {
 
 /**
  * Combine stored content with defaults. Objects are merged key by key so a
- * document saved before a field existed still renders; arrays are taken
- * verbatim, because an emptied list is a deliberate choice by the admin.
+ * document saved before a field existed still renders; most arrays are taken
+ * verbatim. Gallery IDs are merged with the current event collections so old
+ * starter entries disappear while edits to the current collections survive.
  */
 export function resolveHomepage(stored: Partial<HomepageContent> | null | undefined): HomepageContent {
   if (!stored || typeof stored !== "object" || !Object.keys(stored).length)
@@ -324,6 +312,17 @@ export function resolveHomepage(stored: Partial<HomepageContent> | null | undefi
   const sections = { ...d.sections };
   for (const key of Object.keys(d.sections) as HomepageSectionKey[])
     sections[key] = { ...d.sections[key], ...(stored.sections?.[key] ?? {}) };
+  const featuredGalleryIds = new Set(d.gallery.map((item) => item.id));
+  const replacedGalleryIds = new Set([
+    "gal-convocation", "gal-baptism", "gal-encounter", "gal-choir-anniversary",
+    "gal-outreach", "gal-thanksgiving", "gal-leadership",
+  ]);
+  const savedGallery = stored.gallery ?? [];
+  const savedGalleryById = new Map(savedGallery.map((item) => [item.id, item]));
+  const gallery = [
+    ...d.gallery.map((item) => ({ ...item, ...(savedGalleryById.get(item.id) ?? {}) })),
+    ...savedGallery.filter((item) => !featuredGalleryIds.has(item.id) && !replacedGalleryIds.has(item.id)),
+  ];
   return {
     siteName: stored.siteName || d.siteName,
     hero: { ...d.hero, ...(stored.hero ?? {}), stats: stored.hero?.stats ?? d.hero.stats },
@@ -340,7 +339,7 @@ export function resolveHomepage(stored: Partial<HomepageContent> | null | undefi
     events: stored.events ?? d.events,
     sermons: stored.sermons ?? d.sermons,
     units: stored.units ?? d.units,
-    gallery: stored.gallery ?? d.gallery,
+    gallery,
     contact: { ...d.contact, ...(stored.contact ?? {}) },
   };
 }
