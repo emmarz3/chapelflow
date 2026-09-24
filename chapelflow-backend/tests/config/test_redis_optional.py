@@ -20,4 +20,6 @@ def test_configured_redis_keeps_redis_cache_and_broker():
     assert settings["CACHES"]["default"]["BACKEND"] == "django_redis.cache.RedisCache"
     assert settings["CACHES"]["default"]["LOCATION"] == redis_url
     assert settings["CACHES"]["default"]["OPTIONS"]["IGNORE_EXCEPTIONS"] is True
+    assert settings["CACHES"]["default"]["OPTIONS"]["SOCKET_CONNECT_TIMEOUT"] == 2
+    assert settings["CACHES"]["default"]["OPTIONS"]["SOCKET_TIMEOUT"] == 2
     assert "CELERY_TASK_ALWAYS_EAGER" not in settings

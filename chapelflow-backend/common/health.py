@@ -13,16 +13,17 @@ Three distinct checks, matching container/orchestrator convention:
                     kept as an explicit alias rather than a redirect so
                     it behaves identically under any client.
   - /readiness/ -- "can this instance actually serve real requests right
-                    now": checks the database and Redis are reachable,
-                    and (best-effort) that the Celery broker is
-                    reachable. Meant for load-balancer / orchestrator
-                    routing decisions, not for process restart decisions.
+                    now": checks the database and, when configured, Redis
+                    and the Celery broker. Meant for load-balancer /
+                    orchestrator routing decisions, not for process restart
+                    decisions.
 
 None of these require authentication -- orchestrators calling them
 don't have (and shouldn't need) a ChapelFlow account. None of them ever
 return connection strings, hostnames, ports, credentials, or exception
-text -- only a per-component up/down status -- so a probe response can't
-leak infrastructure details to anyone who can reach the port.
+text -- only a per-component status, including "not configured" for
+optional services -- so a probe response can't leak infrastructure details
+to anyone who can reach the port.
 
 Known scope limit, stated plainly rather than implied: the Celery check
 only proves the broker (Redis) socket is reachable from this process.
@@ -33,6 +34,7 @@ HTTP health probe and isn't attempted here.
 """
 import logging
 
+from django.conf import settings
 from django.core.cache import cache
 from django.db import DEFAULT_DB_ALIAS, connections
 from django.db.utils import OperationalError
@@ -82,7 +84,7 @@ class LivenessResponseSerializer(serializers.Serializer):
 
 class ReadinessResponseSerializer(serializers.Serializer):
     status = serializers.ChoiceField(choices=["ok", "unavailable"])
-    checks = serializers.DictField(child=serializers.BooleanField())
+    checks = serializers.DictField(child=serializers.JSONField())
 
 
 class LivenessView(APIView):
@@ -97,19 +99,25 @@ class LivenessView(APIView):
 
 
 class ReadinessView(APIView):
-    """GET /readiness/ -- database, Redis, and Celery-broker reachability."""
+    """GET /readiness/ -- database and configured Redis/broker reachability."""
 
     permission_classes = [AllowAny]
     authentication_classes = []
 
     @extend_schema(responses={200: ReadinessResponseSerializer, 503: ReadinessResponseSerializer})
     def get(self, request):
-        checks = {
-            "database": _check_database(),
-            "redis": _check_redis(),
-            "celery_broker": _check_celery_broker(),
-        }
-        all_ok = all(checks.values())
+        redis_configured = bool(settings.REDIS_URL)
+        checks = {"database": _check_database()}
+        if redis_configured:
+            checks.update(
+                redis=_check_redis(),
+                celery_broker=_check_celery_broker(),
+            )
+        else:
+            checks.update(redis="not configured", celery_broker="not configured")
+        all_ok = all(
+            value is True or value == "not configured" for value in checks.values()
+        )
         if not all_ok:
             logger.warning("Readiness check failed: %s", checks)
         return Response(

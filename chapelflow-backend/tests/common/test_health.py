@@ -1,6 +1,7 @@
 from unittest.mock import patch
 
 import pytest
+from django.test import override_settings
 
 
 @pytest.mark.django_db
@@ -22,15 +23,42 @@ class TestHealthEndpoints:
         assert response.status_code == 200
 
     def test_readiness_ok_when_database_and_redis_and_broker_are_up(self, api_client):
-        with patch("common.health._check_celery_broker", return_value=True):
+        with (
+            override_settings(REDIS_URL="redis://configured.example.test/0"),
+            patch("common.health._check_redis", return_value=True),
+            patch("common.health._check_celery_broker", return_value=True),
+        ):
             response = api_client.get("/readiness/")
         assert response.status_code == 200
         assert response.data["status"] == "ok"
         assert response.data["checks"] == {"database": True, "redis": True, "celery_broker": True}
 
+    def test_readiness_reports_optional_services_as_not_configured(self, api_client):
+        with (
+            override_settings(REDIS_URL=None),
+            patch("common.health._check_database", return_value=True),
+            patch("common.health._check_redis") as redis_check,
+            patch("common.health._check_celery_broker") as broker_check,
+        ):
+            response = api_client.get("/readiness/")
+        redis_check.assert_not_called()
+        broker_check.assert_not_called()
+        assert response.status_code == 200
+        assert response.data == {
+            "status": "ok",
+            "checks": {
+                "database": True,
+                "redis": "not configured",
+                "celery_broker": "not configured",
+            },
+        }
+
     def test_readiness_returns_503_when_redis_is_down(self, api_client):
-        with patch("common.health._check_redis", return_value=False), \
-             patch("common.health._check_celery_broker", return_value=True):
+        with (
+            override_settings(REDIS_URL="redis://configured.example.test/0"),
+            patch("common.health._check_redis", return_value=False),
+            patch("common.health._check_celery_broker", return_value=True),
+        ):
             response = api_client.get("/readiness/")
         assert response.status_code == 503
         assert response.data["status"] == "unavailable"

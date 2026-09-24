@@ -28,4 +28,4 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
     CMD curl -f http://localhost:8000/health/ || exit 1
 
-CMD ["sh", "-c", "python manage.py migrate --noinput && python manage.py bootstrap_super_admin && python manage.py bootstrap_chapel && exec gunicorn config.wsgi:application --bind 0.0.0.0:$PORT --workers 3 --timeout 60"]
+CMD ["sh", "-c", "python manage.py migrate --noinput && python manage.py bootstrap_super_admin && python manage.py bootstrap_chapel && exec gunicorn config.wsgi:application --bind 0.0.0.0:$PORT --workers 2 --threads 4 --timeout 120 --access-logfile - --error-logfile -"]

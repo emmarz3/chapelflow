@@ -220,6 +220,8 @@ def _redis_settings(redis_url: str | None) -> dict:
                     "OPTIONS": {
                         "CLIENT_CLASS": "django_redis.client.DefaultClient",
                         "IGNORE_EXCEPTIONS": True,
+                        "SOCKET_CONNECT_TIMEOUT": 2,
+                        "SOCKET_TIMEOUT": 2,
                     },
                 }
             },
