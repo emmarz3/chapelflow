@@ -104,6 +104,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             window.sessionStorage.removeItem("chapelflow-demo-role");
           queryClient.clear();
           setUser(null);
+          window.location.assign("/login");
         }
       },
       switchDemoRole(role) {
