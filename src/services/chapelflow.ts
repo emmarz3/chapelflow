@@ -698,6 +698,17 @@ export const attendanceService = {
       "/attendance/sessions",
       payload,
     ),
+  updateSession: (sessionId: string, payload: Record<string, unknown>) =>
+    api.patch<{ data: AttendancePayload["session"] }>(
+      `/attendance/sessions/${encodeURIComponent(sessionId)}`,
+      payload,
+    ),
+  deleteSession: (sessionId: string) =>
+    api.delete<void>(`/attendance/sessions/${encodeURIComponent(sessionId)}`),
+  records: (sessionId: string, branchId: string) =>
+    api.get<{ data: AttendanceRecord[] }>(
+      `/attendance/records?session=${encodeURIComponent(sessionId)}&branch=${encodeURIComponent(branchId)}`,
+    ),
   checkIn: (
     sessionId: string,
     payload: {

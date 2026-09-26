@@ -721,6 +721,40 @@ export async function djangoRequest(
       window_closes_at: closesAt.toISOString(),
     }));
   }
+  const attendanceSessionDetail = route.match(/^\/attendance\/sessions\/([^/]+)$/);
+  if (attendanceSessionDetail && method === "PATCH") {
+    const opensAt = new Date(`${str(body.date)}T${str(body.opensAt)}`);
+    const closesAt = new Date(`${str(body.date)}T${str(body.closesAt)}`);
+    if (Number.isNaN(opensAt.getTime()) || Number.isNaN(closesAt.getTime())) unsupported("Enter a valid attendance date and time.");
+    return call(`/attendance/sessions/${encodeURIComponent(attendanceSessionDetail[1]!)}/`, json("PATCH", {
+      label: body.title,
+      venue: body.venue,
+      window_opens_at: opensAt.toISOString(),
+      window_closes_at: closesAt.toISOString(),
+    }));
+  }
+  if (attendanceSessionDetail && method === "DELETE")
+    return call(`/attendance/sessions/${encodeURIComponent(attendanceSessionDetail[1]!)}/`, { method: "DELETE" });
+  if (route === "/attendance/records" && method === "GET") {
+    const sessionId = query.get("session") || "";
+    const branchId = query.get("branch") || "";
+    if (!sessionId || !branchId) unsupported("A session and chapel branch are required to load attendance records.");
+    const recordsResponse = await call(`/attendance/records/?session=${encodeURIComponent(sessionId)}&page_size=100`);
+    const membersResponse = await call(`/members/?branch=${encodeURIComponent(branchId)}&page_size=100`);
+    const members = new Map(list(membersResponse.data).map((item) => [str(item.id), member(item)]));
+    return { data: list(recordsResponse.data).map((record) => {
+      const person = members.get(str(record.member));
+      const method = str(record.method).toUpperCase();
+      return {
+        id: str(record.id),
+        memberName: person?.name || (record.visitor ? "Visitor" : "Member"),
+        identifier: person?.identifier || str(record.visitor || record.member),
+        time: record.checked_in_at ? new Date(str(record.checked_in_at)).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "",
+        method: method === "QR_CODE" ? "qr" : method === "KIOSK" ? "kiosk" : "manual",
+        status: str(record.status).toLowerCase(),
+      };
+    }) };
+  }
   if (route === "/attendance/manual" && method === "POST") {
     const branchId = str(body.branchId);
     const memberResponse = await call(`/members/?branch=${encodeURIComponent(branchId)}&search=${encodeURIComponent(str(body.identifier))}&page_size=100`);

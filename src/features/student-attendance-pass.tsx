@@ -42,10 +42,9 @@ export function StudentAttendancePassPage() {
       setMessage({
         tone: response.data.result === "recorded" ? "success" : "danger",
         text:
-          response.message ||
-          (response.data.result === "recorded"
-            ? "Attendance recorded."
-            : "Attendance already recorded."),
+          response.data.result === "duplicate"
+            ? "Attendance has already been recorded for this session."
+            : response.message || "Attendance recorded.",
       });
       void history.refetch();
     },

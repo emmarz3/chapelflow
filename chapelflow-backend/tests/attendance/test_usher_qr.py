@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 from django.test import TestCase
 from rest_framework.test import APIClient
 
@@ -28,6 +30,30 @@ class UsherQrAttendanceTests(TestCase):
         _, created = student_scan_usher_token(token=token, user=self.student_user)
         self.assertFalse(created)
         self.assertEqual(AttendanceRecord.objects.filter(session=self.session, member=self.student).count(), 1)
+
+    def test_student_scan_endpoint_returns_duplicate_without_creating_another_record(self):
+        token = issue_checkpoint_token(self.checkpoint)["token"]
+        client = APIClient()
+        client.force_authenticate(self.student_user)
+
+        first = client.post("/api/v1/attendance/student-scan/", {"token": token}, format="json")
+        second = client.post("/api/v1/attendance/student-scan/", {"token": token}, format="json")
+
+        self.assertEqual(first.status_code, 201)
+        self.assertEqual(first.data["data"]["result"], "recorded")
+        self.assertEqual(second.status_code, 200)
+        self.assertEqual(second.data["data"]["result"], "duplicate")
+        self.assertEqual(second.data["message"], "Attendance has already been recorded.")
+        self.assertEqual(AttendanceRecord.objects.filter(session=self.session, member=self.student).count(), 1)
+
+    def test_token_is_rejected_after_its_expires_at(self):
+        issued = issue_checkpoint_token(self.checkpoint)
+        token = issued["token"]
+        expires_epoch = int(issued["expires_at"].timestamp())
+
+        with patch("apps.attendance.services.time.time", return_value=expires_epoch + 1):
+            with self.assertRaisesRegex(AttendanceError, "invalid or has expired"):
+                student_scan_usher_token(token=token, user=self.student_user)
 
     def test_authenticated_usher_can_open_their_attendance_checkpoint(self):
         self.session.is_open = True

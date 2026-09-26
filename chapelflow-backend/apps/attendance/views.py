@@ -39,6 +39,15 @@ class AttendanceSessionViewSet(BranchScopedQuerysetMixin, StandardModelViewSet):
 
     def get_base_queryset(self):
         return AttendanceSession.objects.select_related("branch", "event_schedule")
+
+    def destroy(self, request, *args, **kwargs):
+        session = self.get_object()
+        if session.records.exists():
+            return error_response(
+                "This attendance session cannot be deleted because it has attendance records.",
+                status=400,
+            )
+        return super().destroy(request, *args, **kwargs)
     
     @action(detail=True, methods=["post"])
     def close(self, request, pk=None):
@@ -309,7 +318,9 @@ class UsherCheckpointTokenView(APIView):
         if request.user.get_role_code() != "ATTENDANCE_USHER":
             return error_response("This attendance checkpoint is restricted to usher accounts.", status=403)
         session = AttendanceSession.objects.filter(
-            is_open=True, state=AttendanceSessionState.OPEN,
+            branch_id=request.user.branch_id,
+            is_open=True,
+            state=AttendanceSessionState.OPEN,
         ).order_by("-opened_at").first()
         if not session:
             return error_response("No attendance session is currently open.", status=404)

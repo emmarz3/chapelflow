@@ -137,6 +137,24 @@ describe("Django API integration", () => {
     });
   });
 
+  it("loads the logged-in usher checkpoint token from its dedicated endpoint", async () => {
+    const fetch = vi.fn().mockResolvedValue(response({ data: {
+      token: "signed-live-token",
+      expires_at: "2026-10-04T09:00:45Z",
+      rotation_seconds: 45,
+      checkpoint_id: "checkpoint-1",
+      checkpoint_name: "Main Chapel",
+      successful_scans: 3,
+      session: { id: "session-1", label: "Eve", state: "OPEN" },
+    } }));
+    vi.stubGlobal("fetch", fetch);
+
+    await expect(apiRequest("/attendance/checkpoint/token")).resolves.toMatchObject({
+      data: { token: "signed-live-token", rotation_seconds: 45, successful_scans: 3, session: { id: "session-1" } },
+    });
+    expect(fetch.mock.calls[0]?.[0]).toBe("/api/v1/attendance/checkpoint/token/");
+  });
+
   it("maps attendance creation and correction to Django fields and methods", async () => {
     const fetch = vi.fn()
       .mockResolvedValueOnce(response({ data: { id: "session-2" } }, 201))
@@ -165,6 +183,48 @@ describe("Django API integration", () => {
     });
     expect(fetch.mock.calls[1]?.[0]).toBe("/api/v1/attendance/records/record-1/correct/");
     expect(fetch.mock.calls[1]?.[1]).toMatchObject({ method: "POST", body: JSON.stringify({ status: "LATE", reason: "Verified against the usher register." }) });
+  });
+
+  it("maps attendance session edits and deletes to the Django detail route", async () => {
+    const fetch = vi.fn()
+      .mockResolvedValueOnce(response({ data: { id: "session-1" } }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+    vi.stubGlobal("fetch", fetch);
+
+    await apiRequest("/attendance/sessions/session-1", {
+      method: "PATCH",
+      body: JSON.stringify({ title: "Eve service", venue: "Marquee", date: "2026-10-04", opensAt: "09:00", closesAt: "11:00" }),
+    });
+    await apiRequest("/attendance/sessions/session-1", { method: "DELETE" });
+
+    expect(fetch.mock.calls[0]?.[0]).toBe("/api/v1/attendance/sessions/session-1/");
+    expect(fetch.mock.calls[0]?.[1]).toMatchObject({ method: "PATCH" });
+    expect(JSON.parse(fetch.mock.calls[0]?.[1].body)).toMatchObject({
+      label: "Eve service",
+      venue: "Marquee",
+      window_opens_at: new Date("2026-10-04T09:00").toISOString(),
+    });
+    expect(fetch.mock.calls[1]?.[0]).toBe("/api/v1/attendance/sessions/session-1/");
+    expect(fetch.mock.calls[1]?.[1]).toMatchObject({ method: "DELETE" });
+  });
+
+  it("loads session attendance records and member names for live updates", async () => {
+    const fetch = vi.fn()
+      .mockResolvedValueOnce(response({ data: [{
+        id: "record-1", session: "session-1", member: "member-1", method: "QR_CODE", status: "PRESENT", checked_in_at: "2026-10-04T09:01:00Z",
+      }] }))
+      .mockResolvedValueOnce(response({ data: [{
+        id: "member-1", full_name: "Ada Test", matric_no: "CU/26/001", email: "ada@example.edu",
+      }] }));
+    vi.stubGlobal("fetch", fetch);
+
+    await expect(apiRequest("/attendance/records?session=session-1&branch=branch-1")).resolves.toMatchObject({
+      data: [{ id: "record-1", memberName: "Ada Test", identifier: "CU/26/001", method: "qr", status: "present" }],
+    });
+    expect(fetch.mock.calls.map(([url]) => url)).toEqual([
+      "/api/v1/attendance/records/?session=session-1&page_size=100",
+      "/api/v1/members/?branch=branch-1&page_size=100",
+    ]);
   });
 
   it("shows backend validation details when attendance session creation fails", async () => {

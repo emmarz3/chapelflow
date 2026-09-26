@@ -508,6 +508,65 @@
   background: #fffdf8;
   box-shadow: 0 18px 50px rgba(33, 47, 34, 0.14);
 }
+.usher-checkpoint__card--compact {
+  max-width: 100%;
+  margin: 0 0 24px;
+  padding: 20px;
+  border: 1px solid #e6deca;
+  border-radius: 18px;
+  box-shadow: none;
+}
+.usher-checkpoint__card--compact .usher-checkpoint__qr {
+  width: min(100%, 300px);
+  margin: 16px auto 10px;
+}
+.attendance-session-menu {
+  position: relative;
+  align-self: center;
+}
+.attendance-session-menu > summary {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border: 1px solid #ded8ca;
+  border-radius: 12px;
+  background: #fffdf8;
+  color: #26372c;
+  cursor: pointer;
+  list-style: none;
+}
+.attendance-session-menu > summary::-webkit-details-marker { display: none; }
+.attendance-session-menu__items {
+  position: absolute;
+  z-index: 5;
+  top: calc(100% + 8px);
+  right: 0;
+  display: grid;
+  min-width: 220px;
+  gap: 4px;
+  padding: 8px;
+  border: 1px solid #ded8ca;
+  border-radius: 14px;
+  background: #fffdf8;
+  box-shadow: 0 14px 32px rgba(33, 47, 34, 0.16);
+}
+.attendance-session-menu__items button {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 10px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: #26372c;
+  text-align: left;
+  cursor: pointer;
+}
+.attendance-session-menu__items button:hover:not(:disabled) { background: #f4f0e5; }
+.attendance-session-menu__items button:disabled { opacity: 0.48; cursor: not-allowed; }
+.attendance-session-menu__items button.danger { color: #9d332a; }
+.attendance-session-menu__items small { padding: 4px 10px 8px; color: #6b6253; line-height: 1.4; }
 .usher-checkpoint__status,
 .usher-checkpoint__countdown {
   display: inline-flex;

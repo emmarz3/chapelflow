@@ -9,12 +9,14 @@ import {
   ListFilter,
   LockKeyhole,
   MoreHorizontal,
+  Pencil,
   Plus,
   Send,
   ShieldCheck,
   UserCheck,
   Users,
   WifiOff,
+  Trash2,
 } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -72,11 +74,24 @@ import type {
 } from "../types/domain";
 import { hasPermission, useAuth } from "./auth-context";
 import { isDjangoBackend } from "../lib/backend";
+import { UsherCheckpointQr } from "./usher-attendance";
 
 function message(error: unknown) {
   return error instanceof ApiError || error instanceof Error
     ? error.message
     : "The request could not be completed.";
+}
+
+function dateInputValue(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function timeInputValue(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
 }
 
 export function LiveDashboardPage() {
@@ -476,6 +491,9 @@ export function LiveAttendancePage() {
   const canManage = hasPermission(user, "attendance:write");
   const [manualOpen, setManualOpen] = useState(false);
   const [sessionOpen, setSessionOpen] = useState(false);
+  const [showSessionList, setShowSessionList] = useState(false);
+  const [editSessionOpen, setEditSessionOpen] = useState(false);
+  const [deleteSessionOpen, setDeleteSessionOpen] = useState(false);
   const [closeConfirmOpen, setCloseConfirmOpen] = useState(false);
   const [correction, setCorrection] = useState<AttendanceRecord | null>(null);
   const [pendingCount, setPendingCount] = useState(
@@ -492,6 +510,14 @@ export function LiveAttendancePage() {
     queryKey: ["attendance-sessions", branchId],
     queryFn: async () => (await attendanceService.sessions(branchId)).data,
     enabled: canManage && Boolean(branchId),
+  });
+  const currentSessionId = query.data?.session?.id || "";
+  const sessionRecords = useQuery({
+    queryKey: ["attendance-records", currentSessionId],
+    queryFn: async () => (await attendanceService.records(currentSessionId, branchId)).data,
+    enabled: Boolean(currentSessionId && branchId),
+    refetchInterval: 5_000,
+    refetchOnWindowFocus: true,
   });
   const manual = useMutation({
     mutationFn: ({
@@ -512,6 +538,7 @@ export function LiveAttendancePage() {
       setManualOpen(false);
       toast("Attendance recorded with an audit reference.");
       void client.invalidateQueries({ queryKey: ["attendance"] });
+      void client.invalidateQueries({ queryKey: ["attendance-records", currentSessionId] });
     },
   });
   const createSession = useMutation({
@@ -519,6 +546,7 @@ export function LiveAttendancePage() {
       attendanceService.createSession({ ...payload, branchId }),
     onSuccess: () => {
       setSessionOpen(false);
+      setShowSessionList(false);
       toast("Attendance session created.");
       void client.invalidateQueries({ queryKey: ["attendance"] });
       void client.invalidateQueries({ queryKey: ["attendance-sessions"] });
@@ -531,6 +559,29 @@ export function LiveAttendancePage() {
       toast("Attendance session closed. New scans are now blocked.");
       void client.invalidateQueries({ queryKey: ["attendance"] });
       void client.invalidateQueries({ queryKey: ["attendance-sessions"] });
+      void client.invalidateQueries({ queryKey: ["usher-checkpoint"] });
+    },
+  });
+  const updateSession = useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: Record<string, unknown> }) =>
+      attendanceService.updateSession(id, payload),
+    onSuccess: () => {
+      setEditSessionOpen(false);
+      toast("Attendance session updated.");
+      void client.invalidateQueries({ queryKey: ["attendance"] });
+      void client.invalidateQueries({ queryKey: ["attendance-sessions"] });
+      void client.invalidateQueries({ queryKey: ["usher-checkpoint"] });
+    },
+  });
+  const deleteSession = useMutation({
+    mutationFn: attendanceService.deleteSession,
+    onSuccess: () => {
+      setDeleteSessionOpen(false);
+      setShowSessionList(true);
+      toast("Attendance session deleted.");
+      void client.invalidateQueries({ queryKey: ["attendance"] });
+      void client.invalidateQueries({ queryKey: ["attendance-sessions"] });
+      void client.invalidateQueries({ queryKey: ["usher-checkpoint"] });
     },
   });
   const correct = useMutation({
@@ -547,6 +598,7 @@ export function LiveAttendancePage() {
       setCorrection(null);
       toast("Attendance correction saved with an audit reference.");
       void client.invalidateQueries({ queryKey: ["attendance"] });
+      void client.invalidateQueries({ queryKey: ["attendance-records", currentSessionId] });
     },
   });
   useEffect(() => {
@@ -567,7 +619,7 @@ export function LiveAttendancePage() {
     return <LoadingState label="Loading attendance sessions" />;
   if (query.isError)
     return <ErrorState description={message(query.error)} onRetry={() => void query.refetch()} />;
-  if (!query.data.session)
+  if (showSessionList || !query.data.session)
     return (
       <>
         <PageHeader
@@ -591,6 +643,18 @@ export function LiveAttendancePage() {
     );
   const { session, records } = query.data;
   if (!session) return null;
+  const visibleRecords = sessionRecords.data ?? records;
+  const presentCount = visibleRecords.filter((record) => record.status === "present" || record.status === "late").length;
+  const lateCount = visibleRecords.filter((record) => record.status === "late").length;
+  const manualCount = visibleRecords.filter((record) => record.method === "manual").length;
+  const deleteAllowed = sessionRecords.isSuccess && visibleRecords.length === 0;
+  const editingInitialValues = {
+    title: session.title,
+    venue: session.venue,
+    date: dateInputValue(session.opensAt),
+    opensAt: timeInputValue(session.opensAt),
+    closesAt: session.closesAt ? timeInputValue(session.closesAt) : "",
+  };
   function manualSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const identifier = String(
@@ -618,11 +682,20 @@ export function LiveAttendancePage() {
                 <Button variant="danger" loading={closeSession.isPending} onClick={() => setCloseConfirmOpen(true)}>
                   Close session
                 </Button>
+                <details className="attendance-session-menu">
+                  <summary aria-label="Session actions"><MoreHorizontal /></summary>
+                  <div className="attendance-session-menu__items">
+                    <button type="button" onClick={() => setEditSessionOpen(true)}><Pencil /> Edit session</button>
+                    <button type="button" className="danger" disabled={!deleteAllowed} onClick={() => setDeleteSessionOpen(true)}><Trash2 /> Delete session</button>
+                    {!deleteAllowed && <small>{sessionRecords.isPending || sessionRecords.isError ? "Checking records before allowing deletion." : "Delete is disabled because this session has attendance records."}</small>}
+                  </div>
+                </details>
               </>
             )}
           </>
         }
       />
+      {isDjangoBackend && user?.role === "attendance_usher" && <UsherCheckpointQr compact expectedSessionId={session.id} />}
       <div className="attendance-livebar">
         <div>
           <span className="live-pulse" />
@@ -634,15 +707,15 @@ export function LiveAttendancePage() {
           </div>
         </div>
         <div>
-          <strong>{session.count}</strong>
+          <strong>{sessionRecords.isSuccess ? presentCount : session.count}</strong>
           <small>Total present</small>
         </div>
         <div>
-          <strong>{session.lateCount}</strong>
+          <strong>{sessionRecords.isSuccess ? lateCount : session.lateCount}</strong>
           <small>Late arrivals</small>
         </div>
         <div>
-          <strong>{session.manualCount}</strong>
+          <strong>{sessionRecords.isSuccess ? manualCount : session.manualCount}</strong>
           <small>Manual entries</small>
         </div>
       </div>
@@ -664,7 +737,7 @@ export function LiveAttendancePage() {
           <div className="panel-heading">
             <div>
               <h2>Attendance records</h2>
-              <p>Live check-in updates are not available yet. Refresh the page to load saved records.</p>
+              <p>Attendance records refresh automatically every few seconds.</p>
             </div>
           </div>
         </header>
@@ -680,7 +753,7 @@ export function LiveAttendancePage() {
             </tr>
           </thead>
           <tbody>
-            {records.map((record) => (
+            {visibleRecords.map((record) => (
               <tr key={record.id}>
                 <td>
                   <strong>{record.memberName}</strong>
@@ -710,7 +783,7 @@ export function LiveAttendancePage() {
             ))}
           </tbody>
         </table>
-        {!records.length && (
+        {!visibleRecords.length && (
           <EmptyState
             icon={<ClipboardCheck />}
             title="No one has checked in yet"
@@ -718,6 +791,7 @@ export function LiveAttendancePage() {
           />
         )}
       </section>
+      {sessionRecords.isError && <p className="form-error" role="alert">{message(sessionRecords.error)}</p>}
       <Modal
         open={closeConfirmOpen}
         onClose={() => setCloseConfirmOpen(false)}
@@ -794,6 +868,25 @@ export function LiveAttendancePage() {
         onClose={() => setSessionOpen(false)}
         onSubmit={(payload) => createSession.mutate(payload)}
       />
+      <SessionModal
+        open={editSessionOpen}
+        loading={updateSession.isPending}
+        error={updateSession.error}
+        title="Edit attendance session"
+        submitLabel="Save changes"
+        initialValues={editingInitialValues}
+        onClose={() => setEditSessionOpen(false)}
+        onSubmit={(payload) => updateSession.mutate({ id: session.id, payload })}
+      />
+      <Modal
+        open={deleteSessionOpen}
+        onClose={() => setDeleteSessionOpen(false)}
+        title="Delete attendance session?"
+        description="This permanently deletes the session. Sessions with attendance records cannot be deleted here."
+        footer={<><Button variant="ghost" onClick={() => setDeleteSessionOpen(false)}>Cancel</Button><Button variant="danger" loading={deleteSession.isPending} disabled={!deleteAllowed} onClick={() => deleteSession.mutate(session.id)}>Delete session</Button></>}
+      >
+        {deleteSession.isError && <p className="form-error" role="alert">{message(deleteSession.error)}</p>}
+      </Modal>
     </>
   );
 }
@@ -862,12 +955,18 @@ function SessionModal({
   error,
   onClose,
   onSubmit,
+  title = "Create attendance session",
+  submitLabel = "Create session",
+  initialValues,
 }: {
   open: boolean;
   loading: boolean;
   error: unknown;
   onClose: () => void;
   onSubmit: (payload: Record<string, unknown>) => void;
+  title?: string;
+  submitLabel?: string;
+  initialValues?: { title: string; venue: string; date: string; opensAt: string; closesAt: string };
 }) {
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -878,7 +977,7 @@ function SessionModal({
     <Modal
       open={open}
       onClose={onClose}
-      title="Create attendance session"
+      title={title}
       description="This session is associated with your chapel branch and is available only during its check-in window."
       footer={
         <>
@@ -890,7 +989,7 @@ function SessionModal({
             form="attendance-session-form"
             loading={loading}
           >
-            Create session
+            {submitLabel}
           </Button>
         </>
       }
@@ -904,12 +1003,14 @@ function SessionModal({
           className="field--full"
           name="title"
           label="Service or event"
+          defaultValue={initialValues?.title}
           required
         />
         <Field
           className="field--full"
           name="venue"
           label="Venue"
+          defaultValue={initialValues?.venue}
           list="attendance-venue-suggestions"
           required
         />
@@ -919,9 +1020,9 @@ function SessionModal({
           <option value="Auditorium" />
           <option value="Main Hall" />
         </datalist>
-        <Field name="date" label="Date" type="date" required />
-        <Field name="opensAt" label="Opening time" type="time" required />
-        <Field name="closesAt" label="Closing time" type="time" required />
+        <Field name="date" label="Date" type="date" defaultValue={initialValues?.date} required />
+        <Field name="opensAt" label="Opening time" type="time" defaultValue={initialValues?.opensAt} required />
+        <Field name="closesAt" label="Closing time" type="time" defaultValue={initialValues?.closesAt} required />
         {Boolean(error) && (
           <div className="form-error field--full">{message(error)}</div>
         )}
