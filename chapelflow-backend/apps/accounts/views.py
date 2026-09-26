@@ -63,11 +63,12 @@ def _set_auth_cookies(response, access, refresh):
 
 
 def _clear_auth_cookies(response):
-    secure = not settings.DEBUG
-    samesite = "None" if secure else "Lax"
-    response.delete_cookie(ACCESS_COOKIE, samesite=samesite)
-    response.delete_cookie(REFRESH_COOKIE, samesite=samesite)
-    response.delete_cookie(CSRF_COOKIE, samesite=samesite)
+    response.delete_cookie(ACCESS_COOKIE, samesite="None")
+    response.delete_cookie(ACCESS_COOKIE, samesite="Lax")
+    response.delete_cookie(REFRESH_COOKIE, samesite="None")
+    response.delete_cookie(REFRESH_COOKIE, samesite="Lax")
+    response.delete_cookie(CSRF_COOKIE, samesite="None")
+    response.delete_cookie(CSRF_COOKIE, samesite="Lax")
     return response
 
 
