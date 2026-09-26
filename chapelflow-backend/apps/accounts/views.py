@@ -394,12 +394,14 @@ class LogoutView(APIView):
     def post(self, request):
         refresh_token = request.data.get("refresh") or request.COOKIES.get(REFRESH_COOKIE)
         if not refresh_token:
-            return error_response("Refresh token is required.", status=400)
+            response = error_response("Refresh token is required.", status=400)
+            return _clear_auth_cookies(response)
         try:
             token = RefreshToken(refresh_token)
             token.blacklist()
         except TokenError:
-            return error_response("Invalid or already-invalidated token.", status=400)
+            response = error_response("Invalid or already-invalidated token.", status=400)
+            return _clear_auth_cookies(response)
         from apps.audit.models import AuditAction
         from apps.audit.services import write_audit_log
         write_audit_log(AuditAction.LOGOUT, "accounts.User", request.user.id, user=request.user)
