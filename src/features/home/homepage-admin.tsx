@@ -211,7 +211,7 @@ export function HomepageAdminPage() {
       if (error instanceof ApiError && error.status === 409) return setConflict(true);
       if (error instanceof ApiError && error.fieldErrors) {
         setErrors(error.fieldErrors as Errors);
-        return toast("Some fields need attention. They are marked in red.", "error");
+        return toast(error.message, "error");
       }
       toast(error instanceof Error ? error.message : "The homepage could not be saved.", "error");
     },

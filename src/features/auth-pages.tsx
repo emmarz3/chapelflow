@@ -396,11 +396,6 @@ function registrationPayload(values: Record<string, string>) {
 }
 
 function registrationError(caught: unknown) {
-  if (caught instanceof ApiError && caught.fieldErrors) {
-    const messages = Object.entries(caught.fieldErrors)
-      .flatMap(([field, errors]) => errors.map((message) => `${field === "non_field_errors" ? "Registration" : field.replaceAll("_", " ")}: ${message}`));
-    if (messages.length) return messages.join(" ");
-  }
   return caught instanceof Error ? caught.message : "Registration could not be completed.";
 }
 

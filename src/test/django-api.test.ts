@@ -167,6 +167,34 @@ describe("Django API integration", () => {
     expect(fetch.mock.calls[1]?.[1]).toMatchObject({ method: "POST", body: JSON.stringify({ status: "LATE", reason: "Verified against the usher register." }) });
   });
 
+  it("shows backend validation details when attendance session creation fails", async () => {
+    const fetch = vi.fn().mockResolvedValue(response({
+      success: false,
+      message: "Validation failed.",
+      errors: { venue: ["This field is required."] },
+    }, 400));
+    vi.stubGlobal("fetch", fetch);
+
+    await expect(apiRequest("/attendance/sessions", {
+      method: "POST",
+      body: JSON.stringify({
+        title: "Sunday service",
+        date: "2026-10-04",
+        opensAt: "09:00",
+        closesAt: "11:00",
+        branchId: "branch-1",
+        venue: "",
+      }),
+    })).rejects.toMatchObject({
+      message: "Validation failed. venue: This field is required.",
+      fieldErrors: { venue: ["This field is required."] },
+      status: 400,
+    });
+
+    expect(fetch.mock.calls[0]?.[0]).toBe("/api/v1/attendance/sessions/");
+    expect(JSON.parse(fetch.mock.calls[0]?.[1].body)).toMatchObject({ branch: "branch-1", venue: "" });
+  });
+
   it("uses the real JWT login endpoint without sending credentials to browser-only routes", async () => {
     const fetch = vi.fn().mockResolvedValue(response({
       data: { user: { id: "user-1", role: "MEMBER", first_name: "Ada", last_name: "Test", email: "ada@example.edu", effective_permissions: ["events.view"] } },

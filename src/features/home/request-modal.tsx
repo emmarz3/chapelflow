@@ -92,7 +92,7 @@ function RequestForm({
           email: first("email"),
           matricNo: first("matricNo"),
           consent: first("consent"),
-          form: first("itemId") || first("kind") ? error.message : undefined,
+          form: error.message,
         });
       } else {
         setErrors({ form: error instanceof Error ? error.message : "We could not send that. Please try again." });

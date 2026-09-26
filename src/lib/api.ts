@@ -118,15 +118,24 @@ async function rawRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
       } catch {
         /* Non-JSON responses use the safe fallback. */
       }
+      const topLevelMessage =
+        typeof body.message === "string" && body.message.trim()
+          ? body.message.trim()
+          : typeof (body as { detail?: unknown }).detail === "string"
+            ? (body as { detail: string }).detail
+            : fallback.message;
+      const fieldErrors = body.fieldErrors ?? body.errors;
+      const fieldDetails = Object.entries(fieldErrors ?? {}).flatMap(
+        ([field, messages]) =>
+          Array.isArray(messages)
+            ? messages.map((message) => `${field.replaceAll("_", " ")}: ${message}`)
+            : [],
+      );
       throw new ApiError({
         ...fallback,
         ...body,
-        message: typeof body.message === "string" && body.message.trim()
-          ? body.message
-          : typeof (body as { detail?: unknown }).detail === "string"
-            ? (body as { detail: string }).detail
-            : fallback.message,
-        fieldErrors: body.fieldErrors ?? body.errors,
+        message: [topLevelMessage, ...fieldDetails].join(" "),
+        fieldErrors,
         status: response.status,
       });
     }

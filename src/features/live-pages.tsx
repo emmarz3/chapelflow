@@ -516,7 +516,7 @@ export function LiveAttendancePage() {
   });
   const createSession = useMutation({
     mutationFn: (payload: Record<string, unknown>) =>
-      attendanceService.createSession(payload),
+      attendanceService.createSession({ ...payload, branchId }),
     onSuccess: () => {
       setSessionOpen(false);
       toast("Attendance session created.");

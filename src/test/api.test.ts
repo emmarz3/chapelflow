@@ -10,7 +10,8 @@ describe("API error normalization", () => {
       vi.fn().mockResolvedValue(
         new Response(
           JSON.stringify({
-            message: "Check the highlighted fields.",
+            success: false,
+            message: "Validation failed.",
             errors: { email: ["Invalid email"] },
           }),
           { status: 422, headers: { "Content-Type": "application/json" } },
@@ -22,6 +23,7 @@ describe("API error normalization", () => {
     ).rejects.toMatchObject({
       code: "REQUEST_FAILED",
       status: 422,
+      message: "Validation failed. email: Invalid email",
       fieldErrors: { email: ["Invalid email"] },
     } satisfies Partial<ApiError>);
   });
