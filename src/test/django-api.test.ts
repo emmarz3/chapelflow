@@ -155,6 +155,34 @@ describe("Django API integration", () => {
     expect(fetch.mock.calls[0]?.[0]).toBe("/api/v1/attendance/checkpoint/token/");
   });
 
+  it("submits explicit shift windows with volunteer assignments", async () => {
+    const fetch = vi.fn().mockResolvedValue(response({ data: {
+      id: "assignment-1",
+      volunteer: "profile-1",
+      role: "USHER",
+      status: "PENDING",
+      shift_starts_at: "2026-10-04T09:00:00Z",
+      shift_ends_at: "2026-10-05T09:00:00Z",
+    } }, 201));
+    vi.stubGlobal("fetch", fetch);
+
+    await apiRequest("/volunteers/assignments", {
+      method: "POST",
+      body: JSON.stringify({
+        volunteer: "profile-1",
+        role: "USHER",
+        shift_starts_at: "2026-10-04T09:00:00Z",
+        shift_ends_at: "2026-10-05T09:00:00Z",
+      }),
+    });
+
+    expect(fetch.mock.calls[0]?.[0]).toBe("/api/v1/volunteers/assignments/");
+    expect(JSON.parse(fetch.mock.calls[0]?.[1].body)).toMatchObject({
+      shift_starts_at: "2026-10-04T09:00:00Z",
+      shift_ends_at: "2026-10-05T09:00:00Z",
+    });
+  });
+
   it("maps attendance creation and correction to Django fields and methods", async () => {
     const fetch = vi.fn()
       .mockResolvedValueOnce(response({ data: { id: "session-2" } }, 201))

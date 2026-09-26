@@ -134,6 +134,8 @@ export interface VolunteerAssignmentEntry {
   status: string;
   notes: string;
   hoursLogged: string;
+  shiftStartsAt?: string | null;
+  shiftEndsAt?: string | null;
 }
 export interface PrayerEntry {
   id: string;
@@ -652,7 +654,13 @@ export const volunteerService = {
   createProfile: (payload: { member: string; skills: string; availabilityNotes?: string }) =>
     api.post<{ data: VolunteerProfileEntry }>("/volunteers/profiles", payload),
   assignments: () => api.get<PagedResponse<VolunteerAssignmentEntry>>("/volunteers/assignments"),
-  createAssignment: (payload: { volunteer: string; role: string; notes?: string }) =>
+  createAssignment: (payload: {
+    volunteer: string;
+    role: string;
+    notes?: string;
+    shift_starts_at?: string;
+    shift_ends_at?: string;
+  }) =>
     api.post<{ data: VolunteerAssignmentEntry }>("/volunteers/assignments", payload),
   confirm: (id: string) => api.post<{ data: VolunteerAssignmentEntry }>(`/volunteers/assignments/${encodeURIComponent(id)}/confirm`),
   complete: (id: string, hoursLogged: number) => api.post<{ data: VolunteerAssignmentEntry }>(`/volunteers/assignments/${encodeURIComponent(id)}/complete`, { hours_logged: hoursLogged }),

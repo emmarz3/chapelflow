@@ -46,6 +46,12 @@ function naira(value: string) {
   }).format(Number.isFinite(amount) ? amount : 0);
 }
 
+function localDateTimeInput(value: Date) {
+  return new Date(value.getTime() - value.getTimezoneOffset() * 60_000)
+    .toISOString()
+    .slice(0, 16);
+}
+
 function Metric({ label, value, detail }: { label: string; value: string | number; detail: string }) {
   return <article className="metric-card"><small>{label}</small><strong>{value}</strong><p>{detail}</p></article>;
 }
@@ -118,6 +124,9 @@ export function VolunteerWorkspacePage() {
   const toast = useToast();
   const [completion, setCompletion] = useState<{ id: string; volunteerName: string } | null>(null);
   const [assignmentOpen, setAssignmentOpen] = useState(false);
+  const [shiftStartsAt, setShiftStartsAt] = useState(() => localDateTimeInput(new Date()));
+  const [shiftEndsAt, setShiftEndsAt] = useState(() => localDateTimeInput(new Date(Date.now() + 24 * 60 * 60 * 1000)));
+  const [shiftEndEdited, setShiftEndEdited] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const profiles = useQuery({
     queryKey: ["volunteer-profiles", user?.branchId],
@@ -138,6 +147,20 @@ export function VolunteerWorkspacePage() {
   const confirm = useMutation({ mutationFn: volunteerService.confirm, onSuccess: () => { toast("Volunteer assignment confirmed."); void client.invalidateQueries({ queryKey: queryKeys.volunteerAssignments() }); } });
   const complete = useMutation({ mutationFn: ({ id, hours }: { id: string; hours: number }) => volunteerService.complete(id, hours), onSuccess: () => { toast("Service hours recorded."); setCompletion(null); void client.invalidateQueries({ queryKey: queryKeys.volunteerAssignments() }); } });
   const createAssignment = useMutation({ mutationFn: volunteerService.createAssignment, onSuccess: () => { toast("Duty assignment created. It is awaiting confirmation."); setAssignmentOpen(false); void client.invalidateQueries({ queryKey: queryKeys.volunteerAssignments() }); } });
+  function openAssignmentForm() {
+    const start = new Date();
+    setShiftStartsAt(localDateTimeInput(start));
+    setShiftEndsAt(localDateTimeInput(new Date(start.getTime() + 24 * 60 * 60 * 1000)));
+    setShiftEndEdited(false);
+    setAssignmentOpen(true);
+  }
+  function changeShiftStart(value: string) {
+    setShiftStartsAt(value);
+    if (shiftEndEdited) return;
+    const start = new Date(value);
+    if (!Number.isNaN(start.getTime()))
+      setShiftEndsAt(localDateTimeInput(new Date(start.getTime() + 24 * 60 * 60 * 1000)));
+  }
   const members = useQuery({
     queryKey: ["volunteer-profile-members", user?.branchId],
     enabled: profileOpen,
@@ -168,7 +191,7 @@ export function VolunteerWorkspacePage() {
   const active = profiles.data.data.filter(isAssignableVolunteer).length;
   const awaiting = assignments.data.data.filter((assignment) => assignment.status === "PENDING").length;
   return <>
-    <PageHeader eyebrow="Volunteer operations" title="Duty roster" description="Assignments, conflicts, availability and service history remain validated by the server." actions={canUpdate ? <><Button variant="secondary" icon={<Plus />} onClick={() => setProfileOpen(true)}>Add volunteer</Button><Button icon={<Plus />} onClick={() => setAssignmentOpen(true)}>Assign duty</Button></> : undefined} />
+    <PageHeader eyebrow="Volunteer operations" title="Duty roster" description="Assignments, conflicts, availability and service history remain validated by the server." actions={canUpdate ? <><Button variant="secondary" icon={<Plus />} onClick={() => setProfileOpen(true)}>Add volunteer</Button><Button icon={<Plus />} onClick={openAssignmentForm}>Assign duty</Button></> : undefined} />
     <section className="metric-grid metric-grid--three"><Metric label="Active volunteers" value={active} detail="Approved service profiles" /><Metric label="Assignments awaiting response" value={awaiting} detail="Confirm only after availability checks" /><Metric label="Completed assignments" value={assignments.data.data.filter((assignment) => assignment.status === "COMPLETED").length} detail="Recorded service history" /></section>
     <section className="ministry-workspace-grid">
       <section className="panel"><header className="panel-heading"><div><p className="eyebrow">People ready to serve</p><h2>Volunteer profiles</h2><p>Skills and availability are used to protect roster coverage.</p></div><UsersRound /></header>{profiles.data.data.length ? <div className="stack-list">{profiles.data.data.slice(0, 8).map((profile) => <article key={profile.id}><div><strong>{profile.memberName}</strong><small>{profile.skills || "Skills to be confirmed"}</small></div><Badge tone={profile.isActive ? "success" : "warning"}>{profile.status.toLowerCase()}</Badge></article>)}</div> : <EmptyState title="No volunteer profiles" description="Create approved volunteer profiles before assigning service duties." />}</section>
@@ -176,7 +199,38 @@ export function VolunteerWorkspacePage() {
     </section>
     <section className="panel"><header className="panel-heading"><div><h2>Current assignments</h2><p>All changes use the controlled assignment lifecycle.</p></div></header>{assignments.data.data.length ? <div className="table-wrap"><table><thead><tr><th>Volunteer</th><th>Duty</th><th>Service</th><th>Status</th><th /></tr></thead><tbody>{assignments.data.data.map((assignment) => <tr key={assignment.id}><td>{assignment.volunteerName}</td><td><strong>{assignment.role.replaceAll("_", " ")}</strong>{assignment.notes && <small>{assignment.notes}</small>}</td><td>{assignment.eventTitle || assignment.groupName || "General duty"}</td><td><Badge tone={assignment.status === "CONFIRMED" || assignment.status === "COMPLETED" ? "success" : assignment.status === "PENDING" ? "warning" : "neutral"}>{assignment.status.toLowerCase()}</Badge></td><td>{canUpdate && assignment.status === "PENDING" && <Button variant="ghost" loading={confirm.isPending} onClick={() => confirm.mutate(assignment.id)}>Confirm</Button>}{canUpdate && assignment.status === "CONFIRMED" && <Button variant="ghost" loading={complete.isPending} onClick={() => setCompletion({ id: assignment.id, volunteerName: assignment.volunteerName })}>Record completion</Button>}</td></tr>)}</tbody></table></div> : <EmptyState title="No assignments scheduled" description="Create a duty assignment after a volunteer and service schedule are ready." />}</section>
     <Modal open={Boolean(completion)} onClose={() => setCompletion(null)} title="Record completed duty" description={completion ? `Record the actual service time for ${completion.volunteerName}.` : ""} footer={<><Button variant="ghost" onClick={() => setCompletion(null)}>Cancel</Button><Button type="submit" form="completion-form" loading={complete.isPending}>Save completion</Button></>}><form id="completion-form" className="form-grid" onSubmit={(event) => { event.preventDefault(); if (!completion) return; const hours = Number(new FormData(event.currentTarget).get("hours")); if (Number.isFinite(hours) && hours > 0) complete.mutate({ id: completion.id, hours }); }}><Field name="hours" label="Actual service hours" type="number" min="0.25" step="0.25" required />{complete.isError && <p className="form-error field--full">{message(complete.error)}</p>}</form></Modal>
-    <Modal open={assignmentOpen} onClose={() => setAssignmentOpen(false)} title="Assign volunteer duty" description="The assignment begins pending; confirmation and service hours are recorded separately." footer={<><Button variant="ghost" onClick={() => setAssignmentOpen(false)}>Cancel</Button><Button type="submit" form="assignment-form" loading={createAssignment.isPending}>Create assignment</Button></>}><form id="assignment-form" className="form-grid" onSubmit={(event) => { event.preventDefault(); const form = new FormData(event.currentTarget); createAssignment.mutate({ volunteer: String(form.get("volunteer")), role: String(form.get("role")), notes: String(form.get("notes") || "") }); }}><label className="field field--full"><span>Volunteer</span><select name="volunteer" required defaultValue="" disabled={!profiles.data.data.some(isAssignableVolunteer)}><option value="" disabled>Select an active volunteer</option>{profiles.data.data.filter(isAssignableVolunteer).map((profile) => <option key={profile.id} value={profile.id}>{profile.memberName}</option>)}</select>{!profiles.data.data.some(isAssignableVolunteer) && <EmptyState title="No approved volunteers yet" description="Add a volunteer first." action={<Button type="button" variant="secondary" onClick={() => { setAssignmentOpen(false); setProfileOpen(true); }}>Add a volunteer</Button>} />}</label><label className="field"><span>Duty</span><select name="role" defaultValue="OTHER"><option value="USHER">Usher</option><option value="CHOIR">Choir</option><option value="MEDIA">Media</option><option value="SECURITY">Security</option><option value="TECHNICAL">Technical</option><option value="PROTOCOL">Protocol</option><option value="OTHER">Other</option></select></label><Field name="notes" label="Duty note" maxLength={255} />{createAssignment.isError && <p className="form-error field--full">{message(createAssignment.error)}</p>}</form></Modal>
+    <Modal
+      open={assignmentOpen}
+      onClose={() => setAssignmentOpen(false)}
+      title="Assign volunteer duty"
+      description="Set the duty window. The assignment begins pending and grants usher checkpoint access only after confirmation."
+      footer={<><Button variant="ghost" onClick={() => setAssignmentOpen(false)}>Cancel</Button><Button type="submit" form="assignment-form" loading={createAssignment.isPending}>Create assignment</Button></>}
+    >
+      <form id="assignment-form" className="form-grid" onSubmit={(event) => {
+        event.preventDefault();
+        const form = new FormData(event.currentTarget);
+        const start = new Date(shiftStartsAt);
+        const end = new Date(shiftEndsAt);
+        if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) {
+          toast("Shift end must be after shift start.", "error");
+          return;
+        }
+        createAssignment.mutate({
+          volunteer: String(form.get("volunteer")),
+          role: String(form.get("role")),
+          notes: String(form.get("notes") || ""),
+          shift_starts_at: start.toISOString(),
+          shift_ends_at: end.toISOString(),
+        });
+      }}>
+        <label className="field field--full"><span>Volunteer</span><select name="volunteer" required defaultValue="" disabled={!profiles.data.data.some(isAssignableVolunteer)}><option value="" disabled>Select an active volunteer</option>{profiles.data.data.filter(isAssignableVolunteer).map((profile) => <option key={profile.id} value={profile.id}>{profile.memberName}</option>)}</select>{!profiles.data.data.some(isAssignableVolunteer) && <EmptyState title="No approved volunteers yet" description="Add a volunteer first." action={<Button type="button" variant="secondary" onClick={() => { setAssignmentOpen(false); setProfileOpen(true); }}>Add a volunteer</Button>} />}</label>
+        <label className="field"><span>Duty</span><select name="role" defaultValue="OTHER"><option value="USHER">Usher</option><option value="CHOIR">Choir</option><option value="MEDIA">Media</option><option value="SECURITY">Security</option><option value="TECHNICAL">Technical</option><option value="PROTOCOL">Protocol</option><option value="OTHER">Other</option></select></label>
+        <Field name="shift_starts_at" label="Shift starts" type="datetime-local" value={shiftStartsAt} onChange={(event) => changeShiftStart(event.target.value)} required />
+        <Field name="shift_ends_at" label="Shift ends" type="datetime-local" value={shiftEndsAt} min={shiftStartsAt} onChange={(event) => { setShiftEndsAt(event.target.value); setShiftEndEdited(true); }} required />
+        <Field name="notes" label="Duty note" maxLength={255} />
+        {createAssignment.isError && <p className="form-error field--full">{message(createAssignment.error)}</p>}
+      </form>
+    </Modal>
     <Modal open={profileOpen} onClose={() => setProfileOpen(false)} title="Add volunteer" description="Create a service profile for a registered member." footer={<><Button variant="ghost" onClick={() => setProfileOpen(false)}>Cancel</Button><Button type="submit" form="volunteer-profile-form" loading={createProfile.isPending}>Create profile</Button></>}><form id="volunteer-profile-form" className="form-grid" onSubmit={(event) => { event.preventDefault(); const form = new FormData(event.currentTarget); createProfile.mutate({ member: String(form.get("member")), skills: String(form.get("skills") || ""), availabilityNotes: String(form.get("availability") || "") }); }}><label className="field field--full"><span>Member</span><select name="member" required defaultValue=""><option value="" disabled>{members.isPending ? "Loading registered members…" : "Select a member"}</option>{(members.data || []).map((member) => { const existingProfile = profiles.data.data.some((profile) => profile.memberId === member.id); return <option key={member.id} value={member.id} disabled={existingProfile}>{member.name} · {member.identifier || member.email}{existingProfile ? " · already a volunteer" : ""}</option>; })}</select></label><Field name="skills" label="Skills" placeholder="Ushering, media, sound" /><Field name="availability" label="Availability" placeholder="e.g. Sunday mornings" />{members.isError && <p className="form-error field--full">{message(members.error)}</p>}{createProfile.isError && <p className="form-error field--full">{message(createProfile.error)}</p>}</form></Modal>
   </>;
 }

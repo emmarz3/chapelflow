@@ -315,7 +315,12 @@ class UsherCheckpointTokenView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        if request.user.get_role_code() != "ATTENDANCE_USHER":
+        is_usher_role = request.user.get_role_code() in {Roles.ATTENDANCE_USHER, Roles.SUPER_ADMIN}
+        if not is_usher_role:
+            from apps.volunteers.services import is_active_usher
+
+            is_usher_role = is_active_usher(request.user)
+        if not is_usher_role:
             return error_response("This attendance checkpoint is restricted to usher accounts.", status=403)
         session = AttendanceSession.objects.filter(
             branch_id=request.user.branch_id,

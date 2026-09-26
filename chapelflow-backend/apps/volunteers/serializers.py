@@ -87,7 +87,7 @@ class VolunteerAssignmentSerializer(ScopedFKValidationMixin, serializers.ModelSe
         model = VolunteerAssignment
         fields = [
             "id", "volunteer", "volunteer_name", "event_schedule", "event_title", "group", "group_name", "role", "status", "confirmed",
-            "notes", "hours_logged", "responded_at", "completed_at", "reminder_sent_at", "created_at"
+            "shift_starts_at", "shift_ends_at", "notes", "hours_logged", "responded_at", "completed_at", "reminder_sent_at", "created_at"
         ]
         read_only_fields = [
             "id", "status", "confirmed", "hours_logged", "responded_at", 
@@ -109,6 +109,13 @@ class VolunteerAssignmentSerializer(ScopedFKValidationMixin, serializers.ModelSe
         if group is None:
             return group
         return self.validate_related_branch_fk(group, 'group')
+
+    def validate(self, attrs):
+        start = attrs.get("shift_starts_at", getattr(self.instance, "shift_starts_at", None))
+        end = attrs.get("shift_ends_at", getattr(self.instance, "shift_ends_at", None))
+        if start and end and start >= end:
+            raise serializers.ValidationError({"shift_ends_at": "Shift end must be after shift start."})
+        return attrs
 
 
 class AssignmentConfirmSerializer(serializers.Serializer):

@@ -19,7 +19,32 @@ from django.db import transaction
 from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 
-from .models import AssignmentStatus, VolunteerAssignment
+from .models import AssignmentStatus, VolunteerAssignment, VolunteerRole, VolunteerStatus
+
+
+def is_active_usher(user, at=None):
+    """Whether the user has an active, confirmed usher duty covering ``at``."""
+    if not user or not getattr(user, "is_authenticated", False):
+        return False
+    at = at or timezone.now()
+    assignments = VolunteerAssignment.objects.filter(
+        volunteer__member__user=user,
+        volunteer__status=VolunteerStatus.ACTIVE,
+        role=VolunteerRole.USHER,
+        status=AssignmentStatus.CONFIRMED,
+    ).select_related("event_schedule")
+
+    for assignment in assignments:
+        if assignment.shift_starts_at and assignment.shift_ends_at:
+            start, end = assignment.shift_starts_at, assignment.shift_ends_at
+        elif assignment.event_schedule_id:
+            start = assignment.event_schedule.occurrence_start
+            end = assignment.event_schedule.occurrence_end
+        else:
+            continue
+        if start and end and start <= at <= end:
+            return True
+    return False
 
 
 def _overlaps(a_start, a_end, b_start, b_end):
@@ -118,7 +143,10 @@ def run_conflict_checks(volunteer, event_schedule, role, group, exclude_id=None)
 
 
 @transaction.atomic
-def create_assignment(volunteer, event_schedule, role, group=None, notes=""):
+def create_assignment(
+    volunteer, event_schedule, role, group=None, notes="",
+    shift_starts_at=None, shift_ends_at=None,
+):
     """
     Create a new volunteer assignment with conflict detection.
     
@@ -137,6 +165,8 @@ def create_assignment(volunteer, event_schedule, role, group=None, notes=""):
         role=role, 
         group=group, 
         notes=notes,
+        shift_starts_at=shift_starts_at,
+        shift_ends_at=shift_ends_at,
         status=AssignmentStatus.PENDING,
         confirmed=False,  # Explicit backward compatibility
     )

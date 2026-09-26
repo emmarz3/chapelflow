@@ -63,6 +63,8 @@ class VolunteerAssignment(models.Model):
     role = models.CharField(max_length=20, choices=VolunteerRole.choices)
     status = models.CharField(max_length=10, choices=AssignmentStatus.choices, default=AssignmentStatus.PENDING)
     confirmed = models.BooleanField(default=False)
+    shift_starts_at = models.DateTimeField(null=True, blank=True)
+    shift_ends_at = models.DateTimeField(null=True, blank=True)
     notes = models.CharField(max_length=255, blank=True)
     hours_logged = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
     responded_at = models.DateTimeField(null=True, blank=True)

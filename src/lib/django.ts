@@ -259,6 +259,8 @@ function volunteerAssignment(value: Row) {
     status: str(value.status),
     notes: str(value.notes),
     hoursLogged: str(value.hours_logged),
+    shiftStartsAt: value.shift_starts_at ? str(value.shift_starts_at) : null,
+    shiftEndsAt: value.shift_ends_at ? str(value.shift_ends_at) : null,
   };
 }
 

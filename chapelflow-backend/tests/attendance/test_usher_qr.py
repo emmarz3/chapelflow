@@ -1,13 +1,17 @@
 from unittest.mock import patch
+from datetime import timedelta
 
 from django.test import TestCase
+from django.utils import timezone
 from rest_framework.test import APIClient
 
 from apps.accounts.models import User
+from apps.events.models import Event, EventSchedule
 from apps.attendance.models import AttendanceCheckpoint, AttendanceRecord, AttendanceSession, AttendanceSessionState
 from apps.attendance.services import AttendanceError, issue_checkpoint_token, student_scan_usher_token
 from apps.members.models import CommunityClassification, Member
 from apps.organizations.models import Branch, Organization
+from apps.volunteers.models import AssignmentStatus, VolunteerAssignment, VolunteerProfile, VolunteerRole, VolunteerStatus
 from common.constants.roles import Roles
 
 
@@ -66,6 +70,124 @@ class UsherQrAttendanceTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["data"]["checkpoint_id"], str(self.checkpoint.id))
+
+    def _create_active_rostered_usher(self, *, status=AssignmentStatus.CONFIRMED, starts_at=None, ends_at=None):
+        profile = VolunteerProfile.objects.create(
+            member=self.student,
+            status=VolunteerStatus.ACTIVE,
+        )
+        return VolunteerAssignment.objects.create(
+            volunteer=profile,
+            role=VolunteerRole.USHER,
+            status=status,
+            shift_starts_at=starts_at,
+            shift_ends_at=ends_at,
+        )
+
+    def test_member_with_confirmed_active_usher_shift_can_fetch_checkpoint_token(self):
+        now = timezone.now()
+        self._create_active_rostered_usher(
+            starts_at=now - timedelta(minutes=10),
+            ends_at=now + timedelta(minutes=10),
+        )
+        client = APIClient()
+        client.force_authenticate(self.student_user)
+
+        response = client.get("/api/v1/attendance/checkpoint/token/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("token", response.data["data"])
+
+    def test_rostered_usher_cannot_fetch_token_outside_shift_window(self):
+        now = timezone.now()
+        for starts_at, ends_at in (
+            (now + timedelta(minutes=1), now + timedelta(hours=1)),
+            (now - timedelta(hours=1), now - timedelta(minutes=1)),
+        ):
+            with self.subTest(starts_at=starts_at):
+                self._create_active_rostered_usher(starts_at=starts_at, ends_at=ends_at)
+                client = APIClient()
+                client.force_authenticate(self.student_user)
+                response = client.get("/api/v1/attendance/checkpoint/token/")
+                self.assertEqual(response.status_code, 403)
+                VolunteerAssignment.objects.all().delete()
+                VolunteerProfile.objects.all().delete()
+
+    def test_pending_usher_assignment_does_not_grant_checkpoint_access(self):
+        now = timezone.now()
+        self._create_active_rostered_usher(
+            status=AssignmentStatus.PENDING,
+            starts_at=now - timedelta(minutes=10),
+            ends_at=now + timedelta(minutes=10),
+        )
+        client = APIClient()
+        client.force_authenticate(self.student_user)
+
+        response = client.get("/api/v1/attendance/checkpoint/token/")
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_confirmed_assignment_without_window_or_event_does_not_grant_access(self):
+        self._create_active_rostered_usher()
+        client = APIClient()
+        client.force_authenticate(self.student_user)
+
+        response = client.get("/api/v1/attendance/checkpoint/token/")
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_confirmed_event_assignment_uses_event_occurrence_window(self):
+        now = timezone.now()
+        event = Event.objects.create(
+            branch=self.branch,
+            title="Sunday service",
+            start_time=now - timedelta(minutes=10),
+            end_time=now + timedelta(minutes=10),
+        )
+        schedule = EventSchedule.objects.create(
+            event=event,
+            occurrence_start=now - timedelta(minutes=10),
+            occurrence_end=now + timedelta(minutes=10),
+        )
+        profile = VolunteerProfile.objects.create(
+            member=self.student,
+            status=VolunteerStatus.ACTIVE,
+        )
+        VolunteerAssignment.objects.create(
+            volunteer=profile,
+            event_schedule=schedule,
+            role=VolunteerRole.USHER,
+            status=AssignmentStatus.CONFIRMED,
+        )
+        client = APIClient()
+        client.force_authenticate(self.student_user)
+
+        response = client.get("/api/v1/attendance/checkpoint/token/")
+
+        self.assertEqual(response.status_code, 200)
+
+    def test_member_without_usher_assignment_gets_forbidden(self):
+        client = APIClient()
+        client.force_authenticate(self.student_user)
+
+        response = client.get("/api/v1/attendance/checkpoint/token/")
+
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.data["message"], "This attendance checkpoint is restricted to usher accounts.")
+
+    def test_super_admin_can_fetch_checkpoint_token_without_roster_assignment(self):
+        admin = User.objects.create_user(
+            email="super-admin@example.edu",
+            password="safe-password-123",
+            role=Roles.SUPER_ADMIN,
+            branch=self.branch,
+        )
+        client = APIClient()
+        client.force_authenticate(admin)
+
+        response = client.get("/api/v1/attendance/checkpoint/token/")
+
+        self.assertEqual(response.status_code, 200)
 
     def test_modified_token_is_rejected(self):
         token = issue_checkpoint_token(self.checkpoint)["token"] + "tampered"

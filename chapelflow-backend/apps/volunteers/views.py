@@ -203,6 +203,8 @@ class VolunteerAssignmentViewSet(BranchScopedQuerysetMixin, StandardModelViewSet
         role = serializer.validated_data["role"]
         group = serializer.validated_data.get("group")
         notes = serializer.validated_data.get("notes", "")
+        shift_starts_at = serializer.validated_data.get("shift_starts_at")
+        shift_ends_at = serializer.validated_data.get("shift_ends_at")
         
         # Create via services to ensure conflict checks run
         assignment = services.create_assignment(
@@ -211,6 +213,8 @@ class VolunteerAssignmentViewSet(BranchScopedQuerysetMixin, StandardModelViewSet
             role=role,
             group=group,
             notes=notes,
+            shift_starts_at=shift_starts_at,
+            shift_ends_at=shift_ends_at,
         )
         
         # Update serializer instance for proper response
