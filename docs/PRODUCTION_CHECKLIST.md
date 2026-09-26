@@ -1,0 +1,23 @@
+# Production readiness checklist
+
+- Confirm every endpoint, field, enum, pagination format, and error payload against the backend.
+- Configure secure HttpOnly session cookies, CSRF handling, trusted origins, and session renewal.
+- Replace preview content and the generated hero with approved CMS content and institutional photography.
+- Configure official privacy/support contacts; complete Nigerian legal and safeguarding review.
+- Connect payment, livestream, email, SMS, WhatsApp, push, maps, and upload providers where approved.
+- Enforce backend role, branch, row, field, finance, pastoral-note, and audit permissions.
+- Add idempotency and reconciliation rules for attendance, event check-in, and finance mutations.
+- Validate file type, size, malware scanning, media captions, and signed upload/download URLs.
+- Run the included desktop/mobile Playwright journeys in CI; add backend-connected contract tests when a test API environment exists.
+- Set CSP, HSTS, referrer policy, permissions policy, monitoring, backups, retention, and incident procedures.
+- Test camera and kiosk flows on target Android tablets and lower-bandwidth mobile devices.
+- Verify WCAG 2.2 AA with keyboard, screen reader, contrast, zoom, and reduced-motion checks.
+- Provision Django's PostgreSQL database and let the Docker startup command apply migrations and bootstrap the chapel.
+- Store `SECRET_KEY`, `SUPER_ADMIN_EMAIL`, and `SUPER_ADMIN_PASSWORD` in the backend deployment environment; never commit real credentials.
+- Set the frontend build variables `VITE_BACKEND=django`, `VITE_DATA_MODE=api`, and `VITE_API_BASE_URL` before building the static site.
+- Reverse-proxy same-origin `/api` traffic to Django and configure allowed, CORS, and CSRF trusted origins.
+- Clear any Render Docker Command override so the Dockerfile's startup `CMD` runs.
+- Use the root `render.yaml` production Blueprint, not the former free-tier test settings; review Render plan charges before syncing it.
+- Configure Cloudinary, SMTP, the generated super-admin credentials, frontend CORS origin, and backend CSRF trusted origin in Render.
+- Test camera permissions and ZXing scanning on the actual usher Android/iOS devices before the first live service.
+- Confirm the chapel administration's identity-verification procedure before approving pending student registrations.

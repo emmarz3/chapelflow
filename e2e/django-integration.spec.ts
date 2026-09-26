@@ -1,0 +1,39 @@
+import { expect, test } from "@playwright/test";
+
+test("register, sign in, restore the session, and load a real chapel pass", async ({ page, context }) => {
+  const suffix = Date.now().toString().slice(-6);
+  const email = `browser-${Date.now()}@example.edu`;
+  const password = "Chapel-browser-493!";
+  const initialAuthCheck = page.waitForResponse(
+    response => response.url().includes("/api/v1/auth/me/"),
+    { timeout: 90_000 },
+  );
+  await page.goto("/register");
+  await initialAuthCheck;
+  await page.getByLabel("University email").fill(email);
+  await page.getByLabel("Create password").fill(password);
+  await page.getByRole("button", { name: "Continue" }).click();
+  await page.getByLabel("First name").fill("Browser");
+  await page.getByLabel("Last name").fill("Integration");
+  await page.getByLabel("Matric number or staff ID").fill(`SWE/2026/${suffix}`);
+  await page.getByRole("button", { name: "Continue" }).click();
+  await page.getByLabel("Academic level").selectOption("100");
+  await page.getByRole("button", { name: "Continue" }).click();
+  await page.getByRole("checkbox", { name: /I have read and accept/ }).check();
+  await page.getByRole("button", { name: "Submit registration" }).click();
+  await expect(page.getByRole("heading", { name: "Your account is ready." })).toBeVisible();
+  await context.clearCookies();
+  await page.getByRole("link", { name: "Return to sign in" }).click();
+  await page.getByLabel("Email, matric number, or staff ID").fill(email);
+  await page.getByLabel(/^Password/).fill(password);
+  await page.getByRole("button", { name: /^Sign in/ }).click();
+  await expect(page.getByRole("heading", { name: "Scan the usher QR" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Browser Integration" })).toBeVisible();
+  const cookie = (await context.cookies()).find(item => item.name === "chapelflow_access");
+  expect(cookie?.httpOnly).toBe(true);
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Scan the usher QR" })).toBeVisible();
+  await page.goto("/app/events");
+  await expect(page.getByRole("heading", { name: "Events and registrations" })).toBeVisible();
+  await expect(page.getByText("Sunday Worship Service")).toBeVisible();
+});

@@ -1,0 +1,78 @@
+# ChapelFlow production deployment on Render.
+# Repo layout expected: this file at the repo root, Django app in ./chapelflow-backend, React app at repo root.
+
+services:
+  - type: web
+    name: chapelflow-api
+    runtime: docker
+    plan: starter
+    dockerfilePath: ./chapelflow-backend/Dockerfile
+    dockerContext: ./chapelflow-backend
+    healthCheckPath: /health/
+    envVars:
+      - key: DJANGO_SETTINGS_MODULE
+        value: config.settings.production
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: chapelflow-db
+          property: connectionString
+      - key: STORAGE_PROVIDER
+        value: cloudinary
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
+      - key: ALLOWED_HOSTS
+        fromService:
+          type: web
+          name: chapelflow-api
+          envVarKey: RENDER_EXTERNAL_HOSTNAME
+      - key: PUBLIC_BACKEND_URL
+        fromService:
+          type: web
+          name: chapelflow-api
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false
+      - key: CSRF_TRUSTED_ORIGINS
+        sync: false
+      - key: SUPER_ADMIN_EMAIL
+        sync: false
+      - key: SUPER_ADMIN_PASSWORD
+        sync: false
+      - key: EMAIL_HOST
+        sync: false
+      - key: EMAIL_HOST_USER
+        sync: false
+      - key: EMAIL_HOST_PASSWORD
+        sync: false
+
+  - type: web
+    name: chapelflow-web
+    runtime: static
+    buildCommand: npm ci && VITE_API_BASE_URL="$CHAPELFLOW_API_URL/api/v1" npx vite build
+    staticPublishPath: ./dist
+    envVars:
+      - key: VITE_BACKEND
+        value: django
+      - key: VITE_DATA_MODE
+        value: api
+      - key: CHAPELFLOW_API_URL
+        fromService:
+          type: web
+          name: chapelflow-api
+          envVarKey: RENDER_EXTERNAL_URL
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+
+databases:
+  - name: chapelflow-db
+    plan: 0.5c-1g
+    databaseName: chapelflow
+    user: chapelflow
