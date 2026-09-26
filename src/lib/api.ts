@@ -121,6 +121,11 @@ async function rawRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
       throw new ApiError({
         ...fallback,
         ...body,
+        message: typeof body.message === "string" && body.message.trim()
+          ? body.message
+          : typeof (body as { detail?: unknown }).detail === "string"
+            ? (body as { detail: string }).detail
+            : fallback.message,
         fieldErrors: body.fieldErrors ?? body.errors,
         status: response.status,
       });

@@ -85,8 +85,6 @@ def _require_content_access(user):
 
 
 def _require_media_access(user):
-    if not user_has_completed_required_mfa(user):
-        raise PermissionDenied("Complete required MFA before managing public media.")
     if not user_has_media_management_access(user):
         raise PermissionDenied("Only the Super Admin, Chaplain, Student Chaplain, Media Leader, or Social Media Leader can manage public media.")
 

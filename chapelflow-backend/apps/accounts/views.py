@@ -38,7 +38,6 @@ from .services import (
     record_login,
     revoke_all_sessions,
     revoke_session,
-    user_requires_mfa,
 )
 
 User = get_user_model()
@@ -157,15 +156,6 @@ class LoginView(APIView):
             return error_response("Validation failed.", serializer.errors, status=400)
 
         user = serializer.validated_data["user"]
-
-        if user_requires_mfa(user) and user.mfa_enabled:
-            otp = serializer.validated_data.get("otp", "")
-            if not _verify_otp(user, otp):
-                return error_response(
-                    "MFA verification required.",
-                    {"otp": ["A valid one-time passcode is required for this account."]},
-                    status=401,
-                )
 
         record_login(user, request, successful=True)
         tokens = serializer.create_tokens(user)

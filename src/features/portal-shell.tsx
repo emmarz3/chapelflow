@@ -388,7 +388,6 @@ export function PortalShell() {
   );
   usePortalMotion(contentRef, sidebarRef, location.pathname);
   if (!user) return null;
-  if (user.mfaRequired) return <Navigate to="/login" replace />;
   const accountMenuItem = getAccountMenuItem(user.role);
   const mobilePrimaryItem = isLimitedMember
     ? { label: "Services", path: "/service-times" }
