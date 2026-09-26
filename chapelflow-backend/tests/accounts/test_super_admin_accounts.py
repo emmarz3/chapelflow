@@ -1,4 +1,5 @@
 from types import SimpleNamespace
+from io import StringIO
 from unittest.mock import patch
 
 from django.core.management import call_command
@@ -56,6 +57,40 @@ class SuperAdminAccountTests(TestCase):
         with patch.dict("os.environ", {"SUPER_ADMIN_EMAIL": "other@example.edu", "SUPER_ADMIN_PASSWORD": "not-used"}):
             with self.assertRaises(CommandError):
                 call_command("bootstrap_super_admin")
+
+    def test_bootstrap_syncs_existing_password_to_environment(self):
+        new_password = "Current-env-password-123!"
+        output = StringIO()
+        with patch.dict("os.environ", {
+            "SUPER_ADMIN_EMAIL": "admin@example.edu",
+            "SUPER_ADMIN_PASSWORD": new_password,
+        }, clear=False):
+            call_command("bootstrap_super_admin", stdout=output)
+
+        self.admin.refresh_from_db()
+        self.assertTrue(self.admin.check_password(new_password))
+        self.assertIn("password was synced to match", output.getvalue())
+
+        output = StringIO()
+        with patch.dict("os.environ", {
+            "SUPER_ADMIN_EMAIL": "admin@example.edu",
+            "SUPER_ADMIN_PASSWORD": new_password,
+        }, clear=False):
+            call_command("bootstrap_super_admin", stdout=output)
+        self.assertIn("Super Admin already exists; no account was created.", output.getvalue())
+
+    def test_explicit_password_reset_emits_warning(self):
+        output = StringIO()
+        with patch.dict("os.environ", {
+            "SUPER_ADMIN_EMAIL": "admin@example.edu",
+            "SUPER_ADMIN_PASSWORD": "Reset-password-123!",
+            "RESET_SUPER_ADMIN_PASSWORD": "true",
+        }, clear=False):
+            call_command("bootstrap_super_admin", stdout=output)
+
+        self.admin.refresh_from_db()
+        self.assertTrue(self.admin.check_password("Reset-password-123!"))
+        self.assertIn("RESET_SUPER_ADMIN_PASSWORD is set", output.getvalue())
 
     def test_super_admin_issues_temporary_password_and_user_must_replace_it(self):
         account = User.objects.create_user(
