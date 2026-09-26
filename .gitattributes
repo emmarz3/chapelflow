@@ -24,6 +24,7 @@
 *.mjs filter=lfs diff=lfs merge=lfs -text
 *.tsx filter=lfs diff=lfs merge=lfs -text
 *.css filter=lfs diff=lfs merge=lfs -text
+*.sql filter=lfs diff=lfs merge=lfs -text
 *.py !text !filter !merge !diff
 *.ts !text !filter !merge !diff
 *.tsx !text !filter !merge !diff
