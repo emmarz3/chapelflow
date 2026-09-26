@@ -72,7 +72,8 @@ async function rawRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
     if (
       response.status === 401 &&
       isDjangoBackend &&
-      path !== "/auth/refresh/"
+      path !== "/auth/refresh/" &&
+      path !== "/auth/logout/"
     ) {
       const refresh = await fetch(`${API_BASE_URL}/auth/refresh/`, {
         method: "POST",

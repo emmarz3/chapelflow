@@ -96,6 +96,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       },
       async logout() {
+        await queryClient.cancelQueries();
         try {
           if (!isDemoMode) await api.post("/auth/logout");
         } finally {
