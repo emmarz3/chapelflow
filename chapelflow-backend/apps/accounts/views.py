@@ -51,23 +51,19 @@ CSRF_COOKIE = "chapelflow_csrf"
 def _set_auth_cookies(response, access, refresh):
     """Keep browser credentials HttpOnly while preserving bearer-token API use."""
     secure = not settings.DEBUG
-    samesite = "None" if secure else "Lax"
-    common = {"httponly": True, "secure": secure, "samesite": samesite}
+    common = {"httponly": True, "secure": secure, "samesite": "Lax"}
     response.set_cookie(ACCESS_COOKIE, access, max_age=15 * 60, **common)
     response.set_cookie(REFRESH_COOKIE, refresh, max_age=7 * 24 * 60 * 60, **common)
     response.set_cookie(
         CSRF_COOKIE, secrets.token_urlsafe(32), max_age=7 * 24 * 60 * 60,
-        httponly=False, secure=secure, samesite=samesite,
+        httponly=False, secure=secure, samesite="Lax",
     )
     return response
 
 
 def _clear_auth_cookies(response):
-    response.delete_cookie(ACCESS_COOKIE, samesite="None")
     response.delete_cookie(ACCESS_COOKIE, samesite="Lax")
-    response.delete_cookie(REFRESH_COOKIE, samesite="None")
     response.delete_cookie(REFRESH_COOKIE, samesite="Lax")
-    response.delete_cookie(CSRF_COOKIE, samesite="None")
     response.delete_cookie(CSRF_COOKIE, samesite="Lax")
     return response
 
