@@ -168,6 +168,7 @@ button {
   background: transparent;
   cursor: pointer;
   color: var(--text-soft);
+  transition: background 0.16s, color 0.16s;
 }
 .icon-button:hover {
   background: var(--surface-muted);
