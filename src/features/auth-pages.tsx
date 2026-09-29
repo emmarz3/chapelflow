@@ -524,7 +524,7 @@ export function RegisterPage() {
                 defaultValue={values.email}
                 label={
                   memberType === "Student"
-                    ? "University email"
+                    ? "Your email"
                     : memberType === "Staff"
                       ? "Work email"
                       : "Email address"
