@@ -52,6 +52,13 @@ import {
   PublicInfoPage,
   PublicLayout,
 } from "../features/public-site";
+import {
+  ErrorBoundary,
+  ErrorIndexPage,
+  ErrorPage,
+  ErrorRoutePage,
+  ERROR_REGISTRY,
+} from "../features/error-pages";
 
 const DashboardPage = lazy(() =>
   import("../features/portal-pages").then((module) => ({
@@ -139,8 +146,9 @@ export function App() {
       <ChapelFlowIntro />
       <RouteMotionLayer />
       <ToastProvider>
-        <Suspense fallback={<RouteLoader />}>
-          <Routes>
+        <ErrorBoundary>
+          <Suspense fallback={<RouteLoader />}>
+            <Routes>
             <Route element={<PublicLayout />}>
               <Route path="/" element={<HomePage />} />
               <Route
@@ -469,20 +477,25 @@ export function App() {
             <Route path="/access-denied" element={<AccessDeniedPage />} />
             <Route
               path="/offline"
-              element={
-                <div className="status-page">
-                  <h1>You are offline</h1>
-                  <p>
-                    Reconnect to continue with changes. Cached read-only pages
-                    remain available.
-                  </p>
-                </div>
-              }
+              element={<ErrorPage code="CF-NET-003" />}
             />
             <Route path="/404" element={<NotFoundPage />} />
+
+            {/* Dedicated error page for every live error, each with its code */}
+            <Route path="/error" element={<ErrorIndexPage />} />
+            {Object.keys(ERROR_REGISTRY).map((code) => (
+              <Route
+                key={code}
+                path={`/error/${code.toLowerCase()}`}
+                element={<ErrorPage code={code} />}
+              />
+            ))}
+            <Route path="/error/:code" element={<ErrorRoutePage />} />
+
             <Route path="*" element={<Navigate to="/404" replace />} />
           </Routes>
         </Suspense>
+        </ErrorBoundary>
         <CookieConsent />
         <OfflineAttendanceSync />
         <PwaPrompt />

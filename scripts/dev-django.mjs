@@ -33,3 +33,4 @@ child.on("exit", (code) => {
 });
 for (const signal of ["SIGINT", "SIGTERM"])
   process.on(signal, () => child.kill(signal));
+

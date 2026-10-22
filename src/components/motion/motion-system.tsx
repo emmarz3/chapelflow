@@ -188,7 +188,7 @@ export function useAuthMotion(
 ) {
   useLayoutEffect(() => {
     const root = rootRef.current;
-    if (!root || prefersReducedMotion()) return;
+    if (!root || pathname === "/login" || prefersReducedMotion()) return;
     const context = gsap.context(() => {
       const timeline = gsap.timeline({ defaults: { ease: MOTION.ease.enter } });
       timeline
@@ -203,7 +203,7 @@ export function useAuthMotion(
           },
         )
         .fromTo(
-          ".auth-card > *, .auth-main > .auth-back",
+          ".auth-card > *:not(.completion-figure), .auth-main > .auth-back",
           { autoAlpha: 0, y: 12 },
           {
             autoAlpha: 1,

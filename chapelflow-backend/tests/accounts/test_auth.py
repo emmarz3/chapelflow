@@ -1,5 +1,7 @@
 import pytest
+from django.core.cache import cache
 from django.core.exceptions import ValidationError
+from django.test import override_settings
 
 from apps.accounts.validators import normalize_matric_no, validate_matric_no
 
@@ -33,6 +35,10 @@ class TestMatricNoValidator:
 
 @pytest.mark.django_db
 class TestUserMatricLogin:
+    @pytest.fixture(autouse=True)
+    def clear_login_throttle(self):
+        cache.clear()
+
     def test_matric_no_normalized_on_save(self):
         from apps.accounts.models import User
 
@@ -48,6 +54,23 @@ class TestUserMatricLogin:
         )
         assert response.status_code == 200
         assert response.data["success"] is True
+
+    @override_settings(DEBUG=False)
+    def test_production_login_cookies_support_cross_origin_frontends(self, api_client):
+        from apps.accounts.models import User
+
+        User.objects.create_user(email="cookie-test@example.com", password="Pass12345!", role="CHAPEL_ADMIN")
+        response = api_client.post(
+            "/api/v1/auth/login/",
+            {"email": "cookie-test@example.com", "password": "Pass12345!"},
+            format="json",
+        )
+
+        assert response.status_code == 200
+        for name in ("chapelflow_access", "chapelflow_refresh", "chapelflow_csrf"):
+            assert response.cookies[name]["samesite"] == "None"
+            assert response.cookies[name]["secure"] is True
+            assert response.cookies[name]["path"] == "/"
 
     def test_invalid_credentials_return_clean_400_not_500(self, api_client):
         response = api_client.post(

@@ -18,6 +18,17 @@ import {
   Sun,
   Users,
   X,
+  Mail,
+  Phone,
+  Instagram,
+  Twitter,
+  Facebook,
+  Youtube,
+  Linkedin,
+  ChevronUp,
+  Send,
+  BookOpen,
+  GraduationCap,
 } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -112,50 +123,137 @@ export function PublicLayout() {
         {user ? <NavLink className="public-mobile-nav__account" to="/app" aria-label={`Open ${user.name}'s dashboard`} title="Dashboard"><span className="public-nav__avatar" aria-hidden="true">{getInitials(user.name)}</span></NavLink> : <NavLink to="/app"><Gauge aria-hidden="true" /><span>Dashboard</span></NavLink>}
         <NavLink to="/about"><Info aria-hidden="true" /><span>About</span></NavLink>
       </nav>
-      <PublicFooter />
+      <SiteFooter />
     </div>
   );
 }
 
-function PublicFooter() {
+function SiteFooter() {
+  const [email, setEmail] = useState("");
+  const [subscribed, setSubscribed] = useState(false);
+  const currentYear = new Date().getFullYear();
+
+  const handleSubscribe = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email) return;
+    setSubscribed(true);
+    setEmail("");
+    setTimeout(() => setSubscribed(false), 4000);
+  };
+
   return (
-    <footer className="public-footer">
-      <div className="public-footer__main">
-        <div>
-          <PublicWordmark />
+    <footer className="site-footer">
+      <div className="site-footer__main">
+        <div className="site-footer__brand">
+          <div className="site-footer__wordmark">
+            <strong>Chapel<em>Flow</em></strong>
+            <small>Chrisland University Chapel</small>
+          </div>
           <p>
             A connected chapel community for worship, service, and growth at
             Chrisland University, Abeokuta.
           </p>
+          <div className="site-footer__badge">
+            <GraduationCap size={14} aria-hidden="true" />
+            <span>CUC Verified</span>
+          </div>
         </div>
-        <div>
-          <h3>Visit</h3>
+
+        <div className="site-footer__nav">
+          <div>
+            <h3>Explore</h3>
+            <Link to="/about">About us</Link>
+            <Link to="/events">Events</Link>
+            <Link to="/sermons">Sermons</Link>
+            <Link to="/gallery">Gallery</Link>
+          </div>
+          <div>
+            <h3>Community</h3>
+            <Link to="/faq">Frequently asked questions</Link>
+            <Link to="/contact">Contact the chapel</Link>
+            <Link to="/privacy">Privacy policy</Link>
+            <Link to="/terms">Terms of use</Link>
+          </div>
+        </div>
+
+        <div className="site-footer__contact">
+          <h3>Connect</h3>
           <p>
-            Chrisland University Chapel
-            <br />
-            Abeokuta Campus, Ogun State
+            <MapPin size={16} aria-hidden="true" />
+            <span>
+              Chrisland University Chapel
+              <br />
+              Abeokuta Campus, Ogun State
+            </span>
           </p>
-          <Link to="/contact">Contact the chapel</Link>
+          <p>
+            <Mail size={16} aria-hidden="true" />
+            <a href="mailto:chapel@chrislanduniversity.edu.ng">chapel@chrislanduniversity.edu.ng</a>
+          </p>
+          <p>
+            <Phone size={16} aria-hidden="true" />
+            <a href="tel:+2348000000000">+234 800 000 0000</a>
+          </p>
         </div>
-        <div>
-          <h3>Explore</h3>
-          <Link to="/about">About us</Link>
-          <Link to="/events">Events</Link>
-          <Link to="/sermons">Sermons</Link>
-          <Link to="/faq">Frequently asked questions</Link>
-        </div>
-        <div>
-          <h3>Policies</h3>
-          <Link to="/privacy">Privacy policy</Link>
-          <Link to="/terms">Terms of use</Link>
-          <Link to="/cookies">Cookie policy</Link>
-          <Link to="/community-standards">Community standards</Link>
-          <Link to="/accessibility">Accessibility</Link>
+
+        <div className="site-footer__social">
+          <h3>Follow along</h3>
+          <div className="site-footer__social-links">
+            <a href="#" aria-label="Instagram" className="site-footer__social-link">
+              <Instagram size={20} aria-hidden="true" />
+            </a>
+            <a href="#" aria-label="Twitter" className="site-footer__social-link">
+              <Twitter size={20} aria-hidden="true" />
+            </a>
+            <a href="#" aria-label="Facebook" className="site-footer__social-link">
+              <Facebook size={20} aria-hidden="true" />
+            </a>
+            <a href="#" aria-label="YouTube" className="site-footer__social-link">
+              <Youtube size={20} aria-hidden="true" />
+            </a>
+            <a href="#" aria-label="LinkedIn" className="site-footer__social-link">
+              <Linkedin size={20} aria-hidden="true" />
+            </a>
+          </div>
+          <form className="site-footer__newsletter" onSubmit={handleSubscribe}>
+            <label htmlFor="footer-newsletter">Chapel updates</label>
+            <div className="site-footer__newsletter-row">
+              <input
+                id="footer-newsletter"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@example.com"
+                required
+              />
+              <button type="submit" aria-label="Subscribe to chapel updates">
+                {subscribed ? <BookOpen size={18} aria-hidden="true" /> : <Send size={18} aria-hidden="true" />}
+              </button>
+            </div>
+            <small>Occasional updates. No spam, ever.</small>
+          </form>
         </div>
       </div>
-      <div className="public-footer__legal">
-        <span>© 2026 Chrisland University Chapel</span>
-        <span>Powered by ChapelFlow</span>
+
+      <div className="site-footer__legal">
+        <div className="site-footer__legal-left">
+          <span>© {currentYear} Chrisland University Chapel</span>
+          <span className="site-footer__dot" aria-hidden="true" />
+          <span>Powered by Zephyrcore</span>
+        </div>
+        <div className="site-footer__legal-right">
+          <Link to="/cookies">Cookie policy</Link>
+          <Link to="/accessibility">Accessibility</Link>
+          <button
+            type="button"
+            className="site-footer__back-to-top"
+            onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+            aria-label="Back to top"
+          >
+            <ChevronUp size={16} aria-hidden="true" />
+            <span>Back to top</span>
+          </button>
+        </div>
       </div>
     </footer>
   );
@@ -370,7 +468,7 @@ export function AboutPage() {
   const { user, loading } = useAuth();
   const leaders = [
     { title: "University Chaplain", name: "Rev. Canon Juwon Onasanya", image: "/chaplain.jpg", alt: "University Chaplain portrait" },
-    { title: "Student Chaplain", name: "Profile details to be confirmed", image: null, alt: "" },
+    { title: "Student Chaplain", name: "Akintobi Olubori Favour", image: "/student-chaplain.jpg", alt: "Student Chaplain portrait" },
     { title: "Vice-Chancellor", name: "Professor Oyedunni Sola Arulogun", image: "https://chrislanduniversity.edu.ng/images/pages/prof-oyedunni-sola-arulogun.jpg", alt: "Professor Oyedunni Sola Arulogun" },
     { title: "Registrar", name: "Mr. Samuel Babatola Omotosho, FCIA", image: "https://chrislanduniversity.edu.ng/images/pages/mr-samuel-omotosho.jpg", alt: "Mr. Samuel Babatola Omotosho" },
   ];
@@ -413,7 +511,7 @@ export function AboutPage() {
       </section>
       <section className="cuc-about__leadership">
         <header><p className="cuc-home__eyebrow">People who guide our community</p><h2>Chapel and university leadership.</h2><p>Pastoral care, student ministry, and university leadership working together for campus life.</p></header>
-        <div className="cuc-about__leaders">{leaders.map((leader) => <article className="cuc-about__leader" key={leader.title}><div className="cuc-about__leader-photo">{leader.image ? <img src={leader.image} alt={leader.alt} loading="lazy" /> : <span aria-hidden="true">SC</span>}</div><div className="cuc-about__leader-copy"><span>{leader.title}</span><h3>{leader.name}</h3>{leader.title === "Student Chaplain" && <small>Student leader profile awaiting confirmation.</small>}</div></article>)}</div>
+        <div className="cuc-about__leaders">{leaders.map((leader) => <article className="cuc-about__leader" key={leader.title}><div className="cuc-about__leader-photo">{leader.image ? <img src={leader.image} alt={leader.alt} loading="lazy" /> : <span aria-hidden="true">SC</span>}</div><div className="cuc-about__leader-copy"><span>{leader.title}</span><h3>{leader.name}</h3></div></article>)}</div>
       </section>
       <section className="cuc-about__invitation">
         <div><p className="cuc-home__eyebrow">Your place is here</p><h2>Come as you are. Grow as you go.</h2><p>Join ChapelFlow to follow programmes, find a community, receive chapel updates, and take part in the life of CUC.</p></div>

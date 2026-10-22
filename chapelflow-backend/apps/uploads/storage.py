@@ -13,6 +13,9 @@ class StorageService:
     def upload_bytes(self, content: bytes, filename: str, content_type: str = "") -> str:
         raise NotImplementedError
 
+    def upload_fileobj(self, fileobj, filename: str, content_type: str = "") -> str:
+        raise NotImplementedError
+
     def delete(self, file_url: str) -> None:
         raise NotImplementedError
 
@@ -25,6 +28,18 @@ class LocalStorageService(StorageService):
         path = Path(settings.MEDIA_ROOT) / filename
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(content)
+        media_url = settings.MEDIA_URL.rstrip("/")
+        if media_url.startswith(("http://", "https://")):
+            return f"{media_url}/{filename}"
+        return f"{settings.PUBLIC_BACKEND_URL.rstrip('/')}/{media_url.lstrip('/')}/{filename}"
+
+    def upload_fileobj(self, fileobj, filename: str, content_type: str = "") -> str:
+        from pathlib import Path
+        import shutil
+        path = Path(settings.MEDIA_ROOT) / filename
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("wb") as destination:
+            shutil.copyfileobj(fileobj, destination, length=1024 * 1024)
         media_url = settings.MEDIA_URL.rstrip("/")
         if media_url.startswith(("http://", "https://")):
             return f"{media_url}/{filename}"
@@ -46,6 +61,11 @@ class CloudinaryStorageService(StorageService):
         )
         return result["secure_url"]
 
+    def upload_fileobj(self, fileobj, filename: str, content_type: str = "") -> str:
+        import cloudinary.uploader
+        result = cloudinary.uploader.upload(fileobj, public_id=filename, resource_type="auto")
+        return result["secure_url"]
+
     def delete(self, file_url: str) -> None:
         import cloudinary.uploader
         public_id = file_url.rsplit("/", 1)[-1].rsplit(".", 1)[0]
@@ -55,11 +75,13 @@ class CloudinaryStorageService(StorageService):
 class S3StorageService(StorageService):
     def _client(self):
         import boto3
+        from botocore.config import Config
         return boto3.client(
             "s3",
             aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
             aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
             region_name=settings.AWS_S3_REGION_NAME,
+            config=Config(connect_timeout=5, read_timeout=60, retries={"max_attempts": 3, "mode": "standard"}),
         )
 
     def upload_bytes(self, content: bytes, filename: str, content_type: str = "") -> str:
@@ -68,6 +90,12 @@ class S3StorageService(StorageService):
         client.put_object(
             Bucket=settings.AWS_STORAGE_BUCKET_NAME, Key=filename, Body=content, ContentType=content_type,
         )
+        return f"https://{settings.AWS_STORAGE_BUCKET_NAME}.s3.{settings.AWS_S3_REGION_NAME}.amazonaws.com/{filename}"
+
+    def upload_fileobj(self, fileobj, filename: str, content_type: str = "") -> str:
+        client = self._client()
+        content_type = content_type or mimetypes.guess_type(filename)[0] or "application/octet-stream"
+        client.upload_fileobj(fileobj, settings.AWS_STORAGE_BUCKET_NAME, filename, ExtraArgs={"ContentType": content_type})
         return f"https://{settings.AWS_STORAGE_BUCKET_NAME}.s3.{settings.AWS_S3_REGION_NAME}.amazonaws.com/{filename}"
 
     def delete(self, file_url: str) -> None:
@@ -105,6 +133,18 @@ class SupabaseStorageService(StorageService):
             headers={**self._headers(content_type), "x-upsert": "true"},
             data=content,
             timeout=30,
+        )
+        response.raise_for_status()
+        return f"{self._base_url()}/storage/v1/object/public/{bucket}/{filename}"
+
+    def upload_fileobj(self, fileobj, filename: str, content_type: str = "") -> str:
+        import requests
+        content_type = content_type or mimetypes.guess_type(filename)[0] or "application/octet-stream"
+        bucket = settings.SUPABASE_STORAGE_BUCKET
+        url = f"{self._base_url()}/storage/v1/object/{bucket}/{filename}"
+        response = requests.post(
+            url, headers={**self._headers(content_type), "x-upsert": "true"},
+            data=fileobj, timeout=(5, 60),
         )
         response.raise_for_status()
         return f"{self._base_url()}/storage/v1/object/public/{bucket}/{filename}"

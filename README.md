@@ -11,7 +11,7 @@ npm install
 npm run dev
 ```
 
-On a fresh local database, open `http://localhost:5173/setup/admin` to create
+On a fresh local database, open `http://localhost:3000/setup/admin` to create
 the single Super Admin. The account is signed in immediately and redirected to
 the full dashboard. This one-time browser setup is disabled outside local
 development and closes after the first Super Admin exists.

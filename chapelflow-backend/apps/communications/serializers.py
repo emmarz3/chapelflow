@@ -124,7 +124,7 @@ class CommunicationPreferenceSerializer(serializers.ModelSerializer):
         fields = [
             "id", "member",
             "email_enabled", "sms_enabled", "push_enabled",
-            "announcements_enabled",
+            "announcements_enabled", "prayer_notifications_enabled",
             "updated_at",
         ]
         read_only_fields = ["id", "member", "updated_at"]

@@ -15,11 +15,27 @@ import {
   verseOfTheDay,
   visibleServices,
   type HomepageContent,
+  type HomepageEvent,
+  type HomepageService,
 } from "../lib/homepage-content";
 
 // Monday 21 Sep 2026, 12:00 in Lagos (UTC+1).
 const NOW = Date.UTC(2026, 8, 21, 11, 0);
-const service = (id: string) => DEFAULT_HOMEPAGE.services.find((s) => s.id === id)!;
+const TEST_SERVICES: HomepageService[] = [
+  { id: "svc-sunday-worship", type: "sunday", title: "Walking in Covenant Promise", venue: "Chapel Hall", minister: "", time: "11:30", duration: 60, rule: "weekly", weekday: 0, date: "", active: true },
+  { id: "svc-sunday-evening", type: "sunday", title: "Renewed in Spirit", venue: "Chapel Hall", minister: "", time: "13:00", duration: 60, rule: "weekly", weekday: 0, date: "", active: true },
+  { id: "svc-midweek-fellowship", type: "midweek", title: "Midweek Fellowship", venue: "Chapel Hall", minister: "", time: "17:00", duration: 90, rule: "weekly", weekday: 3, date: "", active: true },
+  { id: "svc-night-of-encounter", type: "vigil", title: "Night of Encounter", venue: "Chapel Hall", minister: "", time: "22:00", duration: 120, rule: "lastfri", weekday: 5, date: "", active: true },
+  { id: "svc-semester-vigil", type: "vigil", title: "Semester Vigil", venue: "Chapel Hall", minister: "", time: "22:00", duration: 120, rule: "date", weekday: 5, date: "2026-10-02", active: true },
+];
+const TEST_EVENTS: HomepageEvent[] = [
+  { id: "evt-choir-rehearsal", category: "Rehearsal", title: "Choir Rehearsal", repeat: "weekly", weekday: 2, startDate: "", endDate: "", startTime: "16:00", time: "4:00 PM", venue: "Chapel Hall", cta: "RSVP", capacity: null, taken: 0, active: true },
+  { id: "evt-freshers-retreat", category: "Retreat", title: "Freshers' Welcome Retreat", repeat: "none", weekday: 0, startDate: "2026-10-09", endDate: "2026-10-11", startTime: "09:00", time: "9:00 AM", venue: "Chapel Hall", cta: "Register", capacity: 120, taken: 74, active: true },
+  { id: "evt-leadership-conference", category: "Conference", title: "Leadership Conference", repeat: "none", weekday: 0, startDate: "2026-10-16", endDate: "", startTime: "09:00", time: "9:00 AM", venue: "Chapel Hall", cta: "Register", capacity: 100, taken: 20, active: true },
+  { id: "evt-community-outreach", category: "Outreach", title: "Owode-Ede Community Outreach", repeat: "none", weekday: 0, startDate: "2026-11-01", endDate: "", startTime: "09:00", time: "9:00 AM", venue: "Owode-Ede", cta: "RSVP", capacity: 40, taken: 35, active: true },
+];
+const TEST_HOMEPAGE = { ...DEFAULT_HOMEPAGE, services: [...TEST_SERVICES], events: [...TEST_EVENTS] };
+const service = (id: string) => TEST_SERVICES.find((s) => s.id === id)!;
 
 describe("resolveHomepage", () => {
   it("returns the defaults when nothing has been saved", () => {
@@ -82,8 +98,8 @@ describe("events", () => {
 
   it("orders upcoming events, adds sign-ups to places taken and hides past ones", () => {
     const events = [
-      ...DEFAULT_HOMEPAGE.events,
-      { ...DEFAULT_HOMEPAGE.events[0]!, id: "past", startDate: "2026-01-01", endDate: "" },
+      ...TEST_EVENTS,
+      { ...TEST_EVENTS[0]!, id: "past", repeat: "none" as const, startDate: "2026-01-01", endDate: "" },
     ];
     const rows = upcomingEvents(events, { "evt-freshers-retreat": 5 }, today);
     expect(rows.map((r) => r.event.id)).toEqual(["evt-choir-rehearsal", "evt-freshers-retreat", "evt-leadership-conference", "evt-community-outreach"]);
@@ -92,7 +108,7 @@ describe("events", () => {
   });
 
   it("marks an event full when capacity is reached and skips hidden events", () => {
-    const rows = upcomingEvents(DEFAULT_HOMEPAGE.events.map((e) => (e.id === "evt-community-outreach" ? { ...e, capacity: 40 } : { ...e, active: e.id === "evt-community-outreach" })), { "evt-community-outreach": 9 }, today);
+    const rows = upcomingEvents(TEST_EVENTS.map((e) => (e.id === "evt-community-outreach" ? { ...e, capacity: 40 } : { ...e, active: e.id === "evt-community-outreach" })), { "evt-community-outreach": 9 }, today);
     expect(rows).toHaveLength(1);
     expect(rows[0]!.full).toBe(true);
   });
@@ -101,17 +117,17 @@ describe("events", () => {
 describe("calendar", () => {
   it("lists services and events for a date in time order", () => {
     // Sunday 20 Sep 2026
-    const items = calendarItems(new Date(2026, 8, 20, 12), "all", DEFAULT_HOMEPAGE);
+    const items = calendarItems(new Date(2026, 8, 20, 12), "all", TEST_HOMEPAGE);
     expect(items.map((i) => i.title)).toEqual(["Walking in Covenant Promise", "Renewed in Spirit"]);
     // Tuesday: weekly choir rehearsal; Friday 25 Sep is the last Friday
-    expect(calendarItems(new Date(2026, 8, 22, 12), "all", DEFAULT_HOMEPAGE)[0]!.type).toBe("event");
-    expect(calendarItems(new Date(2026, 8, 25, 12), "vigil", DEFAULT_HOMEPAGE)[0]!.title).toBe("Night of Encounter");
-    expect(calendarItems(new Date(2026, 8, 18, 12), "vigil", DEFAULT_HOMEPAGE)).toHaveLength(0);
+    expect(calendarItems(new Date(2026, 8, 22, 12), "all", TEST_HOMEPAGE)[0]!.type).toBe("event");
+    expect(calendarItems(new Date(2026, 8, 25, 12), "vigil", TEST_HOMEPAGE)[0]!.title).toBe("Night of Encounter");
+    expect(calendarItems(new Date(2026, 8, 18, 12), "vigil", TEST_HOMEPAGE)).toHaveLength(0);
   });
 
   it("shows multi-day events on every day of their range", () => {
-    for (const day of [9, 10, 11]) expect(calendarItems(new Date(2026, 9, day, 12), "event", DEFAULT_HOMEPAGE)[0]?.title).toBe("Freshers' Welcome Retreat");
-    expect(calendarItems(new Date(2026, 9, 12, 12), "event", DEFAULT_HOMEPAGE).find((i) => i.title.includes("Freshers"))).toBeUndefined();
+    for (const day of [9, 10, 11]) expect(calendarItems(new Date(2026, 9, day, 12), "event", TEST_HOMEPAGE)[0]?.title).toBe("Freshers' Welcome Retreat");
+    expect(calendarItems(new Date(2026, 9, 12, 12), "event", TEST_HOMEPAGE).find((i) => i.title.includes("Freshers"))).toBeUndefined();
   });
 
   it("ignores hidden services", () => {
@@ -121,6 +137,10 @@ describe("calendar", () => {
 });
 
 describe("verse of the day", () => {
+  it("has a full month of daily verses for students", () => {
+    expect(DEFAULT_HOMEPAGE.verse.verses).toHaveLength(31);
+  });
+
   it("is stable for a day, changes the next day and handles an empty list", () => {
     const verses = DEFAULT_HOMEPAGE.verse.verses;
     const a = verseOfTheDay(verses, new Date(2026, 8, 21, 8));

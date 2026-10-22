@@ -1,5 +1,10 @@
 from django.urls import path
 
+from .homepage import (
+    HomepageAdminView, HomepageRequestDetailView, HomepageRequestListView,
+    PublicHomepageRequestView, PublicHomepageView,
+)
+
 from .views import (
     AnalyticsOverviewView, AssetCategoryCollectionView, AssetCollectionView,
     AssetHistoryView, AssetLocationCollectionView, AssetMaintenanceActionView,
@@ -13,6 +18,11 @@ from .views import (
 
 
 urlpatterns = [
+    path("site/homepage/", PublicHomepageView.as_view(), name="site-homepage"),
+    path("site/homepage/requests/", PublicHomepageRequestView.as_view(), name="site-homepage-request"),
+    path("operations/homepage/", HomepageAdminView.as_view(), name="operations-homepage"),
+    path("operations/homepage/requests/", HomepageRequestListView.as_view(), name="operations-homepage-requests"),
+    path("operations/homepage/requests/<uuid:pk>/", HomepageRequestDetailView.as_view(), name="operations-homepage-request-detail"),
     path("operations/communication/", CommunicationOperationsView.as_view(), name="operations-communication"),
     path("operations/communication/<uuid:pk>/send/", CommunicationSendView.as_view(), name="operations-communication-send"),
     path("operations/branches/", BranchOperationsView.as_view(), name="operations-branches"),

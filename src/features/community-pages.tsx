@@ -5,10 +5,7 @@ import {
   ChevronRight,
   Crown,
   Megaphone,
-  MessageSquareText,
   Plus,
-  Search,
-  Send,
   ShieldCheck,
   UserCheck,
   Users,
@@ -31,6 +28,7 @@ import {
 import { ApiError } from "../lib/api";
 import { isDemoMode } from "../lib/fixtures";
 import { isDjangoBackend } from "../lib/backend";
+import { CommunityChat } from "./community-chat";
 import {
   communityAdminService,
   communityService,
@@ -41,7 +39,6 @@ import type {
   CommunityAnnouncement,
   CommunityEvent,
   CommunityMember,
-  CommunityMessage,
   CommunityResource,
   CommunitySummary,
   LeadershipDirectoryEntry,
@@ -344,119 +341,6 @@ function CommunityOverview({
         ))}
       </section>
     </div>
-  );
-}
-
-function CommunityChat({ slug, canPost }: { slug: string; canPost: boolean }) {
-  const { user } = useAuth();
-  const client = useQueryClient();
-  const [search, setSearch] = useState("");
-  const query = useQuery({
-    queryKey: ["community-messages", slug, search],
-    queryFn: async () => (await communityService.messages(slug, search)).data,
-  });
-  const send = useMutation({
-    mutationFn: (body: string) => communityService.sendMessage(slug, body),
-    onSuccess: () => {
-      void client.invalidateQueries({ queryKey: ["community-messages", slug] });
-    },
-  });
-  function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const form = event.currentTarget;
-    const body = String(new FormData(form).get("body") || "").trim();
-    if (!body) return;
-    send.mutate(body, { onSuccess: () => form.reset() });
-  }
-  return (
-    <section className="community-chat">
-      <header>
-        <div>
-          <h2>Community conversation</h2>
-          <p>Visible only to authorized members.</p>
-        </div>
-        <label className="community-chat__search">
-          <Search />
-          <input
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="Search messages"
-          />
-        </label>
-      </header>
-      <div className="community-chat__messages" aria-live="polite">
-        {query.isPending ? (
-          <LoadingState label="Loading messages" />
-        ) : query.isError ? (
-          <ErrorState
-            description={errorMessage(query.error)}
-            onRetry={() => void query.refetch()}
-          />
-        ) : query.data.length ? (
-          query.data.map((message: CommunityMessage) => (
-            <article
-              className={
-                message.sender_id === user?.id
-                  ? "community-message community-message--own"
-                  : "community-message"
-              }
-              key={message.id}
-            >
-              <span>
-                {message.sender_name
-                  .split(/\s+/)
-                  .slice(0, 2)
-                  .map((part) => part[0])
-                  .join("")}
-              </span>
-              <div>
-                <header>
-                  <strong>{message.sender_name}</strong>
-                  <time>
-                    {new Date(message.created_at).toLocaleTimeString([], {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </time>
-                </header>
-                <p>{message.body}</p>
-              </div>
-            </article>
-          ))
-        ) : (
-          <EmptyState
-            icon={<MessageSquareText />}
-            title="The conversation is ready"
-            description="The first community message will appear here."
-          />
-        )}
-      </div>
-      {canPost ? (
-        <form className="community-chat__composer" onSubmit={submit}>
-          <label>
-            <span className="sr-only">Message</span>
-            <textarea
-              name="body"
-              maxLength={4000}
-              placeholder="Write a message to the community"
-              required
-            />
-          </label>
-          <Button type="submit" icon={<Send />} loading={send.isPending}>
-            Send
-          </Button>
-          {send.isError && (
-            <div className="form-error" role="alert">
-              {errorMessage(send.error)}
-            </div>
-          )}
-        </form>
-      ) : (
-        <div className="community-chat__locked">
-          <ShieldCheck /> This community is currently leader-broadcast only.
-        </div>
-      )}
-    </section>
   );
 }
 

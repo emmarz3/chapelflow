@@ -46,9 +46,7 @@ describe("role permissions", () => {
     expect(getAuthenticatedHomePath(buildDemoUser("attendance_usher"))).toBe(
       "/usher/attendance",
     );
-    expect(getAuthenticatedHomePath(buildDemoUser("member"))).toBe(
-      "/app/chapel-pass",
-    );
+    expect(getAuthenticatedHomePath(buildDemoUser("member"))).toBe("/app");
     expect(
       getAuthenticatedHomePath({
         ...buildDemoUser("member"),
@@ -61,6 +59,20 @@ describe("role permissions", () => {
         community: "guest",
       }),
     ).toBe("/app");
+  });
+
+  it("preserves only internal destinations within the signed-in user's dashboard", () => {
+    const member = buildDemoUser("member");
+    const usher = buildDemoUser("attendance_usher");
+    expect(getAuthenticatedHomePath(member, "/app/events?filter=upcoming")).toBe(
+      "/app/events?filter=upcoming",
+    );
+    expect(getAuthenticatedHomePath(member, "//example.com/app")).toBe("/app");
+    expect(getAuthenticatedHomePath(member, "https://example.com/app")).toBe("/app");
+    expect(getAuthenticatedHomePath(member, "/usher/attendance")).toBe("/app");
+    expect(getAuthenticatedHomePath(usher, "/usher/attendance")).toBe(
+      "/usher/attendance",
+    );
   });
 
   it("connects unit-leader navigation only to authorized pages", () => {

@@ -20,6 +20,57 @@ class BranchRecord(models.Model):
         abstract = True
 
 
+class HomepageContent(models.Model):
+    key = models.CharField(max_length=40, unique=True, default="homepage")
+    content = models.JSONField(default=dict, blank=True)
+    version = models.PositiveIntegerField(default=0)
+    updated_at = models.DateTimeField(auto_now=True)
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="+",
+    )
+
+    class Meta:
+        db_table = "operations_homepage_content"
+
+
+class HomepageRequestKind(models.TextChoices):
+    EVENT = "EVENT", "Event registration / RSVP"
+    UNIT = "UNIT", "Unit join request"
+
+
+class HomepageRequestStatus(models.TextChoices):
+    NEW = "NEW", "New"
+    CONTACTED = "CONTACTED", "Contacted"
+    CLOSED = "CLOSED", "Closed"
+
+
+class HomepageRequest(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    kind = models.CharField(max_length=10, choices=HomepageRequestKind.choices)
+    item_id = models.CharField(max_length=64)
+    item_title = models.CharField(max_length=180, blank=True)
+    name = models.CharField(max_length=120)
+    email = models.EmailField()
+    matric_no = models.CharField(max_length=40, blank=True)
+    consent = models.BooleanField(default=False)
+    status = models.CharField(
+        max_length=12, choices=HomepageRequestStatus.choices,
+        default=HomepageRequestStatus.NEW,
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "operations_homepage_request"
+        ordering = ["-created_at"]
+        indexes = [models.Index(fields=["kind", "item_id"])]
+        constraints = [models.UniqueConstraint(
+            fields=["kind", "item_id", "email"],
+            name="unique_homepage_request_per_email",
+        )]
+
+
 class DutyRoster(BranchRecord):
     title = models.CharField(max_length=255)
     details = models.TextField()

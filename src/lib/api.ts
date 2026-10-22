@@ -32,6 +32,31 @@ function csrfCookie() {
     ?.split("=")[1];
 }
 
+let refreshRequest: Promise<boolean> | null = null;
+
+function refreshSession() {
+  if (!refreshRequest) {
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 60_000);
+    const csrf = csrfCookie();
+    refreshRequest = fetch(`${API_BASE_URL}/auth/refresh/`, {
+      method: "POST",
+      credentials: "include",
+      signal: controller.signal,
+      headers: new Headers({
+        Accept: "application/json",
+        ...(csrf ? { "X-ChapelFlow-CSRF": csrf } : {}),
+      }),
+    })
+      .then((response) => response.ok)
+      .finally(() => {
+        window.clearTimeout(timeout);
+        refreshRequest = null;
+      });
+  }
+  return refreshRequest;
+}
+
 export async function apiRequest<T>(
   path: string,
   init: RequestInit = {},
@@ -73,18 +98,16 @@ async function rawRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
       response.status === 401 &&
       isDjangoBackend &&
       path !== "/auth/refresh/" &&
-      path !== "/auth/logout/"
+      path !== "/auth/logout/" &&
+      path !== "/auth/login" &&
+      path !== "/auth/login/"
     ) {
-      const refresh = await fetch(`${API_BASE_URL}/auth/refresh/`, {
-        method: "POST",
-        credentials: "include",
-        signal,
-        headers: new Headers({
-          Accept: "application/json",
-          ...(csrf ? { "X-ChapelFlow-CSRF": csrf } : {}),
-        }),
-      });
-      if (refresh.ok) {
+      if (await refreshSession()) {
+        // The backend rotates the CSRF cookie on every refresh, so re-read it
+        // before retrying. Reusing the captured header would send a stale token
+        // and fail the CSRF check, logging the user out.
+        const freshCsrf = csrfCookie();
+        if (freshCsrf) headers.set("X-ChapelFlow-CSRF", freshCsrf);
         response = await fetch(`${API_BASE_URL}${path}`, {
           ...init,
           credentials: "include",
@@ -95,7 +118,9 @@ async function rawRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
     }
     if (
       response.status === 401 &&
-      window.location.pathname.startsWith("/app")
+      window.location.pathname.startsWith("/app") &&
+      path !== "/auth/me" &&
+      path !== "/auth/me/"
     ) {
       window.location.assign(
         `/login?returnTo=${encodeURIComponent(safeRedirect(window.location.pathname))}&reason=expired`,
@@ -170,6 +195,8 @@ export const api = {
     }),
   postForm: <T>(path: string, body: FormData) =>
     apiRequest<T>(path, { method: "POST", body }),
+  put: <T>(path: string, body: unknown) =>
+    apiRequest<T>(path, { method: "PUT", body: JSON.stringify(body) }),
   patch: <T>(path: string, body: unknown) =>
     apiRequest<T>(path, { method: "PATCH", body: JSON.stringify(body) }),
   delete: <T>(path: string) => apiRequest<T>(path, { method: "DELETE" }),

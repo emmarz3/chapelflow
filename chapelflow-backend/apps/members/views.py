@@ -21,7 +21,10 @@ class MemberViewSet(BranchScopedQuerysetMixin, StandardModelViewSet):
         "branch", "household", "membership_status", "gender",
         "college", "department", "community", "academic_level", "fellowship"
     ]
-    search_fields = ["first_name", "last_name", "email", "phone_number"]
+    search_fields = [
+        "first_name", "last_name", "other_names", "email", "phone_number",
+        "user__matric_no", "department__name", "college__name",
+    ]
     ordering_fields = ["academic_level", "last_name", "created_at", "membership_date"]
 
     # Deliberately NOT wired through the generic group_field_lookup

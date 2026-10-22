@@ -24,6 +24,34 @@ const roles = [
   ["ATTENDANCE_USHER", "Attendance usher"],
 ] as const;
 
+const chapelUnits: readonly string[] = [
+  "Intercessory",
+  "Treasurer",
+  "Chapel Protocol",
+  "Music",
+  "Instrumentalist",
+  "Ushering",
+  "Sanctuary Keepers",
+  "Media & ICT",
+  "Social Media",
+  "Library",
+  "Drama Team",
+  "Technical & Sound",
+] as const;
+
+const chapelFellowships: readonly string[] = [
+  "Love Campus Fellowship",
+  "Truth Campus Fellowship",
+  "Favour Campus Fellowship",
+  "Integrity Campus Fellowship",
+  "Righteousness Campus Fellowship",
+  "Mercy Campus Fellowship",
+  "Excellence Campus Fellowship",
+  "Grace Campus Fellowship",
+  "Outstanding Campus Fellowship",
+  "Peace Campus Fellowship",
+] as const;
+
 type InstitutionalRole = (typeof roles)[number][0];
 
 function roleGroupType(role: InstitutionalRole) {
@@ -58,6 +86,7 @@ export function InstitutionalAccountsPage() {
     mutationFn: institutionalAccountService.create,
     onSuccess: () => {
       setOpen(false);
+      toast("Institutional account created successfully.");
       refresh();
     },
   });
@@ -164,7 +193,20 @@ export function InstitutionalAccountsPage() {
           </label>
           <label className="field">
             <span>Initial password</span>
-            <input name="password" type="password" minLength={12} required />
+            <input
+              name="password"
+              type="password"
+              minLength={12}
+              required
+              aria-invalid={Boolean(validationMessage(create.error, "password"))}
+              aria-describedby="institutional-password-note institutional-password-error"
+            />
+            <small id="institutional-password-note">Use at least 12 characters and avoid common passwords.</small>
+            {validationMessage(create.error, "password") && (
+              <small id="institutional-password-error" className="field__error" role="alert">
+                {validationMessage(create.error, "password")}
+              </small>
+            )}
           </label>
           <label className="field">
             <span>Role</span>
@@ -208,7 +250,10 @@ export function InstitutionalAccountsPage() {
                 ?.filter(
                   (group) =>
                     group.is_active &&
-                    group.group_type === roleGroupType(selectedRole),
+                    group.group_type === roleGroupType(selectedRole) &&
+                    (group.group_type === "UNIT"
+                      ? chapelUnits.includes(group.name)
+                      : chapelFellowships.includes(group.name)),
                 )
                 .map((group) => (
                   <option key={group.id} value={group.id}>
@@ -231,7 +276,7 @@ export function InstitutionalAccountsPage() {
             <Button type="submit" loading={create.isPending}>
               Create securely
             </Button>
-            {create.isError && !(create.error instanceof ApiError && create.error.fieldErrors) && (
+            {create.isError && (
               <p className="form-error" role="alert">
                 {create.error.message}
               </p>

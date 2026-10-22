@@ -48,6 +48,7 @@ import { ApiError } from "../lib/api";
 import { downloadCsv } from "../lib/export";
 import {
   ATTENDANCE_QUEUE_EVENT,
+  queueAttendanceCheckIn,
   readPendingAttendance,
 } from "../lib/offline-queue";
 import {
@@ -92,6 +93,21 @@ function timeInputValue(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
   return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+}
+
+const academicLevels = ["JUPEB", "100", "200", "300", "400", "500", "600"] as const;
+const academicLevelLabels: Record<(typeof academicLevels)[number], string> = {
+  JUPEB: "JUPEB",
+  "100": "100 Level",
+  "200": "200 Level",
+  "300": "300 Level",
+  "400": "400 Level",
+  "500": "500 Level",
+  "600": "600 Level",
+};
+
+function academicLevelLabel(level: string) {
+  return academicLevelLabels[level as keyof typeof academicLevelLabels] || "No academic level";
 }
 
 export function LiveDashboardPage() {
@@ -214,6 +230,7 @@ export function LiveMembersPage() {
   const canWrite = hasPermission(user, "members:write");
   const [queryText, setQueryText] = useState("");
   const [status, setStatus] = useState("all");
+  const [academicLevel, setAcademicLevel] = useState("all");
   const [createOpen, setCreateOpen] = useState(false);
   const [selected, setSelected] = useState<Member | null>(null);
   const toast = useToast();
@@ -221,6 +238,7 @@ export function LiveMembersPage() {
   const params = {
     search: queryText,
     status: status === "all" ? undefined : status,
+    academic_level: academicLevel === "all" ? undefined : academicLevel,
     page: 1,
     pageSize: 50,
   };
@@ -245,6 +263,16 @@ export function LiveMembersPage() {
     },
   });
   const rows = query.data?.data ?? [];
+  const groupedRows = rows.reduce<Record<string, Member[]>>((groups, member) => {
+    const level = member.level || "";
+    const group = level || "UNASSIGNED";
+    (groups[group] ||= []).push(member);
+    return groups;
+  }, {});
+  const levelOrder = [...academicLevels, "UNASSIGNED"];
+  const visibleGroups = Object.entries(groupedRows).sort(
+    ([left], [right]) => levelOrder.indexOf(left as (typeof levelOrder)[number]) - levelOrder.indexOf(right as (typeof levelOrder)[number]),
+  );
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const values = new FormData(event.currentTarget);
@@ -292,8 +320,21 @@ export function LiveMembersPage() {
         <SearchField
           value={queryText}
           onChange={setQueryText}
-          placeholder="Search name, identifier, or programme"
+          placeholder="Search name, student ID, email, or phone"
         />
+        <label>
+          <ListFilter />
+          <select
+            aria-label="Academic level"
+            value={academicLevel}
+            onChange={(event) => setAcademicLevel(event.target.value)}
+          >
+            <option value="all">All academic levels</option>
+            {academicLevels.map((level) => (
+              <option key={level} value={level}>{academicLevelLabels[level]}</option>
+            ))}
+          </select>
+        </label>
         <label>
           <ListFilter />
           <select
@@ -335,7 +376,14 @@ export function LiveMembersPage() {
               </tr>
             </thead>
             <tbody>
-              {rows.map((member) => (
+              {visibleGroups.flatMap(([level, members]) => [
+                <tr key={`level-${level}`} className="table-group-heading">
+                  <th colSpan={7} scope="rowgroup">
+                    {level === "UNASSIGNED" ? "No academic level" : academicLevelLabel(level)}
+                    <small> · {members.length} {members.length === 1 ? "student" : "students"}</small>
+                  </th>
+                </tr>,
+                ...members.map((member) => (
                 <tr key={member.id} onClick={() => setSelected(member)}>
                   <td>
                     <span className="table-avatar">
@@ -352,7 +400,7 @@ export function LiveMembersPage() {
                   </td>
                   <td>
                     <strong>{member.programme}</strong>
-                    <small>{member.level && `Level ${member.level}`}</small>
+                    <small>{member.level ? academicLevelLabel(member.level) : "No academic level"}</small>
                   </td>
                   <td>{member.department || "Not assigned"}</td>
                   <td>
@@ -386,7 +434,8 @@ export function LiveMembersPage() {
                     </button>
                   </td>
                 </tr>
-              ))}
+                )),
+              ])}
             </tbody>
           </table>
           {!rows.length && (
@@ -659,9 +708,24 @@ export function LiveAttendancePage() {
     event.preventDefault();
     const identifier = String(
       new FormData(event.currentTarget).get("identifier"),
-    );
+    ).trim();
     if (!navigator.onLine) {
-      toast("Connection problem — attendance was not recorded.", "error");
+      if (!currentSessionId) {
+        toast("No active session is available to queue this check-in.", "error");
+        return;
+      }
+      const queued = queueAttendanceCheckIn({
+        sessionId: currentSessionId,
+        branchId,
+        memberIdentifier: identifier,
+        method: "manual",
+      });
+      if (queued) {
+        setManualOpen(false);
+        toast("Check-in saved on this device and queued to sync when online.");
+      } else {
+        toast("This check-in is already waiting to sync.", "error");
+      }
       return;
     }
     manual.mutate({ sessionId: session.id, identifier, branchId });
@@ -2130,6 +2194,7 @@ function LiveModuleOperationsPage({
       email: data.has("email"),
       sms: data.has("sms"),
       push: data.has("push"),
+      prayer: data.has("prayer"),
       analytics: data.has("analytics"),
     });
   }
@@ -2190,6 +2255,17 @@ function LiveModuleOperationsPage({
                   name="push"
                   type="checkbox"
                   defaultChecked={query.data.push}
+                />
+              </label>
+              <label>
+                <span>
+                  <strong>Public prayer updates</strong>
+                  <small>Email me when a public chapel prayer request is shared</small>
+                </span>
+                <input
+                  name="prayer"
+                  type="checkbox"
+                  defaultChecked={query.data.prayer}
                 />
               </label>
               <label>

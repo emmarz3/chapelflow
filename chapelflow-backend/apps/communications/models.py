@@ -144,6 +144,7 @@ class CommunicationPreference(models.Model):
     
     # Feature preferences
     announcements_enabled = models.BooleanField(default=True)
+    prayer_notifications_enabled = models.BooleanField(default=False)
     
     updated_at = models.DateTimeField(auto_now=True)
     

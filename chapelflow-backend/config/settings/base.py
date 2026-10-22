@@ -112,7 +112,7 @@ ASGI_APPLICATION = "config.asgi.application"
 DATABASES = {
     "default": env.db(
         "DATABASE_URL",
-        default="postgres://chapelflow:chapelflow@localhost:5432/chapelflow",
+        default="postgres://chapelflow:chapelflow@localhost:5433/chapelflow",
     )
 }
 
@@ -294,6 +294,7 @@ FLUTTERWAVE_SECRET_KEY = env("FLUTTERWAVE_SECRET_KEY", default="")
 # --------------------------------------------------------------------------
 EMAIL_HOST = env("EMAIL_HOST", default="")
 EMAIL_PORT = env.int("EMAIL_PORT", default=587)
+EMAIL_TIMEOUT = env.int("EMAIL_TIMEOUT", default=15)
 EMAIL_HOST_USER = env("EMAIL_HOST_USER", default="")
 EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", default="")
 EMAIL_USE_TLS = env.bool("EMAIL_USE_TLS", default=True)

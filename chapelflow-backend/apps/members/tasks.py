@@ -49,7 +49,7 @@ def bulk_import_members_task(file_url, requesting_user_id):
         return summary
 
     try:
-        with urllib.request.urlopen(file_url) as response:
+        with urllib.request.urlopen(file_url, timeout=30) as response:
             content = response.read()
 
         summary = parse_and_import_members(io.BytesIO(content), user)

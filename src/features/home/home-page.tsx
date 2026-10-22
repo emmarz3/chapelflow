@@ -210,7 +210,24 @@ function HeroCountdown({ content }: { content: HomepageContent }) {
 
 function VerseOfTheDay({ content }: { content: HomepageContent }) {
   const toast = useToast();
-  const verse = useMemo(() => (content.verse.enabled ? verseOfTheDay(content.verse.verses) : null), [content.verse]);
+  const [today, setToday] = useState(() => new Date());
+  useEffect(() => {
+    let timer = 0;
+    const scheduleMidnightRefresh = () => {
+      const now = new Date();
+      const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+      timer = window.setTimeout(() => {
+        setToday(new Date());
+        scheduleMidnightRefresh();
+      }, midnight.getTime() - now.getTime());
+    };
+    scheduleMidnightRefresh();
+    return () => window.clearTimeout(timer);
+  }, []);
+  const verse = useMemo(
+    () => (content.verse.enabled ? verseOfTheDay(content.verse.verses, today) : null),
+    [content.verse, today],
+  );
   if (!verse) return null;
   const full = `${verse.text} (${verse.reference}${verse.translation ? `, ${verse.translation}` : ""})`;
   const copy = async () => {
@@ -237,12 +254,13 @@ function VerseOfTheDay({ content }: { content: HomepageContent }) {
           <span className="hp-verse__ico"><BookOpen aria-hidden="true" /></span>
           <div>
             <b id="hp-verse-head">Verse of the day</b>
-            <small>{new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })}</small>
+            <small>{today.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })}</small>
           </div>
         </div>
         <div className="hp-verse__main">
           <blockquote>“{verse.text}”</blockquote>
           <p className="hp-verse__ref">{verse.reference}{verse.translation ? ` · ${verse.translation}` : ""}</p>
+          <p className="hp-verse__context">For lectures, decisions, and everything you are carrying today.</p>
           {verse.note && <p className="hp-verse__note">{verse.note}</p>}
         </div>
         <div className="hp-verse__actions">

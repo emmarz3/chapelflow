@@ -8,9 +8,9 @@ class ReportJobSerializer(serializers.ModelSerializer):
         model = ReportJob
         fields = [
             "id", "branch", "requested_by", "report_type", "export_format",
-            "filters", "status", "file_url", "error_message", "created_at", "completed_at",
+            "filters", "status", "progress", "rows_processed", "file_url", "error_message", "created_at", "completed_at",
         ]
-        read_only_fields = ["id", "requested_by", "status", "file_url", "error_message", "created_at", "completed_at"]
+        read_only_fields = ["id", "requested_by", "status", "progress", "rows_processed", "file_url", "error_message", "created_at", "completed_at"]
     
     def validate_filters(self, filters):
         """

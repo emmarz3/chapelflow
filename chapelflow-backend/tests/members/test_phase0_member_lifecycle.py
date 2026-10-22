@@ -137,6 +137,23 @@ class TestSelfRegistrationPipeline:
 
 
 @pytest.mark.django_db
+def test_member_directory_searches_student_id_and_filters_academic_level(
+    api_client, chapel_admin_a, member_in_branch_a, seed_member_permissions
+):
+    member_in_branch_a.academic_level = "JUPEB"
+    member_in_branch_a.save(update_fields=["academic_level"])
+    api_client.force_authenticate(user=chapel_admin_a)
+
+    response = api_client.get(
+        "/api/v1/members/?search=SWE%2F2024%2F005&academic_level=JUPEB"
+    )
+
+    assert response.status_code == 200
+    assert response.data["data"][0]["matric_no"] == "SWE/2024/005"
+    assert response.data["data"][0]["academic_level"] == "JUPEB"
+
+
+@pytest.mark.django_db
 class TestMemberManagementActions:
     """Spec section 8: deactivate/reactivate/merge, with audit trail."""
 

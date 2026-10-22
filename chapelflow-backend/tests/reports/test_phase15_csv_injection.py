@@ -203,7 +203,7 @@ class TestReportFilterValidation:
         
         # Try to create report with invalid filter
         response = client.post(
-            '/api/reports/jobs/',
+            '/api/v1/reports/jobs/',
             data={
                 'report_type': 'MEMBERSHIP',
                 'export_format': 'CSV',
@@ -239,7 +239,7 @@ class TestReportFilterValidation:
         
         # Try SQL injection in filter value
         response = client.post(
-            '/api/reports/jobs/',
+            '/api/v1/reports/jobs/',
             data={
                 'report_type': 'MEMBERSHIP',
                 'export_format': 'CSV',

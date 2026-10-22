@@ -35,15 +35,94 @@ function storageHas(storage: Storage | undefined, key: string) {
   }
 }
 
+const GLOW_COLORS = ["#4c1798", "#6d2dce", "#2563eb", "#1685ee"] as const;
+const GLOW_EASE = [0.22, 1, 0.36, 1] as const;
+
+function PulsingGlow({ visible }: { visible: boolean }) {
+  return (
+    <motion.div
+      className="cf-intro__glow"
+      aria-hidden="true"
+      initial={{ opacity: 0, scale: 0.9 }}
+      animate={{
+        opacity: visible ? 1 : 0,
+        scale: visible ? [0.94, 1.04, 0.96, 1] : 0.92,
+      }}
+      transition={{
+        duration: 2.2,
+        repeat: Infinity,
+        ease: "easeInOut",
+      }}
+    >
+      {GLOW_COLORS.map((color, index) => (
+        <span
+          key={color}
+          className="cf-intro__glow-ring"
+          style={{
+            background: `radial-gradient(circle, ${color} 0%, transparent 70%)`,
+            animationDelay: `${index * 0.18}s`,
+          }}
+        />
+      ))}
+    </motion.div>
+  );
+}
+
+function FloatingParticles({ active }: { active: boolean }) {
+  const particles = useMemo(
+    () =>
+      Array.from({ length: 18 }).map((_, index) => ({
+        id: index,
+        left: `${30 + (index % 6) * 10}%`,
+        top: `${25 + Math.floor(index / 6) * 18}%`,
+        delay: index * 0.06,
+        duration: 1.6 + (index % 5) * 0.25,
+        distance: 18 + (index % 4) * 12,
+        opacity: 0.35 + (index % 3) * 0.18,
+      })),
+    [],
+  );
+
+  if (!active) return null;
+
+  return (
+    <div className="cf-intro__particles" aria-hidden="true">
+      {particles.map((particle) => (
+        <motion.span
+          key={particle.id}
+          className="cf-intro__particle"
+          style={{
+            left: particle.left,
+            top: particle.top,
+            opacity: particle.opacity,
+          }}
+          initial={{ y: 0, x: 0, opacity: 0 }}
+          animate={{
+            y: [-particle.distance, particle.distance * 0.35],
+            x: [-particle.distance * 0.5, particle.distance * 0.5],
+            opacity: [0, particle.opacity, 0],
+          }}
+          transition={{
+            duration: particle.duration,
+            delay: particle.delay,
+            repeat: Infinity,
+            ease: "easeInOut",
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
 function ChapelFlowMark({ active }: { active: boolean }) {
-  const draw = { duration: 0.72, ease: [0.22, 1, 0.36, 1] as const };
+  const draw = { duration: 1.05, ease: GLOW_EASE } as const;
   return (
     <motion.svg
       className="cf-intro__mark"
       viewBox="0 0 240 220"
       initial={false}
       animate={{ opacity: active ? 1 : 0, scale: active ? 1 : 0.96 }}
-      transition={{ duration: 0.28 }}
+      transition={{ duration: 0.32, ease: GLOW_EASE }}
     >
       <defs>
         <linearGradient id="cf-intro-gradient" x1="0" y1="1" x2="1" y2="0">
@@ -51,10 +130,18 @@ function ChapelFlowMark({ active }: { active: boolean }) {
           <stop offset="0.52" stopColor="#6d2dce" />
           <stop offset="1" stopColor="#1685ee" />
         </linearGradient>
+        <filter id="cf-intro-glow" x="-40%" y="-40%" width="180%" height="180%">
+          <feGaussianBlur stdDeviation="6" result="blur" />
+          <feMerge>
+            <feMergeNode in="blur" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
       </defs>
       <motion.path
         d="M18 173 C53 143 83 147 119 170 C157 194 197 197 225 166 C209 211 165 220 119 194 C78 171 49 160 18 185 Z"
         fill="url(#cf-intro-gradient)"
+        filter="url(#cf-intro-glow)"
         initial={{ clipPath: "inset(0 100% 0 0)" }}
         animate={{ clipPath: active ? "inset(0 0% 0 0)" : "inset(0 100% 0 0)" }}
         transition={draw}
@@ -67,6 +154,7 @@ function ChapelFlowMark({ active }: { active: boolean }) {
         strokeLinecap="square"
         strokeLinejoin="round"
         pathLength="1"
+        filter="url(#cf-intro-glow)"
         initial={{ pathLength: 0, opacity: 0 }}
         animate={{ pathLength: active ? 1 : 0, opacity: active ? 1 : 0 }}
         transition={{ ...draw, delay: 0.18 }}
@@ -74,10 +162,11 @@ function ChapelFlowMark({ active }: { active: boolean }) {
       <motion.path
         d="M96 168 V114 C96 98 107 87 120 87 C133 87 144 98 144 114 V168"
         fill="url(#cf-intro-gradient)"
+        filter="url(#cf-intro-glow)"
         initial={{ opacity: 0, scaleY: 0.4 }}
         animate={{ opacity: active ? 1 : 0, scaleY: active ? 1 : 0.4 }}
         style={{ transformOrigin: "120px 168px" }}
-        transition={{ duration: 0.4, delay: 0.52, ease: [0.22, 1, 0.36, 1] }}
+        transition={{ duration: 0.52, delay: 0.6, ease: GLOW_EASE }}
       />
       <motion.path
         d="M120 106 V147 M108 119 H132"
@@ -87,7 +176,7 @@ function ChapelFlowMark({ active }: { active: boolean }) {
         strokeLinecap="square"
         initial={{ opacity: 0 }}
         animate={{ opacity: active ? 1 : 0 }}
-        transition={{ duration: 0.25, delay: 0.7 }}
+        transition={{ duration: 0.28, delay: 0.82 }}
       />
       <motion.path
         d="M120 4 V31 M108 16 H132"
@@ -98,14 +187,15 @@ function ChapelFlowMark({ active }: { active: boolean }) {
         initial={{ opacity: 0, scale: 0.85 }}
         animate={{ opacity: active ? 1 : 0, scale: active ? 1 : 0.85 }}
         style={{ transformOrigin: "120px 17px" }}
-        transition={{ duration: 0.3, delay: 0.78, ease: [0.22, 1, 0.36, 1] }}
+        transition={{ duration: 0.34, delay: 0.92, ease: GLOW_EASE }}
       />
       <motion.path
         d="M184 132 C208 112 229 119 234 121 C216 119 202 128 202 143 C202 158 216 166 234 162 C222 181 184 183 174 157 C169 146 174 138 184 132 Z"
         fill="url(#cf-intro-gradient)"
+        filter="url(#cf-intro-glow)"
         initial={{ opacity: 0, x: 12 }}
         animate={{ opacity: active ? 1 : 0, x: active ? 0 : 12 }}
-        transition={{ duration: 0.42, delay: 0.48, ease: [0.22, 1, 0.36, 1] }}
+        transition={{ duration: 0.52, delay: 0.56, ease: GLOW_EASE }}
       />
     </motion.svg>
   );
@@ -118,13 +208,25 @@ function BrandSweep({ reverse = false }: { reverse?: boolean }) {
       {colors.map((color, index) => (
         <motion.span
           key={color}
+          className="cf-intro__sweep-layer"
           style={{ background: color }}
-          initial={{ x: reverse ? "120%" : "-130%", y: reverse ? "20%" : "26%", rotate: reverse ? 10 : -10 }}
-          animate={{ x: reverse ? "-16%" : "14%", y: reverse ? "-14%" : "-22%" }}
+          initial={{
+            x: reverse ? "120%" : "-130%",
+            y: reverse ? "18%" : "24%",
+            rotate: reverse ? 8 : -8,
+            filter: "blur(18px)",
+            opacity: 0.55,
+          }}
+          animate={{
+            x: reverse ? "-18%" : "16%",
+            y: reverse ? "-16%" : "-20%",
+            filter: "blur(6px)",
+            opacity: 0.85,
+          }}
           transition={{
-            duration: 0.72,
-            delay: index * 0.075,
-            ease: [0.22, 1, 0.36, 1],
+            duration: 0.88,
+            delay: index * 0.08,
+            ease: GLOW_EASE,
           }}
         />
       ))}
@@ -213,6 +315,8 @@ export function ChapelFlowIntro() {
   const showWordmark = stageIndex >= 2 && stageIndex <= 4;
   const showOfficial = stageIndex >= 3 && stageIndex <= 4;
   const showInstitution = stageIndex >= 5;
+  const showGlow = stageIndex >= 1 && stageIndex <= 4;
+  const showParticles = stageIndex >= 1 && stageIndex <= 4;
   const exiting = stage === "transitionToApplication";
   const overlayAnimation = useMemo(
     () =>
@@ -231,7 +335,11 @@ export function ChapelFlowIntro() {
       animate={overlayAnimation}
       transition={
         exiting
-          ? { duration: reduceMotion ? 0.24 : 0.68, delay: reduceMotion ? 0.04 : 0.16, ease: [0.76, 0, 0.24, 1] }
+          ? {
+              duration: reduceMotion ? 0.24 : 0.82,
+              delay: reduceMotion ? 0.04 : 0.18,
+              ease: [0.76, 0, 0.24, 1],
+            }
           : undefined
       }
       role="presentation"
@@ -244,17 +352,24 @@ export function ChapelFlowIntro() {
               initial={{ opacity: 0, scaleY: 0 }}
               animate={{ opacity: 1, scaleY: 1 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+              transition={{ duration: 0.28, ease: GLOW_EASE }}
             />
           )}
         </AnimatePresence>
+
+        {showGlow && <PulsingGlow visible={showGlow} />}
+        {showParticles && <FloatingParticles active={showParticles} />}
 
         {stageIndex <= 4 && (
           <div className="cf-intro__brand-scene">
             <motion.div
               className="cf-intro__constructed-lockup"
-              animate={{ opacity: showOfficial ? 0 : 1, scale: showOfficial ? 0.985 : 1 }}
-              transition={{ duration: 0.28 }}
+              animate={{
+                opacity: showOfficial ? 0 : 1,
+                scale: showOfficial ? 0.985 : 1,
+                y: showOfficial ? 6 : 0,
+              }}
+              transition={{ duration: 0.34, ease: GLOW_EASE }}
             >
               <ChapelFlowMark active={markActive} />
               <motion.div
@@ -262,12 +377,14 @@ export function ChapelFlowIntro() {
                 initial={false}
                 animate={{
                   opacity: showWordmark ? 1 : 0,
-                  y: showWordmark ? 0 : 12,
-                  letterSpacing: showWordmark ? "-0.055em" : "0.015em",
+                  y: showWordmark ? 0 : 14,
+                  letterSpacing: showWordmark ? "-0.055em" : "0.02em",
+                  scale: showWordmark ? 1 : 0.98,
                 }}
-                transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+                transition={{ duration: 0.6, ease: GLOW_EASE }}
               >
-                <span>Chapel</span><strong>Flow</strong>
+                <span>Chapel</span>
+                <strong>Flow</strong>
               </motion.div>
             </motion.div>
             <motion.img
@@ -275,8 +392,12 @@ export function ChapelFlowIntro() {
               src={INTRO_CONFIG.brand.chapelFlowAsset}
               alt=""
               initial={false}
-              animate={{ opacity: showOfficial ? 1 : 0, scale: showOfficial ? 1 : 0.985 }}
-              transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+              animate={{
+                opacity: showOfficial ? 1 : 0,
+                scale: showOfficial ? 1 : 0.985,
+                y: showOfficial ? 0 : 8,
+              }}
+              transition={{ duration: 0.34, ease: GLOW_EASE }}
             />
           </div>
         )}
@@ -286,13 +407,39 @@ export function ChapelFlowIntro() {
         {showInstitution && (
           <motion.div
             className="cf-intro__institution"
-            initial={{ opacity: 0, scale: 0.96, y: 10 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            transition={{ duration: reduceMotion ? 0.18 : 0.52, ease: [0.22, 1, 0.36, 1] }}
+            initial={{ opacity: 0, scale: 0.94, y: 16, filter: "blur(8px)" }}
+            animate={{ opacity: 1, scale: 1, y: 0, filter: "blur(0px)" }}
+            transition={{ duration: 0.86, ease: GLOW_EASE }}
           >
-            <img src={INTRO_CONFIG.brand.institutionAsset} alt="" />
-            <span className="cf-intro__institution-rule" />
-            <p>Chapel management platform</p>
+            <div className="cf-intro__institution-stage">
+              <motion.img
+                src={INTRO_CONFIG.brand.institutionAsset}
+                alt=""
+                initial={{ y: 18, scale: 0.97 }}
+                animate={{ y: 0, scale: 1 }}
+                transition={{ duration: 0.82, ease: GLOW_EASE, delay: 0.08 }}
+              />
+              <motion.span
+                className="cf-intro__institution-rule"
+                initial={{ scaleX: 0 }}
+                animate={{ scaleX: 1 }}
+                transition={{ duration: 0.6, ease: GLOW_EASE, delay: 0.28 }}
+              />
+              <motion.p
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.52, ease: GLOW_EASE, delay: 0.38 }}
+              >
+                Chapel management platform
+              </motion.p>
+            </div>
+            <motion.div
+              className="cf-intro__institution-light"
+              aria-hidden="true"
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 1.4, ease: "easeInOut", delay: 0.12 }}
+            />
           </motion.div>
         )}
 
@@ -300,9 +447,16 @@ export function ChapelFlowIntro() {
       </div>
 
       {!reduceMotion && stageIndex >= 1 && stageIndex < 7 && (
-        <button className="cf-intro__skip" type="button" onClick={finish}>
+        <motion.button
+          className="cf-intro__skip"
+          type="button"
+          onClick={finish}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.24, delay: 0.45 }}
+        >
           Skip intro
-        </button>
+        </motion.button>
       )}
     </motion.div>
   );

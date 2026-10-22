@@ -178,17 +178,19 @@ def volunteers_report(branch, filters):
     from apps.volunteers.models import VolunteerAssignment
     from django.db.models import Q
     
-    qs = VolunteerAssignment.objects.filter(branch=branch).select_related("volunteer", "schedule")
+    qs = VolunteerAssignment.objects.filter(
+        volunteer__member__branch=branch,
+    ).select_related("volunteer", "event_schedule", "group")
     
     # Apply filters
     if filters.get("date_from"):
-        qs = qs.filter(schedule__start_time__gte=filters["date_from"])
+        qs = qs.filter(shift_starts_at__gte=filters["date_from"])
     if filters.get("date_to"):
-        qs = qs.filter(schedule__end_time__lte=filters["date_to"])
+        qs = qs.filter(shift_ends_at__lte=filters["date_to"])
     if filters.get("status"):
         qs = qs.filter(status=filters["status"])
     if filters.get("ministry_id"):
-        qs = qs.filter(schedule__ministry_id=filters["ministry_id"])
+        qs = qs.filter(group_id=filters["ministry_id"])
     
     # Group by volunteer and aggregate
     return qs.values(
@@ -200,7 +202,7 @@ def volunteers_report(branch, filters):
         total_assignments=Count("id", distinct=True),
         completed_assignments=Count("id", filter=Q(status="COMPLETED"), distinct=True),
         active_assignments=Count("id", filter=Q(status="CONFIRMED"), distinct=True),
-        last_assignment_date=Max("schedule__start_time")
+        last_assignment_date=Max("shift_starts_at")
     )
 
 
@@ -369,3 +371,65 @@ def export_report_rows(export_format: str, rows: list, title: str = "Report") ->
         content = config["func"](rows)
 
     return content, config["content_type"], config["extension"]
+
+
+def write_report_export(export_format: str, rows, output, title: str = "Report", on_progress=None) -> tuple:
+    """Write CSV/XLSX incrementally to a seekable file; PDF is intentionally capped."""
+    import csv
+    import itertools
+
+    iterator = iter(rows)
+    first = next(iterator, None)
+    config = REPORT_EXPORTERS.get(export_format)
+    if not config:
+        raise ValueError(f"Unsupported export_format: {export_format!r}")
+    if first is None:
+        if export_format == "EXCEL":
+            from openpyxl import Workbook
+            workbook = Workbook(write_only=True)
+            workbook.create_sheet("Report")
+            workbook.save(output)
+        elif export_format == "PDF":
+            content, _, _ = export_report_rows("PDF", [], title=title)
+            output.write(content)
+        output.seek(0)
+        return config["content_type"], config["extension"], 0
+
+    row_count = 0
+    if export_format == "CSV":
+        import io
+        text_output = io.TextIOWrapper(output, encoding="utf-8", newline="", write_through=True)
+        writer = csv.DictWriter(text_output, fieldnames=list(first.keys()))
+        writer.writeheader()
+        for row in itertools.chain((first,), iterator):
+            writer.writerow({key: sanitize_csv_value(value) for key, value in row.items()})
+            row_count += 1
+            if on_progress and row_count % 500 == 0:
+                on_progress(row_count)
+        text_output.flush()
+        text_output.detach()
+    elif export_format == "EXCEL":
+        from openpyxl import Workbook
+        workbook = Workbook(write_only=True)
+        sheet = workbook.create_sheet("Report")
+        headers = list(first.keys())
+        sheet.append(headers)
+        for row in itertools.chain((first,), iterator):
+            sheet.append([value if isinstance(value, (int, float, str, type(None))) else str(value) for value in row.values()])
+            row_count += 1
+            if on_progress and row_count % 500 == 0:
+                on_progress(row_count)
+        workbook.save(output)
+    else:
+        # ReportLab's Table keeps its cells in memory. Keep the resource bound
+        # explicit until a row-streaming PDF renderer is introduced.
+        rows_list = [first]
+        for row in iterator:
+            if len(rows_list) >= 10000:
+                raise ValueError("PDF reports are limited to 10,000 rows; export as CSV or Excel for larger reports.")
+            rows_list.append(row)
+        content, _, _ = export_report_rows("PDF", rows_list, title=title)
+        output.write(content)
+        row_count = len(rows_list)
+    output.seek(0)
+    return config["content_type"], config["extension"], row_count

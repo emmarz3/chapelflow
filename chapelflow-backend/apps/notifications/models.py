@@ -52,6 +52,10 @@ class Notification(models.Model):
         help_text="Set when this notification was fanned out from a communications.Announcement, "
                   "so delivery state can be tracked/aggregated per-campaign.",
     )
+    source_prayer_request = models.ForeignKey(
+        "prayer.PrayerRequest", null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="notifications",
+    )
     birthday_announcement = models.ForeignKey(
         BirthdayAnnouncement, null=True, blank=True, on_delete=models.SET_NULL,
         related_name="notifications",
@@ -68,6 +72,13 @@ class Notification(models.Model):
     class Meta:
         db_table = "notifications_notification"
         indexes = [models.Index(fields=["recipient", "status"])]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["source_prayer_request", "recipient"],
+                condition=models.Q(source_prayer_request__isnull=False),
+                name="unique_prayer_notification_recipient",
+            ),
+        ]
 
     def __str__(self):
         return f"{self.channel}:{self.title} -> {self.recipient_id}"

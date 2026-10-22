@@ -20,7 +20,9 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useQuery } from "@tanstack/react-query";
 import { z } from "zod";
 import { Button, Field } from "../components/ui";
-import { useAuthMotion } from "../components/motion/motion-system";
+import { PasswordStrength, defaultPasswordRules, eightCharacterPasswordRules, tenCharacterPasswordRules } from "../components/ui/password-strength";
+import { useAuthMotion, useReducedMotionPreference } from "../components/motion/motion-system";
+import { useCompletionAnimation } from "../components/motion/completion-animation";
 import { useAuth } from "./auth-context";
 import type { Role } from "../types/domain";
 import { ApiError, api } from "../lib/api";
@@ -28,6 +30,16 @@ import { isDjangoBackend } from "../lib/backend";
 import { isDemoMode } from "../lib/fixtures";
 import { getAuthenticatedHomePath } from "../lib/permissions";
 import { authService, communityService } from "../services/chapelflow";
+
+const VIDEO_REGISTRY = {
+  login: {
+    sources: ["/auth-videos/login/auth-login-1.mp4", "/auth-videos/login/auth-login-2.mp4"],
+  },
+  register: {
+    sources: ["/auth-videos/register/auth-register-1.mp4", "/auth-videos/register/auth-register-2.mp4"],
+    poster: "/chapelflow-auth-register-visual.png",
+  },
+} as const;
 
 const loginSchema = z.object({
   identifier: z
@@ -52,6 +64,7 @@ const adminSetupSchema = z
 export function SuperAdminSetupPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [password, setPassword] = useState("");
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -91,7 +104,8 @@ export function SuperAdminSetupPage() {
         <Field name="first_name" label="First name" required autoComplete="given-name" />
         <Field name="last_name" label="Last name" required autoComplete="family-name" />
         <Field name="email" label="Admin email" type="email" required autoComplete="email" />
-        <Field name="password" label="Password" type="password" required minLength={12} autoComplete="new-password" />
+        <Field name="password" label="Password" type="password" value={password} onChange={(event) => setPassword(event.target.value)} required minLength={12} autoComplete="new-password" />
+        <PasswordStrength value={password} rules={defaultPasswordRules} />
         <Field name="confirm_password" label="Confirm password" type="password" required minLength={12} autoComplete="new-password" />
         <div className="inline-alert">This setup page works only in local development and closes after the first Super Admin is created.</div>
         {error && <div className="form-error" role="alert">{error}</div>}
@@ -108,17 +122,91 @@ export function AuthLayout({ children }: { children: React.ReactNode }) {
   const location = useLocation();
   const rootRef = useRef<HTMLDivElement>(null);
   const registration = location.pathname === "/register";
+  const reducedMotion = useReducedMotionPreference();
+  const [displayIndex, setDisplayIndex] = useState(0);
+  const [crossFade, setCrossFade] = useState({ current: 1, next: 0 });
+  const loginSet = VIDEO_REGISTRY.login;
+  const registerSet = VIDEO_REGISTRY.register;
+  const videoSet = registration ? registerSet : loginSet;
+  const videos = videoSet.sources;
+  const poster = registration ? registerSet.poster : undefined;
+
   useAuthMotion(rootRef, location.pathname);
+
+  useEffect(() => {
+    setDisplayIndex(0);
+    setCrossFade({ current: 1, next: 0 });
+  }, [registration]);
+
+  useEffect(() => {
+    if (videos.length <= 1 || reducedMotion) return;
+    const timer = window.setInterval(() => {
+      setCrossFade({ current: 0, next: 1 });
+      setDisplayIndex((index) => (index + 1) % videos.length);
+      window.setTimeout(() => {
+        setCrossFade({ current: 1, next: 0 });
+      }, 800);
+    }, 8000);
+    return () => window.clearInterval(timer);
+  }, [videos.length, reducedMotion]);
+
+  const currentVideo = videos[displayIndex];
+  const nextVideo = videos[(displayIndex + 1) % videos.length];
+
   return (
     <div className={`auth-layout auth-layout--${registration ? "register" : "login"}`} ref={rootRef}>
       <aside className="auth-visual">
-        <img
-          src={registration ? "/chapelflow-auth-register-visual.png" : "/chapelflow-auth-login-visual.png"}
-          alt="Students gathered at Chrisland University Chapel"
-        />
+        {reducedMotion ? (
+          registration ? (
+            <img src={poster} className="auth-visual__poster" alt="" aria-hidden="true" />
+          ) : (
+            <div className="auth-visual__poster auth-visual__poster--static" aria-hidden="true" />
+          )
+        ) : (
+          <>
+            <video
+              className="auth-visual__video is-current"
+              src={currentVideo}
+              poster={poster}
+              autoPlay
+              loop
+              muted
+              playsInline
+              preload="metadata"
+              disableRemotePlayback
+              aria-hidden="true"
+              tabIndex={-1}
+              style={{ opacity: crossFade.current }}
+            />
+            {videos.length > 1 && (
+              <video
+                className="auth-visual__video is-next"
+                src={nextVideo}
+                poster={poster}
+                autoPlay
+                loop
+                muted
+                playsInline
+                preload="metadata"
+                disableRemotePlayback
+                aria-hidden="true"
+                tabIndex={-1}
+                style={{ opacity: crossFade.next }}
+              />
+            )}
+          </>
+        )}
         <div className="auth-visual__shade" />
+        <div className="auth-visual__branding">
+          <img src="/chrisland-university-chapel.png" alt="Chrisland University Chapel" className="auth-visual__mark" />
+          <span className="auth-visual__tagline">Nurturing faith. Shaping lives. Impacting Nigeria.</span>
+        </div>
       </aside>
       <main className="auth-main">
+        <div className="auth-main__brand">
+          <img src="/chrisland-university-chapel.png" alt="Chrisland University Chapel" />
+          <span>ChapelFlow</span>
+        </div>
         <div className="auth-main__bar"><Link className="auth-back" to="/"><ArrowLeft size={17} /> Back to chapel website</Link><span><ShieldCheck size={15} /> Your information is secure</span></div>
         {children}
         <p className="auth-main__signature">Chrisland University Chapel<br /><span>Nurturing faith. Shaping lives. Impacting Nigeria.</span></p>
@@ -131,16 +219,24 @@ export function LoginPage() {
   const { user, login, loading } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const returnTo = new URLSearchParams(location.search).get("returnTo");
+  const authenticatedHomePath = getAuthenticatedHomePath(user, returnTo);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [role, setRole] = useState<Role>("chapel_admin");
+  const [completing, setCompleting] = useState(false);
+  useEffect(() => {
+    if (user && !completing && !user.mfaRequired && !user.passwordChangeRequired) {
+      navigate(authenticatedHomePath, { replace: true });
+    }
+  }, [user, completing, authenticatedHomePath, navigate]);
   if (user?.mfaRequired) return <MfaEnrollment />;
   if (user?.passwordChangeRequired)
     return <Navigate to="/change-password-required" replace />;
-  if (user)
+  if (user && !completing)
     return (
       <Navigate
-        to={getAuthenticatedHomePath(user)}
+        to={authenticatedHomePath}
         replace
       />
     );
@@ -160,14 +256,16 @@ export function LoginPage() {
       return;
     }
     try {
+      setCompleting(true);
       const authenticated = await login(
         parsed.data.identifier,
         parsed.data.password,
         role,
         String(form.get("otp") || ""),
       );
-      navigate(getAuthenticatedHomePath(authenticated));
+      navigate(getAuthenticatedHomePath(authenticated, returnTo), { replace: true });
     } catch (caught) {
+      setCompleting(false);
       setError(
         caught instanceof ApiError
           ? caught.message
@@ -265,7 +363,13 @@ export function LoginPage() {
             {error}
           </div>
         )}
-        <Button className="full-button" type="submit" loading={loading}>
+        <Button
+          className="full-button login-submit"
+          type="submit"
+          loading={loading}
+          disabled={completing}
+          aria-live="polite"
+        >
           Sign in <ArrowRight size={18} />
         </Button>
       </form>
@@ -408,12 +512,18 @@ export function RegisterPage() {
   const [memberType, setMemberType] = useState("Student");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const { playRegister } = useCompletionAnimation();
+  const successCardRef = useRef<HTMLDivElement>(null);
   const communities = useQuery({
     queryKey: ["public-communities", "registration"],
     queryFn: async () => (await communityService.publicList()).data,
     enabled: step === 2 && !isDjangoBackend,
     staleTime: 5 * 60_000,
   });
+  useEffect(() => {
+    if (!complete) return;
+    playRegister(successCardRef.current);
+  }, [complete, playRegister]);
   async function next(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
@@ -447,36 +557,46 @@ export function RegisterPage() {
   }
   if (complete)
     return (
-      <div className="auth-card auth-success">
-        <span className="auth-icon auth-icon--success">
-          <Check />
-        </span>
-        <p className="eyebrow">Registration received</p>
-        <h1>
-          {approvalRequired
-            ? "Your registration is awaiting approval."
-            : verificationRequired
-              ? "Check your email to continue."
-              : "Your account is ready."}
-        </h1>
-        <p>
-          {approvalRequired ? (
-            "The chapel administration will verify your student information before your account can sign in."
-          ) : verificationRequired ? (
-            <>
-              We sent a verification link to{" "}
-              <strong>{values.email || "your email address"}</strong>. The link
-              expires in 30 minutes.
-            </>
-          ) : (
-            memberType === "Student"
-              ? "Sign in with your email or matric number to open your ChapelFlow account."
-              : "Sign in with the email address you registered to open your ChapelFlow account."
-          )}
-        </p>
-        <Link className="button button--primary full-button" to="/login">
-          Return to sign in
-        </Link>
+      <div className="auth-card auth-success" ref={successCardRef}>
+        <div className="completion-figure completion-figure--register" aria-hidden="true">
+          <div className="completion-figure__halo" />
+          <div className="completion-figure__seal">
+            <div className="completion-figure__seal-depth" />
+            <div className="completion-figure__seal-face">
+              <svg viewBox="0 0 48 48" role="presentation" focusable="false">
+                <path className="completion-figure__check" d="m12 25 8 8 17-18" />
+              </svg>
+            </div>
+          </div>
+        </div>
+        <div className="completion-success__content">
+          <p className="eyebrow">Registration received</p>
+          <h1>
+            {approvalRequired
+              ? "Your registration is awaiting approval."
+              : verificationRequired
+                ? "Check your email to continue."
+                : "Your account is ready."}
+          </h1>
+          <p>
+            {approvalRequired ? (
+              "The chapel administration will verify your student information before your account can sign in."
+            ) : verificationRequired ? (
+              <>
+                We sent a verification link to{" "}
+                <strong>{values.email || "your email address"}</strong>. The link
+                expires in 30 minutes.
+              </>
+            ) : (
+              memberType === "Student"
+                ? "Sign in with your email or matric number to open your ChapelFlow account."
+                : "Sign in with the email address you registered to open your ChapelFlow account."
+            )}
+          </p>
+          <Link className="button button--primary full-button" to="/login">
+            Return to sign in
+          </Link>
+        </div>
       </div>
     );
   return (
@@ -524,7 +644,7 @@ export function RegisterPage() {
                 defaultValue={values.email}
                 label={
                   memberType === "Student"
-                    ? "Your email"
+                    ? "University email"
                     : memberType === "Staff"
                       ? "Work email"
                       : "Email address"
@@ -539,11 +659,13 @@ export function RegisterPage() {
                 defaultValue={values.password}
                 label="Create password"
                 type="password"
+                onChange={(event) => setValues((current) => ({ ...current, password: event.target.value }))}
                 autoComplete="new-password"
                 hint="Use at least 10 characters. Avoid common passwords or personal details."
                 minLength={10}
                 required
               />
+              <PasswordStrength value={values.password || ""} rules={tenCharacterPasswordRules} className="password-strength--field" />
             </div>
           )}
           {step === 1 && (
@@ -773,6 +895,7 @@ export function RequiredPasswordChangePage() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [nextPassword, setNextPassword] = useState("");
 
   if (!user) return <Navigate to="/login" replace />;
   if (!user.passwordChangeRequired) return <Navigate to="/app" replace />;
@@ -814,7 +937,8 @@ export function RequiredPasswordChangePage() {
       </div>
       <form onSubmit={(event) => void submit(event)}>
         <Field name="currentPassword" label="Temporary password" type="password" required autoComplete="current-password" />
-        <Field name="nextPassword" label="New password" type="password" minLength={8} required autoComplete="new-password" />
+        <Field name="nextPassword" label="New password" type="password" value={nextPassword} onChange={(event) => setNextPassword(event.target.value)} minLength={8} required autoComplete="new-password" />
+        <PasswordStrength value={nextPassword} rules={eightCharacterPasswordRules} />
         <Field name="confirmation" label="Confirm new password" type="password" minLength={8} required autoComplete="new-password" />
         {error && <div className="form-error" role="alert">{error}</div>}
         <Button type="submit" className="full-button" loading={loading}>Save new password</Button>
@@ -828,6 +952,7 @@ export function ResetPasswordPage() {
   const [complete, setComplete] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [password, setPassword] = useState("");
   const token = params.get("token") || "";
   const setupToken = params.get("setup") || "";
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -896,9 +1021,12 @@ export function ResetPasswordPage() {
               name="password"
               label="New password"
               type="password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
               minLength={8}
               required
             />
+            <PasswordStrength value={password} rules={eightCharacterPasswordRules} />
             <Field
               name="confirmation"
               label="Confirm new password"
@@ -1043,15 +1171,18 @@ export function AuthNoticePage({
   const copy =
     type === "locked"
       ? [
+          "CF-AUTH-429",
           "Account temporarily locked",
           "Too many unsuccessful attempts were detected. Wait before trying again or contact the approved support channel.",
         ]
       : type === "expired"
         ? [
+            "CF-AUTH-401-R",
             "Your session has ended",
             "For your protection, sign in again to continue working in ChapelFlow.",
           ]
         : [
+            "CF-AUTH-400-RST",
             "Invalid or expired link",
             "Request a new secure link and avoid forwarding it to another person.",
           ];
@@ -1061,8 +1192,9 @@ export function AuthNoticePage({
         <ShieldCheck />
       </span>
       <p className="eyebrow">Account security</p>
-      <h1>{copy[0]}</h1>
-      <p>{copy[1]}</p>
+      <span className="badge badge--danger auth-notice__code">{copy[0]}</span>
+      <h1>{copy[1]}</h1>
+      <p>{copy[2]}</p>
       <Link
         className="button button--primary full-button"
         to={type === "locked" ? "/forgot-password" : "/login"}

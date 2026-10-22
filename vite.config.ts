@@ -10,14 +10,14 @@ export default defineConfig(({ mode }) => {
       "import.meta.env.VITE_BACKEND": JSON.stringify("django"),
     },
     server: {
-      port: 5173,
+      port: 3000,
       strictPort: true,
       proxy: {
         "/api": env.API_PROXY_TARGET || "http://127.0.0.1:8000",
       },
     },
     preview: {
-      port: 5173,
+      port: 3000,
       strictPort: true,
       proxy: {
         "/api": env.API_PROXY_TARGET || "http://127.0.0.1:8000",
@@ -28,7 +28,7 @@ export default defineConfig(({ mode }) => {
         output: {
           manualChunks: {
             "vendor-react": ["react", "react-dom", "react-router-dom"],
-            "vendor-ui": ["framer-motion", "lucide-react"],
+            "vendor-ui": ["framer-motion", "motion", "lucide-react"],
             "vendor-data": [
               "@tanstack/react-query",
               "date-fns",

@@ -221,14 +221,25 @@ def seed_demo_data():
     # A demo event + giving categories, as before.
     # --------------------------------------------------------------------
     event_type, _ = EventType.objects.get_or_create(name="Sunday Service")
-    Event.objects.get_or_create(
+    sunday_service, _ = Event.objects.get_or_create(
         branch=main, title="Sunday Worship Service", event_type=event_type,
         defaults={
             "start_time": timezone.now() + timedelta(days=1),
             "end_time": timezone.now() + timedelta(days=1, hours=2),
             "is_public": True,
+            "requires_registration": True,
+            "capacity": 100,
         },
     )
+    # Keep existing seeded rows aligned when demo-data defaults change.
+    Event.objects.filter(pk=sunday_service.pk).update(
+        requires_registration=True,
+        capacity=100,
+    )
+    if not sunday_service.schedules.exists():
+        from apps.events.services import generate_event_schedules
+
+        generate_event_schedules(sunday_service)
 
     for name in ["Tithe", "Offering", "Building Fund", "Missions"]:
         GivingCategory.objects.get_or_create(name=name)

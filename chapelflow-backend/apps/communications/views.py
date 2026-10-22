@@ -46,7 +46,8 @@ class MyCommunicationPreferenceView(APIView):
             return error_response("No member profile associated with this account.", status=403)
         serializer = CommunicationPreferenceSerializer(preference, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
-        return success_response(serializer.save().data)
+        serializer.save()
+        return success_response(serializer.data)
 
 
 class StudentAnnouncementFeedView(APIView):

@@ -48,23 +48,32 @@ REFRESH_COOKIE = "chapelflow_refresh"
 CSRF_COOKIE = "chapelflow_csrf"
 
 
+def _auth_cookie_options():
+    secure = not settings.DEBUG
+    return {
+        "secure": secure,
+        "samesite": "None" if secure else "Lax",
+    }
+
+
 def _set_auth_cookies(response, access, refresh):
     """Keep browser credentials HttpOnly while preserving bearer-token API use."""
-    secure = not settings.DEBUG
-    common = {"httponly": True, "secure": secure, "samesite": "Lax"}
+    cookie_options = _auth_cookie_options()
+    common = {"httponly": True, "path": "/", **cookie_options}
     response.set_cookie(ACCESS_COOKIE, access, max_age=15 * 60, **common)
     response.set_cookie(REFRESH_COOKIE, refresh, max_age=7 * 24 * 60 * 60, **common)
     response.set_cookie(
         CSRF_COOKIE, secrets.token_urlsafe(32), max_age=7 * 24 * 60 * 60,
-        httponly=False, secure=secure, samesite="Lax",
+        httponly=False, path="/", **cookie_options,
     )
     return response
 
 
 def _clear_auth_cookies(response):
-    response.delete_cookie(ACCESS_COOKIE, samesite="Lax")
-    response.delete_cookie(REFRESH_COOKIE, samesite="Lax")
-    response.delete_cookie(CSRF_COOKIE, samesite="Lax")
+    cookie_options = _auth_cookie_options()
+    response.delete_cookie(ACCESS_COOKIE, path="/", **cookie_options)
+    response.delete_cookie(REFRESH_COOKIE, path="/", **cookie_options)
+    response.delete_cookie(CSRF_COOKIE, path="/", **cookie_options)
     return response
 
 
@@ -521,6 +530,13 @@ class ChangePasswordView(APIView):
         request.user.set_password(serializer.validated_data["new_password"])
         request.user.password_change_required = False
         request.user.save(update_fields=["password", "password_change_required"])
+        from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
+        from rest_framework_simplejwt.tokens import RefreshToken
+        active_tokens = OutstandingToken.objects.filter(user=request.user).exclude(
+            id__in=BlacklistedToken.objects.values_list("token_id", flat=True)
+        )
+        for outstanding in active_tokens.iterator(chunk_size=500):
+            RefreshToken(outstanding.token).blacklist()
         from apps.audit.models import AuditAction
         from apps.audit.services import write_audit_log
         write_audit_log(

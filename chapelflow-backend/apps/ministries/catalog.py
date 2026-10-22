@@ -5,6 +5,7 @@ from .models import Group, GroupType
 
 STANDARD_CHAPEL_GROUPS = (
     (GroupType.UNIT, "Intercessory"),
+    (GroupType.UNIT, "Treasurer"),
     (GroupType.UNIT, "Chapel Protocol"),
     (GroupType.UNIT, "Music"),
     (GroupType.UNIT, "Instrumentalist"),
@@ -15,18 +16,16 @@ STANDARD_CHAPEL_GROUPS = (
     (GroupType.UNIT, "Library"),
     (GroupType.UNIT, "Drama Team"),
     (GroupType.UNIT, "Technical & Sound"),
-    (GroupType.UNIT, "Treasurer"),
-    (GroupType.FELLOWSHIP, "SEL Fellowship"),
-    (GroupType.FELLOWSHIP, "Love Fellowship"),
-    (GroupType.FELLOWSHIP, "Truth Fellowship"),
-    (GroupType.FELLOWSHIP, "Favour Fellowship"),
-    (GroupType.FELLOWSHIP, "Integrity Fellowship"),
-    (GroupType.FELLOWSHIP, "Righteousness Fellowship"),
-    (GroupType.FELLOWSHIP, "Mercy Fellowship"),
-    (GroupType.FELLOWSHIP, "Excellence Fellowship"),
-    (GroupType.FELLOWSHIP, "Grace Fellowship"),
-    (GroupType.FELLOWSHIP, "Outstanding Fellowship"),
-    (GroupType.FELLOWSHIP, "Peace Fellowship"),
+    (GroupType.FELLOWSHIP, "Love Campus Fellowship"),
+    (GroupType.FELLOWSHIP, "Truth Campus Fellowship"),
+    (GroupType.FELLOWSHIP, "Favour Campus Fellowship"),
+    (GroupType.FELLOWSHIP, "Integrity Campus Fellowship"),
+    (GroupType.FELLOWSHIP, "Righteousness Campus Fellowship"),
+    (GroupType.FELLOWSHIP, "Mercy Campus Fellowship"),
+    (GroupType.FELLOWSHIP, "Excellence Campus Fellowship"),
+    (GroupType.FELLOWSHIP, "Grace Campus Fellowship"),
+    (GroupType.FELLOWSHIP, "Outstanding Campus Fellowship"),
+    (GroupType.FELLOWSHIP, "Peace Campus Fellowship"),
 )
 
 

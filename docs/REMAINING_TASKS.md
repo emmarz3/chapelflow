@@ -31,8 +31,8 @@ are deliberately used only outside production.
 | --- | --- | --- | --- | --- |
 | RG-01 | [DONE] | Remove the insecure Django `SECRET_KEY` fallback. | `config/settings/base.py`; verified September 18, 2026 | Production startup fails if `SECRET_KEY` is absent or equals the development value; focused production/deployment checks pass (`14 passed`). |
 | RG-02 | [AUDIT] | Run the production-PostgreSQL parallel-worker rehearsal for the now retryable, atomic, idempotent scheduled reconciliation. | Implementation and focused retry/idempotency tests completed September 18, 2026 | Parallel PostgreSQL workers create no duplicate reconciliation results or alerts; focused SQLite checks currently pass. |
-| RG-03 | [OPS] | Implement encrypted, off-site PostgreSQL backups, retention, restore instructions, and regular restore tests. Define RPO/RTO. | Phase 19/20 audits | Scheduled backup succeeds; a restore drill meets the approved RPO/RTO. |
-| RG-04 | [OPS] | Configure production dependencies: PostgreSQL, Redis, object storage, SMTP, Paystack/Flutterwave, Termii, FCM, maps, livestream, and approved upload scanning. | `.env.example`; `docs/PRODUCTION_CHECKLIST.md` | Readiness passes and each enabled provider is tested in sandbox/production-safe mode. |
+| RG-03 | [OPS] | Configure encrypted, off-site PostgreSQL backups, retention, restore, and regular restore tests; define RPO/RTO. Automation and restore instructions are in `docs/PRODUCTION_OPERATIONS.md`. | Phase 19/20 audits; `.github/workflows/postgres-backup.yml` | Required secrets and S3 lifecycle are configured; scheduled backup succeeds; isolated restore drill meets approved RPO/RTO. |
+| RG-04 | [OPS] | Configure production dependencies: PostgreSQL, Redis/Celery, object storage, SMTP, Paystack/Flutterwave, Termii, FCM, maps, livestream, and approved upload scanning. Render resource definitions are in `render.yaml`. | `.env.example`; `docs/PRODUCTION_CHECKLIST.md`; `docs/PRODUCTION_OPERATIONS.md` | Readiness passes and each enabled provider is configured and tested in sandbox/production-safe mode. |
 | RG-05 | [AUDIT] | Execute Django checks, migrations, the full test suite, security tests, performance tests, and the frontend's API-mode contract/e2e tests. | Phase 20 reports record these as unexecuted | CI stores passing results; migration check is clean; failed-path tests are included. |
 | RG-06 | [AUDIT] | Perform a production-like release rehearsal and rollback rehearsal. | Phase 20 deployment audit | Fresh environment deploys, migrates, starts web/Celery, serves readiness, processes a job/upload, and rolls back safely. |
 | RG-07 | [AUDIT] | Verify the critical security paths against running services. | Phase 18/20 audits | Tests cover login/MFA/token rotation, rate limits, RBAC, mass assignment, IDOR/cross-branch access, webhook signatures, uploads, and pastoral privacy. |
@@ -65,8 +65,8 @@ are deliberately used only outside production.
 | OP-02 | [OPS] | Configure graceful Gunicorn and Celery shutdown behaviour. | In-flight work finishes or returns to the queue safely during termination. |
 | OP-03 | [AUDIT] | Measure baseline API, query, queue, and report performance; run concurrency/load tests. | P50/P95/P99, capacity, queue depth, and database/worker limits are documented and meet agreed targets. |
 | OP-04 | [CODE] | Adopt a measured cache strategy for expensive dashboards/reports with invalidation rules. | Cache keys, TTLs, invalidation, and bypass behaviour are tested. |
-| OP-05 | [OPS] | Configure monitoring, structured log retention, alerting, and a post-deploy smoke test. | Alerts fire for failed readiness, backup, queue, error-rate, and provider-delivery thresholds. |
-| OP-06 | [OPS] | Publish operational runbooks: installation, configuration, deployment, backup/restore, rollback, monitoring, incident response, and troubleshooting. | A new operator can execute each procedure in a rehearsal. |
+| OP-05 | [OPS] | Configure monitoring, structured log retention, alerting, and a post-deploy smoke test. Alert thresholds and routing are specified in `docs/PRODUCTION_OPERATIONS.md`. | Alerts fire for failed readiness, backup, queue, error-rate, and provider-delivery thresholds. |
+| OP-06 | [OPS] | Rehearse operational procedures for deployment, backup/restore, rollback, monitoring, incident response, and troubleshooting. Initial runbook is `docs/PRODUCTION_OPERATIONS.md`. | A new operator can execute each procedure in a rehearsal. |
 
 ## Frontend and product acceptance work
 
@@ -76,7 +76,7 @@ are deliberately used only outside production.
 | FE-02 | [OPS] | Replace generated/preview content with approved institutional photography, public copy, contacts, map, and livestream details. | Production values are approved and injected through configuration/CMS. |
 | FE-03 | [AUDIT] | Test QR camera/kiosk flows on actual Android/iOS usher devices and low-bandwidth conditions. | Scan, permission denial, offline queue, retry, and fallback/manual check-in are signed off. |
 | FE-04 | [AUDIT] | Complete WCAG 2.2 AA acceptance checks. | Keyboard, screen-reader, contrast, zoom, reduced-motion, loading, error, and empty states are verified. |
-| FE-05 | [OPS] | Complete the Nigerian legal, privacy, safeguarding, retention, deletion/anonymisation, and identity-verification procedures. | Policy owner approves the procedures and support/privacy contacts are published. |
+| FE-05 | [OPS] | Obtain approval for Nigerian legal, privacy, safeguarding, retention, deletion/anonymisation, and identity-verification procedures using `docs/CHRISLAND_LAUNCH_SIGNOFF.md`. | Named policy owners approve the procedures and support/privacy contacts are published. |
 
 ## Production configuration checklist
 

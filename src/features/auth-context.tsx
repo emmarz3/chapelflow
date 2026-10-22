@@ -3,6 +3,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -44,6 +45,7 @@ function getCurrentUserOnce() {
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
+  const authRevision = useRef(0);
   const [user, setUser] = useState<User | null>(() => {
     if (!isDemoMode) return null;
     const role = window.sessionStorage.getItem(
@@ -55,15 +57,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (isDemoMode) return;
     let active = true;
+    const revision = authRevision.current;
     getCurrentUserOnce()
       .then((response) => {
-        if (active) setUser(response.data);
+        if (active && authRevision.current === revision) setUser(response.data);
       })
       .catch(() => {
-        if (active) setUser(null);
+        if (active && authRevision.current === revision) setUser(null);
       })
       .finally(() => {
-        if (active) setLoading(false);
+        if (active && authRevision.current === revision) setLoading(false);
       });
     return () => {
       active = false;
@@ -74,6 +77,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user,
       loading,
       async login(identifier, password, role = "chapel_admin", otp) {
+        authRevision.current += 1;
         setLoading(true);
         try {
           if (isDemoMode) {
@@ -96,16 +100,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       },
       async logout() {
-        await queryClient.cancelQueries();
-        try {
-          if (!isDemoMode) await api.post("/auth/logout");
-        } finally {
-          if (isDemoMode)
-            window.sessionStorage.removeItem("chapelflow-demo-role");
-          queryClient.clear();
-          setUser(null);
-          window.location.assign("/login");
-        }
+        authRevision.current += 1;
+        if (isDemoMode)
+          window.sessionStorage.removeItem("chapelflow-demo-role");
+        queryClient.clear();
+        setUser(null);
+        setLoading(false);
+        if (!isDemoMode) await api.post("/auth/logout");
       },
       switchDemoRole(role) {
         if (isDemoMode) {

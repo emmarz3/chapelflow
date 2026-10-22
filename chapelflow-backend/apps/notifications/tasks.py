@@ -16,10 +16,12 @@ def _status_for_provider_response(response: dict) -> str:
     """
     if response.get("status") == "stubbed":
         return NotificationStatus.STUBBED
+    if response.get("status") == "failed":
+        return NotificationStatus.FAILED
     return NotificationStatus.SENT
 
 
-@shared_task(bind=True, max_retries=3, default_retry_delay=30)
+@shared_task(bind=True, max_retries=3, default_retry_delay=30, retry_backoff=True, retry_jitter=True)
 def deliver_notification(self, notification_id):
     notification = Notification.objects.select_related("recipient").get(id=notification_id)
 
@@ -47,6 +49,8 @@ def deliver_notification(self, notification_id):
             return
 
         status = _status_for_provider_response(response)
+        if status == NotificationStatus.FAILED:
+            raise RuntimeError("Notification provider rejected or failed the delivery.")
         notification.status = status
         notification.provider_response = response
         # Only a real (non-stubbed) send actually left this system, so

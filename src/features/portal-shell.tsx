@@ -763,6 +763,7 @@ export function AccessDeniedPage() {
       <span>
         <ShieldCheck />
       </span>
+      <span className="badge badge--danger error-page__code">CF-403</span>
       <h1>Access restricted</h1>
       <p>
         Your current role does not have permission to view this page. If your
@@ -783,6 +784,7 @@ export function NotFoundPage() {
       <span>
         <FileText />
       </span>
+      <span className="badge badge--purple error-page__code">CF-404</span>
       <h1>Page not found</h1>
       <p>The page may have moved, been archived, or no longer be available.</p>
       <Link className="button button--primary" to="/">

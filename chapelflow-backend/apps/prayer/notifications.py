@@ -16,6 +16,7 @@ Privacy considerations:
 
 from apps.notifications.models import Notification, NotificationChannel
 from apps.notifications.tasks import deliver_notification
+from celery import shared_task
 
 
 def notify_prayer_request_assigned(prayer_request, assigned_to_user):
@@ -150,38 +151,57 @@ def notify_fellowship_of_public_prayer(prayer_request):
     Privacy: Only for PUBLIC requests. Sends to active fellowship members
     in the same branch who have opted in to prayer notifications.
     
-    Note: This would require a prayer notification preference in user settings.
-    For now, this is a stub showing the pattern.
+    Delivery is queued after commit and only targets members who explicitly opted in.
     """
     if prayer_request.privacy_level != 'PUBLIC':
         return
     
-    # This is where you'd query fellowship members who opted in
-    # For now, this is intentionally not implemented to avoid spam
-    # until preference system is in place
-    
-    # Example pattern (commented out):
-    # from apps.members.models import Member
-    # members = Member.objects.filter(
-    #     branch=prayer_request.branch,
-    #     user__isnull=False,
-    #     user__prayer_notifications_enabled=True  # Hypothetical field
-    # ).select_related('user')
-    # 
-    # for member in members:
-    #     if not member.user.email:
-    #         continue
-    #     
-    #     notification = Notification.objects.create(
-    #         recipient=member.user,
-    #         recipient_member=member,
-    #         channel=NotificationChannel.EMAIL,
-    #         title=f"New Prayer Request: {prayer_request.category}",
-    #         body=f"A new prayer request has been shared...\n\n{prayer_request.details}"
-    #     )
-    #     deliver_notification.delay(str(notification.id))
-    
-    pass
+    from django.db import transaction
+
+    transaction.on_commit(lambda: broadcast_public_prayer_notifications.delay(str(prayer_request.id)))
+
+
+@shared_task(bind=True, max_retries=3, default_retry_delay=30, retry_backoff=True, retry_jitter=True, autoretry_for=(Exception,))
+def broadcast_public_prayer_notifications(self, prayer_request_id):
+    from apps.communications.models import CommunicationPreference
+    from .models import PrayerRequest, PrayerPrivacyLevel
+
+    prayer_request = PrayerRequest.objects.select_related("branch").filter(
+        id=prayer_request_id,
+        privacy_level=PrayerPrivacyLevel.PUBLIC,
+    ).first()
+    if prayer_request is None:
+        return {"status": "skipped", "reason": "request is missing or not public"}
+
+    preferences = CommunicationPreference.objects.filter(
+        prayer_notifications_enabled=True,
+        email_enabled=True,
+        member__branch_id=prayer_request.branch_id,
+        member__user__isnull=False,
+        member__user__is_active=True,
+        member__user__email__isnull=False,
+    ).exclude(member__user__email="").select_related("member__user")
+
+    created = 0
+    for preference in preferences.iterator(chunk_size=500):
+        notification, was_created = Notification.objects.get_or_create(
+            source_prayer_request=prayer_request,
+            recipient=preference.member.user,
+            defaults={
+                "recipient_member": preference.member,
+                "channel": NotificationChannel.EMAIL,
+                "title": "A public prayer request was shared",
+                "body": "A public prayer request was shared with your chapel. Sign in to ChapelFlow to read it and respond.",
+            },
+        )
+        if was_created or notification.status == "FAILED":
+            try:
+                deliver_notification.delay(str(notification.id))
+            except Exception:
+                Notification.objects.filter(pk=notification.pk).update(status="FAILED")
+                raise
+        created += 1
+    return {"status": "completed", "notifications_created": created}
 
 
 def notify_prayer_follow_up_due(prayer_request):

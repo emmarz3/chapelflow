@@ -84,6 +84,36 @@ class TestReportExportEngine:
         with pytest.raises(ValueError):
             export_report_rows("WORD_DOC", [{"a": 1}])
 
+    def test_streaming_csv_writes_iterable_and_reports_progress(self):
+        import csv
+        import tempfile
+
+        from apps.reports.services import write_report_export
+
+        progress = []
+        rows = ({"index": index, "value": f"row-{index}"} for index in range(501))
+        with tempfile.SpooledTemporaryFile(max_size=128, mode="w+b") as output:
+            content_type, extension, row_count = write_report_export(
+                "CSV", rows, output, on_progress=progress.append,
+            )
+            parsed = list(csv.DictReader(output.read().decode("utf-8").splitlines()))
+
+        assert (content_type, extension, row_count) == ("text/csv", "csv", 501)
+        assert progress == [500]
+        assert len(parsed) == 501
+        assert parsed[-1]["value"] == "row-500"
+
+    def test_streaming_excel_produces_a_readable_workbook(self):
+        import tempfile
+        from openpyxl import load_workbook
+
+        from apps.reports.services import write_report_export
+
+        with tempfile.SpooledTemporaryFile(max_size=128, mode="w+b") as output:
+            write_report_export("EXCEL", iter([{"name": "Ada"}, {"name": "Grace"}]), output)
+            workbook = load_workbook(output, read_only=True)
+            assert list(workbook.active.values) == [("name",), ("Ada",), ("Grace",)]
+
 
 @pytest.mark.django_db
 class TestReportJobEndToEndPerFormat:
@@ -121,7 +151,7 @@ class TestReportJobEndToEndPerFormat:
         from apps.reports.tasks import run_report_job
 
         job = ReportJob.objects.create(
-            branch=branch_a, requested_by=chapel_admin_a, report_type="VOLUNTEERS",  # no generator registered
+            branch=branch_a, requested_by=chapel_admin_a, report_type="UNSUPPORTED",
             export_format="CSV", filters={},
         )
         with pytest.raises(ValueError):

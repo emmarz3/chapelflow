@@ -564,7 +564,7 @@ function GeneralTab({ draft, set, errors }: { draft: HomepageContent; set: (patc
       </Group>
 
       <Group title="Section headings" description="Turn a section off to hide it, or change its heading and intro.">
-        {(Object.keys(SECTION_LABELS) as HomepageSectionKey[]).map((key) => {
+        {(Object.keys(SECTION_LABELS) as (keyof typeof SECTION_LABELS)[]).map((key) => {
           const section = draft.sections[key];
           const update = (patch: Partial<typeof section>) => set({ sections: { ...draft.sections, [key]: { ...section, ...patch } } });
           return (

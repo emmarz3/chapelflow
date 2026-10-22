@@ -19,5 +19,8 @@
 - Clear any Render Docker Command override so the Dockerfile's startup `CMD` runs.
 - Use the root `render.yaml` production Blueprint, not the former free-tier test settings; review Render plan charges before syncing it.
 - Configure Cloudinary, SMTP, the generated super-admin credentials, frontend CORS origin, and backend CSRF trusted origin in Render.
+- Sync the Redis, Celery worker, and single Celery Beat services in `render.yaml`; verify provider variables are available on the worker before enabling queued sends or uploads.
+- Configure the encrypted PostgreSQL backup workflow and S3 lifecycle/alert policy from `docs/PRODUCTION_OPERATIONS.md`; perform and record an isolated restore drill before launch.
+- Rehearse production-like release and rollback; get the named owners' completed decision in `docs/CHRISLAND_LAUNCH_SIGNOFF.md`.
 - Test camera permissions and ZXing scanning on the actual usher Android/iOS devices before the first live service.
 - Confirm the chapel administration's identity-verification procedure before approving pending student registrations.

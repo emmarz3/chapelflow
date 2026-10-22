@@ -381,6 +381,17 @@ export async function djangoRequest(
     return call("/auth/profile/", method === "PATCH" ? json("PATCH", body) : undefined);
   if (route === "/uploads" && method === "POST")
     return call("/uploads/upload/", init);
+  if (route === "/site/homepage" && method === "GET")
+    return call("/site/homepage/");
+  if (route === "/site/homepage/requests" && method === "POST")
+    return call("/site/homepage/requests/", json("POST", body));
+  if (route === "/operations/homepage")
+    return call("/operations/homepage/", init);
+  if (route === "/operations/homepage/requests" && method === "GET")
+    return call(`/operations/homepage/requests/${suffix}`);
+  const homepageRequest = route.match(/^\/operations\/homepage\/requests\/([^/]+)$/);
+  if (homepageRequest && (method === "PATCH" || method === "DELETE"))
+    return call(`/operations/homepage/requests/${encodeURIComponent(homepageRequest[1]!)}/`, init);
   if (route === "/social/posts") {
     const response = await call("/social/posts/", init);
     if (method === "POST") return { data: upperRoomPost(row(response.data)) };
@@ -757,6 +768,63 @@ export async function djangoRequest(
       };
     }) };
   }
+  if (route === "/attendance/sync-record" && method === "POST") {
+    const branchId = str(body.branchId);
+    const offlineRecord = row(body.record);
+    const memberIdentifier = str(offlineRecord.memberIdentifier).trim();
+    const checkedInAt = str(offlineRecord.checkedInAt);
+    if (!branchId || !memberIdentifier || !checkedInAt)
+      unsupported("An offline check-in needs its chapel branch, member identifier, and original time.");
+
+    let sessionId = str(offlineRecord.sessionId);
+    if (!sessionId || sessionId === "current") {
+      // Older queued rows used the synthetic "current" value. Resolve them
+      // by the original check-in time, never by whichever session is open now.
+      const sessionsResponse = await call(
+        `/attendance/sessions/?branch=${encodeURIComponent(branchId)}&page_size=100`,
+      );
+      const checkInTime = new Date(checkedInAt).getTime();
+      const matchingSessions = list(sessionsResponse.data).filter((session) => {
+        const opensAt = new Date(str(session.window_opens_at || session.opened_at)).getTime();
+        const closesAt = session.window_closes_at
+          ? new Date(str(session.window_closes_at)).getTime()
+          : Number.POSITIVE_INFINITY;
+        return Number.isFinite(checkInTime) && opensAt <= checkInTime && checkInTime <= closesAt;
+      });
+      if (matchingSessions.length !== 1)
+        throw new Error("Could not safely match this queued check-in to one attendance session. Keep it queued for review.");
+      sessionId = str(matchingSessions[0]!.id);
+    }
+
+    const membersResponse = await call(
+      `/members/?branch=${encodeURIComponent(branchId)}&search=${encodeURIComponent(memberIdentifier)}&page_size=100`,
+    );
+    const normalizedIdentifier = memberIdentifier.toLocaleLowerCase();
+    const matchedMember = list(membersResponse.data).find((candidate) =>
+      str(candidate.id) === memberIdentifier ||
+      str(candidate.matric_no).trim().toLocaleLowerCase() === normalizedIdentifier ||
+      str(candidate.email).trim().toLocaleLowerCase() === normalizedIdentifier,
+    );
+    if (!matchedMember)
+      throw new Error("Could not match this queued check-in to a member in the selected branch. Keep it queued for review.");
+
+    const syncResponse = await call(
+      "/attendance/sync/",
+      json("POST", {
+        records: [{
+          client_record_id: str(offlineRecord.clientRecordId),
+          member_id: str(matchedMember.id),
+          session_id: sessionId,
+          checked_in_at: checkedInAt,
+          method: str(offlineRecord.method).toUpperCase() === "KIOSK" ? "KIOSK" : "MANUAL",
+        }],
+      }),
+    );
+    const syncResult = list(row(syncResponse.data).results)[0];
+    if (!syncResult || syncResult.status === "failed")
+      throw new Error(str(syncResult?.error || "The backend did not confirm this offline check-in."));
+    return { data: syncResult };
+  }
   if (route === "/attendance/manual" && method === "POST") {
     const branchId = str(body.branchId);
     const memberResponse = await call(`/members/?branch=${encodeURIComponent(branchId)}&search=${encodeURIComponent(str(body.identifier))}&page_size=100`);
@@ -915,6 +983,7 @@ export async function djangoRequest(
         email: Boolean(preference.email_enabled),
         sms: Boolean(preference.sms_enabled),
         push: Boolean(preference.push_enabled),
+        prayer: Boolean(preference.prayer_notifications_enabled),
         analytics: false,
       },
     };
@@ -926,6 +995,7 @@ export async function djangoRequest(
         email_enabled: body.email,
         sms_enabled: body.sms,
         push_enabled: body.push,
+        prayer_notifications_enabled: body.prayer,
       }),
     );
   if (route === "/dashboard") {

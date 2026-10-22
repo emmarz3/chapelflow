@@ -27,6 +27,8 @@ test("register, sign in, restore the session, and load a real chapel pass", asyn
   await page.getByLabel("Email, matric number, or staff ID").fill(email);
   await page.getByLabel(/^Password/).fill(password);
   await page.getByRole("button", { name: /^Sign in/ }).click();
+  await page.waitForURL(/\/app(?:\/|$)/);
+  await page.goto("/app/chapel-pass");
   await expect(page.getByRole("heading", { name: "Scan the usher QR" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Browser Integration" })).toBeVisible();
   const cookie = (await context.cookies()).find(item => item.name === "chapelflow_access");
@@ -36,4 +38,15 @@ test("register, sign in, restore the session, and load a real chapel pass", asyn
   await page.goto("/app/events");
   await expect(page.getByRole("heading", { name: "Events and registrations" })).toBeVisible();
   await expect(page.getByText("Sunday Worship Service")).toBeVisible();
+  const event = page.locator("article").filter({
+    has: page.getByRole("heading", { name: "Sunday Worship Service" }),
+  });
+  const registration = page.waitForResponse(
+    response => response.url().includes("/register/") && response.request().method() === "POST",
+  );
+  await event.getByRole("button", { name: "Register" }).click();
+  await page.getByRole("button", { name: "Confirm registration" }).click();
+  const registrationResponse = await registration;
+  expect(registrationResponse.status(), await registrationResponse.text()).toBe(201);
+  await expect(page.getByText(/registration confirmed/i)).toBeVisible();
 });

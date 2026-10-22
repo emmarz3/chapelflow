@@ -23,6 +23,20 @@ function memoryStorage(): Storage {
 }
 
 if (typeof window !== "undefined") {
+  if (typeof window.matchMedia !== "function")
+    Object.defineProperty(window, "matchMedia", {
+      configurable: true,
+      value: (media: string): MediaQueryList => ({
+        matches: false,
+        media,
+        onchange: null,
+        addListener: () => {},
+        removeListener: () => {},
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        dispatchEvent: () => false,
+      }),
+    });
   if (typeof window.localStorage?.clear !== "function")
     Object.defineProperty(window, "localStorage", {
       configurable: true,

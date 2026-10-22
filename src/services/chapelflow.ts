@@ -16,6 +16,7 @@ import type {
   LeadershipDirectoryEntry,
   Role,
 } from "../types/domain";
+import type { HomepageContent, HomepageResponse } from "../lib/homepage-content";
 
 export type QueryParams = Record<string, string | number | boolean | undefined>;
 export interface ListRow {
@@ -344,6 +345,42 @@ export interface UploadResult {
   size_bytes: number;
 }
 
+export interface HomepageRequestRow {
+  id: string;
+  kind: "EVENT" | "UNIT";
+  itemId: string;
+  itemTitle: string;
+  name: string;
+  email: string;
+  matricNo: string;
+  status: "NEW" | "CONTACTED" | "CLOSED";
+  createdAt: string;
+}
+
+export const homepageService = {
+  get: () => api.get<{ data: HomepageResponse }>("/site/homepage"),
+  adminGet: () => api.get<{ data: HomepageResponse }>("/operations/homepage"),
+  save: (content: HomepageContent, version: number) =>
+    api.put<{ data: HomepageResponse }>("/operations/homepage", { content, version }),
+  reset: () => api.delete<{ data: HomepageResponse }>("/operations/homepage"),
+  submitRequest: (payload: {
+    kind: "event" | "unit";
+    itemId: string;
+    itemTitle: string;
+    name: string;
+    email: string;
+    matricNo: string;
+    consent: boolean;
+    website: string;
+  }) => api.post<{ data: { received: boolean } }>("/site/homepage/requests", payload),
+  requests: (params: QueryParams = {}) =>
+    api.get<{ data: { total: number; results: HomepageRequestRow[] } }>(`/operations/homepage/requests${queryString(params)}`),
+  updateRequest: (id: string, status: HomepageRequestRow["status"]) =>
+    api.patch<{ data: HomepageRequestRow }>(`/operations/homepage/requests/${encodeURIComponent(id)}`, { status }),
+  deleteRequest: (id: string) =>
+    api.delete<void>(`/operations/homepage/requests/${encodeURIComponent(id)}`),
+};
+
 export interface UpperRoomMedia {
   id: string;
   url: string;
@@ -372,7 +409,7 @@ export interface UpperRoomComment {
 }
 
 export const uploadService = {
-  upload: (file: File, category: "MEDIA_CONTENT") => {
+  upload: (file: File, category: "MEDIA_CONTENT" | "EVENT_IMAGE") => {
     const body = new FormData();
     body.set("file", file);
     body.set("category", category);
@@ -717,18 +754,26 @@ export const attendanceService = {
     api.get<{ data: AttendanceRecord[] }>(
       `/attendance/records?session=${encodeURIComponent(sessionId)}&branch=${encodeURIComponent(branchId)}`,
     ),
-  checkIn: (
-    sessionId: string,
-    payload: {
-      qrToken?: string;
-      memberIdentifier?: string;
-      method: "qr" | "manual" | "kiosk";
+  syncOffline: (
+    item: {
+      id: string;
+      sessionId: string;
+      memberIdentifier: string;
+      method: "manual" | "kiosk";
+      createdAt: string;
     },
+    branchId: string,
   ) =>
-    api.post<{ data: AttendanceRecord }>(
-      `/attendance/sessions/${encodeURIComponent(sessionId)}/check-ins`,
-      payload,
-    ),
+    api.post<{ data: { status: string } }>("/attendance/sync-record", {
+      branchId,
+      record: {
+        clientRecordId: item.id,
+        sessionId: item.sessionId,
+        memberIdentifier: item.memberIdentifier,
+        method: item.method,
+        checkedInAt: item.createdAt,
+      },
+    }),
   correct: (recordId: string, payload: { status: string; reason: string }) =>
     api.patch<{ data: AttendanceRecord }>(
       `/attendance/records/${encodeURIComponent(recordId)}`,
@@ -1022,7 +1067,7 @@ export const publicService = {
 export const privacyService = {
   preferences: () =>
     api.get<{
-      data: { email: boolean; sms: boolean; push: boolean; analytics: boolean };
+      data: { email: boolean; sms: boolean; push: boolean; prayer: boolean; analytics: boolean };
     }>("/account/privacy-preferences"),
   updatePreferences: (payload: Record<string, boolean>) =>
     api.patch<void>("/account/privacy-preferences", payload),

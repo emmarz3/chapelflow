@@ -6,6 +6,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 from common.utils.responses import error_response, success_response
 from apps.members.models import Member, is_student_community_member
+from apps.ministries.models import Group
 
 from django.db import transaction
 from django.utils import timezone
@@ -94,14 +95,32 @@ class MyCommunityDetailView(APIView):
 
 
 class CommunityMessageView(APIView):
-    """Group chat constrained to an active membership at every request."""
+    """Group chat constrained to an active membership or assigned leader scope."""
 
     permission_classes = [IsAuthenticated]
 
-    def _membership(self, request, group_id):
-        return GroupMembership.objects.filter(
+    def _group(self, request, group_id):
+        allowed_type = {
+            "UNIT_HEAD": "UNIT",
+            "FELLOWSHIP_LEADER": "FELLOWSHIP",
+        }.get(request.user.get_role_code())
+        if allowed_type:
+            if str(request.user.institutional_group_id or "") != str(group_id):
+                return None
+            return Group.objects.filter(
+                id=group_id,
+                branch_id=request.user.branch_id,
+                group_type=allowed_type,
+                is_active=True,
+            ).first()
+
+        if not _has_student_community_access(request):
+            return None
+
+        membership = GroupMembership.objects.filter(
             member__user=request.user, group_id=group_id, is_active=True, group__is_active=True
         ).select_related("group").first()
+        return membership.group if membership else None
 
     @staticmethod
     def _data(item):
@@ -112,29 +131,33 @@ class CommunityMessageView(APIView):
         }
 
     def get(self, request, group_id):
-        if not _has_student_community_access(request):
+        is_student = _has_student_community_access(request)
+        is_group_leader = request.user.get_role_code() in {"UNIT_HEAD", "FELLOWSHIP_LEADER"}
+        if not is_student and not is_group_leader:
             return error_response("Communities are available only to student accounts.", status=403)
-        membership = self._membership(request, group_id)
-        if not membership:
+        group = self._group(request, group_id)
+        if not group:
             return error_response("Community not found.", status=404)
-        messages = GroupMessage.objects.filter(group=membership.group).select_related("author")
+        messages = GroupMessage.objects.filter(group=group).select_related("author")
         search = str(request.query_params.get("search", "")).strip()
         if search:
             messages = messages.filter(body__icontains=search)
         return success_response([self._data(item) for item in messages[:200]])
 
     def post(self, request, group_id):
-        if not _has_student_community_access(request):
+        is_student = _has_student_community_access(request)
+        is_group_leader = request.user.get_role_code() in {"UNIT_HEAD", "FELLOWSHIP_LEADER"}
+        if not is_student and not is_group_leader:
             return error_response("Communities are available only to student accounts.", status=403)
-        membership = self._membership(request, group_id)
-        if not membership:
+        group = self._group(request, group_id)
+        if not group:
             return error_response("Community not found.", status=404)
         body = str(request.data.get("body", "")).strip()
         if not body:
             return error_response("Write a message before sending it.", status=400)
         if len(body) > 4000:
             return error_response("Messages cannot exceed 4,000 characters.", status=400)
-        message = GroupMessage.objects.create(group=membership.group, author=request.user, body=body)
+        message = GroupMessage.objects.create(group=group, author=request.user, body=body)
         return success_response(self._data(message), status=201)
 
 

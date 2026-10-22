@@ -159,7 +159,7 @@ class TestPrayerRequestPrivacy:
         request = PrayerRequest.objects.create(
             branch=member_a.branch,
             member=member_a,
-            category="Personal",
+            category="OTHER",
             details="Private prayer concern",
             privacy_level=PrayerPrivacyLevel.PRIVATE,
             status=PrayerRequestStatus.NEW,
@@ -167,14 +167,14 @@ class TestPrayerRequestPrivacy:
         )
         
         assert request.privacy_level == PrayerPrivacyLevel.PRIVATE
-        assert request.is_private is True  # Legacy field auto-synced
+            assert request.is_private is False  # Legacy field reflects PRIVATE only
 
     def test_create_pastoral_prayer_request(self, member_a, chaplain_a):
         """PASTORAL prayer visible to pastoral team"""
         request = PrayerRequest.objects.create(
             branch=member_a.branch,
             member=member_a,
-            category="Counseling",
+            category="SPIRITUAL",
             details="Need pastoral support",
             privacy_level=PrayerPrivacyLevel.PASTORAL,
             status=PrayerRequestStatus.NEW,
@@ -182,14 +182,14 @@ class TestPrayerRequestPrivacy:
         )
         
         assert request.privacy_level == PrayerPrivacyLevel.PASTORAL
-        assert request.is_private is True  # Legacy field auto-synced
+        assert request.is_private is False  # Legacy field reflects PRIVATE only
 
     def test_create_fellowship_prayer_request(self, member_a):
         """FELLOWSHIP prayer visible to fellowship members"""
         request = PrayerRequest.objects.create(
             branch=member_a.branch,
             member=member_a,
-            category="Fellowship",
+            category="FAMILY",
             details="Exam preparation",
             privacy_level=PrayerPrivacyLevel.FELLOWSHIP,
             status=PrayerRequestStatus.NEW,
@@ -204,7 +204,7 @@ class TestPrayerRequestPrivacy:
         request = PrayerRequest.objects.create(
             branch=member_a.branch,
             member=member_a,
-            category="Thanksgiving",
+            category="THANKSGIVING",
             details="Praise report",
             privacy_level=PrayerPrivacyLevel.PUBLIC,
             status=PrayerRequestStatus.NEW,
@@ -220,7 +220,7 @@ class TestPrayerRequestPrivacy:
         request = PrayerRequest.objects.create(
             branch=member_a.branch,
             member=member_a,
-            category="Personal",
+            category="OTHER",
             details="Test",
             privacy_level=PrayerPrivacyLevel.PRIVATE,
             status=PrayerRequestStatus.NEW,
@@ -248,7 +248,7 @@ class TestAnonymousPrayerRequests:
         request = PrayerRequest.objects.create(
             branch=branch_a,
             submitted_by_name="Anonymous Seeker",
-            category="Guidance",
+            category="SPIRITUAL",
             details="Need prayer for direction",
             privacy_level=PrayerPrivacyLevel.PUBLIC,
             status=PrayerRequestStatus.NEW,
@@ -264,7 +264,7 @@ class TestAnonymousPrayerRequests:
             branch=member_a.branch,
             member=member_a,
             submitted_by_name="Should be ignored",
-            category="Personal",
+            category="OTHER",
             details="Test",
             privacy_level=PrayerPrivacyLevel.PRIVATE,
             status=PrayerRequestStatus.NEW,
@@ -288,7 +288,7 @@ class TestPrayerRequestLifecycle:
         request = PrayerRequest.objects.create(
             branch=member_a.branch,
             member=member_a,
-            category="Guidance",
+            category="SPIRITUAL",
             details="Need direction",
             privacy_level=PrayerPrivacyLevel.PASTORAL,
             status=PrayerRequestStatus.NEW,
@@ -307,7 +307,7 @@ class TestPrayerRequestLifecycle:
         request = PrayerRequest.objects.create(
             branch=member_a.branch,
             member=member_a,
-            category="Healing",
+            category="HEALING",
             details="Prayer for healing",
             privacy_level=PrayerPrivacyLevel.FELLOWSHIP,
             status=PrayerRequestStatus.IN_PROGRESS,
@@ -326,10 +326,11 @@ class TestPrayerRequestLifecycle:
         request = PrayerRequest.objects.create(
             branch=member_a.branch,
             member=member_a,
-            category="Guidance",
+            category="SPIRITUAL",
             details="Test",
             privacy_level=PrayerPrivacyLevel.PUBLIC,
             status=PrayerRequestStatus.ANSWERED,
+            answered_at=timezone.now(),
             created_by=member_a.user
         )
         
@@ -353,7 +354,7 @@ class TestPrayerRequestAssignment:
         request = PrayerRequest.objects.create(
             branch=member_a.branch,
             member=member_a,
-            category="Counseling",
+            category="SPIRITUAL",
             details="Need support",
             privacy_level=PrayerPrivacyLevel.PASTORAL,
             status=PrayerRequestStatus.NEW,
@@ -374,7 +375,7 @@ class TestPrayerRequestAssignment:
         request = PrayerRequest.objects.create(
             branch=member_a.branch,
             member=member_a,
-            category="Counseling",
+            category="SPIRITUAL",
             details="Need support",
             privacy_level=PrayerPrivacyLevel.PASTORAL,
             status=PrayerRequestStatus.NEW,
@@ -398,7 +399,7 @@ class TestPrayerRequestAssignment:
         request = PrayerRequest.objects.create(
             branch=member_a.branch,
             member=member_a,
-            category="Counseling",
+            category="SPIRITUAL",
             details="Need support",
             privacy_level=PrayerPrivacyLevel.PASTORAL,
             status=PrayerRequestStatus.NEW,
@@ -428,7 +429,7 @@ class TestPrayerRequestAccessControl:
         request = PrayerRequest.objects.create(
             branch=member_a.branch,
             member=member_a,
-            category="Personal",
+            category="OTHER",
             details="Private concern",
             privacy_level=PrayerPrivacyLevel.PRIVATE,
             status=PrayerRequestStatus.NEW,
@@ -446,7 +447,7 @@ class TestPrayerRequestAccessControl:
         request = PrayerRequest.objects.create(
             branch=member_a.branch,
             member=member_a,
-            category="Personal",
+            category="OTHER",
             details="Private concern",
             privacy_level=PrayerPrivacyLevel.PRIVATE,
             status=PrayerRequestStatus.NEW,
@@ -465,7 +466,7 @@ class TestPrayerRequestAccessControl:
         request = PrayerRequest.objects.create(
             branch=member_a.branch,
             member=member_a,
-            category="Personal",
+            category="OTHER",
             details="Private concern",
             privacy_level=PrayerPrivacyLevel.PRIVATE,
             status=PrayerRequestStatus.NEW,
@@ -483,7 +484,7 @@ class TestPrayerRequestAccessControl:
         request = PrayerRequest.objects.create(
             branch=member_a.branch,
             member=member_a,
-            category="Thanksgiving",
+            category="THANKSGIVING",
             details="Praise report",
             privacy_level=PrayerPrivacyLevel.PUBLIC,
             status=PrayerRequestStatus.NEW,
@@ -510,7 +511,7 @@ class TestPrayerRequestIDOR:
         request = PrayerRequest.objects.create(
             branch=member_b.branch,
             member=member_b,
-            category="Personal",
+            category="OTHER",
             details="Branch B private request",
             privacy_level=PrayerPrivacyLevel.PRIVATE,
             status=PrayerRequestStatus.NEW,

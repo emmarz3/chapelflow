@@ -10,16 +10,25 @@ import {
   XCircle,
 } from "lucide-react";
 import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { Brand, Button } from "../components/ui";
 import { useFeatureMotion } from "../components/motion/motion-system";
 import { attendanceService } from "../services/chapelflow";
 import { queueAttendanceCheckIn } from "../lib/offline-queue";
+import { useAuth } from "./auth-context";
 
 type KioskState =
   "idle" | "camera" | "submitting" | "success" | "error" | "offline";
 
 export function AttendanceKioskPage() {
+  const { user } = useAuth();
+  const currentSession = useQuery({
+    queryKey: ["attendance", "current-session", user?.branchId],
+    queryFn: async () => (await attendanceService.current(user!.branchId)).data.session,
+    enabled: Boolean(user?.branchId),
+    staleTime: 60_000,
+  });
   const [state, setState] = useState<KioskState>("idle");
   const [message, setMessage] = useState("");
   const [manual, setManual] = useState(false);
@@ -70,9 +79,14 @@ export function AttendanceKioskPage() {
   async function submit(identifier: string) {
     setState("submitting");
     try {
+      const session = currentSession.data;
+      if (!session?.id || !user?.branchId) {
+        throw new Error("There is no active attendance session for this branch.");
+      }
       if (!navigator.onLine) {
         const queued = queueAttendanceCheckIn({
-          sessionId: "current",
+          sessionId: session.id,
+          branchId: user.branchId,
           memberIdentifier: identifier,
           method: "kiosk",
         });
@@ -85,9 +99,10 @@ export function AttendanceKioskPage() {
         scheduleReset();
         return;
       }
-      await attendanceService.checkIn("current", {
-        memberIdentifier: identifier,
-        method: "kiosk",
+      await attendanceService.manual({
+        sessionId: session.id,
+        branchId: user.branchId,
+        identifier,
       });
       setState("success");
       setMessage("Attendance confirmed. You may step away from the kiosk.");

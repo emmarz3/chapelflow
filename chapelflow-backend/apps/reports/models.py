@@ -38,6 +38,8 @@ class ReportJob(models.Model):
     export_format = models.CharField(max_length=10, choices=ReportExportFormat.choices, default=ReportExportFormat.CSV)
     filters = models.JSONField(default=dict, blank=True)
     status = models.CharField(max_length=10, choices=ReportJobStatus.choices, default=ReportJobStatus.QUEUED)
+    progress = models.PositiveSmallIntegerField(default=0)
+    rows_processed = models.PositiveIntegerField(default=0)
     file_url = models.URLField(blank=True)
     error_message = models.CharField(max_length=500, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)

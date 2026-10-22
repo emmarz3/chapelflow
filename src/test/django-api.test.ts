@@ -137,6 +137,62 @@ describe("Django API integration", () => {
     });
   });
 
+  it("sends an online kiosk check-in through Django's member and session endpoint", async () => {
+    const fetch = vi.fn()
+      .mockResolvedValueOnce(response({ data: [{ id: "member-1", email: "ada@example.edu", matric_no: "CU/26/101" }] }))
+      .mockResolvedValueOnce(response({ data: { id: "record-1" } }, 201));
+    vi.stubGlobal("fetch", fetch);
+
+    await apiRequest("/attendance/manual", {
+      method: "POST",
+      body: JSON.stringify({ branchId: "branch-1", sessionId: "session-1", identifier: "CU/26/101" }),
+    });
+
+    expect(fetch.mock.calls.map(([url]) => url)).toEqual([
+      "/api/v1/members/?branch=branch-1&search=CU%2F26%2F101&page_size=100",
+      "/api/v1/attendance/manual/",
+    ]);
+    expect(JSON.parse(fetch.mock.calls[1]![1].body)).toEqual({
+      member_id: "member-1",
+      session_id: "session-1",
+    });
+  });
+
+  it("resolves and idempotently syncs an offline kiosk check-in", async () => {
+    const fetch = vi.fn()
+      .mockResolvedValueOnce(response({ data: [{ id: "member-1", email: "ada@example.edu", matric_no: "CU/26/101" }] }))
+      .mockResolvedValueOnce(response({ data: { results: [{ index: 0, status: "synced", record_id: "record-1" }] } }));
+    vi.stubGlobal("fetch", fetch);
+
+    await expect(apiRequest("/attendance/sync-record", {
+      method: "POST",
+      body: JSON.stringify({
+        branchId: "branch-1",
+        record: {
+          clientRecordId: "offline-1",
+          sessionId: "session-1",
+          memberIdentifier: "CU/26/101",
+          checkedInAt: "2026-10-22T10:15:00.000Z",
+          method: "kiosk",
+        },
+      }),
+    })).resolves.toMatchObject({ data: { status: "synced" } });
+
+    expect(fetch.mock.calls.map(([url]) => url)).toEqual([
+      "/api/v1/members/?branch=branch-1&search=CU%2F26%2F101&page_size=100",
+      "/api/v1/attendance/sync/",
+    ]);
+    expect(JSON.parse(fetch.mock.calls[1]![1].body)).toEqual({
+      records: [{
+        client_record_id: "offline-1",
+        member_id: "member-1",
+        session_id: "session-1",
+        checked_in_at: "2026-10-22T10:15:00.000Z",
+        method: "KIOSK",
+      }],
+    });
+  });
+
   it("loads the logged-in usher checkpoint token from its dedicated endpoint", async () => {
     const fetch = vi.fn().mockResolvedValue(response({ data: {
       token: "signed-live-token",
@@ -376,6 +432,29 @@ describe("Django API integration", () => {
     expect(fetch.mock.calls[0]?.[1].headers.get("Content-Type")).toBeNull();
   });
 
+  it("routes homepage content and sign-up operations to their Django endpoints", async () => {
+    const fetch = vi.fn().mockImplementation(() => Promise.resolve(response({ data: {} })));
+    vi.stubGlobal("fetch", fetch);
+
+    await apiRequest("/site/homepage");
+    await apiRequest("/site/homepage/requests", { method: "POST", body: JSON.stringify({ kind: "event" }) });
+    await apiRequest("/operations/homepage", { method: "PUT", body: JSON.stringify({ content: {}, version: 0 }) });
+    await apiRequest("/operations/homepage", { method: "DELETE" });
+    await apiRequest("/operations/homepage/requests?kind=EVENT&search=Ada");
+    await apiRequest("/operations/homepage/requests/request-1", { method: "PATCH", body: JSON.stringify({ status: "CLOSED" }) });
+    await apiRequest("/operations/homepage/requests/request-1", { method: "DELETE" });
+
+    expect(fetch.mock.calls.map(([url, init]) => [url, init?.method ?? "GET"])).toEqual([
+      ["/api/v1/site/homepage/", "GET"],
+      ["/api/v1/site/homepage/requests/", "POST"],
+      ["/api/v1/operations/homepage/", "PUT"],
+      ["/api/v1/operations/homepage/", "DELETE"],
+      ["/api/v1/operations/homepage/requests/?kind=EVENT&search=Ada", "GET"],
+      ["/api/v1/operations/homepage/requests/request-1/", "PATCH"],
+      ["/api/v1/operations/homepage/requests/request-1/", "DELETE"],
+    ]);
+  });
+
   it("loads the admin dashboard for administrator sessions", async () => {
     const fetch = vi.fn().mockResolvedValue(response({
       data: {
@@ -420,6 +499,34 @@ describe("Django API integration", () => {
       "/api/v1/auth/refresh/",
       "/api/v1/auth/me/",
     ]);
+  });
+
+  it("re-reads the rotated CSRF cookie before retrying a mutation after refresh", async () => {
+    document.cookie = "chapelflow_csrf=v1";
+    const fetch = vi
+      .fn()
+      .mockImplementationOnce(() =>
+        Promise.resolve(response({ detail: "Token is invalid" }, 401)))
+      .mockImplementationOnce(() => {
+        // The backend rotates the CSRF cookie on every refresh.
+        document.cookie = "chapelflow_csrf=v2";
+        return Promise.resolve(response({ data: { access: "new-access" } }));
+      })
+      .mockImplementationOnce(() =>
+        Promise.resolve(response({ data: { ok: true } })));
+    vi.stubGlobal("fetch", fetch);
+
+    try {
+      await apiRequest("/volunteers/assignments", {
+        method: "POST",
+        body: "{}",
+      });
+      const retryInit = fetch.mock.calls[2]![1];
+      expect(new Headers(retryInit.headers).get("X-ChapelFlow-CSRF")).toBe("v2");
+    } finally {
+      document.cookie =
+        "chapelflow_csrf=; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+    }
   });
 
   it("does not send unsupported operations to unrelated endpoints", async () => {

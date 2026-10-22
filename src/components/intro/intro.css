@@ -25,6 +25,49 @@ body.cf-intro-active {
   place-items: center;
 }
 
+.cf-intro__glow {
+  position: absolute;
+  inset: -10%;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.cf-intro__glow-ring {
+  position: absolute;
+  inset: 0;
+  opacity: 0.55;
+  animation: cf-intro-glow-pulse 2.6s ease-in-out infinite;
+}
+
+@keyframes cf-intro-glow-pulse {
+  0%,
+  100% {
+    opacity: 0.38;
+    transform: scale(0.94);
+  }
+  50% {
+    opacity: 0.78;
+    transform: scale(1.06);
+  }
+}
+
+.cf-intro__particles {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.cf-intro__particle {
+  position: absolute;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--cf-purple), var(--cf-blue));
+  filter: blur(0.4px);
+}
+
 .cf-intro__spark {
   width: 2px;
   height: 42px;
@@ -35,14 +78,16 @@ body.cf-intro-active {
 
 .cf-intro__constructed-lockup {
   align-content: center;
-  gap: 8px;
+  gap: 10px;
   padding-bottom: 2vh;
+  position: relative;
+  z-index: 2;
 }
 
 .cf-intro__mark {
   width: clamp(172px, 18vw, 252px);
   overflow: visible;
-  filter: drop-shadow(0 18px 26px rgb(76 23 152 / 0.1));
+  filter: drop-shadow(0 22px 32px rgb(76 23 152 / 0.18));
 }
 
 .cf-intro__wordmark {
@@ -83,7 +128,7 @@ body.cf-intro-active {
   overflow: hidden;
 }
 
-.cf-intro__sweep span {
+.cf-intro__sweep-layer {
   position: absolute;
   top: -24vh;
   left: -24vw;
@@ -114,7 +159,7 @@ body.cf-intro-active {
   transform: scale(0.9);
 }
 
-.cf-intro__sweep--reverse span {
+.cf-intro__sweep--reverse .cf-intro__sweep-layer {
   top: -14vh;
   left: -16vw;
   border-radius: 58% 42% 56% 44% / 43% 58% 42% 57%;
@@ -131,10 +176,19 @@ body.cf-intro-active {
   text-align: center;
 }
 
+.cf-intro__institution-stage {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  gap: 18px;
+}
+
 .cf-intro__institution img {
   width: min(470px, 76vw);
   max-height: 240px;
   object-fit: contain;
+  filter: drop-shadow(0 24px 40px rgba(15, 23, 42, 0.14));
 }
 
 .cf-intro__institution-rule {
@@ -143,6 +197,7 @@ body.cf-intro-active {
   height: 2px;
   margin-top: -12px;
   background: linear-gradient(90deg, var(--cf-purple), #f2a20c);
+  transform-origin: center;
 }
 
 .cf-intro__institution p {
@@ -152,6 +207,16 @@ body.cf-intro-active {
   font-weight: 700;
   letter-spacing: 0.18em;
   text-transform: uppercase;
+}
+
+.cf-intro__institution-light {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: radial-gradient(circle at 50% 38%, rgba(37, 99, 235, 0.12), transparent 55%),
+    radial-gradient(circle at 30% 70%, rgba(109, 45, 206, 0.1), transparent 55%);
+  filter: blur(18px);
 }
 
 .cf-intro__skip {
@@ -192,7 +257,7 @@ body.cf-intro-active {
     width: min(490px, 98vw);
   }
 
-  .cf-intro__sweep span {
+  .cf-intro__sweep-layer {
     top: -12vh;
     left: -70vw;
     width: 240vw;
@@ -216,6 +281,11 @@ body.cf-intro-active {
   }
 
   .cf-intro__sweep {
+    display: none;
+  }
+
+  .cf-intro__glow,
+  .cf-intro__particles {
     display: none;
   }
 }

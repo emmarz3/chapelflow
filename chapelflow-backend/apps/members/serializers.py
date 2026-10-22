@@ -37,13 +37,17 @@ class MemberSerializer(ScopedFKValidationMixin, serializers.ModelSerializer):
     - Household assignment outside scope
     """
     full_name = serializers.CharField(read_only=True)
+    matric_no = serializers.SerializerMethodField()
     tags = MemberTagSerializer(many=True, read_only=True)
     qr_code = MemberQRCodeSerializer(read_only=True)
+
+    def get_matric_no(self, obj):
+        return obj.user.matric_no if obj.user_id else ""
 
     class Meta:
         model = Member
         fields = [
-            "id", "user", "branch", "household", "first_name", "last_name",
+            "id", "user", "matric_no", "branch", "household", "first_name", "last_name",
             "other_names", "full_name", "gender", "date_of_birth", "email",
             "phone_number", "address", "photo_url", "membership_status",
             "membership_date", "emergency_contact_name", "emergency_contact_phone",

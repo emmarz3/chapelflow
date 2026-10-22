@@ -13,6 +13,7 @@ describe("offline attendance queue", () => {
     expect(
       queueAttendanceCheckIn({
         sessionId: "session-1",
+        branchId: "branch-1",
         memberIdentifier: "CU/24/101",
         method: "manual",
       }),
@@ -20,6 +21,7 @@ describe("offline attendance queue", () => {
     expect(
       queueAttendanceCheckIn({
         sessionId: "session-1",
+        branchId: "branch-1",
         memberIdentifier: "CU/24/101",
         method: "manual",
       }),
@@ -30,6 +32,7 @@ describe("offline attendance queue", () => {
   it("removes a check-in after reconciliation", () => {
     queueAttendanceCheckIn({
       sessionId: "session-1",
+      branchId: "branch-1",
       memberIdentifier: "CU/24/101",
       method: "kiosk",
     });
@@ -42,11 +45,13 @@ describe("offline attendance queue", () => {
   it("removes synchronized records and retains failures for retry", async () => {
     queueAttendanceCheckIn({
       sessionId: "session-1",
+      branchId: "branch-1",
       memberIdentifier: "CU/24/101",
       method: "manual",
     });
     queueAttendanceCheckIn({
       sessionId: "session-1",
+      branchId: "branch-1",
       memberIdentifier: "CU/24/102",
       method: "kiosk",
     });

@@ -11,7 +11,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
-      - "5432:5432"
+      - "5433:5433"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U chapelflow"]
       interval: 5s
@@ -22,7 +22,7 @@ services:
     image: redis:7-alpine
     restart: unless-stopped
     ports:
-      - "6379:6379"
+      - "6380:6380"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -35,17 +35,17 @@ services:
     command: >
       sh -c "python manage.py migrate --noinput &&
              python manage.py collectstatic --noinput &&
-             gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 3 --timeout 60"
+              gunicorn config.wsgi:application --bind 0.0.0.0:8001 --workers 3 --timeout 60"
     env_file: .env
     environment:
       DJANGO_SETTINGS_MODULE: config.settings.production
-      DATABASE_URL: postgres://chapelflow:chapelflow@db:5432/chapelflow
-      REDIS_URL: redis://redis:6379/0
+      DATABASE_URL: postgres://chapelflow:chapelflow@db:5433/chapelflow
+      REDIS_URL: redis://redis:6380/0
     volumes:
       - media_data:/app/media
       - static_data:/app/staticfiles
     ports:
-      - "8000:8000"
+      - "8001:8001"
     depends_on:
       db:
         condition: service_healthy
@@ -59,8 +59,8 @@ services:
     env_file: .env
     environment:
       DJANGO_SETTINGS_MODULE: config.settings.production
-      DATABASE_URL: postgres://chapelflow:chapelflow@db:5432/chapelflow
-      REDIS_URL: redis://redis:6379/0
+      DATABASE_URL: postgres://chapelflow:chapelflow@db:5433/chapelflow
+      REDIS_URL: redis://redis:6380/0
     volumes:
       - media_data:/app/media
     depends_on:
@@ -76,8 +76,8 @@ services:
     env_file: .env
     environment:
       DJANGO_SETTINGS_MODULE: config.settings.production
-      DATABASE_URL: postgres://chapelflow:chapelflow@db:5432/chapelflow
-      REDIS_URL: redis://redis:6379/0
+      DATABASE_URL: postgres://chapelflow:chapelflow@db:5433/chapelflow
+      REDIS_URL: redis://redis:6380/0
     depends_on:
       db:
         condition: service_healthy

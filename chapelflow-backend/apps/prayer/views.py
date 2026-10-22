@@ -144,6 +144,9 @@ class PrayerRequestViewSet(StandardModelViewSet):
         # Notify pastoral team for PASTORAL-level requests
         if instance.privacy_level == 'PASTORAL':
             notify_prayer_request_created_to_team(instance, self.request.user)
+        elif instance.privacy_level == 'PUBLIC':
+            from .notifications import notify_fellowship_of_public_prayer
+            notify_fellowship_of_public_prayer(instance)
         
         # Notify if already assigned
         if instance.assigned_to:

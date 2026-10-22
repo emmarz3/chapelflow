@@ -1,6 +1,7 @@
 export interface PendingAttendanceCheckIn {
   id: string;
   sessionId: string;
+  branchId?: string;
   memberIdentifier: string;
   method: "manual" | "kiosk";
   createdAt: string;
@@ -24,7 +25,9 @@ export function readPendingAttendance(): PendingAttendanceCheckIn[] {
 }
 
 export function queueAttendanceCheckIn(
-  item: Omit<PendingAttendanceCheckIn, "id" | "createdAt">,
+  item: Omit<PendingAttendanceCheckIn, "id" | "createdAt" | "branchId"> & {
+    branchId: string;
+  },
 ) {
   const current = readPendingAttendance();
   if (

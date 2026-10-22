@@ -184,10 +184,26 @@ export function isStudentMember(user: User | null | undefined) {
   return user?.role === "member" && user.community !== "staff" && user.community !== "guest";
 }
 
-export function getAuthenticatedHomePath(user: User | null | undefined) {
-  if (user?.role === "attendance_usher") return "/usher/attendance";
-  if (isStudentMember(user)) return "/app/chapel-pass";
-  return "/app";
+export function getAuthenticatedHomePath(
+  user: User | null | undefined,
+  returnTo?: string | null,
+) {
+  const defaultPath = user?.role === "attendance_usher" ? "/usher/attendance" : "/app";
+  if (!returnTo?.startsWith("/") || returnTo.startsWith("//") || returnTo.includes("\\"))
+    return defaultPath;
+
+  try {
+    const target = new URL(returnTo, "https://chapelflow.local");
+    if (target.origin !== "https://chapelflow.local") return defaultPath;
+    const destination = `${target.pathname}${target.search}${target.hash}`;
+    if (user?.role === "attendance_usher")
+      return target.pathname === "/usher/attendance" ? destination : defaultPath;
+    return target.pathname === "/app" || target.pathname.startsWith("/app/")
+      ? destination
+      : defaultPath;
+  } catch {
+    return defaultPath;
+  }
 }
 
 export function buildDemoUser(role: Role): User {
