@@ -1,6 +1,7 @@
 """
 ChapelFlow base settings, shared by development and production.
 """
+
 import os
 from datetime import timedelta
 from pathlib import Path
@@ -72,6 +73,7 @@ LOCAL_APPS = [
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
 
 MIDDLEWARE = [
+    "common.middleware.health_check.HealthCheckMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
     "corsheaders.middleware.CorsMiddleware",
