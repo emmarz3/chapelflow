@@ -26,11 +26,6 @@ services:
         fromDatabase:
           name: chapelflow-db
           property: connectionString
-      - key: REDIS_URL
-        fromService:
-          type: keyvalue
-          name: chapelflow-redis
-          property: connectionString
       - key: STORAGE_PROVIDER
         value: cloudinary
       - key: CLOUDINARY_CLOUD_NAME
@@ -93,12 +88,6 @@ services:
   # Redis-compatible Key Value datastore.
   # An empty IP allow list blocks public access; Render services can use
   # the internal connection URL when they are in the same region.
-  - type: keyvalue
-    name: chapelflow-redis
-    plan: free
-    ipAllowList: []
-    maxmemoryPolicy: noeviction
-    persistenceMode: off
 
 databases:
   - name: chapelflow-db
