@@ -1,5 +1,4 @@
 from celery import shared_task
-<<<<<<< HEAD
 from datetime import timedelta
 from django.db import transaction
 from django.db.models import Q
@@ -8,12 +7,6 @@ from django.utils import timezone
 from .models import Notification, NotificationCategory, NotificationChannel, NotificationStatus
 from .preferences import delivery_eligibility, queue_notification
 from .providers import email_provider, sms_provider
-=======
-from django.utils import timezone
-
-from .models import Notification, NotificationChannel, NotificationStatus
-from .providers import email_provider, push_provider, sms_provider
->>>>>>> origin/main
 
 
 def _status_for_provider_response(response: dict) -> str:
@@ -27,20 +20,13 @@ def _status_for_provider_response(response: dict) -> str:
     """
     if response.get("status") == "stubbed":
         return NotificationStatus.STUBBED
-<<<<<<< HEAD
     if response.get("status") == "sent":
         return NotificationStatus.SENT
     return NotificationStatus.FAILED
-=======
-    if response.get("status") == "failed":
-        return NotificationStatus.FAILED
-    return NotificationStatus.SENT
->>>>>>> origin/main
 
 
 @shared_task(bind=True, max_retries=3, default_retry_delay=30, retry_backoff=True, retry_jitter=True)
 def deliver_notification(self, notification_id):
-<<<<<<< HEAD
     with transaction.atomic():
         notification = Notification.objects.select_related("recipient").select_for_update(of=("self",)).get(id=notification_id)
         if notification.status not in {NotificationStatus.PENDING, NotificationStatus.FAILED}:
@@ -63,9 +49,6 @@ def deliver_notification(self, notification_id):
         notification.attempts += 1
         notification.scheduled_for = None
         notification.save(update_fields=["status", "attempts", "scheduled_for"])
-=======
-    notification = Notification.objects.select_related("recipient").get(id=notification_id)
->>>>>>> origin/main
 
     try:
         if notification.channel == NotificationChannel.EMAIL and notification.recipient and notification.recipient.email:
@@ -75,13 +58,9 @@ def deliver_notification(self, notification_id):
         elif notification.channel == NotificationChannel.SMS and notification.recipient and notification.recipient.phone_number:
             response = sms_provider.send(to=notification.recipient.phone_number, body=notification.body)
         elif notification.channel == NotificationChannel.PUSH:
-<<<<<<< HEAD
             # There is no device subscription or browser permission lifecycle yet.
             # Legacy PUSH rows must never be sent with an empty device token.
             response = {"status": "stubbed", "reason": "no device subscription"}
-=======
-            response = push_provider.send(device_token="", title=notification.title, body=notification.body)
->>>>>>> origin/main
         elif notification.channel == NotificationChannel.IN_APP:
             # The persisted notification is the in-app delivery itself; no external
             # provider is involved and it is immediately available in the inbox.
@@ -89,20 +68,12 @@ def deliver_notification(self, notification_id):
             notification.provider_response = {"status": "delivered", "provider": "in_app"}
             notification.sent_at = timezone.now()
             notification.save(update_fields=["status", "provider_response", "sent_at"])
-<<<<<<< HEAD
             return {"status": "delivered"}
-=======
-            return
->>>>>>> origin/main
         else:
             notification.status = NotificationStatus.FAILED
             notification.provider_response = {"error": "No valid recipient address for this channel."}
             notification.save(update_fields=["status", "provider_response"])
-<<<<<<< HEAD
             return {"status": "failed", "reason": "missing address"}
-=======
-            return
->>>>>>> origin/main
 
         status = _status_for_provider_response(response)
         if status == NotificationStatus.FAILED:
@@ -114,22 +85,15 @@ def deliver_notification(self, notification_id):
         # "send" never reached a real user and shouldn't look like it did.
         notification.sent_at = timezone.now() if status == NotificationStatus.SENT else None
         notification.save(update_fields=["status", "provider_response", "sent_at"])
-<<<<<<< HEAD
         return {"status": status.lower()}
     except Exception as exc:
         notification.status = NotificationStatus.FAILED
         notification.provider_response = {"error": str(exc)[:500]}
-=======
-    except Exception as exc:
-        notification.status = NotificationStatus.FAILED
-        notification.provider_response = {"error": str(exc)}
->>>>>>> origin/main
         notification.save(update_fields=["status", "provider_response"])
         raise self.retry(exc=exc)
 
 
 @shared_task
-<<<<<<< HEAD
 def dispatch_due_notifications():
     """Requeue notifications deferred for quiet hours or an earlier broker failure."""
     now = timezone.now()
@@ -142,8 +106,6 @@ def dispatch_due_notifications():
 
 
 @shared_task
-=======
->>>>>>> origin/main
 def mark_notification_delivered(notification_id, provider_metadata=None):
     """
     Delivery-confirmation handler (spec section 13's "delivered" state).
@@ -165,7 +127,6 @@ def mark_notification_delivered(notification_id, provider_metadata=None):
 @shared_task
 def send_notification_to_members(member_ids, title, body, channel=NotificationChannel.EMAIL, announcement_id=None):
     from apps.members.models import Member
-<<<<<<< HEAD
     from apps.communications.models import Announcement
     from apps.communications.services import resolve_audience_members
 
@@ -198,18 +159,6 @@ def send_notification_to_members(member_ids, title, body, channel=NotificationCh
         if notification:
             created += 1
     return {"created": created}
-=======
-
-    members = Member.objects.filter(id__in=member_ids).select_related("user")
-    for member in members:
-        if not member.user_id:
-            continue
-        notification = Notification.objects.create(
-            recipient=member.user, recipient_member=member, channel=channel, title=title, body=body,
-            source_announcement_id=announcement_id,
-        )
-        deliver_notification.delay(str(notification.id))
->>>>>>> origin/main
 
 
 @shared_task
@@ -219,10 +168,7 @@ def send_birthday_notifications():
     from django.db import IntegrityError, transaction
     from apps.members.models import Member, MembershipStatus
     from .models import BirthdayAnnouncement
-<<<<<<< HEAD
     from .preferences import delivery_eligibility
-=======
->>>>>>> origin/main
 
     today = timezone.localdate()
     celebrants = Member.objects.filter(
@@ -243,22 +189,15 @@ def send_birthday_notifications():
                 )
                 if not created:
                     continue
-<<<<<<< HEAD
                 recipients = [user for user in User.objects.filter(branch_id=member.branch_id, is_active=True).only("id")
                               if delivery_eligibility(user, NotificationCategory.BIRTHDAY, NotificationChannel.IN_APP)[0]]
-=======
-                recipients = list(User.objects.filter(branch_id=member.branch_id, is_active=True).only("id"))
->>>>>>> origin/main
                 Notification.objects.bulk_create([
                     Notification(
                         recipient=recipient,
                         birthday_announcement=birthday,
                         channel=NotificationChannel.IN_APP,
-<<<<<<< HEAD
                         category=NotificationCategory.BIRTHDAY,
                         href="/app",
-=======
->>>>>>> origin/main
                         title=f"Happy birthday, {member.first_name}!",
                         body=f"Join the ChapelFlow community in celebrating {member.full_name} today.",
                         status=NotificationStatus.DELIVERED,
@@ -277,10 +216,7 @@ def send_birthday_notifications():
         "celebrations_created": celebrations_created,
         "notifications_created": notifications_created,
     }
-<<<<<<< HEAD
 
 
 # Celery autodiscovers tasks.py; importing registers the live-service task too.
 from .live import notify_live_service_published  # noqa: E402,F401
-=======
->>>>>>> origin/main

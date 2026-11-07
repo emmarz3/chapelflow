@@ -14,17 +14,11 @@ Privacy considerations:
 - Anonymous submissions: No member identification
 """
 
-<<<<<<< HEAD
 from apps.notifications.models import Notification, NotificationCategory, NotificationChannel
 from apps.notifications.preferences import delivery_eligibility, queue_notification
 from apps.notifications.tasks import deliver_notification
 from celery import shared_task
 from django.utils import timezone
-=======
-from apps.notifications.models import Notification, NotificationChannel
-from apps.notifications.tasks import deliver_notification
-from celery import shared_task
->>>>>>> origin/main
 
 
 def notify_prayer_request_assigned(prayer_request, assigned_to_user):
@@ -36,17 +30,12 @@ def notify_prayer_request_assigned(prayer_request, assigned_to_user):
     if not assigned_to_user or not assigned_to_user.email:
         return
     
-<<<<<<< HEAD
     # Treat any community-visible record without explicit requester consent as private.
     is_private = prayer_request.privacy_level == 'PRIVATE' or (
         prayer_request.privacy_level in {'FELLOWSHIP', 'PUBLIC'}
         and not prayer_request.consent_to_share
     )
     if is_private:
-=======
-    # Determine requester identification based on privacy
-    if prayer_request.privacy_level == 'PRIVATE':
->>>>>>> origin/main
         requester_info = "Private Request"
     elif prayer_request.member:
         requester_info = prayer_request.member.full_name
@@ -56,18 +45,10 @@ def notify_prayer_request_assigned(prayer_request, assigned_to_user):
         requester_info = "Anonymous"
     
     # For PRIVATE requests, don't include details
-<<<<<<< HEAD
     if is_private:
         body_text = (
             f"You have been assigned a new prayer request.\n\n"
             f"Requester: {requester_info}\n"
-=======
-    if prayer_request.privacy_level == 'PRIVATE':
-        body_text = (
-            f"You have been assigned a new prayer request.\n\n"
-            f"Requester: {requester_info}\n"
-            f"Category: {prayer_request.category}\n"
->>>>>>> origin/main
             f"Privacy Level: {prayer_request.get_privacy_level_display()}\n\n"
             f"Please log in to ChapelFlow to view the full prayer request details."
         )
@@ -83,24 +64,15 @@ def notify_prayer_request_assigned(prayer_request, assigned_to_user):
             f"Please log in to ChapelFlow to take action."
         )
     
-<<<<<<< HEAD
     notification = queue_notification(
         recipient=assigned_to_user,
         category=NotificationCategory.PRAYER,
-=======
-    notification = Notification.objects.create(
-        recipient=assigned_to_user,
->>>>>>> origin/main
         channel=NotificationChannel.EMAIL,
         title=f"Prayer Request Assigned: {prayer_request.category}",
         body=body_text
     )
     
-<<<<<<< HEAD
     return notification
-=======
-    deliver_notification.delay(str(notification.id))
->>>>>>> origin/main
 
 
 def notify_prayer_request_answered(prayer_request, answered_by_user):
@@ -113,7 +85,6 @@ def notify_prayer_request_answered(prayer_request, answered_by_user):
     if not prayer_request.member or not prayer_request.member.user or not prayer_request.member.user.email:
         return
     
-<<<<<<< HEAD
     notification = queue_notification(
         recipient=prayer_request.member.user,
         recipient_member=prayer_request.member,
@@ -121,13 +92,6 @@ def notify_prayer_request_answered(prayer_request, answered_by_user):
         channel=NotificationChannel.EMAIL,
         title="Prayer Request Update",
         idempotency_key=f"prayer-answered:{prayer_request.id}:{prayer_request.member.user_id}",
-=======
-    notification = Notification.objects.create(
-        recipient=prayer_request.member.user,
-        recipient_member=prayer_request.member,
-        channel=NotificationChannel.EMAIL,
-        title="Prayer Request Update",
->>>>>>> origin/main
         body=(
             f"Dear {prayer_request.member.first_name},\n\n"
             f"We're reaching out regarding your prayer request for {prayer_request.category}.\n\n"
@@ -138,11 +102,7 @@ def notify_prayer_request_answered(prayer_request, answered_by_user):
         )
     )
     
-<<<<<<< HEAD
     return notification
-=======
-    deliver_notification.delay(str(notification.id))
->>>>>>> origin/main
 
 
 def notify_prayer_request_created_to_team(prayer_request, created_by_user):
@@ -161,11 +121,7 @@ def notify_prayer_request_created_to_team(prayer_request, created_by_user):
     # Find all pastoral staff in same branch
     recipients = User.objects.filter(
         branch=prayer_request.branch,
-<<<<<<< HEAD
         role__in=Roles.PASTORAL_ACCESS_ROLES,
-=======
-        role__in=[Roles.CHAPLAIN, Roles.SENIOR_PASTOR],
->>>>>>> origin/main
         is_active=True
     )
     
@@ -180,17 +136,11 @@ def notify_prayer_request_created_to_team(prayer_request, created_by_user):
         if not recipient.email:
             continue
         
-<<<<<<< HEAD
         queue_notification(
             recipient=recipient,
             category=NotificationCategory.PRAYER,
             channel=NotificationChannel.EMAIL,
             idempotency_key=f"prayer-team:{prayer_request.id}:{recipient.id}",
-=======
-        notification = Notification.objects.create(
-            recipient=recipient,
-            channel=NotificationChannel.EMAIL,
->>>>>>> origin/main
             title=f"New Pastoral Prayer Request: {prayer_request.category}",
             body=(
                 f"A new pastoral prayer request needs review and assignment.\n\n"
@@ -201,10 +151,6 @@ def notify_prayer_request_created_to_team(prayer_request, created_by_user):
             )
         )
         
-<<<<<<< HEAD
-=======
-        deliver_notification.delay(str(notification.id))
->>>>>>> origin/main
 
 
 def notify_fellowship_of_public_prayer(prayer_request):
@@ -216,11 +162,7 @@ def notify_fellowship_of_public_prayer(prayer_request):
     
     Delivery is queued after commit and only targets members who explicitly opted in.
     """
-<<<<<<< HEAD
     if prayer_request.privacy_level != 'PUBLIC' or not prayer_request.consent_to_share:
-=======
-    if prayer_request.privacy_level != 'PUBLIC':
->>>>>>> origin/main
         return
     
     from django.db import transaction
@@ -236,10 +178,7 @@ def broadcast_public_prayer_notifications(self, prayer_request_id):
     prayer_request = PrayerRequest.objects.select_related("branch").filter(
         id=prayer_request_id,
         privacy_level=PrayerPrivacyLevel.PUBLIC,
-<<<<<<< HEAD
         consent_to_share=True,
-=======
->>>>>>> origin/main
     ).first()
     if prayer_request is None:
         return {"status": "skipped", "reason": "request is missing or not public"}
@@ -255,34 +194,24 @@ def broadcast_public_prayer_notifications(self, prayer_request_id):
 
     created = 0
     for preference in preferences.iterator(chunk_size=500):
-<<<<<<< HEAD
         if not delivery_eligibility(preference.member.user, NotificationCategory.PUBLIC_PRAYER, NotificationChannel.EMAIL)[0]:
             continue
-=======
->>>>>>> origin/main
         notification, was_created = Notification.objects.get_or_create(
             source_prayer_request=prayer_request,
             recipient=preference.member.user,
             defaults={
                 "recipient_member": preference.member,
                 "channel": NotificationChannel.EMAIL,
-<<<<<<< HEAD
                 "category": NotificationCategory.PUBLIC_PRAYER,
                 "href": "/app/care",
-=======
->>>>>>> origin/main
                 "title": "A public prayer request was shared",
                 "body": "A public prayer request was shared with your chapel. Sign in to ChapelFlow to read it and respond.",
             },
         )
         if was_created or notification.status == "FAILED":
             try:
-<<<<<<< HEAD
                 from django.db import transaction
                 transaction.on_commit(lambda notification_id=str(notification.id): deliver_notification.delay(notification_id))
-=======
-                deliver_notification.delay(str(notification.id))
->>>>>>> origin/main
             except Exception:
                 Notification.objects.filter(pk=notification.pk).update(status="FAILED")
                 raise
@@ -306,17 +235,11 @@ def notify_prayer_follow_up_due(prayer_request):
     else:
         requester_info = "Anonymous"
     
-<<<<<<< HEAD
     notification = queue_notification(
         recipient=prayer_request.assigned_to,
         category=NotificationCategory.PRAYER,
         channel=NotificationChannel.EMAIL,
         idempotency_key=f"prayer-follow-up:{prayer_request.id}:{prayer_request.assigned_to_id}:{timezone.localdate()}",
-=======
-    notification = Notification.objects.create(
-        recipient=prayer_request.assigned_to,
-        channel=NotificationChannel.EMAIL,
->>>>>>> origin/main
         title=f"📅 Prayer Follow-Up Due: {prayer_request.category}",
         body=(
             f"A prayer request assigned to you needs follow-up.\n\n"
@@ -328,11 +251,7 @@ def notify_prayer_follow_up_due(prayer_request):
         )
     )
     
-<<<<<<< HEAD
     return notification
-=======
-    deliver_notification.delay(str(notification.id))
->>>>>>> origin/main
 
 
 def notify_prayer_request_closed(prayer_request, closed_by_user):
@@ -359,7 +278,6 @@ def notify_prayer_request_closed(prayer_request, closed_by_user):
             f"Your prayer request regarding {prayer_request.category} has been closed."
         )
     
-<<<<<<< HEAD
     notification = queue_notification(
         recipient=prayer_request.member.user,
         recipient_member=prayer_request.member,
@@ -367,13 +285,6 @@ def notify_prayer_request_closed(prayer_request, closed_by_user):
         channel=NotificationChannel.EMAIL,
         title="Prayer Request Update",
         idempotency_key=f"prayer-closed:{prayer_request.id}:{prayer_request.status}:{prayer_request.member.user_id}",
-=======
-    notification = Notification.objects.create(
-        recipient=prayer_request.member.user,
-        recipient_member=prayer_request.member,
-        channel=NotificationChannel.EMAIL,
-        title="Prayer Request Update",
->>>>>>> origin/main
         body=(
             f"Dear {prayer_request.member.first_name},\n\n"
             f"{message}\n\n"
@@ -383,8 +294,4 @@ def notify_prayer_request_closed(prayer_request, closed_by_user):
         )
     )
     
-<<<<<<< HEAD
     return notification
-=======
-    deliver_notification.delay(str(notification.id))
->>>>>>> origin/main

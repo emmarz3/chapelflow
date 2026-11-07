@@ -70,11 +70,7 @@ Production routes fetch backend-authorized content and show explicit loading, em
 
 ## Deployment
 
-<<<<<<< HEAD
 The root `render.yaml` provisions the Django Docker service, managed PostgreSQL, Redis and Celery workers. The frontend static site is configured separately in Render. Set the prompted `SUPER_ADMIN_EMAIL`, `SUPER_ADMIN_PASSWORD`, Cloudinary credentials, SMTP credentials, `CORS_ALLOWED_ORIGINS`, and `CSRF_TRUSTED_ORIGINS` before serving users. The frontend must proxy `/api/v1/*` to the running Django service or use its public API URL at build time. The Blueprint uses paid Render compute and database plans; review the current Render pricing before syncing it. File uploads use Cloudinary so media survives app deploys and restarts.
-=======
-The root `render.yaml` is the production Render Blueprint: it provisions the Django Docker service, managed PostgreSQL, and the frontend static site. It sets production Django settings, applies database migrations and seeds chapel roles on startup, and derives the frontend API URL from Render's backend URL. Set the prompted `SUPER_ADMIN_EMAIL`, `SUPER_ADMIN_PASSWORD`, Cloudinary credentials, SMTP credentials, frontend `CORS_ALLOWED_ORIGINS`, and backend `CSRF_TRUSTED_ORIGINS` before serving users. The Blueprint uses paid Render compute and database plans; review the current Render pricing before syncing it. File uploads use Cloudinary so media survives app deploys and restarts. Background tasks run synchronously unless a Redis-backed worker is provisioned.
->>>>>>> origin/main
 
 The backend and database can also be deployed separately: use `chapelflow-backend/Dockerfile`, set `DJANGO_SETTINGS_MODULE=config.settings.production`, provide a managed PostgreSQL `DATABASE_URL`, and configure the runtime values listed in `chapelflow-backend/.env.example`. Never use local SQLite or local media storage for production.
 

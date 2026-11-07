@@ -167,15 +167,9 @@ class TestReconciliationDecimalPrecision:
             membership_status=MembershipStatus.ACTIVE
         )
         
-<<<<<<< HEAD
         category, _ = GivingCategory.objects.get_or_create(
             name="Tithe",
             defaults={"description": "Regular tithe"}
-=======
-        category = GivingCategory.objects.create(
-            name="Tithe",
-            description="Regular tithe"
->>>>>>> origin/main
         )
         
         return {
@@ -286,13 +280,8 @@ class TestReconciliationDecimalPrecision:
         # But 2 cents should have discrepancy
         recon2 = Reconciliation.objects.create(
             branch=setup_data['branch'],
-<<<<<<< HEAD
             period_start=timezone.now().date() - timezone.timedelta(days=1),
             period_end=timezone.now().date() - timezone.timedelta(days=1),
-=======
-            period_start=timezone.now().date(),
-            period_end=timezone.now().date(),
->>>>>>> origin/main
             system_total=Decimal('1000.00'),
             bank_total=Decimal('1000.02'),  # 2 cents difference
             created_by=setup_data['user']

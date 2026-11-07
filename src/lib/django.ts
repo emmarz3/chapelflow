@@ -425,7 +425,6 @@ export async function djangoRequest(
   const socialComment = route.match(/^\/social\/posts\/([^/]+)\/comments\/([^/]+)$/);
   if (socialComment && method === "DELETE")
     return call(`/social/posts/${encodeURIComponent(socialComment[1]!)}/comments/${encodeURIComponent(socialComment[2]!)}/`, { method: "DELETE" });
-<<<<<<< HEAD
   if (route === "/moderation/reports")
     return call("/moderation/reports/", method === "POST" ? json("POST", {
       target_kind: body.targetKind, target_id: body.targetId, reason: body.reason, explanation: body.explanation,
@@ -437,8 +436,6 @@ export async function djangoRequest(
     return call(`/moderation/queue/${encodeURIComponent(moderationCase[1]!)}/`, method === "POST" ? json("POST", {
       action: body.action, note: body.note, assigned_to_id: body.assignedToId,
     }) : init);
-=======
->>>>>>> origin/main
   if (route === "/student/announcements")
     return call("/communications/announcements/me/");
   if (route === "/student/join-requests")
@@ -601,10 +598,7 @@ export async function djangoRequest(
       category: body.category,
       details: body.details,
       privacy_level: body.privacyLevel,
-<<<<<<< HEAD
       consent_to_share: body.consentToShare,
-=======
->>>>>>> origin/main
     }) : init);
     if (method === "GET") return paged(response, prayerEntry);
     return { data: prayerEntry(row(response.data)) };
@@ -655,14 +649,11 @@ export async function djangoRequest(
       "/attendance/student-scan/",
       json("POST", { token: body.token }),
     );
-<<<<<<< HEAD
   if (route === "/attendance/qr-check-in" && method === "POST")
     return call(
       "/attendance/qr-check-in/",
       json("POST", { token: body.token, session_id: body.sessionId }),
     );
-=======
->>>>>>> origin/main
   const attendanceSessions = async (branchId: string) => {
     const response = await call(`/attendance/sessions/?branch=${encodeURIComponent(branchId)}&page_size=100`);
     return list(response.data).map((session) => {
@@ -984,11 +975,7 @@ export async function djangoRequest(
   if (route === "/notifications" && method === "GET") {
     const response = await call(`/notifications/${suffix}`);
     return {
-<<<<<<< HEAD
       data: { items: list(response.data).map((notification) => ({
-=======
-      data: list(response.data).map((notification) => ({
->>>>>>> origin/main
         id: str(notification.id),
         title: str(notification.title),
         body: str(notification.body),
@@ -996,7 +983,6 @@ export async function djangoRequest(
         created_at: str(notification.created_at),
         community_id: null,
         type: str(notification.channel),
-<<<<<<< HEAD
         category: str(notification.category || "OTHER"),
         href: str(notification.href || "/app/notifications"),
       })), hasMore: Boolean(response.pagination && response.pagination.current_page * response.pagination.page_size < response.pagination.count) },
@@ -1004,18 +990,11 @@ export async function djangoRequest(
   }
   if (route === "/notifications/unread-count" && method === "GET")
     return call("/notifications/unread-count/");
-=======
-        href: null,
-      })),
-    };
-  }
->>>>>>> origin/main
   if (/^\/notifications\/[^/]+\/read$/.test(route))
     return call(
       `/notifications/${encodeURIComponent(route.split("/")[2]!)}/mark-read/`,
       json("POST", {}),
     );
-<<<<<<< HEAD
   if (route === "/notifications/preferences") {
     const response = await call(
       "/communications/preferences/me/",
@@ -1062,8 +1041,6 @@ export async function djangoRequest(
       timezoneName: str(preference.timezone_name || "Africa/Lagos"),
     } };
   }
-=======
->>>>>>> origin/main
   if (route === "/account/privacy-preferences" && method === "GET") {
     const response = await call("/communications/preferences/me/");
     const preference = row(response.data);
@@ -1242,11 +1219,8 @@ export async function djangoRequest(
     return call("/account/data-export-requests/", json("POST", body));
   if (route === "/account/deletion-requests" && method === "POST")
     return call("/account/deletion-requests/", json("POST", body));
-<<<<<<< HEAD
   if (route === "/account/deletion-requests" && method === "GET")
     return call("/account/deletion-requests/", init);
-=======
->>>>>>> origin/main
   unsupported(
     "This feature is not available in the connected Django backend yet.",
   );

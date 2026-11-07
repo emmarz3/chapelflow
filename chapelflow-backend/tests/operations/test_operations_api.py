@@ -1,17 +1,11 @@
 import pytest
-<<<<<<< HEAD
 from django.utils.dateparse import parse_datetime
-=======
->>>>>>> origin/main
 from django.utils import timezone
 
 from apps.communications.models import Announcement, AnnouncementStatus
 from apps.communications.tasks import dispatch_scheduled_announcements
 from apps.ministries.models import Group, GroupType
-<<<<<<< HEAD
 from apps.operations.models import PrivacyRequest
-=======
->>>>>>> origin/main
 
 
 pytestmark = pytest.mark.django_db
@@ -22,13 +16,6 @@ pytestmark = pytest.mark.django_db
     [
         ("workers", {"title": "Sunday roster", "detail": "Main service"}, "Sunday roster"),
         ("finance", {"title": "Projector repair", "amount": "25000", "category": "Expense"}, "Projector repair"),
-<<<<<<< HEAD
-=======
-        ("media", {
-            "title": "Sunday sermon", "detail": "Audio recording",
-            "content_type": "MEDIA", "media_url": "https://media.example.edu/sunday.mp3",
-        }, "Sunday sermon"),
->>>>>>> origin/main
         ("cms", {"title": "Welcome Students", "detail": "Welcome to chapel."}, "Welcome Students"),
     ],
 )
@@ -132,7 +119,6 @@ def test_analytics_and_privacy_requests(api_client, chapel_admin_a):
     assert deletion.status_code == 201
     assert export.data["data"]["requestId"]
     assert deletion.data["data"]["requestId"]
-<<<<<<< HEAD
     assert not PrivacyRequest.objects.get(pk=deletion.data["data"]["requestId"]).reason
     statuses = api_client.get("/api/v1/account/deletion-requests/")
     assert statuses.status_code == 200
@@ -141,8 +127,6 @@ def test_analytics_and_privacy_requests(api_client, chapel_admin_a):
     assert parse_datetime(statuses.data["data"][0]["deletion_due_at"]) == deletion_request.deletion_due_at
     export_request = PrivacyRequest.objects.get(pk=export.data["data"]["requestId"])
     assert export_request.deletion_due_at is None
-=======
->>>>>>> origin/main
 
 
 def test_branch_operations_are_super_admin_only(api_client, super_admin, branch_a):

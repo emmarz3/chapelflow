@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 from datetime import timedelta
 
 from django.conf import settings
@@ -7,11 +6,6 @@ from django.db import IntegrityError, transaction
 from django.db.models import Count, Exists, OuterRef, Q
 from django.db.models import Subquery
 from django.utils import timezone
-=======
-from django.conf import settings
-from django.db import IntegrityError, transaction
-from django.db.models import Count, Exists, OuterRef, Q
->>>>>>> origin/main
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.permissions import IsAuthenticated
@@ -19,17 +13,11 @@ from rest_framework.views import APIView
 
 from apps.uploads.models import Upload, UploadCategory
 from apps.uploads.storage import generate_storage_filename, get_storage_service
-<<<<<<< HEAD
 from apps.uploads.validators import validate_social_media, validate_upload
 from common.constants.roles import Roles
 from common.utils.responses import success_response
 from apps.moderation.models import ModerationRestriction, TargetKind
 from apps.moderation.services import visible
-=======
-from apps.uploads.validators import validate_upload
-from common.constants.roles import Roles
-from common.utils.responses import success_response
->>>>>>> origin/main
 
 from .models import (
     SocialComment,
@@ -60,16 +48,11 @@ def _can_moderate(user):
 def _posts_for(user):
     branch = _branch(user)
     return (
-<<<<<<< HEAD
         visible(SocialPost.objects.filter(branch=branch, status=SocialPostStatus.PUBLISHED), TargetKind.POST)
-=======
-        SocialPost.objects.filter(branch=branch, status=SocialPostStatus.PUBLISHED)
->>>>>>> origin/main
         .select_related("author")
         .prefetch_related("media__upload")
         .annotate(
             like_count=Count("likes", distinct=True),
-<<<<<<< HEAD
             comment_count=Count(
                 "comments",
                 filter=Q(comments__status=SocialCommentStatus.PUBLISHED) & ~Q(
@@ -77,9 +60,6 @@ def _posts_for(user):
                 ),
                 distinct=True,
             ),
-=======
-            comment_count=Count("comments", filter=Q(comments__status=SocialCommentStatus.PUBLISHED), distinct=True),
->>>>>>> origin/main
             is_liked=Exists(SocialReaction.objects.filter(post_id=OuterRef("pk"), user=user)),
         )
         .order_by("-created_at")
@@ -97,14 +77,11 @@ class SocialPostCollectionView(APIView):
     permission_classes = [IsAuthenticated]
     parser_classes = [MultiPartParser, FormParser]
 
-<<<<<<< HEAD
     def get_throttles(self):
         if self.request.method == "POST":
             self.throttle_scope = "community_post"
         return super().get_throttles()
 
-=======
->>>>>>> origin/main
     def get(self, request):
         try:
             page = max(1, int(request.query_params.get("page", "1")))
@@ -130,14 +107,11 @@ class SocialPostCollectionView(APIView):
             raise ValidationError({"post": "Add a caption, a photo, or a video before posting."})
         if len(caption) > 1_000:
             raise ValidationError({"caption": "Keep your caption within 1,000 characters."})
-<<<<<<< HEAD
         if caption and SocialPost.objects.filter(
             branch=branch, author=request.user, caption=caption,
             created_at__gte=timezone.now() - timedelta(minutes=1),
         ).exists():
             raise ValidationError({"caption": "You recently shared this post."})
-=======
->>>>>>> origin/main
         if len(files) > 4:
             raise ValidationError({"files": "Add up to four photos or videos in one post."})
 
@@ -150,15 +124,11 @@ class SocialPostCollectionView(APIView):
                 media_type = SocialMediaType.VIDEO
             else:
                 raise ValidationError({"files": "The Upper Room accepts image and video files only."})
-<<<<<<< HEAD
             try:
                 validate_upload(file_obj, max_size_mb=getattr(settings, "MAX_MEDIA_UPLOAD_SIZE_MB", 100))
                 validate_social_media(file_obj)
             except DjangoValidationError as exc:
                 raise ValidationError({"files": exc.messages}) from exc
-=======
-            validate_upload(file_obj, max_size_mb=getattr(settings, "MAX_MEDIA_UPLOAD_SIZE_MB", 100))
->>>>>>> origin/main
             media.append((file_obj, media_type))
 
         storage = get_storage_service()
@@ -221,7 +191,6 @@ class SocialLikeView(APIView):
 class SocialCommentCollectionView(APIView):
     permission_classes = [IsAuthenticated]
 
-<<<<<<< HEAD
     def get_throttles(self):
         if self.request.method == "POST":
             self.throttle_scope = "community_comment"
@@ -230,11 +199,6 @@ class SocialCommentCollectionView(APIView):
     def get(self, request, pk):
         post = _post_or_404(request.user, pk)
         comments = visible(SocialComment.objects.filter(post=post, status=SocialCommentStatus.PUBLISHED), TargetKind.COMMENT).select_related("author")[:100]
-=======
-    def get(self, request, pk):
-        post = _post_or_404(request.user, pk)
-        comments = SocialComment.objects.filter(post=post, status=SocialCommentStatus.PUBLISHED).select_related("author")[:100]
->>>>>>> origin/main
         return success_response(SocialCommentSerializer(comments, many=True, context={"request": request}).data)
 
     def post(self, request, pk):
@@ -244,14 +208,11 @@ class SocialCommentCollectionView(APIView):
             raise ValidationError({"body": "Write a comment before posting it."})
         if len(body) > 750:
             raise ValidationError({"body": "Keep comments within 750 characters."})
-<<<<<<< HEAD
         if SocialComment.objects.filter(
             post=post, author=request.user, body=body,
             created_at__gte=timezone.now() - timedelta(minutes=1),
         ).exists():
             raise ValidationError({"body": "You recently posted this comment."})
-=======
->>>>>>> origin/main
         comment = SocialComment.objects.create(post=post, author=request.user, body=body)
         return success_response(SocialCommentSerializer(comment, context={"request": request}).data, message="Comment posted.", status=201)
 

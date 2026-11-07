@@ -10,14 +10,11 @@ from apps.operations.tasks import publish_scheduled_content
 pytestmark = pytest.mark.django_db
 
 
-<<<<<<< HEAD
 @pytest.fixture
 def media_author(make_user, branch_a):
     return make_user(role="STUDENT_CHAPLAIN", branch=branch_a, email="media-author@test.com")
 
 
-=======
->>>>>>> origin/main
 def _create_draft(api_client, user, **overrides):
     api_client.force_authenticate(user)
     payload = {
@@ -34,25 +31,15 @@ def _create_draft(api_client, user, **overrides):
 
 
 def test_content_requires_review_before_publication(
-<<<<<<< HEAD
     api_client, media_author, super_admin, branch_a
 ):
     created = _create_draft(api_client, media_author)
-=======
-    api_client, chapel_admin_a, super_admin, branch_a
-):
-    created = _create_draft(api_client, chapel_admin_a)
->>>>>>> origin/main
     assert created.status_code == 201, created.data
     content_id = created.data["data"]["id"]
     api_client.force_authenticate(user=None)
     assert api_client.get("/api/v1/public/sermons/steady-faith/").status_code == 404
 
-<<<<<<< HEAD
     api_client.force_authenticate(media_author)
-=======
-    api_client.force_authenticate(chapel_admin_a)
->>>>>>> origin/main
     assert api_client.post(f"/api/v1/operations/cms/{content_id}/submit/", {}).status_code == 200
     assert api_client.post(f"/api/v1/operations/cms/{content_id}/approve/", {}).status_code == 403
 
@@ -73,19 +60,11 @@ def test_content_requires_review_before_publication(
 
 
 def test_scheduled_content_is_not_public_until_worker_releases_it(
-<<<<<<< HEAD
     api_client, media_author, super_admin, branch_a
 ):
     publish_at = timezone.now() + timedelta(hours=1)
     created = _create_draft(
         api_client, media_author, slug="scheduled-message", publish_at=publish_at.isoformat()
-=======
-    api_client, chapel_admin_a, super_admin, branch_a
-):
-    publish_at = timezone.now() + timedelta(hours=1)
-    created = _create_draft(
-        api_client, chapel_admin_a, slug="scheduled-message", publish_at=publish_at.isoformat()
->>>>>>> origin/main
     )
     content_id = created.data["data"]["id"]
     api_client.post(f"/api/v1/operations/cms/{content_id}/submit/", {})
@@ -103,15 +82,9 @@ def test_scheduled_content_is_not_public_until_worker_releases_it(
 
 
 def test_rejection_requires_reason_and_preserves_revisions(
-<<<<<<< HEAD
     api_client, media_author, super_admin, branch_a
 ):
     created = _create_draft(api_client, media_author, slug="review-me")
-=======
-    api_client, chapel_admin_a, super_admin, branch_a
-):
-    created = _create_draft(api_client, chapel_admin_a, slug="review-me")
->>>>>>> origin/main
     content_id = created.data["data"]["id"]
     api_client.post(f"/api/v1/operations/cms/{content_id}/submit/", {})
     super_admin.branch = branch_a
@@ -129,13 +102,8 @@ def test_rejection_requires_reason_and_preserves_revisions(
     assert list(entry.revisions.values_list("version", flat=True)) == [3, 2, 1]
 
 
-<<<<<<< HEAD
 def test_media_content_validates_required_fields(api_client, media_author, chapel_admin_a):
     api_client.force_authenticate(media_author)
-=======
-def test_media_content_validates_required_fields(api_client, chapel_admin_a):
-    api_client.force_authenticate(chapel_admin_a)
->>>>>>> origin/main
     invalid = api_client.post(
         "/api/v1/operations/media/",
         {"title": "No recording", "content_type": "SERMON", "details": "Notes only"},
@@ -144,10 +112,7 @@ def test_media_content_validates_required_fields(api_client, chapel_admin_a):
     assert invalid.status_code == 400
     assert "media_url" in invalid.data["errors"]
 
-<<<<<<< HEAD
     api_client.force_authenticate(chapel_admin_a)
-=======
->>>>>>> origin/main
     page = api_client.post(
         "/api/v1/operations/cms/",
         {
@@ -163,15 +128,9 @@ def test_media_content_validates_required_fields(api_client, chapel_admin_a):
 
 
 def test_published_gallery_exposes_only_published_images(
-<<<<<<< HEAD
     api_client, media_author, super_admin, branch_a
 ):
     api_client.force_authenticate(media_author)
-=======
-    api_client, chapel_admin_a, super_admin, branch_a
-):
-    api_client.force_authenticate(chapel_admin_a)
->>>>>>> origin/main
     album = api_client.post(
         "/api/v1/operations/media/",
         {

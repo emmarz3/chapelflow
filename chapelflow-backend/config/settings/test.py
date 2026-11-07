@@ -28,10 +28,7 @@ CELERY_TASK_ALWAYS_EAGER = True
 CELERY_TASK_EAGER_PROPAGATES = True
 
 EMAIL_BACKEND = "django.core.mail.backends.locmem.EmailBackend"
-<<<<<<< HEAD
 SMS_CHANNEL_ENABLED = True
-=======
->>>>>>> origin/main
 
 # MFA enforcement (spec section 18) is exercised deliberately, per-test,
 # via @override_settings(MFA_ENFORCED_ROLES=[...]) in tests/accounts/ —
@@ -41,10 +38,7 @@ SMS_CHANNEL_ENABLED = True
 # what most of those tests are actually verifying.
 MFA_ENFORCED_ROLES = []
 MFA_ENFORCE_ROLE_OBJECTS = False
-<<<<<<< HEAD
 
 # Local file storage is used only by isolated tests. Production settings do
 # not enable this escape hatch and must use a provider with private downloads.
 PRIVATE_REPORTS_LOCAL_STORAGE = True
-=======
->>>>>>> origin/main

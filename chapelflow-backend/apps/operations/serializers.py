@@ -169,16 +169,9 @@ class ContentRevisionSerializer(serializers.ModelSerializer):
 
 
 class PrivacyRequestSerializer(serializers.ModelSerializer):
-<<<<<<< HEAD
     deletion_due_at = serializers.DateTimeField(read_only=True)
 
     class Meta:
         model = PrivacyRequest
         fields = ["id", "request_type", "status", "created_at", "completed_at", "deletion_due_at"]
         read_only_fields = ["id", "status", "created_at", "completed_at", "deletion_due_at"]
-=======
-    class Meta:
-        model = PrivacyRequest
-        fields = ["id", "request_type", "reason", "status", "created_at", "completed_at"]
-        read_only_fields = ["id", "status", "created_at", "completed_at"]
->>>>>>> origin/main

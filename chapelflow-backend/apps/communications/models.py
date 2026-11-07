@@ -133,7 +133,6 @@ class CommunicationPreference(models.Model):
     """
     member = models.OneToOneField(
         "members.Member",
-<<<<<<< HEAD
         on_delete=models.CASCADE, null=True, blank=True,
         related_name="communication_preference"
     )
@@ -143,11 +142,6 @@ class CommunicationPreference(models.Model):
     )
     master_enabled = models.BooleanField(default=True)
     in_app_enabled = models.BooleanField(default=True)
-=======
-        on_delete=models.CASCADE,
-        related_name="communication_preference"
-    )
->>>>>>> origin/main
     
     # Channel preferences
     email_enabled = models.BooleanField(default=True)
@@ -157,7 +151,6 @@ class CommunicationPreference(models.Model):
     # Feature preferences
     announcements_enabled = models.BooleanField(default=True)
     prayer_notifications_enabled = models.BooleanField(default=False)
-<<<<<<< HEAD
     prayer_updates_enabled = models.BooleanField(default=True)
     events_enabled = models.BooleanField(default=True)
     service_reminders_enabled = models.BooleanField(default=True)
@@ -170,22 +163,17 @@ class CommunicationPreference(models.Model):
     quiet_hours_start = models.TimeField(null=True, blank=True)
     quiet_hours_end = models.TimeField(null=True, blank=True)
     timezone_name = models.CharField(max_length=64, default="Africa/Lagos")
-=======
->>>>>>> origin/main
     
     updated_at = models.DateTimeField(auto_now=True)
     
     class Meta:
         db_table = "communications_preference"
-<<<<<<< HEAD
         constraints = [
             models.CheckConstraint(
                 condition=models.Q(member__isnull=False) | models.Q(user__isnull=False),
                 name="communication_preference_has_owner",
             ),
         ]
-=======
->>>>>>> origin/main
     
     def __str__(self):
         return f"Preferences for {self.member}"
