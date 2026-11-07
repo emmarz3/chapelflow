@@ -183,11 +183,7 @@ class TestCSVExportSecurity:
 class TestReportFilterValidation:
     """Test report filter security validation."""
     
-<<<<<<< HEAD
     def test_invalid_filter_keys_rejected(self, api_client):
-=======
-    def test_invalid_filter_keys_rejected(self, client):
->>>>>>> origin/main
         """Test that unauthorized filter keys are rejected."""
         from django.contrib.auth import get_user_model
         from apps.organizations.models import Branch, Organization
@@ -203,7 +199,6 @@ class TestReportFilterValidation:
             branch=branch
         )
         
-<<<<<<< HEAD
         api_client.force_authenticate(user=user)
         
         # Try to create report with invalid filter
@@ -211,14 +206,6 @@ class TestReportFilterValidation:
             '/api/v1/reports/jobs/',
             data={
                 'branch': str(branch.id),
-=======
-        client.force_login(user)
-        
-        # Try to create report with invalid filter
-        response = client.post(
-            '/api/v1/reports/jobs/',
-            data={
->>>>>>> origin/main
                 'report_type': 'MEMBERSHIP',
                 'export_format': 'CSV',
                 'filters': {
@@ -233,11 +220,7 @@ class TestReportFilterValidation:
         assert response.status_code == 400
         assert 'invalid_key' in str(response.data).lower() or 'filters' in str(response.data).lower()
     
-<<<<<<< HEAD
     def test_sql_injection_patterns_rejected(self, api_client):
-=======
-    def test_sql_injection_patterns_rejected(self, client):
->>>>>>> origin/main
         """Test that SQL injection patterns in filters are rejected."""
         from django.contrib.auth import get_user_model
         from apps.organizations.models import Branch
@@ -253,7 +236,6 @@ class TestReportFilterValidation:
             branch=branch
         )
         
-<<<<<<< HEAD
         api_client.force_authenticate(user=user)
         
         # Try SQL injection in filter value
@@ -261,14 +243,6 @@ class TestReportFilterValidation:
             '/api/v1/reports/jobs/',
             data={
                 'branch': str(branch.id),
-=======
-        client.force_login(user)
-        
-        # Try SQL injection in filter value
-        response = client.post(
-            '/api/v1/reports/jobs/',
-            data={
->>>>>>> origin/main
                 'report_type': 'MEMBERSHIP',
                 'export_format': 'CSV',
                 'filters': {

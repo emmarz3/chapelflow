@@ -65,15 +65,11 @@ def resolve_audience_members(announcement):
     if announcement.audience_type == AudienceType.STAFF_COMMUNITY:
         members = members.filter(community=announcement.target_community or "STAFF")
     elif announcement.target_groups.exists():
-<<<<<<< HEAD
         members = members.filter(
             group_memberships__group__in=announcement.target_groups.all(),
             group_memberships__is_active=True,
             group_memberships__group__is_active=True,
         ).distinct()
-=======
-        members = members.filter(group_memberships__group__in=announcement.target_groups.all()).distinct()
->>>>>>> origin/main
     # EVERYONE / CUSTOM-with-no-groups -> whole branch, no further filter.
 
     if announcement.target_membership_statuses:
@@ -82,11 +78,7 @@ def resolve_audience_members(announcement):
     return members
 
 
-<<<<<<< HEAD
 def filter_by_preference(members, channel, category=None):
-=======
-def filter_by_preference(members, channel):
->>>>>>> origin/main
     """
     Excludes members who opted out of this Announcement's channel, or out
     of announcements entirely. A member with no CommunicationPreference
@@ -94,7 +86,6 @@ def filter_by_preference(members, channel):
     fully opted in, matching the model's default=True opt-out design.
     """
     from .models import CommunicationPreference
-<<<<<<< HEAD
     from apps.notifications.models import NotificationCategory
     from apps.notifications.preferences import CATEGORY_FIELDS
 
@@ -113,13 +104,6 @@ def filter_by_preference(members, channel):
             CommunicationPreference.objects.filter(announcements_enabled=False).values_list("member_id", flat=True)
         )
     field = {"EMAIL": "email_enabled", "SMS": "sms_enabled", "PUSH": "push_enabled", "IN_APP": "in_app_enabled"}.get(channel)
-=======
-
-    opted_out_ids = set(
-        CommunicationPreference.objects.filter(announcements_enabled=False).values_list("member_id", flat=True)
-    )
-    field = {"EMAIL": "email_enabled", "SMS": "sms_enabled", "PUSH": "push_enabled"}.get(channel)
->>>>>>> origin/main
     if field:
         opted_out_ids |= set(
             CommunicationPreference.objects.filter(**{field: False}).values_list("member_id", flat=True)

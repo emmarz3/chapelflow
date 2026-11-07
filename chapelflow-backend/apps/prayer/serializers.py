@@ -16,22 +16,14 @@ class PrayerNoteSerializer(ScopedFKValidationMixin, serializers.ModelSerializer)
 
 
 class PrayerRequestSerializer(ScopedFKValidationMixin, serializers.ModelSerializer):
-<<<<<<< HEAD
     notes = serializers.SerializerMethodField()
-=======
-    notes = PrayerNoteSerializer(many=True, read_only=True)
->>>>>>> origin/main
 
     class Meta:
         model = PrayerRequest
         fields = [
             "id", "branch", "member", "submitted_by_name", "created_by",
             "category", "details", 
-<<<<<<< HEAD
             "privacy_level", "consent_to_share", "is_private",  # Both for backward compatibility
-=======
-            "privacy_level", "is_private",  # Both for backward compatibility
->>>>>>> origin/main
             "status", "assigned_to", 
             "answered_at", "closure_reason",
             "notes", "created_at", "updated_at",
@@ -47,7 +39,6 @@ class PrayerRequestSerializer(ScopedFKValidationMixin, serializers.ModelSerializ
             "assigned_to": {"required": False},
         }
 
-<<<<<<< HEAD
     def get_notes(self, instance):
         """Follow-up notes are private pastoral records, even on an owner's request."""
         if not self._is_pastoral_viewer():
@@ -78,8 +69,6 @@ class PrayerRequestSerializer(ScopedFKValidationMixin, serializers.ModelSerializ
             data.update({"member": None, "submitted_by_name": "", "created_by": None, "assigned_to": None})
         return data
 
-=======
->>>>>>> origin/main
     def validate(self, attrs):
         request = self.context.get("request")
         if not request or not request.user:
@@ -95,7 +84,6 @@ class PrayerRequestSerializer(ScopedFKValidationMixin, serializers.ModelSerializ
             privacy_level = attrs.get("privacy_level", getattr(self.instance, "privacy_level", "PRIVATE"))
             if privacy_level not in {"PRIVATE", "PASTORAL"}:
                 raise serializers.ValidationError({"privacy_level": "Submit a private or pastoral request. A pastoral leader can approve wider sharing after consent."})
-<<<<<<< HEAD
             if "consent_to_share" in attrs:
                 owner_id = self.instance.member.user_id if self.instance and self.instance.member_id else None
                 if self.instance and owner_id != request.user.id:
@@ -117,8 +105,6 @@ class PrayerRequestSerializer(ScopedFKValidationMixin, serializers.ModelSerializ
         )
         if target_privacy in {"PUBLIC", "FELLOWSHIP"} and not (has_consent and has_requester):
             raise serializers.ValidationError({"privacy_level": "The requester must consent before this request can be shared with the community."})
-=======
->>>>>>> origin/main
         return attrs
     
     def validate_branch(self, branch):
@@ -145,7 +131,6 @@ class PrayerRequestSerializer(ScopedFKValidationMixin, serializers.ModelSerializ
         
         # Existing branch validation
         assigned_to = self.validate_user_fk(assigned_to, 'assigned_to')
-<<<<<<< HEAD
 
         # The assignee must be authorized for this specific care record.
         # Actor-level org-wide scope alone is insufficient: it must not let a
@@ -160,8 +145,6 @@ class PrayerRequestSerializer(ScopedFKValidationMixin, serializers.ModelSerializ
             raise serializers.ValidationError(
                 "Cannot assign a prayer request to staff from another branch."
             )
-=======
->>>>>>> origin/main
         
         # Phase 13: Verify user has pastoral role
         from common.constants.roles import Roles
@@ -196,12 +179,9 @@ class PrayerRequestSerializer(ScopedFKValidationMixin, serializers.ModelSerializ
             from django.utils import timezone
             if validated_data['status'] == 'ANSWERED' and instance.status != 'ANSWERED':
                 instance.answered_at = timezone.now()
-<<<<<<< HEAD
 
         if validated_data.get("consent_to_share") is False and instance.privacy_level in {"PUBLIC", "FELLOWSHIP"}:
             validated_data["privacy_level"] = "PRIVATE"
-=======
->>>>>>> origin/main
         
         return super().update(instance, validated_data)
 

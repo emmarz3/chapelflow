@@ -167,11 +167,7 @@ def merge_members(keep, merged, changed_by):
         # same related rows twice or create conflicting canonical records.
         locked = {
             member.id: member
-<<<<<<< HEAD
             for member in Member.objects.select_related("user").select_for_update(of=("self",)).filter(
-=======
-            for member in Member.objects.select_for_update().select_related("user").filter(
->>>>>>> origin/main
                 id__in=[keep.id, merged.id]
             )
         }

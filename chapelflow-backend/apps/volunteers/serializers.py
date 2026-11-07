@@ -108,15 +108,11 @@ class VolunteerAssignmentSerializer(ScopedFKValidationMixin, serializers.ModelSe
         """Phase 3: Validate group belongs to accessible branch."""
         if group is None:
             return group
-<<<<<<< HEAD
         self.validate_related_branch_fk(group, 'group')
         from common.permissions.scoping import user_can_access_group
         if not user_can_access_group(self.context['request'].user, group):
             raise serializers.ValidationError("You are not authorized for this group.")
         return group
-=======
-        return self.validate_related_branch_fk(group, 'group')
->>>>>>> origin/main
 
     def validate(self, attrs):
         start = attrs.get("shift_starts_at", getattr(self.instance, "shift_starts_at", None))

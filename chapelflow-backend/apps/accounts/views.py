@@ -2,10 +2,7 @@ from django.contrib.auth import get_user_model
 from django.conf import settings
 from django.db import transaction
 import secrets
-<<<<<<< HEAD
 from http.cookies import Morsel
-=======
->>>>>>> origin/main
 from django.contrib.auth.tokens import default_token_generator
 from django.utils.encoding import force_str
 from django.utils.http import urlsafe_base64_decode
@@ -53,18 +50,13 @@ CSRF_COOKIE = "chapelflow_csrf"
 
 
 def _auth_cookie_options():
-<<<<<<< HEAD
     secure = not settings.DEBUG or _use_partitioned_local_cookies()
-=======
-    secure = not settings.DEBUG
->>>>>>> origin/main
     return {
         "secure": secure,
         "samesite": "None" if secure else "Lax",
     }
 
 
-<<<<<<< HEAD
 def _use_partitioned_local_cookies():
     return (
         settings.DEBUG
@@ -80,8 +72,6 @@ def _mark_partitioned_local_cookies(response):
     return response
 
 
-=======
->>>>>>> origin/main
 def _set_auth_cookies(response, access, refresh):
     """Keep browser credentials HttpOnly while preserving bearer-token API use."""
     cookie_options = _auth_cookie_options()
@@ -92,11 +82,7 @@ def _set_auth_cookies(response, access, refresh):
         CSRF_COOKIE, secrets.token_urlsafe(32), max_age=7 * 24 * 60 * 60,
         httponly=False, path="/", **cookie_options,
     )
-<<<<<<< HEAD
     return _mark_partitioned_local_cookies(response)
-=======
-    return response
->>>>>>> origin/main
 
 
 def _clear_auth_cookies(response):
@@ -104,11 +90,7 @@ def _clear_auth_cookies(response):
     response.delete_cookie(ACCESS_COOKIE, path="/", **cookie_options)
     response.delete_cookie(REFRESH_COOKIE, path="/", **cookie_options)
     response.delete_cookie(CSRF_COOKIE, path="/", **cookie_options)
-<<<<<<< HEAD
     return _mark_partitioned_local_cookies(response)
-=======
-    return response
->>>>>>> origin/main
 
 
 class RegisterView(APIView):

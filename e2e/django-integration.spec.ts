@@ -22,10 +22,6 @@ test("register, sign in, restore the session, and load a real chapel pass", asyn
   await page.getByRole("checkbox", { name: /I have read and accept/ }).check();
   await page.getByRole("button", { name: "Submit registration" }).click();
   await expect(page.getByRole("heading", { name: "Your account is ready." })).toBeVisible();
-<<<<<<< HEAD
-=======
-  await context.clearCookies();
->>>>>>> origin/main
   await page.getByRole("link", { name: "Return to sign in" }).click();
   await page.getByLabel("Email, matric number, or staff ID").fill(email);
   await page.getByLabel(/^Password/).fill(password);
@@ -53,7 +49,6 @@ test("register, sign in, restore the session, and load a real chapel pass", asyn
   expect(registrationResponse.status(), await registrationResponse.text()).toBe(201);
   await expect(page.getByText(/registration confirmed/i)).toBeVisible();
 });
-<<<<<<< HEAD
 
 test("signs in when the local app is embedded in a phone preview", async ({ page, baseURL }) => {
   await page.setContent(`<iframe src="${baseURL}/login" title="ChapelFlow preview"></iframe>`);
@@ -69,5 +64,3 @@ test("signs in when the local app is embedded in a phone preview", async ({ page
   })).toBe(200);
   await expect(preview.getByRole("heading", { name: "Sign in to ChapelFlow" })).not.toBeVisible();
 });
-=======
->>>>>>> origin/main

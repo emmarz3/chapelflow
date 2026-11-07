@@ -7,14 +7,10 @@ import {
 } from "../lib/offline-queue";
 
 describe("offline attendance queue", () => {
-<<<<<<< HEAD
   beforeEach(() => {
     window.localStorage.clear();
     window.sessionStorage.clear();
   });
-=======
-  beforeEach(() => window.localStorage.clear());
->>>>>>> origin/main
 
   it("queues a safe check-in once and blocks local duplicates", () => {
     expect(
@@ -34,11 +30,8 @@ describe("offline attendance queue", () => {
       }),
     ).toBe(false);
     expect(readPendingAttendance()).toHaveLength(1);
-<<<<<<< HEAD
     expect(window.localStorage.getItem("chapelflow-pending-attendance")).toBeNull();
     expect(window.sessionStorage.getItem("chapelflow-pending-attendance")).not.toBeNull();
-=======
->>>>>>> origin/main
   });
 
   it("removes a check-in after reconciliation", () => {
@@ -54,7 +47,6 @@ describe("offline attendance queue", () => {
     expect(readPendingAttendance()).toEqual([]);
   });
 
-<<<<<<< HEAD
   it("migrates an old persistent queue into session storage and clears its old copy", () => {
     window.localStorage.setItem("chapelflow-pending-attendance", JSON.stringify([{
       id: "legacy-1",
@@ -70,8 +62,6 @@ describe("offline attendance queue", () => {
     expect(window.sessionStorage.getItem("chapelflow-pending-attendance")).not.toBeNull();
   });
 
-=======
->>>>>>> origin/main
   it("removes synchronized records and retains failures for retry", async () => {
     queueAttendanceCheckIn({
       sessionId: "session-1",

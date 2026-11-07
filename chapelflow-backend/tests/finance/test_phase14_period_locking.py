@@ -34,12 +34,8 @@ class TestFinancialPeriodLifecycle:
     @pytest.fixture
     def branch(self):
         """Create test branch."""
-<<<<<<< HEAD
         organization = Organization.objects.create(name="Period Test Org", slug="period-test-org")
         return Branch.objects.create(name="Test Branch", organization=organization)
-=======
-        return Branch.objects.create(name="Test Branch")
->>>>>>> origin/main
     
     @pytest.fixture
     def users(self, branch):
@@ -61,30 +57,21 @@ class TestFinancialPeriodLifecycle:
         return {'finance_admin': finance_admin, 'regular_staff': regular_staff}
     
     @pytest.fixture
-<<<<<<< HEAD
     def period(self, branch, users):
         """Create open financial period."""
         period = FinancialPeriod.objects.create(
-=======
-    def period(self, branch):
-        """Create open financial period."""
-        return FinancialPeriod.objects.create(
->>>>>>> origin/main
             branch=branch,
             name="January 2026",
             period_start=date(2026, 1, 1),
             period_end=date(2026, 1, 31),
             status=FinancialPeriodStatus.OPEN
         )
-<<<<<<< HEAD
         Reconciliation.objects.create(
             branch=branch, period_start=period.period_start, period_end=period.period_end,
             status=ReconciliationStatus.RECONCILED, system_total=Decimal('0.00'),
             bank_total=Decimal('0.00'), created_by=users['finance_admin'],
         )
         return period
-=======
->>>>>>> origin/main
     
     def test_close_open_period(self, period, users):
         """Test closing an open period."""
@@ -190,15 +177,9 @@ class TestFinancialPeriodClosureValidation:
             membership_status=MembershipStatus.ACTIVE
         )
         
-<<<<<<< HEAD
         category, _ = GivingCategory.objects.get_or_create(
             name="Tithe",
             defaults={"description": "Regular tithe"}
-=======
-        category = GivingCategory.objects.create(
-            name="Tithe",
-            description="Regular tithe"
->>>>>>> origin/main
         )
         
         return {
@@ -219,11 +200,7 @@ class TestFinancialPeriodClosureValidation:
         )
         
         # Create pending payment within period
-<<<<<<< HEAD
         payment = Payment.objects.create(
-=======
-        Payment.objects.create(
->>>>>>> origin/main
             branch=setup_data['branch'],
             member=setup_data['member'],
             amount=Decimal('100.00'),
@@ -235,7 +212,6 @@ class TestFinancialPeriodClosureValidation:
                 timezone.datetime(2026, 1, 15, 10, 0, 0)
             )
         )
-<<<<<<< HEAD
         Payment.objects.filter(pk=payment.pk).update(
             created_at=timezone.make_aware(timezone.datetime(2026, 1, 15, 10, 0, 0))
         )
@@ -245,8 +221,6 @@ class TestFinancialPeriodClosureValidation:
             system_total=Decimal('0.00'), bank_total=Decimal('0.00'),
             created_by=setup_data['user'],
         )
-=======
->>>>>>> origin/main
         
         # Try to close period
         with pytest.raises(ValidationError, match="pending payment"):
@@ -541,12 +515,8 @@ class TestFinancialPeriodValidation:
     @pytest.fixture
     def branch(self):
         """Create test branch."""
-<<<<<<< HEAD
         organization = Organization.objects.create(name="Validation Test Org", slug="validation-test-org")
         return Branch.objects.create(name="Test Branch", organization=organization)
-=======
-        return Branch.objects.create(name="Test Branch")
->>>>>>> origin/main
     
     def test_period_start_must_be_before_end(self, branch):
         """Test that period start date must be before end date."""
@@ -753,15 +723,9 @@ class TestGivingPeriodEnforcement:
             membership_status=MembershipStatus.ACTIVE
         )
         
-<<<<<<< HEAD
         category, _ = GivingCategory.objects.get_or_create(
             name="Tithe",
             defaults={"description": "Regular tithe"}
-=======
-        category = GivingCategory.objects.create(
-            name="Tithe",
-            description="Regular tithe"
->>>>>>> origin/main
         )
         
         # Create closed period for January
@@ -821,11 +785,7 @@ class TestGivingPeriodEnforcement:
         
         # Should raise ValidationError when validate_giving_period is called
         from apps.finance.models import validate_giving_period
-<<<<<<< HEAD
         with pytest.raises(ValidationError, match="Closed"):
-=======
-        with pytest.raises(ValidationError, match="CLOSED"):
->>>>>>> origin/main
             validate_giving_period(giving)
     
     def test_cannot_modify_giving_in_locked_period(self, setup_data):
@@ -848,11 +808,7 @@ class TestGivingPeriodEnforcement:
         giving.amount = Decimal('250.00')
         
         from apps.finance.models import validate_giving_period
-<<<<<<< HEAD
         with pytest.raises(ValidationError, match="Locked"):
-=======
-        with pytest.raises(ValidationError, match="LOCKED"):
->>>>>>> origin/main
             validate_giving_period(giving)
     
     def test_can_modify_giving_in_open_period(self, setup_data):
@@ -901,7 +857,6 @@ class TestGivingPeriodEnforcement:
 @pytest.mark.django_db
 class TestReconciliationSecurity:
     """Test reconciliation service security."""
-<<<<<<< HEAD
 
     @pytest.fixture
     def setup_data(self):
@@ -913,8 +868,6 @@ class TestReconciliationSecurity:
         )
         category, _ = GivingCategory.objects.get_or_create(name="Tithe")
         return {'branch': branch, 'member': member, 'category': category}
-=======
->>>>>>> origin/main
     
     def test_reconciliation_respects_branch_boundaries(self, setup_data):
         """Test that reconciliation only matches within same branch."""

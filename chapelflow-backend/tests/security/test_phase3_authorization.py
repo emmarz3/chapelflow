@@ -153,11 +153,7 @@ class TestSerializerFKValidation:
         })
         
         assert response.status_code == 400
-<<<<<<< HEAD
         assert 'branch' in response.data['errors']
-=======
-        assert 'branch' in response.json()
->>>>>>> origin/main
     
     def test_cannot_use_location_from_unauthorized_branch(
         self, api_client, chapel_admin_branch_a, branch_a, branch_b
@@ -180,11 +176,7 @@ class TestSerializerFKValidation:
         })
         
         assert response.status_code == 400
-<<<<<<< HEAD
         assert 'location' in response.data['errors']
-=======
-        assert 'location' in response.json()
->>>>>>> origin/main
     
     def test_cannot_assign_member_from_different_branch(
         self, api_client, chapel_admin_branch_a, branch_a, member_branch_b
@@ -199,11 +191,7 @@ class TestSerializerFKValidation:
         })
         
         assert response.status_code == 400
-<<<<<<< HEAD
         assert 'head' in response.data['errors']
-=======
-        assert 'head' in response.json()
->>>>>>> origin/main
     
     def test_super_admin_can_create_cross_branch(
         self, api_client, super_admin, branch_b, member_branch_b
@@ -275,22 +263,12 @@ class TestFinanceModuleSecurity:
     """Test Finance module requires MFA and proper role."""
     
     def test_finance_requires_finance_role(
-<<<<<<< HEAD
         self, api_client, member_branch_a, branch_a
     ):
         """Test: Ordinary members cannot access finance endpoints."""
         api_client.force_authenticate(user=member_branch_a.user)
         
         response = api_client.post('/api/v1/giving/', {
-=======
-        self, api_client, chapel_admin_branch_a, branch_a, member_branch_a
-    ):
-        """Test: Non-finance roles cannot access finance endpoints."""
-        # Chapel Admin does NOT have finance access by default
-        api_client.force_authenticate(user=chapel_admin_branch_a)
-        
-        response = api_client.post('/api/v1/finance/giving/', {
->>>>>>> origin/main
             'branch': branch_a.id,
             'member': member_branch_a.id,
             'amount': '100.00',
@@ -321,11 +299,7 @@ class TestFinanceModuleSecurity:
         
         api_client.force_authenticate(user=finance_user)
         
-<<<<<<< HEAD
         response = api_client.get('/api/v1/giving/')
-=======
-        response = api_client.get('/api/v1/finance/giving/')
->>>>>>> origin/main
         
         # Should fail - MFA not completed
         assert response.status_code == 403
@@ -333,11 +307,7 @@ class TestFinanceModuleSecurity:
         # Now mock MFA completed
         mock_mfa.return_value = True
         
-<<<<<<< HEAD
         response = api_client.get('/api/v1/giving/')
-=======
-        response = api_client.get('/api/v1/finance/giving/')
->>>>>>> origin/main
         
         # Should succeed
         assert response.status_code == 200
@@ -347,11 +317,7 @@ class TestFinanceModuleSecurity:
 class TestPastoralModuleSecurity:
     """Test Pastoral module object-level permissions and MFA."""
     
-<<<<<<< HEAD
     @patch('apps.pastoral.views.user_has_completed_required_mfa')
-=======
-    @patch('common.permissions.rbac.user_has_completed_required_mfa')
->>>>>>> origin/main
     def test_pastoral_requires_mfa(
         self, mock_mfa, api_client, chapel_admin_branch_a
     ):
@@ -393,11 +359,7 @@ class TestPastoralModuleSecurity:
         response = api_client.get('/api/v1/pastoral/cases/')
         
         assert response.status_code == 200
-<<<<<<< HEAD
         cases = response.data['data']
-=======
-        cases = response.json()['results'] if 'results' in response.json() else response.json()
->>>>>>> origin/main
         
         # Should only see own case
         assert len([c for c in cases if c['id'] == str(case_a.id)]) == 1
@@ -409,11 +371,7 @@ class TestPrayerModuleSecurity:
     """Test Prayer module privacy filtering."""
     
     def test_private_prayer_requests_not_visible_to_others(
-<<<<<<< HEAD
         self, api_client, member_branch_a, branch_a
-=======
-        self, api_client, member_branch_a, member_branch_b, branch_a
->>>>>>> origin/main
     ):
         """Test: Private prayer requests not visible to other members."""
         from apps.prayer.models import PrayerRequest
@@ -423,11 +381,7 @@ class TestPrayerModuleSecurity:
             branch=branch_a,
             member=member_branch_a,
             details='Private prayer',
-<<<<<<< HEAD
             privacy_level='PRIVATE',
-=======
-            is_private=True
->>>>>>> origin/main
         )
         
         # Create public request from member A
@@ -435,7 +389,6 @@ class TestPrayerModuleSecurity:
             branch=branch_a,
             member=member_branch_a,
             details='Public prayer',
-<<<<<<< HEAD
             privacy_level='PUBLIC',
             consent_to_share=True,
         )
@@ -449,22 +402,11 @@ class TestPrayerModuleSecurity:
             user=other_user, branch=branch_a, first_name="Other", last_name="Member",
         )
         api_client.force_authenticate(user=other_member.user)
-=======
-            is_private=False
-        )
-        
-        # Member B logs in
-        api_client.force_authenticate(user=member_branch_b.user)
->>>>>>> origin/main
         
         response = api_client.get('/api/v1/prayer/requests/')
         
         assert response.status_code == 200
-<<<<<<< HEAD
         requests = response.data['data']
-=======
-        requests = response.json()['results'] if 'results' in response.json() else response.json()
->>>>>>> origin/main
         
         # Should NOT see private request from member A
         assert len([r for r in requests if r['id'] == str(private_request.id)]) == 0
@@ -571,11 +513,7 @@ class TestDynamicRBAC:
         )
         
         # Verify assignment
-<<<<<<< HEAD
         assert role.permissions.filter(permission=perm).exists()
-=======
-        assert role.rolepermission_set.filter(permission=perm).exists()
->>>>>>> origin/main
     
     def test_user_with_dynamic_role_has_permissions(
         self, organization, branch_a, api_client
@@ -633,7 +571,6 @@ class TestSelfEscalationPrevention:
         self, chapel_admin_branch_a, organization, branch_a
     ):
         """Test: User cannot assign Super Admin role to themselves."""
-<<<<<<< HEAD
         from apps.accounts.role_services import assign_role_to_user
         from django.core.exceptions import ValidationError
         
@@ -646,35 +583,14 @@ class TestSelfEscalationPrevention:
                 user=chapel_admin_branch_a,
                 new_role=super_admin_role,
                 changed_by=chapel_admin_branch_a,
-=======
-        from apps.accounts.role_services import assign_role_to_user, RoleAssignmentError
-        
-        # Create Super Admin role
-        super_admin_role = Role.objects.create(
-            name="Super Admin",
-            code=Roles.SUPER_ADMIN,
-            scope_type="GLOBAL"
-        )
-        
-        # Chapel Admin tries to assign Super Admin to themselves
-        with pytest.raises(RoleAssignmentError):
-            assign_role_to_user(
-                user=chapel_admin_branch_a,
-                role=super_admin_role,
-                assigner=chapel_admin_branch_a
->>>>>>> origin/main
             )
     
     def test_user_cannot_grant_permission_they_lack(
         self, chapel_admin_branch_a, organization
     ):
         """Test: User cannot grant permissions they don't have."""
-<<<<<<< HEAD
         from apps.accounts.role_services import grant_permission_to_role
         from django.core.exceptions import PermissionDenied
-=======
-        from apps.accounts.role_services import grant_permission_to_role, PermissionGrantError
->>>>>>> origin/main
         
         # Create role and permission
         role = Role.objects.create(
@@ -684,7 +600,6 @@ class TestSelfEscalationPrevention:
         )
         
         finance_perm, _ = Permission.objects.get_or_create(
-<<<<<<< HEAD
             code=PermissionCodes.ROLE_MANAGE,
             defaults={'name': 'Manage Roles', 'module': 'ACCOUNTS'}
         )
@@ -697,21 +612,6 @@ class TestSelfEscalationPrevention:
                 role=role,
                 permission_code=finance_perm.code,
                 granted_by=chapel_admin_branch_a,
-=======
-            code=PermissionCodes.FINANCE_CREATE,
-            defaults={'name': 'Create Finance Records', 'module': 'FINANCE'}
-        )
-        
-        # Chapel Admin does NOT have finance.create permission
-        assert not chapel_admin_branch_a.has_perm_code(PermissionCodes.FINANCE_CREATE)
-        
-        # Try to grant it to role
-        with pytest.raises(PermissionGrantError):
-            grant_permission_to_role(
-                role=role,
-                permission=finance_perm,
-                granter=chapel_admin_branch_a
->>>>>>> origin/main
             )
 
 

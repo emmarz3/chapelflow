@@ -1424,34 +1424,20 @@ const moduleConfigs = {
     button: "Create broadcast",
     icon: <Send />,
     metrics: [
-<<<<<<< HEAD
       ["Sent this month", "18,420", "Email and in-app"],
       ["Delivery rate", "96.8%", "Email and in-app"],
-=======
-      ["Sent this month", "18,420", "Across all channels"],
-      ["Delivery rate", "96.8%", "Email, SMS, and push"],
->>>>>>> origin/main
       ["Scheduled", "4", "Next 7 days"],
     ],
     rows: [
       [
         "Freshers Welcome reminder",
-<<<<<<< HEAD
         "Email",
-=======
-        "Email + Push",
->>>>>>> origin/main
         "2,184 recipients",
         "Scheduled",
       ],
       ["Worker roster update", "Email", "286 recipients", "Delivered"],
-<<<<<<< HEAD
       ["Sunday service notice", "Email", "2,418 recipients", "Delivered"],
       ["Choir rehearsal change", "In-app", "68 recipients", "Draft"],
-=======
-      ["Sunday service notice", "SMS + Push", "2,418 recipients", "Delivered"],
-      ["Choir rehearsal change", "Push", "68 recipients", "Draft"],
->>>>>>> origin/main
     ],
   },
   assets: {
@@ -1612,11 +1598,7 @@ const moduleConfigs = {
       ],
       [
         "Notification preferences",
-<<<<<<< HEAD
         "Email and in-app channels",
-=======
-        "Email, SMS, and push channels",
->>>>>>> origin/main
         "Configured",
         "Open",
       ],

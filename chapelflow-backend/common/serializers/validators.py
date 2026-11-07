@@ -62,7 +62,6 @@ class ScopedFKValidationMixin:
         if not obj:
             return obj
         
-<<<<<<< HEAD
         # A related FK is only safe when its branch can be determined. Some
         # resources (notably VolunteerProfile) inherit it through a member.
         branch_id = getattr(obj, 'branch_id', None)
@@ -78,17 +77,6 @@ class ScopedFKValidationMixin:
                     break
 
         if not branch_id or not user_can_access_branch(request.user, branch_id):
-=======
-        # Get branch from related object
-        branch_id = getattr(obj, 'branch_id', None)
-        if not branch_id:
-            # Try traversing one level (e.g., session.event.branch)
-            related = getattr(obj, 'event', None) or getattr(obj, 'group', None)
-            if related:
-                branch_id = getattr(related, 'branch_id', None)
-        
-        if branch_id and not user_can_access_branch(request.user, branch_id):
->>>>>>> origin/main
             raise serializers.ValidationError(
                 f"The selected {field_name} belongs to a branch you cannot access."
             )

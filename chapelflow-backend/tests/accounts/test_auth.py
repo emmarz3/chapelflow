@@ -1,8 +1,5 @@
 import pytest
-<<<<<<< HEAD
 from http.cookies import Morsel
-=======
->>>>>>> origin/main
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.test import override_settings
@@ -59,7 +56,6 @@ class TestUserMatricLogin:
         assert response.status_code == 200
         assert response.data["success"] is True
 
-<<<<<<< HEAD
     def test_failed_login_log_does_not_include_submitted_identifier(self, caplog):
         from types import SimpleNamespace
 
@@ -74,8 +70,6 @@ class TestUserMatricLogin:
         assert identifier not in caplog.text
         assert "login_failed reason=invalid_credentials" in caplog.text
 
-=======
->>>>>>> origin/main
     @override_settings(DEBUG=False)
     def test_production_login_cookies_support_cross_origin_frontends(self, api_client):
         from apps.accounts.models import User
@@ -93,7 +87,6 @@ class TestUserMatricLogin:
             assert response.cookies[name]["secure"] is True
             assert response.cookies[name]["path"] == "/"
 
-<<<<<<< HEAD
     @override_settings(DEBUG=True, CHAPELFLOW_LOCAL_EMBEDDED_PREVIEW=True)
     def test_local_preview_login_uses_partitioned_secure_cookies(self, api_client):
         if "partitioned" not in Morsel._reserved:
@@ -115,8 +108,6 @@ class TestUserMatricLogin:
         assert response.cookies["chapelflow_access"]["httponly"] is True
         assert response.cookies["chapelflow_refresh"]["httponly"] is True
 
-=======
->>>>>>> origin/main
     def test_invalid_credentials_return_clean_400_not_500(self, api_client):
         response = api_client.post(
             "/api/v1/auth/login/", {"matric_no": "NOTREAL/0000/000", "password": "whatever"}, format="json"

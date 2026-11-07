@@ -2,11 +2,7 @@
 Phase 13 Pastoral Care Tests: Comprehensive Security & Functionality
 
 Tests comprehensive validation for:
-<<<<<<< HEAD
 - Pastoral case lifecycle (OPEN â†’ ASSIGNED â†’ IN_PROGRESS â†’ FOLLOW_UP â†’ ESCALATED â†’ RESOLVED â†’ CLOSED)
-=======
-- Pastoral case lifecycle (OPEN → ASSIGNED → IN_PROGRESS → FOLLOW_UP → ESCALATED → RESOLVED → CLOSED)
->>>>>>> origin/main
 - Priority-based workflows (URGENT, HIGH, MEDIUM, LOW)
 - Assignment validation (role checking, branch scoping, active users only)
 - Escalation tracking and audit trail
@@ -188,11 +184,7 @@ class TestPastoralCaseLifecycle:
         assert case.updated_at is not None
 
     def test_status_transition_open_to_assigned(self, chaplain_a, member_a):
-<<<<<<< HEAD
         """OPEN â†’ ASSIGNED transition should be valid"""
-=======
-        """OPEN → ASSIGNED transition should be valid"""
->>>>>>> origin/main
         case = PastoralCase.objects.create(
             branch=member_a.branch,
             member=member_a,
@@ -315,11 +307,7 @@ class TestPastoralCaseAssignment:
         )
         
         response = client.patch(
-<<<<<<< HEAD
             f"/api/v1/pastoral/cases/{case.id}/",
-=======
-            f"/api/pastoral/cases/{case.id}/",
->>>>>>> origin/main
             {"assigned_to": fellowship_leader_a.id},
             format="json"
         )
@@ -344,11 +332,7 @@ class TestPastoralCaseAssignment:
         )
         
         response = client.patch(
-<<<<<<< HEAD
             f"/api/v1/pastoral/cases/{case.id}/",
-=======
-            f"/api/pastoral/cases/{case.id}/",
->>>>>>> origin/main
             {"assigned_to": inactive_chaplain.id},
             format="json"
         )
@@ -373,11 +357,7 @@ class TestPastoralCaseAssignment:
         )
         
         response = client.patch(
-<<<<<<< HEAD
             f"/api/v1/pastoral/cases/{case.id}/",
-=======
-            f"/api/pastoral/cases/{case.id}/",
->>>>>>> origin/main
             {"assigned_to": chaplain_b.id},
             format="json"
         )
@@ -411,11 +391,7 @@ class TestPastoralCaseSecurity:
         client.force_authenticate(user=chaplain_a)
         
         # Try to retrieve branch B case as chaplain A
-<<<<<<< HEAD
         response = client.get(f"/api/v1/pastoral/cases/{case.id}/")
-=======
-        response = client.get(f"/api/pastoral/cases/{case.id}/")
->>>>>>> origin/main
         
         # Should be forbidden (IDOR prevention)
         assert response.status_code == status.HTTP_404_NOT_FOUND
@@ -438,11 +414,7 @@ class TestPastoralCaseSecurity:
         
         # Try to update branch B case as chaplain A
         response = client.patch(
-<<<<<<< HEAD
             f"/api/v1/pastoral/cases/{case.id}/",
-=======
-            f"/api/pastoral/cases/{case.id}/",
->>>>>>> origin/main
             {"summary": "Hacked summary"},
             format="json"
         )
@@ -482,15 +454,9 @@ class TestPastoralCaseSecurity:
         client.force_authenticate(user=super_admin)
         
         # Should access both cases
-<<<<<<< HEAD
         response = client.get("/api/v1/pastoral/cases/")
         assert response.status_code == status.HTTP_200_OK
         assert len(response.data["data"]) == 2
-=======
-        response = client.get("/api/pastoral/cases/")
-        assert response.status_code == status.HTTP_200_OK
-        assert len(response.data["results"]) == 2
->>>>>>> origin/main
 
 
 # ============================================================================
@@ -564,11 +530,7 @@ class TestPastoralCaseAuditLogging:
         initial_count = AuditLog.objects.count()
         
         response = client.post(
-<<<<<<< HEAD
             "/api/v1/pastoral/cases/",
-=======
-            "/api/pastoral/cases/",
->>>>>>> origin/main
             {
                 "branch": member_a.branch.id,
                 "member": member_a.id,
@@ -607,11 +569,7 @@ class TestPastoralCaseAuditLogging:
         initial_count = AuditLog.objects.filter(action=AuditAction.PASTORAL_CASE_ASSIGN).count()
         
         response = client.patch(
-<<<<<<< HEAD
             f"/api/v1/pastoral/cases/{case.id}/",
-=======
-            f"/api/pastoral/cases/{case.id}/",
->>>>>>> origin/main
             {"assigned_to": chaplain_a.id},
             format="json"
         )
@@ -641,11 +599,7 @@ class TestPastoralCaseAuditLogging:
         initial_count = AuditLog.objects.filter(action=AuditAction.PASTORAL_CASE_ESCALATE).count()
         
         response = client.patch(
-<<<<<<< HEAD
             f"/api/v1/pastoral/cases/{case.id}/",
-=======
-            f"/api/pastoral/cases/{case.id}/",
->>>>>>> origin/main
             {
                 "status": PastoralCaseStatus.ESCALATED,
                 "escalation_reason": "Requires senior pastoral intervention"
@@ -674,11 +628,7 @@ class TestPastoralCaseAuditLogging:
         
         initial_count = AuditLog.objects.filter(action=AuditAction.PASTORAL_CASE_ACCESS).count()
         
-<<<<<<< HEAD
         response = client.get(f"/api/v1/pastoral/cases/{case.id}/")
-=======
-        response = client.get(f"/api/pastoral/cases/{case.id}/")
->>>>>>> origin/main
         assert response.status_code == status.HTTP_200_OK
         
         # Verify audit log created

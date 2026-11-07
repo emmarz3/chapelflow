@@ -27,11 +27,7 @@ class SMSProvider:
 
     def send(self, *, to: str, body: str):
         if not settings.SMS_API_KEY:
-<<<<<<< HEAD
             logger.info("sms_stub_send provider=%s", settings.SMS_PROVIDER)
-=======
-            logger.info("sms_stub_send to=%s provider=%s", to, settings.SMS_PROVIDER)
->>>>>>> origin/main
             return {"status": "stubbed", "provider": settings.SMS_PROVIDER}
 
         if settings.SMS_PROVIDER == "termii":
@@ -58,11 +54,7 @@ class SMSProvider:
             )
             data = response.json()
         except (requests.RequestException, ValueError) as exc:
-<<<<<<< HEAD
             logger.error("sms_termii_send_failed error=%s", exc)
-=======
-            logger.error("sms_termii_send_failed to=%s error=%s", to, exc)
->>>>>>> origin/main
             return {"status": "failed", "provider": "termii", "error": str(exc)}
 
         # Termii returns HTTP 200 with a message_id on success; error
@@ -71,11 +63,7 @@ class SMSProvider:
         if response.status_code == 200 and data.get("message_id"):
             return {"status": "sent", "provider": "termii", "message_id": data["message_id"]}
 
-<<<<<<< HEAD
         logger.error("sms_termii_send_rejected response=%s", data)
-=======
-        logger.error("sms_termii_send_rejected to=%s response=%s", to, data)
->>>>>>> origin/main
         return {"status": "failed", "provider": "termii", "error": data}
 
 
@@ -88,11 +76,7 @@ class PushProvider:
 
     def send(self, *, device_token: str, title: str, body: str):
         if not settings.FIREBASE_SERVICE_ACCOUNT_JSON:
-<<<<<<< HEAD
             logger.info("push_stub_send")
-=======
-            logger.info("push_stub_send device_token=%s", device_token)
->>>>>>> origin/main
             return {"status": "stubbed"}
 
         if not device_token:
@@ -122,23 +106,14 @@ class PushProvider:
                 timeout=15,
             )
         except requests.RequestException as exc:
-<<<<<<< HEAD
             logger.error("push_fcm_send_failed error=%s", exc)
-=======
-            logger.error("push_fcm_send_failed device_token=%s error=%s", device_token, exc)
->>>>>>> origin/main
             return {"status": "failed", "provider": "fcm", "error": str(exc)}
 
         if response.status_code == 200:
             return {"status": "sent", "provider": "fcm", "message_id": response.json().get("name")}
 
-<<<<<<< HEAD
         logger.error("push_fcm_send_rejected status=%s body=%s",
                      response.status_code, response.text)
-=======
-        logger.error("push_fcm_send_rejected device_token=%s status=%s body=%s",
-                      device_token, response.status_code, response.text)
->>>>>>> origin/main
         return {"status": "failed", "provider": "fcm", "error": response.text}
 
     def _get_access_token(self) -> str:

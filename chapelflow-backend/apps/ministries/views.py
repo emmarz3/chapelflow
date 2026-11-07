@@ -35,11 +35,7 @@ class GroupViewSet(BranchScopedQuerysetMixin, StandardModelViewSet):
     }
 
     def get_base_queryset(self):
-<<<<<<< HEAD
         return Group.objects.select_related("branch", "parent", "leader").order_by("id")
-=======
-        return Group.objects.select_related("branch", "parent", "leader")
->>>>>>> origin/main
 
     @action(
         detail=False,

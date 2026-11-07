@@ -21,9 +21,6 @@ CELERY_TASK_EAGER_PROPAGATES = True
 CELERY_BROKER_URL = "memory://"
 MFA_ENFORCED_ROLES = []
 MFA_ENFORCE_ROLE_OBJECTS = False
-<<<<<<< HEAD
 # VS Code phone previews embed localhost in a cross-site frame. Partitioned
 # cookies keep local authentication available there when Python supports CHIPS.
 CHAPELFLOW_LOCAL_EMBEDDED_PREVIEW = True
-=======
->>>>>>> origin/main

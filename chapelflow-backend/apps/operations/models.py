@@ -381,7 +381,6 @@ class PrivacyRequest(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     completed_at = models.DateTimeField(null=True, blank=True)
 
-<<<<<<< HEAD
     @property
     def deletion_due_at(self):
         if self.request_type != "DELETION" or self.created_at is None:
@@ -390,8 +389,6 @@ class PrivacyRequest(models.Model):
 
         return self.created_at + timedelta(days=30)
 
-=======
->>>>>>> origin/main
     class Meta:
         db_table = "operations_privacy_request"
         ordering = ["-created_at"]

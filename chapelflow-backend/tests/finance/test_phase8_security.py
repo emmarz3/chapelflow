@@ -46,11 +46,7 @@ class TestPhase8SecurityAttacks:
         victim = Member.objects.create(branch=branch_a, first_name="Victim", last_name="Member")
         attacker_member = Member.objects.create(branch=branch_a, first_name="Attacker", last_name="Member")
         
-<<<<<<< HEAD
         category = GivingCategory.objects.get_or_create(name="Tithe")[0]
-=======
-        category = GivingCategory.objects.create(name="Tithe")
->>>>>>> origin/main
         
         # Finance user attempts to assign giving to victim
         api_client.force_authenticate(user=finance_user)
@@ -60,28 +56,16 @@ class TestPhase8SecurityAttacks:
             "category": category.id,
             "amount": "1000.00",
             "currency": "NGN",
-<<<<<<< HEAD
             "source": "OFFLINE",
-=======
-            "source": "CASH",
->>>>>>> origin/main
         })
         
         # Should succeed for finance staff (they can record for anyone)
         # But member field must be validated against branch scope
-<<<<<<< HEAD
         assert response.status_code in [200, 201], response.data
         
         # Verify member belongs to same branch
         from apps.finance.models import Giving
         giving = Giving.objects.get(id=response.data["data"]["id"])
-=======
-        assert response.status_code in [200, 201]
-        
-        # Verify member belongs to same branch
-        from apps.finance.models import Giving
-        giving = Giving.objects.get(id=response.data["id"])
->>>>>>> origin/main
         assert giving.member.branch == giving.branch
     
     # ========================================================================
@@ -97,11 +81,7 @@ class TestPhase8SecurityAttacks:
         """
         from apps.finance.models import GivingCategory
         
-<<<<<<< HEAD
         category = GivingCategory.objects.get_or_create(name="Offering")[0]
-=======
-        category = GivingCategory.objects.create(name="Offering")
->>>>>>> origin/main
         
         # Finance user belongs to branch_a
         finance_user.branch = branch_a
@@ -113,21 +93,13 @@ class TestPhase8SecurityAttacks:
             "category": category.id,
             "amount": "500.00",
             "currency": "NGN",
-<<<<<<< HEAD
             "source": "OFFLINE",
-=======
-            "source": "CASH",
->>>>>>> origin/main
         })
         
         # Should either fail (403/400) or server overrides branch
         if response.status_code in [200, 201]:
             from apps.finance.models import Giving
-<<<<<<< HEAD
             giving = Giving.objects.get(id=response.data["data"]["id"])
-=======
-            giving = Giving.objects.get(id=response.data["id"])
->>>>>>> origin/main
             # Server must have overridden with user's branch
             assert giving.branch == branch_a
         else:
@@ -144,11 +116,7 @@ class TestPhase8SecurityAttacks:
         """
         from apps.finance.models import GivingCategory
         
-<<<<<<< HEAD
         category = GivingCategory.objects.get_or_create(name="Building Fund")[0]
-=======
-        category = GivingCategory.objects.create(name="Building Fund")
->>>>>>> origin/main
         api_client.force_authenticate(user=finance_user)
         
         response = api_client.post("/api/v1/giving/", {
@@ -156,11 +124,7 @@ class TestPhase8SecurityAttacks:
             "category": category.id,
             "amount": "-1000.00",  # ← Negative
             "currency": "NGN",
-<<<<<<< HEAD
             "source": "OFFLINE",
-=======
-            "source": "CASH",
->>>>>>> origin/main
         })
         
         assert response.status_code == 400
@@ -173,11 +137,7 @@ class TestPhase8SecurityAttacks:
         """
         from apps.finance.models import GivingCategory
         
-<<<<<<< HEAD
         category = GivingCategory.objects.get_or_create(name="Missions")[0]
-=======
-        category = GivingCategory.objects.create(name="Missions")
->>>>>>> origin/main
         api_client.force_authenticate(user=finance_user)
         
         response = api_client.post("/api/v1/giving/", {
@@ -185,11 +145,7 @@ class TestPhase8SecurityAttacks:
             "category": category.id,
             "amount": "0.00",  # ← Zero
             "currency": "NGN",
-<<<<<<< HEAD
             "source": "OFFLINE",
-=======
-            "source": "CASH",
->>>>>>> origin/main
         })
         
         assert response.status_code == 400
@@ -206,11 +162,7 @@ class TestPhase8SecurityAttacks:
         """
         from apps.finance.models import GivingCategory, GivingStatus
         
-<<<<<<< HEAD
         category = GivingCategory.objects.get_or_create(name="Tithe")[0]
-=======
-        category = GivingCategory.objects.create(name="Tithe")
->>>>>>> origin/main
         api_client.force_authenticate(user=finance_user)
         
         response = api_client.post("/api/v1/giving/", {
@@ -218,21 +170,13 @@ class TestPhase8SecurityAttacks:
             "category": category.id,
             "amount": "1000.00",
             "currency": "NGN",
-<<<<<<< HEAD
             "source": "OFFLINE",
-=======
-            "source": "CASH",
->>>>>>> origin/main
             "status": "VOIDED",  # ← Attempting to set status
         })
         
         if response.status_code in [200, 201]:
             from apps.finance.models import Giving
-<<<<<<< HEAD
             giving = Giving.objects.get(id=response.data["data"]["id"])
-=======
-            giving = Giving.objects.get(id=response.data["id"])
->>>>>>> origin/main
             # Status must be CONFIRMED (server-controlled)
             assert giving.status == GivingStatus.CONFIRMED
     
@@ -243,21 +187,13 @@ class TestPhase8SecurityAttacks:
         """
         from apps.finance.models import Giving, GivingCategory, GivingStatus
         
-<<<<<<< HEAD
         category = GivingCategory.objects.get_or_create(name="Offering")[0]
-=======
-        category = GivingCategory.objects.create(name="Offering")
->>>>>>> origin/main
         giving = Giving.objects.create(
             branch=branch_a,
             category=category,
             amount=Decimal("1000.00"),
             currency="NGN",
-<<<<<<< HEAD
             source="OFFLINE",
-=======
-            source="CASH",
->>>>>>> origin/main
             status=GivingStatus.CONFIRMED,
             given_at=timezone.now(),
             recorded_by=finance_user,
@@ -286,11 +222,7 @@ class TestPhase8SecurityAttacks:
         """
         from apps.finance.models import GivingCategory, Payment, PaymentStatus
         
-<<<<<<< HEAD
         category = GivingCategory.objects.get_or_create(name="Tithe")[0]
-=======
-        category = GivingCategory.objects.create(name="Tithe")
->>>>>>> origin/main
         payment = Payment.objects.create(
             branch=branch_a,
             provider="PAYSTACK",
@@ -311,11 +243,7 @@ class TestPhase8SecurityAttacks:
         
         if response.status_code in [200, 201]:
             from apps.finance.models import Giving
-<<<<<<< HEAD
             giving = Giving.objects.get(id=response.data["data"]["id"])
-=======
-            giving = Giving.objects.get(id=response.data["id"])
->>>>>>> origin/main
             # Payment should be null (read-only field ignored)
             assert giving.payment is None
     
@@ -337,21 +265,13 @@ class TestPhase8SecurityAttacks:
         from apps.accounts.models import User
         from apps.finance.models import Giving, GivingCategory, GivingStatus
         
-<<<<<<< HEAD
         category = GivingCategory.objects.get_or_create(name="Tithe")[0]
-=======
-        category = GivingCategory.objects.create(name="Tithe")
->>>>>>> origin/main
         giving = Giving.objects.create(
             branch=branch_a,
             category=category,
             amount=Decimal("1000.00"),
             currency="NGN",
-<<<<<<< HEAD
             source="OFFLINE",
-=======
-            source="CASH",
->>>>>>> origin/main
             status=GivingStatus.CONFIRMED,
             given_at=timezone.now(),
         )
@@ -384,21 +304,13 @@ class TestPhase8SecurityAttacks:
         """
         from apps.finance.models import Giving, GivingCategory, GivingStatus
         
-<<<<<<< HEAD
         category = GivingCategory.objects.get_or_create(name="Offering")[0]
-=======
-        category = GivingCategory.objects.create(name="Offering")
->>>>>>> origin/main
         giving = Giving.objects.create(
             branch=branch_a,
             category=category,
             amount=Decimal("1000.00"),
             currency="NGN",
-<<<<<<< HEAD
             source="OFFLINE",
-=======
-            source="CASH",
->>>>>>> origin/main
             status=GivingStatus.CONFIRMED,
             given_at=timezone.now(),
             recorded_by=finance_user,
@@ -421,21 +333,13 @@ class TestPhase8SecurityAttacks:
         """
         from apps.finance.models import Giving, GivingCategory, GivingStatus, Refund
         
-<<<<<<< HEAD
         category = GivingCategory.objects.get_or_create(name="Building Fund")[0]
-=======
-        category = GivingCategory.objects.create(name="Building Fund")
->>>>>>> origin/main
         giving = Giving.objects.create(
             branch=branch_a,
             category=category,
             amount=Decimal("1000.00"),
             currency="NGN",
-<<<<<<< HEAD
             source="OFFLINE",
-=======
-            source="CASH",
->>>>>>> origin/main
             status=GivingStatus.CONFIRMED,
             given_at=timezone.now(),
             recorded_by=finance_user,
@@ -498,22 +402,14 @@ class TestPhase8SecurityAttacks:
         user_b.save()
         
         # Create giving for member_b
-<<<<<<< HEAD
         category = GivingCategory.objects.get_or_create(name="Tithe")[0]
-=======
-        category = GivingCategory.objects.create(name="Tithe")
->>>>>>> origin/main
         Giving.objects.create(
             branch=branch_a,
             member=member_b,
             category=category,
             amount=Decimal("5000.00"),
             currency="NGN",
-<<<<<<< HEAD
             source="OFFLINE",
-=======
-            source="CASH",
->>>>>>> origin/main
             status=GivingStatus.CONFIRMED,
             given_at=timezone.now(),
         )
@@ -545,21 +441,13 @@ class TestPhase8SecurityAttacks:
         )
         
         # Create giving in branch_b
-<<<<<<< HEAD
         category = GivingCategory.objects.get_or_create(name="Offering")[0]
-=======
-        category = GivingCategory.objects.create(name="Offering")
->>>>>>> origin/main
         giving_b = Giving.objects.create(
             branch=branch_b,
             category=category,
             amount=Decimal("3000.00"),
             currency="NGN",
-<<<<<<< HEAD
             source="OFFLINE",
-=======
-            source="CASH",
->>>>>>> origin/main
             status=GivingStatus.CONFIRMED,
             given_at=timezone.now(),
         )
@@ -570,11 +458,7 @@ class TestPhase8SecurityAttacks:
         
         assert response.status_code == 200
         # Should not include branch_b giving
-<<<<<<< HEAD
         ids = [item["id"] for item in response.data["data"]]
-=======
-        ids = [item["id"] for item in response.data["results"]]
->>>>>>> origin/main
         assert str(giving_b.id) not in ids
     
     # ========================================================================
@@ -599,21 +483,13 @@ class TestPhase8SecurityAttacks:
         )
         
         # Create giving in branch_b
-<<<<<<< HEAD
         category = GivingCategory.objects.get_or_create(name="Tithe")[0]
-=======
-        category = GivingCategory.objects.create(name="Tithe")
->>>>>>> origin/main
         giving_b = Giving.objects.create(
             branch=branch_b,
             category=category,
             amount=Decimal("2000.00"),
             currency="NGN",
-<<<<<<< HEAD
             source="OFFLINE",
-=======
-            source="CASH",
->>>>>>> origin/main
             status=GivingStatus.CONFIRMED,
             given_at=timezone.now(),
         )
@@ -640,21 +516,13 @@ class TestPhase8FinancialIntegrity:
         """
         from apps.finance.models import Giving, GivingCategory, GivingStatus
         
-<<<<<<< HEAD
         category = GivingCategory.objects.get_or_create(name="Tithe")[0]
-=======
-        category = GivingCategory.objects.create(name="Tithe")
->>>>>>> origin/main
         giving = Giving.objects.create(
             branch=branch_a,
             category=category,
             amount=Decimal("1000.00"),
             currency="NGN",
-<<<<<<< HEAD
             source="OFFLINE",
-=======
-            source="CASH",
->>>>>>> origin/main
             status=GivingStatus.CONFIRMED,
             given_at=timezone.now(),
             recorded_by=finance_user,
@@ -678,21 +546,13 @@ class TestPhase8FinancialIntegrity:
         """
         from apps.finance.models import Giving, GivingCategory, GivingStatus
         
-<<<<<<< HEAD
         category = GivingCategory.objects.get_or_create(name="Offering")[0]
-=======
-        category = GivingCategory.objects.create(name="Offering")
->>>>>>> origin/main
         giving = Giving.objects.create(
             branch=branch_a,
             category=category,
             amount=Decimal("500.00"),
             currency="NGN",
-<<<<<<< HEAD
             source="OFFLINE",
-=======
-            source="CASH",
->>>>>>> origin/main
             status=GivingStatus.CONFIRMED,
             given_at=timezone.now(),
             recorded_by=finance_user,
@@ -714,21 +574,13 @@ class TestPhase8FinancialIntegrity:
         """
         from apps.finance.models import Giving, GivingCategory, GivingStatus
         
-<<<<<<< HEAD
         category = GivingCategory.objects.get_or_create(name="Missions")[0]
-=======
-        category = GivingCategory.objects.create(name="Missions")
->>>>>>> origin/main
         giving = Giving.objects.create(
             branch=branch_a,
             category=category,
             amount=Decimal("1000.00"),
             currency="NGN",
-<<<<<<< HEAD
             source="OFFLINE",
-=======
-            source="CASH",
->>>>>>> origin/main
             status=GivingStatus.VOIDED,  # Already voided
             given_at=timezone.now(),
         )
@@ -752,11 +604,7 @@ class TestPhase8FinancialIntegrity:
         from django.db import IntegrityError
         
         member = Member.objects.create(branch=branch_a, first_name="Test", last_name="Member")
-<<<<<<< HEAD
         category = GivingCategory.objects.get_or_create(name="Building Fund")[0]
-=======
-        category = GivingCategory.objects.create(name="Building Fund")
->>>>>>> origin/main
         
         pledge = Pledge.objects.create(
             branch=branch_a,

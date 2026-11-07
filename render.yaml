@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # ChapelFlow production deployment on Render.
 # Repo layout expected: this file at the repo root, Django app in ./chapelflow-backend, React app at repo root.
 
@@ -11,26 +10,6 @@ services:
     dockerContext: ./chapelflow-backend
     preDeployCommand: /app/release.sh
     autoDeployTrigger: checksPass
-=======
-# ChapelFlow free-tier deployment on Render.
-# Repository layout:
-#   ./render.yaml
-#   ./chapelflow-backend/Dockerfile
-#   React frontend at the repository root (not configured as a Render service here).
-#
-# This Blueprint deploys the Django API, Render Key Value, and Render Postgres.
-# Celery worker and Celery Beat services are intentionally omitted because
-# Render does not offer free background-worker instances.
-
-services:
-  # Django REST API
-  - type: web
-    name: chapelflow-api
-    runtime: docker
-    plan: free
-    dockerfilePath: ./chapelflow-backend/Dockerfile
-    dockerContext: ./chapelflow-backend
->>>>>>> origin/main
     healthCheckPath: /health/
     envVars:
       - key: DJANGO_SETTINGS_MODULE
@@ -41,14 +20,11 @@ services:
         fromDatabase:
           name: chapelflow-db
           property: connectionString
-<<<<<<< HEAD
       - key: REDIS_URL
         fromService:
           type: keyvalue
           name: chapelflow-redis
           property: connectionString
-=======
->>>>>>> origin/main
       - key: STORAGE_PROVIDER
         value: cloudinary
       - key: CLOUDINARY_CLOUD_NAME
@@ -85,7 +61,6 @@ services:
         sync: false
       - key: PAYSTACK_CALLBACK_URL
         sync: false
-<<<<<<< HEAD
       - key: SMS_CHANNEL_ENABLED
         value: "false"
 
@@ -184,37 +159,5 @@ services:
 databases:
   - name: chapelflow-db
     plan: 0.5c-1g
-=======
-      - key: FLUTTERWAVE_SECRET_KEY
-        sync: false
-      - key: SMS_API_KEY
-        sync: false
-      - key: FIREBASE_PROJECT_ID
-        sync: false
-      - key: FIREBASE_SERVICE_ACCOUNT_JSON
-        sync: false
-      - key: AWS_ACCESS_KEY_ID
-        sync: false
-      - key: AWS_SECRET_ACCESS_KEY
-        sync: false
-      - key: AWS_STORAGE_BUCKET_NAME
-        sync: false
-      - key: AWS_S3_REGION_NAME
-        sync: false
-      - key: SUPABASE_URL
-        sync: false
-      - key: SUPABASE_SECRET_KEY
-        sync: false
-      - key: SUPABASE_STORAGE_BUCKET
-        value: chapelflow-uploads
-
-  # Redis-compatible Key Value datastore.
-  # An empty IP allow list blocks public access; Render services can use
-  # the internal connection URL when they are in the same region.
-
-databases:
-  - name: chapelflow-db
-    plan: free
->>>>>>> origin/main
     databaseName: chapelflow
     user: chapelflow

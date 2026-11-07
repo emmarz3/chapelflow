@@ -7,7 +7,6 @@ const response = (data: unknown, status = 200) =>
 afterEach(() => vi.unstubAllGlobals());
 
 describe("Django API integration", () => {
-<<<<<<< HEAD
   it("maps notification categories, links and pagination", async () => {
     const fetch = vi.fn().mockResolvedValue(response({ data: [{ id: "notice-1", title: "Event", body: "Soon", category: "EVENT", href: "/app/events", read_at: null, created_at: "2026-11-06T12:00:00Z" }], pagination: { current_page: 1, page_size: 25, count: 26 } }));
     vi.stubGlobal("fetch", fetch);
@@ -57,8 +56,6 @@ describe("Django API integration", () => {
     expect(JSON.parse(init.body)).toMatchObject({ action: "HIDE", note: "Confirmed" });
   });
 
-=======
->>>>>>> origin/main
   it("sends a student's selected academic level during registration", async () => {
     const fetch = vi.fn().mockResolvedValue(response({ data: { user: { id: "user-1" } } }, 201));
     vi.stubGlobal("fetch", fetch);
@@ -86,7 +83,6 @@ describe("Django API integration", () => {
     });
   });
 
-<<<<<<< HEAD
   it("sends prayer sharing consent to the server as a distinct field", async () => {
     const fetch = vi.fn().mockResolvedValue(response({ data: { id: "prayer-1" } }, 201));
     vi.stubGlobal("fetch", fetch);
@@ -111,8 +107,6 @@ describe("Django API integration", () => {
     });
   });
 
-=======
->>>>>>> origin/main
   it.each([
     ["Staff", "staff@example.edu.ng", "STAFF"],
     ["Guest", "guest@example.com", "GUEST"],
@@ -290,7 +284,6 @@ describe("Django API integration", () => {
     expect(fetch.mock.calls[0]?.[0]).toBe("/api/v1/attendance/checkpoint/token/");
   });
 
-<<<<<<< HEAD
   it("maps kiosk identity QR check-in to the staff QR endpoint", async () => {
     const fetch = vi.fn().mockResolvedValue(response({ data: { id: "record-1", status: "present" }, message: "Checked in successfully." }, 201));
     vi.stubGlobal("fetch", fetch);
@@ -305,8 +298,6 @@ describe("Django API integration", () => {
     });
   });
 
-=======
->>>>>>> origin/main
   it("submits explicit shift windows with volunteer assignments", async () => {
     const fetch = vi.fn().mockResolvedValue(response({ data: {
       id: "assignment-1",
