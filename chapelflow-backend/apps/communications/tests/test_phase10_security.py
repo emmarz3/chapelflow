@@ -170,11 +170,14 @@ class Phase10SecurityTestCase(TestCase):
         # Setup API client
         self.client = APIClient()
 
+<<<<<<< HEAD
     def create_announcement(self, **kwargs):
         """Supply the current model's required schedule in legacy fixtures."""
         kwargs.setdefault("publish_at", timezone.now())
         return Announcement.objects.create(**kwargs)
 
+=======
+>>>>>>> origin/main
 
 class AuthorizationBypassTests(Phase10SecurityTestCase):
     """
@@ -190,7 +193,11 @@ class AuthorizationBypassTests(Phase10SecurityTestCase):
         Dispatch should use services.resolve_audience_members which enforces
         branch scoping and group membership validation.
         """
+<<<<<<< HEAD
         announcement = self.create_announcement(
+=======
+        announcement = Announcement.objects.create(
+>>>>>>> origin/main
             branch=self.branch_a,
             title="Test Announcement",
             body="Test body",
@@ -229,7 +236,10 @@ class AuthorizationBypassTests(Phase10SecurityTestCase):
             'title': 'Test Announcement',
             'body': 'Test body',
             'audience_type': AudienceType.EVERYONE,
+<<<<<<< HEAD
             'publish_at': timezone.now().isoformat(),
+=======
+>>>>>>> origin/main
         })
         
         # Should succeed for authorized user
@@ -253,7 +263,11 @@ class PreferenceBypassTests(Phase10SecurityTestCase):
         """
         Members with email_enabled=False should not receive email announcements.
         """
+<<<<<<< HEAD
         announcement = self.create_announcement(
+=======
+        announcement = Announcement.objects.create(
+>>>>>>> origin/main
             branch=self.branch_a,
             title="Test Announcement",
             body="Test body",
@@ -279,7 +293,11 @@ class PreferenceBypassTests(Phase10SecurityTestCase):
         """
         Members with announcements_enabled=False should not receive any announcements.
         """
+<<<<<<< HEAD
         announcement = self.create_announcement(
+=======
+        announcement = Announcement.objects.create(
+>>>>>>> origin/main
             branch=self.branch_b,
             title="Test Announcement",
             body="Test body",
@@ -305,26 +323,42 @@ class PreferenceBypassTests(Phase10SecurityTestCase):
         """
         Phase 9 volunteer reminders should respect communication preferences.
         """
+<<<<<<< HEAD
         from apps.volunteers.models import VolunteerProfile, VolunteerAssignment, AssignmentStatus
+=======
+        from apps.volunteers.models import Volunteer, VolunteerAssignment, AssignmentStatus
+>>>>>>> origin/main
         from apps.volunteers.tasks import send_assignment_reminder
         from apps.events.models import Event, EventSchedule
         
         # Create volunteer and assignment
+<<<<<<< HEAD
         volunteer = VolunteerProfile.objects.create(
             member=self.member_a2,  # member_a2 has email_enabled=False
+=======
+        volunteer = Volunteer.objects.create(
+            member=self.member_a2,  # member_a2 has email_enabled=False
+            branch=self.branch_a,
+>>>>>>> origin/main
         )
         
         event = Event.objects.create(
             branch=self.branch_a,
             title="Test Event",
+<<<<<<< HEAD
             start_time=timezone.now(),
             end_time=timezone.now() + timedelta(hours=1),
+=======
+>>>>>>> origin/main
         )
         
         schedule = EventSchedule.objects.create(
             event=event,
             occurrence_start=timezone.now() + timedelta(hours=2),
+<<<<<<< HEAD
             occurrence_end=timezone.now() + timedelta(hours=3),
+=======
+>>>>>>> origin/main
         )
         
         assignment = VolunteerAssignment.objects.create(
@@ -356,7 +390,11 @@ class IDORTests(Phase10SecurityTestCase):
         """
         Staff should only see delivery status for announcements in their scope.
         """
+<<<<<<< HEAD
         announcement_a = self.create_announcement(
+=======
+        announcement_a = Announcement.objects.create(
+>>>>>>> origin/main
             branch=self.branch_a,
             title="Branch A Announcement",
             body="Test",
@@ -364,7 +402,11 @@ class IDORTests(Phase10SecurityTestCase):
             created_by=self.staff_a,
         )
         
+<<<<<<< HEAD
         announcement_b = self.create_announcement(
+=======
+        announcement_b = Announcement.objects.create(
+>>>>>>> origin/main
             branch=self.branch_b,
             title="Branch B Announcement",
             body="Test",
@@ -406,7 +448,10 @@ class CrossBranchTargetingTests(Phase10SecurityTestCase):
             'title': 'Unauthorized Announcement',
             'body': 'Test',
             'audience_type': AudienceType.EVERYONE,
+<<<<<<< HEAD
             'publish_at': timezone.now().isoformat(),
+=======
+>>>>>>> origin/main
         })
         
         # Should fail validation (branch not in accessible scope)
@@ -424,7 +469,10 @@ class CrossBranchTargetingTests(Phase10SecurityTestCase):
             'body': 'Test',
             'audience_type': AudienceType.CUSTOM,
             'target_groups': [self.group_b.id],  # Group from branch_b!
+<<<<<<< HEAD
             'publish_at': timezone.now().isoformat(),
+=======
+>>>>>>> origin/main
         })
         
         # Should fail validation
@@ -451,7 +499,10 @@ class MassAssignmentTests(Phase10SecurityTestCase):
             'body': 'Test',
             'audience_type': AudienceType.EVERYONE,
             'status': AnnouncementStatus.COMPLETED,  # Try to bypass lifecycle
+<<<<<<< HEAD
             'publish_at': timezone.now().isoformat(),
+=======
+>>>>>>> origin/main
         })
         
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
@@ -464,7 +515,11 @@ class MassAssignmentTests(Phase10SecurityTestCase):
         """
         Lifecycle timestamps should not be client-writable.
         """
+<<<<<<< HEAD
         announcement = self.create_announcement(
+=======
+        announcement = Announcement.objects.create(
+>>>>>>> origin/main
             branch=self.branch_a,
             title="Test",
             body="Test",
@@ -504,7 +559,11 @@ class IdempotencyTests(Phase10SecurityTestCase):
         """
         Dispatching the same announcement twice should not send duplicates.
         """
+<<<<<<< HEAD
         announcement = self.create_announcement(
+=======
+        announcement = Announcement.objects.create(
+>>>>>>> origin/main
             branch=self.branch_a,
             title="Test",
             body="Test",
@@ -541,7 +600,11 @@ class LifecycleTests(Phase10SecurityTestCase):
         """
         Only DRAFT announcements can be updated.
         """
+<<<<<<< HEAD
         announcement = self.create_announcement(
+=======
+        announcement = Announcement.objects.create(
+>>>>>>> origin/main
             branch=self.branch_a,
             title="Test",
             body="Test",
@@ -563,7 +626,11 @@ class LifecycleTests(Phase10SecurityTestCase):
         """
         Only DRAFT announcements can be published.
         """
+<<<<<<< HEAD
         announcement = self.create_announcement(
+=======
+        announcement = Announcement.objects.create(
+>>>>>>> origin/main
             branch=self.branch_a,
             title="Test",
             body="Test",
@@ -584,7 +651,11 @@ class LifecycleTests(Phase10SecurityTestCase):
         """
         COMPLETED announcements cannot be cancelled (historical protection).
         """
+<<<<<<< HEAD
         announcement = self.create_announcement(
+=======
+        announcement = Announcement.objects.create(
+>>>>>>> origin/main
             branch=self.branch_a,
             title="Test",
             body="Test",
@@ -607,7 +678,11 @@ class LifecycleTests(Phase10SecurityTestCase):
         """
         Publishing should transition DRAFT -> QUEUED and queue dispatch task.
         """
+<<<<<<< HEAD
         announcement = self.create_announcement(
+=======
+        announcement = Announcement.objects.create(
+>>>>>>> origin/main
             branch=self.branch_a,
             title="Test",
             body="Test",
@@ -643,10 +718,18 @@ class CommunicationPreferenceTests(Phase10SecurityTestCase):
         """
         self.client.force_authenticate(user=self.member_a1_user)
         
+<<<<<<< HEAD
         response = self.client.get('/api/v1/communications/preferences/me/')
         
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['data']['member'], self.member_a1.id)
+=======
+        response = self.client.get('/api/v1/communications/preferences/')
+        
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data['data']), 1)
+        self.assertEqual(response.data['data'][0]['member'], self.member_a1.id)
+>>>>>>> origin/main
     
     def test_member_can_update_own_preferences(self):
         """
@@ -655,7 +738,11 @@ class CommunicationPreferenceTests(Phase10SecurityTestCase):
         self.client.force_authenticate(user=self.member_a1_user)
         
         response = self.client.patch(
+<<<<<<< HEAD
             '/api/v1/communications/preferences/me/',
+=======
+            f'/api/v1/communications/preferences/{self.pref_a1.id}/',
+>>>>>>> origin/main
             {
                 'email_enabled': False,
                 'announcements_enabled': False,
@@ -675,7 +762,11 @@ class CommunicationPreferenceTests(Phase10SecurityTestCase):
         self.client.force_authenticate(user=self.member_a1_user)
         
         response = self.client.patch(
+<<<<<<< HEAD
             '/api/v1/communications/preferences/me/',
+=======
+            f'/api/v1/communications/preferences/{self.pref_a1.id}/',
+>>>>>>> origin/main
             {'member': self.member_a2.id}  # Try to change member
         )
         

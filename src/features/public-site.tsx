@@ -19,10 +19,18 @@ import {
   Users,
   X,
   Mail,
+<<<<<<< HEAD
+=======
+  Phone,
+>>>>>>> origin/main
   Instagram,
   Twitter,
   Facebook,
   Youtube,
+<<<<<<< HEAD
+=======
+  Linkedin,
+>>>>>>> origin/main
   ChevronUp,
   Send,
   BookOpen,
@@ -33,6 +41,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "./auth-context";
 import { Button, PageHeader, SectionLink } from "../components/ui";
+<<<<<<< HEAD
 import {
   COOKIE_CONSENT_EVENT,
   isSafeExternalUrl,
@@ -44,6 +53,11 @@ import {
 import { usePublicMotion } from "../components/motion/motion-system";
 import { isDemoMode } from "../lib/fixtures";
 import { homepageService, publicService } from "../services/chapelflow";
+=======
+import { usePublicMotion } from "../components/motion/motion-system";
+import { isDemoMode } from "../lib/fixtures";
+import { publicService } from "../services/chapelflow";
+>>>>>>> origin/main
 import type { EventSummary } from "../types/domain";
 import { LivePublicDetailPage, LivePublicPage } from "./live-public";
 
@@ -71,9 +85,12 @@ export function PublicLayout() {
   const mainRef = useRef<HTMLElement>(null);
   usePublicMotion(mainRef, location.pathname);
   useEffect(() => {
+<<<<<<< HEAD
     setOpen(false);
   }, [location.pathname]);
   useEffect(() => {
+=======
+>>>>>>> origin/main
     document.documentElement.dataset.theme = theme;
     localStorage.setItem("chapelflow-theme", theme);
   }, [theme]);
@@ -99,20 +116,30 @@ export function PublicLayout() {
         </div>
         <button
           className="icon-button public-nav__menu"
+<<<<<<< HEAD
           type="button"
           aria-expanded={open}
           aria-controls="public-mobile-menu"
           aria-label={open ? "Close navigation" : "Open navigation"}
+=======
+          aria-label="Open navigation"
+>>>>>>> origin/main
           onClick={() => setOpen(true)}
         >
           <Menu />
         </button>
       </header>
       {open && (
+<<<<<<< HEAD
         <div className="mobile-menu" id="public-mobile-menu" role="dialog" aria-modal="true" aria-label="Site navigation">
           <button
             className="icon-button"
             type="button"
+=======
+        <div className="mobile-menu">
+          <button
+            className="icon-button"
+>>>>>>> origin/main
             aria-label="Close navigation"
             onClick={() => setOpen(false)}
           >
@@ -203,11 +230,38 @@ function SiteFooter() {
             <Mail size={16} aria-hidden="true" />
             <a href="mailto:chapel@chrislanduniversity.edu.ng">chapel@chrislanduniversity.edu.ng</a>
           </p>
+<<<<<<< HEAD
+=======
+          <p>
+            <Phone size={16} aria-hidden="true" />
+            <a href="tel:+2348000000000">+234 800 000 0000</a>
+          </p>
+>>>>>>> origin/main
         </div>
 
         <div className="site-footer__social">
           <h3>Follow along</h3>
+<<<<<<< HEAD
           <FooterSocialLinks />
+=======
+          <div className="site-footer__social-links">
+            <a href="#" aria-label="Instagram" className="site-footer__social-link">
+              <Instagram size={20} aria-hidden="true" />
+            </a>
+            <a href="#" aria-label="Twitter" className="site-footer__social-link">
+              <Twitter size={20} aria-hidden="true" />
+            </a>
+            <a href="#" aria-label="Facebook" className="site-footer__social-link">
+              <Facebook size={20} aria-hidden="true" />
+            </a>
+            <a href="#" aria-label="YouTube" className="site-footer__social-link">
+              <Youtube size={20} aria-hidden="true" />
+            </a>
+            <a href="#" aria-label="LinkedIn" className="site-footer__social-link">
+              <Linkedin size={20} aria-hidden="true" />
+            </a>
+          </div>
+>>>>>>> origin/main
           <form className="site-footer__newsletter" onSubmit={handleSubscribe}>
             <label htmlFor="footer-newsletter">Chapel updates</label>
             <div className="site-footer__newsletter-row">
@@ -236,9 +290,12 @@ function SiteFooter() {
         </div>
         <div className="site-footer__legal-right">
           <Link to="/cookies">Cookie policy</Link>
+<<<<<<< HEAD
           <button type="button" className="site-footer__cookie-settings" onClick={requestCookiePreferenceReview}>
             Cookie settings
           </button>
+=======
+>>>>>>> origin/main
           <Link to="/accessibility">Accessibility</Link>
           <button
             type="button"
@@ -255,6 +312,7 @@ function SiteFooter() {
   );
 }
 
+<<<<<<< HEAD
 function FooterSocialLinks() {
   const homepage = useQuery({
     queryKey: ["site-homepage"],
@@ -295,6 +353,8 @@ function FooterSocialLinks() {
   );
 }
 
+=======
+>>>>>>> origin/main
 function PublicWordmark({ inverse = false }: { inverse?: boolean }) {
   return (
     <span className={`cuc-wordmark ${inverse ? "cuc-wordmark--inverse" : ""}`}>
@@ -557,6 +617,7 @@ export function AboutPage() {
   );
 }
 
+<<<<<<< HEAD
 export function CookieConsent() {
   const [choice, setChoice] = useState<CookieConsentChoice | null>(readCookieConsent);
   const [reviewing, setReviewing] = useState(false);
@@ -584,6 +645,40 @@ export function CookieConsent() {
         <button className="button button--secondary" type="button" onClick={() => save("necessary")}>Use necessary only</button>
         <button className="button button--primary" type="button" onClick={() => save("all")}>Accept cookies</button>
       </div>
+=======
+const cookieConsentKey = "chapelflow:cookie-consent-v1";
+type CookieConsentChoice = "all" | "necessary";
+
+function savedCookieConsent(): CookieConsentChoice | null {
+  try {
+    const record: unknown = JSON.parse(localStorage.getItem(cookieConsentKey) || "null");
+    if (record && typeof record === "object" && "choice" in record) {
+      const choice = record.choice;
+      return choice === "all" || choice === "necessary" ? choice : null;
+    }
+  } catch {
+    // Storage may be unavailable in a privacy-restricted browser.
+  }
+  return null;
+}
+
+export function CookieConsent() {
+  const [choice, setChoice] = useState<CookieConsentChoice | null>(savedCookieConsent);
+  const save = (nextChoice: CookieConsentChoice) => {
+    try {
+      localStorage.setItem(cookieConsentKey, JSON.stringify({ choice: nextChoice, version: 1, savedAt: new Date().toISOString() }));
+    } catch {
+      // The preference remains active for this page session when storage is unavailable.
+    }
+    setChoice(nextChoice);
+  };
+  if (choice || import.meta.env.VITE_E2E_TEST === "true") return null;
+  return (
+    <section className="cookie-consent" role="dialog" aria-modal="false" aria-labelledby="cookie-consent-title">
+      <Cookie aria-hidden="true" />
+      <div><strong id="cookie-consent-title">Your privacy, your choice</strong><p>ChapelFlow uses essential cookies for secure sign-in and reliable service. We do not enable optional analytics or marketing cookies unless they are configured and you choose to allow them.</p><Link to="/cookies">Read the Cookie Policy</Link></div>
+      <div className="cookie-consent__actions"><button className="button button--secondary" type="button" onClick={() => save("necessary")}>Use necessary only</button><button className="button button--primary" type="button" onClick={() => save("all")}>Accept cookies</button></div>
+>>>>>>> origin/main
     </section>
   );
 }
@@ -813,9 +908,15 @@ const legalPolicies: Record<LegalPolicy, { title: string; description: string; s
     description: "How Chrisland University Chapel handles information within ChapelFlow.",
     sections: [
       { id: "overview", title: "Our commitment", paragraphs: ["ChapelFlow supports worship, membership, attendance, events, communication, giving, and administration for Chrisland University Chapel. Information is used only for legitimate chapel and university purposes, with access limited by role and responsibility."] },
+<<<<<<< HEAD
       { id: "information", title: "Information we use", paragraphs: ["Depending on your use of ChapelFlow, this may include account identity, student or membership details, attendance, programme registrations, giving records, prayer or counselling requests, testimony submissions, communication preferences, and technical security information.", "These records help operate chapel services, maintain accurate administration, communicate relevant updates, protect accounts, and meet institutional obligations."] },
       { id: "sharing", title: "Access, security, and retention", paragraphs: ["Authorized chapel and university personnel may access information needed for their responsibilities. Private prayer and counselling requests are limited to the requester and authorized pastoral staff. Prayer details are shared with the chapel community only after requester consent and pastoral approval; the requester's identity is not included in the community view. Avoid including names or other identifying details in prayer text you consent to share.", "Service providers may process limited information under appropriate contractual and security arrangements. Personal data is not sold. Information is retained according to approved institutional requirements, then securely deleted or anonymized where appropriate."] },
       { id: "choices", title: "Your choices", paragraphs: ["You may review and update permitted profile information, manage communication preferences, and submit a data export or account deletion request. ChapelFlow records a 30-day action deadline for deletion requests. Requests are reviewed under institutional policy; some records may need to be retained for legitimate administrative, financial, safeguarding, security, or legal reasons."] },
+=======
+      { id: "information", title: "Information we use", paragraphs: ["Depending on your use of ChapelFlow, this may include account identity, student or membership details, attendance, programme registrations, giving records, communication preferences, and technical security information.", "These records help operate chapel services, maintain accurate administration, communicate relevant updates, protect accounts, and meet institutional obligations."] },
+      { id: "sharing", title: "Access, security, and retention", paragraphs: ["Authorized chapel and university personnel may access only the information needed for their responsibilities. Service providers may process limited information under appropriate contractual and security arrangements. Personal data is not sold.", "Administrative, technical, and organizational controls protect records. Information is retained according to approved institutional requirements, then securely deleted or anonymized where appropriate."] },
+      { id: "choices", title: "Your choices", paragraphs: ["You may request access to or correction of your information, manage communication preferences, and submit an account or data request where institutional policy permits. Some records may need to be retained for legitimate administrative, financial, security, or legal reasons."] },
+>>>>>>> origin/main
     ],
   },
   terms: {
@@ -832,9 +933,15 @@ const legalPolicies: Record<LegalPolicy, { title: string; description: string; s
     title: "Cookie Policy",
     description: "How ChapelFlow uses essential browser storage and records your cookie choice.",
     sections: [
+<<<<<<< HEAD
       { id: "overview", title: "Essential cookies and storage", paragraphs: ["ChapelFlow uses secure HttpOnly cookies for signed-in sessions and a CSRF cookie to protect form submissions. These are required for the service to work and are not used for advertising.", "The browser may also keep ChapelFlow display preferences, the cookie-choice record, the brand-introduction flag, and a temporary attendance queue in session storage so kiosk check-ins can sync when a connection returns. Service-worker caches may store previously downloaded ChapelFlow pages and local brand images so they remain available offline after an online visit."] },
       { id: "optional", title: "Optional technologies", paragraphs: ["ChapelFlow does not currently run optional analytics, advertising, or marketing cookies. Choosing “Accept cookies” records that preference so a future optional technology can respect it; it does not enable analytics today."] },
       { id: "choice", title: "Your choice", paragraphs: ["You can choose necessary cookies only or accept cookies, and you can reopen that choice from Cookie settings in the footer. If browser storage is blocked, the choice is kept for the current page session only. Removing ChapelFlow site data from the browser will show the request again and may require you to sign in again."] },
+=======
+      { id: "overview", title: "Essential cookies", paragraphs: ["ChapelFlow uses essential cookies and local storage to keep sign-in sessions secure, protect requests from forgery, remember accessibility and display preferences, and make the service work reliably. These are necessary for the service to operate."] },
+      { id: "optional", title: "Optional technologies", paragraphs: ["ChapelFlow does not enable optional analytics or marketing cookies in this version. If an optional technology is added later, it will be described here and enabled only after the appropriate choice has been recorded."] },
+      { id: "choice", title: "Your choice", paragraphs: ["The cookie request records whether you accepted all cookies or chose necessary cookies only. You can remove ChapelFlow site data from your browser settings to show the request again. Removing essential cookies may require you to sign in again."] },
+>>>>>>> origin/main
       { id: "contact", title: "More information", paragraphs: ["Read the Privacy Policy for details about information handling. Contact the chapel office if you need help with your ChapelFlow account or privacy preferences."] },
     ],
   },

@@ -29,7 +29,10 @@ import { ApiError } from "../lib/api";
 import { isDemoMode } from "../lib/fixtures";
 import { isDjangoBackend } from "../lib/backend";
 import { CommunityChat } from "./community-chat";
+<<<<<<< HEAD
 import { ReportContentButton } from "./moderation";
+=======
+>>>>>>> origin/main
 import {
   communityAdminService,
   communityService,
@@ -420,7 +423,10 @@ function AnnouncementsPanel({
               </div>
               <h3>{item.title}</h3>
               <p>{item.content}</p>
+<<<<<<< HEAD
               <ReportContentButton targetKind="GROUP_ANNOUNCEMENT" targetId={item.id} label="Report announcement" />
+=======
+>>>>>>> origin/main
               <small>
                 {item.author_name} ·{" "}
                 {new Date(item.published_at).toLocaleString()}
@@ -643,7 +649,10 @@ function CommunityResourcesPanel({
               <h3>{resource.title}</h3>
               {resource.description && <p>{resource.description}</p>}
               <a className="text-link" href={resource.url} target="_blank" rel="noreferrer">Open resource <ChevronRight /></a>
+<<<<<<< HEAD
               <ReportContentButton targetKind="GROUP_RESOURCE" targetId={resource.id} label="Report link" />
+=======
+>>>>>>> origin/main
               <small>Added {new Date(resource.created_at).toLocaleDateString()}</small>
             </article>
           ))}

@@ -18,6 +18,10 @@ export function useCompletionAnimation() {
     cleanupRef.current?.();
     if (!root || prefersReducedMotion()) return;
 
+<<<<<<< HEAD
+=======
+    let context: ReturnType<typeof gsap.context> | undefined;
+>>>>>>> origin/main
     let timeline: gsap.core.Timeline | undefined;
     const cleanup = () => {
       timeline?.kill();
@@ -25,7 +29,11 @@ export function useCompletionAnimation() {
       cleanupRef.current = null;
     };
 
+<<<<<<< HEAD
     const context = gsap.context(() => {
+=======
+    context = gsap.context(() => {
+>>>>>>> origin/main
       const figure = root.querySelector<HTMLElement>(".completion-figure--register");
       const halo = root.querySelector<HTMLElement>(".completion-figure__halo");
       const content = root.querySelectorAll<HTMLElement>(

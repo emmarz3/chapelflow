@@ -3,9 +3,18 @@ import { ScrollTrigger } from "gsap/ScrollTrigger";
 import {
   useEffect,
   useLayoutEffect,
+<<<<<<< HEAD
   useState,
   type RefObject,
 } from "react";
+=======
+  useRef,
+  useState,
+  type RefObject,
+} from "react";
+import { useLocation } from "react-router-dom";
+
+>>>>>>> origin/main
 if (typeof window !== "undefined" && typeof window.matchMedia === "function") {
   gsap.registerPlugin(ScrollTrigger);
 }
@@ -347,3 +356,41 @@ export function useFeatureMotion(
   }, [dependency, rootRef]);
 }
 
+<<<<<<< HEAD
+=======
+export function RouteMotionLayer() {
+  const location = useLocation();
+  const rootRef = useRef<HTMLDivElement>(null);
+  const previousPath = useRef(location.pathname);
+
+  useLayoutEffect(() => {
+    if (previousPath.current === location.pathname) return;
+    previousPath.current = location.pathname;
+    const root = rootRef.current;
+    if (!root || prefersReducedMotion()) return;
+    const context = gsap.context(() => {
+      gsap
+        .timeline()
+        .set(root, { display: "block" })
+        .fromTo(
+          root,
+          { xPercent: -118, skewX: -8 },
+          {
+            xPercent: 118,
+            skewX: 8,
+            duration: 0.52,
+            ease: MOTION.ease.exit,
+          },
+        )
+        .set(root, { display: "none", clearProps: "transform" });
+    }, root);
+    return () => context.revert();
+  }, [location.pathname]);
+
+  return (
+    <div className="route-motion-wave" ref={rootRef} aria-hidden="true">
+      <span />
+    </div>
+  );
+}
+>>>>>>> origin/main

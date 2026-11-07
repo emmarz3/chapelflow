@@ -67,6 +67,7 @@ class CookieJWTAuthentication(JWTAuthentication):
         return self._enforce_required_password_change(
             request, (user, validated_token)
         )
+<<<<<<< HEAD
 
 
 from drf_spectacular.extensions import OpenApiAuthenticationExtension  # noqa: E402
@@ -88,3 +89,5 @@ class CookieJWTAuthenticationSchema(OpenApiAuthenticationExtension):
             {"type": "apiKey", "in": "cookie", "name": CookieJWTAuthentication.cookie_name},
             {"type": "apiKey", "in": "header", "name": "X-Chapelflow-Csrf"},
         ]
+=======
+>>>>>>> origin/main

@@ -54,10 +54,13 @@ app.conf.beat_schedule = {
         "task": "apps.notifications.tasks.send_birthday_notifications",
         "schedule": crontab(hour=8, minute=0),
     },
+<<<<<<< HEAD
     "deferred-notifications": {
         "task": "apps.notifications.tasks.dispatch_due_notifications",
         "schedule": 60.0,
     },
+=======
+>>>>>>> origin/main
     # Phase 13: Pastoral case follow-up reminders
     "pastoral-follow-up-reminders": {
         "task": "apps.pastoral.tasks.send_pastoral_follow_up_reminders",

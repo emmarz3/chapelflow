@@ -49,7 +49,11 @@ def send_assignment_reminder(assignment_id):
     with transaction.atomic():
         assignment = (
             VolunteerAssignment.objects
+<<<<<<< HEAD
             .select_for_update(of=("self",))
+=======
+            .select_for_update()
+>>>>>>> origin/main
             .select_related("volunteer__member__user", "event_schedule__event")
             .filter(
                 id=assignment_id, 
@@ -71,7 +75,21 @@ def send_assignment_reminder(assignment_id):
             assignment.save(update_fields=["reminder_sent_at"])
             return
         
+<<<<<<< HEAD
         member = assignment.volunteer.member
+=======
+        # Phase 10 Integration: Check communication preferences
+        member = assignment.volunteer.member
+        if hasattr(member, 'communication_preference'):
+            prefs = member.communication_preference
+            # Check if member has disabled email OR disabled announcements
+            if not prefs.email_enabled or not prefs.announcements_enabled:
+                # User opted out, mark as sent to prevent retry
+                assignment.reminder_sent_at = timezone.now()
+                assignment.save(update_fields=["reminder_sent_at"])
+                return
+        # No preference record = default opted-in (model default=True)
+>>>>>>> origin/main
         
         # Build notification content
         schedule = assignment.event_schedule
@@ -85,6 +103,7 @@ def send_assignment_reminder(assignment_id):
             body = f"Reminder: you're serving as {assignment.get_role_display()} for your scheduled assignment."
         
         # Create notification (Phase 10 system handles delivery)
+<<<<<<< HEAD
         from apps.notifications.models import NotificationCategory
         from apps.notifications.preferences import queue_notification
 
@@ -98,6 +117,19 @@ def send_assignment_reminder(assignment_id):
             idempotency_key=f"volunteer-reminder:{assignment.id}:EMAIL",
         )
         
+=======
+        notification = Notification.objects.create(
+            recipient=user, 
+            recipient_member=assignment.volunteer.member,
+            channel=NotificationChannel.EMAIL,
+            title=title, 
+            body=body,
+        )
+        
+        # Queue delivery via Phase 10 task
+        deliver_notification.delay(str(notification.id))
+        
+>>>>>>> origin/main
         # Mark reminder as sent (atomically within transaction)
         assignment.reminder_sent_at = timezone.now()
         assignment.save(update_fields=["reminder_sent_at"])

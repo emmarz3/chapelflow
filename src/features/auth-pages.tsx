@@ -19,8 +19,12 @@ import {
 import { AnimatePresence, motion } from "framer-motion";
 import { useQuery } from "@tanstack/react-query";
 import { z } from "zod";
+<<<<<<< HEAD
 import { Button, Field, LocalBrandImage } from "../components/ui";
 import { BRAND_ASSETS } from "../lib/brand-assets";
+=======
+import { Button, Field } from "../components/ui";
+>>>>>>> origin/main
 import { PasswordStrength, defaultPasswordRules, eightCharacterPasswordRules, tenCharacterPasswordRules } from "../components/ui/password-strength";
 import { useAuthMotion, useReducedMotionPreference } from "../components/motion/motion-system";
 import { useCompletionAnimation } from "../components/motion/completion-animation";
@@ -199,13 +203,21 @@ export function AuthLayout({ children }: { children: React.ReactNode }) {
         )}
         <div className="auth-visual__shade" />
         <div className="auth-visual__branding">
+<<<<<<< HEAD
           <LocalBrandImage src={BRAND_ASSETS.institutionLogo} alt="Chrisland University Chapel" className="auth-visual__mark" />
+=======
+          <img src="/chrisland-university-chapel.png" alt="Chrisland University Chapel" className="auth-visual__mark" />
+>>>>>>> origin/main
           <span className="auth-visual__tagline">Nurturing faith. Shaping lives. Impacting Nigeria.</span>
         </div>
       </aside>
       <main className="auth-main">
         <div className="auth-main__brand">
+<<<<<<< HEAD
           <LocalBrandImage src={BRAND_ASSETS.institutionLogo} alt="Chrisland University Chapel" />
+=======
+          <img src="/chrisland-university-chapel.png" alt="Chrisland University Chapel" />
+>>>>>>> origin/main
           <span>ChapelFlow</span>
         </div>
         <div className="auth-main__bar"><Link className="auth-back" to="/"><ArrowLeft size={17} /> Back to chapel website</Link><span><ShieldCheck size={15} /> Your information is secure</span></div>
@@ -217,7 +229,11 @@ export function AuthLayout({ children }: { children: React.ReactNode }) {
 }
 
 export function LoginPage() {
+<<<<<<< HEAD
   const { user, login, loading, authError } = useAuth();
+=======
+  const { user, login, loading } = useAuth();
+>>>>>>> origin/main
   const navigate = useNavigate();
   const location = useLocation();
   const returnTo = new URLSearchParams(location.search).get("returnTo");
@@ -284,8 +300,12 @@ export function LoginPage() {
         <h1>Sign in to ChapelFlow</h1>
         <p>Access your chapel account and continue where you left off.</p>
       </div>
+<<<<<<< HEAD
       {authError && <div className="inline-alert" role="alert">{authError}</div>}
       {reason === "expired" && !authError && (
+=======
+      {reason === "expired" && (
+>>>>>>> origin/main
         <div className="inline-alert">
           Your session ended securely. Sign in to continue.
         </div>
@@ -629,10 +649,16 @@ export function RegisterPage() {
         >
           {step === 0 && (
             <div className="form-grid">
+<<<<<<< HEAD
               <label className="field field--full" htmlFor="registration-type">
                 <span>Registration type</span>
                 <select
                   id="registration-type"
+=======
+              <label className="field field--full">
+                <span>Registration type</span>
+                <select
+>>>>>>> origin/main
                   name="memberType"
                   value={memberType}
                   onChange={(event) => setMemberType(event.target.value)}

@@ -287,8 +287,13 @@ def create_reconciliation_alerts(branch, period_start, period_end, result):
     Returns:
         int: Number of alerts created
     """
+<<<<<<< HEAD
     from apps.notifications.models import Notification, NotificationCategory
     from apps.notifications.preferences import queue_notification
+=======
+    from apps.notifications.models import Notification
+    from apps.notifications.tasks import deliver_notification
+>>>>>>> origin/main
     from django.contrib.auth import get_user_model
     from common.constants.roles import Roles
     
@@ -330,6 +335,7 @@ def create_reconciliation_alerts(branch, period_start, period_end, result):
     
     # Send to all finance staff
     for staff in finance_staff:
+<<<<<<< HEAD
         key = f"reconciliation:{branch.id}:{period_start.date()}:{staff.id}:EMAIL"
         if Notification.objects.filter(idempotency_key=key).exists() or Notification.objects.filter(
             recipient=staff, title=f"Reconciliation Alert - {branch.name}", body=alert_body, channel="EMAIL",
@@ -341,6 +347,18 @@ def create_reconciliation_alerts(branch, period_start, period_end, result):
             channel="EMAIL", href="/app/giving", idempotency_key=key,
         )
         if notification:
+=======
+        notification, created = Notification.objects.get_or_create(
+            recipient=staff,
+            title=f"Reconciliation Alert - {branch.name}",
+            body=alert_body,
+            channel="EMAIL",
+        )
+        if created:
+            transaction.on_commit(
+                lambda notification_id=str(notification.id): deliver_notification.delay(notification_id)
+            )
+>>>>>>> origin/main
             alerts_created += 1
     
     return alerts_created

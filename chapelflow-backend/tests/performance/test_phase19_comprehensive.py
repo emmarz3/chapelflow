@@ -79,7 +79,11 @@ def api_client():
 class TestDatabasePerformance:
     """Test database query optimization."""
     
+<<<<<<< HEAD
     def test_member_list_uses_select_related(self, api_client, admin_user, branch_a, django_assert_max_num_queries):
+=======
+    def test_member_list_uses_select_related(self, api_client, admin_user, branch_a):
+>>>>>>> origin/main
         """Test: Member list endpoint uses select_related to prevent N+1."""
         # Create test members
         for i in range(5):
@@ -93,7 +97,11 @@ class TestDatabasePerformance:
         api_client.force_authenticate(user=admin_user)
         
         # Track queries
+<<<<<<< HEAD
         with django_assert_max_num_queries(10):
+=======
+        with self.assertNumQueries(expected_num=5, using='default'):
+>>>>>>> origin/main
             # Expected: 1 for user auth, 1 for member list + related objects
             # Should NOT be N queries for each member's relationships
             response = api_client.get('/api/v1/members/')
@@ -101,7 +109,11 @@ class TestDatabasePerformance:
         assert response.status_code == 200
         assert len(response.data['data']) == 5
     
+<<<<<<< HEAD
     def test_member_detail_prefetches_relationships(self, api_client, admin_user, branch_a, django_assert_max_num_queries):
+=======
+    def test_member_detail_prefetches_relationships(self, api_client, admin_user, branch_a):
+>>>>>>> origin/main
         """Test: Member detail uses prefetch_related for M2M relationships."""
         member = Member.objects.create(
             branch=branch_a,
@@ -113,7 +125,11 @@ class TestDatabasePerformance:
         api_client.force_authenticate(user=admin_user)
         
         # Should use prefetch_related for tags, qr_code
+<<<<<<< HEAD
         with django_assert_max_num_queries(10):
+=======
+        with self.assertNumQueries(expected_num=4, using='default'):
+>>>>>>> origin/main
             response = api_client.get(f'/api/v1/members/{member.id}/')
         
         assert response.status_code == 200
@@ -203,11 +219,19 @@ class TestCeleryReliability:
     def test_report_job_failure_updates_status(self, branch_a, admin_user):
         """Test: Report job failures are recorded properly."""
         from apps.reports.tasks import run_report_job
+<<<<<<< HEAD
+=======
+        from apps.reports.models import ReportType
+>>>>>>> origin/main
         
         job = ReportJob.objects.create(
             branch=branch_a,
             requested_by=admin_user,
+<<<<<<< HEAD
             report_type='ATTENDANCE',
+=======
+            report_type=ReportType.ATTENDANCE_SUMMARY,
+>>>>>>> origin/main
             export_format='CSV'
         )
         
@@ -319,8 +343,12 @@ class TestConcurrency:
                 amount=Decimal('100.00'),
                 status=GivingStatus.CONFIRMED,
                 source=GivingSource.OFFLINE,
+<<<<<<< HEAD
                 recorded_by=admin_user,
                 given_at=timezone.now(),
+=======
+                recorded_by=admin_user
+>>>>>>> origin/main
             )
             
             # If payment creation fails, giving should rollback
@@ -329,8 +357,12 @@ class TestConcurrency:
                 branch=branch_a,
                 member=member,
                 amount=Decimal('100.00'),
+<<<<<<< HEAD
                 provider='PAYSTACK',
                 provider_reference='atomicity-test',
+=======
+                provider='CASH',
+>>>>>>> origin/main
                 status=PaymentStatus.SUCCESSFUL
             )
         
@@ -395,6 +427,7 @@ class TestReportPerformance:
     
     def test_report_generation_is_async(self, api_client, admin_user, branch_a):
         """Test: Large reports generate asynchronously via Celery."""
+<<<<<<< HEAD
         api_client.force_authenticate(user=admin_user)
         
         # Request report
@@ -405,29 +438,57 @@ class TestReportPerformance:
             'export_format': 'CSV',
             'filters': {}
             }, format='json')
+=======
+        from apps.reports.models import ReportType
+        
+        api_client.force_authenticate(user=admin_user)
+        
+        # Request report
+        response = api_client.post('/api/v1/reports/', {
+            'report_type': ReportType.MEMBER_ROSTER,
+            'export_format': 'CSV',
+            'filters': {}
+        })
+>>>>>>> origin/main
         
         assert response.status_code == 201
         
         # Should return job ID, not the actual report
         assert 'id' in response.data['data']
+<<<<<<< HEAD
         assert response.data['data']['status'] == ReportJobStatus.QUEUED
         dispatch.assert_called_once()
+=======
+        assert response.data['data']['status'] == ReportJobStatus.PENDING
+>>>>>>> origin/main
         
         # Report generation happens in background
         job_id = response.data['data']['id']
         
         # Check job status
+<<<<<<< HEAD
         response = api_client.get(f'/api/v1/reports/jobs/{job_id}/')
+=======
+        response = api_client.get(f'/api/v1/reports/{job_id}/')
+>>>>>>> origin/main
         assert response.status_code == 200
     
     def test_report_job_validates_authorization_at_runtime(self, branch_a, admin_user):
         """Test: Report job re-validates user access at execution time."""
         from apps.reports.tasks import run_report_job
+<<<<<<< HEAD
+=======
+        from apps.reports.models import ReportType
+>>>>>>> origin/main
         
         job = ReportJob.objects.create(
             branch=branch_a,
             requested_by=admin_user,
+<<<<<<< HEAD
             report_type='MEMBERSHIP',
+=======
+            report_type=ReportType.MEMBER_ROSTER,
+>>>>>>> origin/main
             export_format='CSV'
         )
         
@@ -532,7 +593,10 @@ class TestPaginationBehavior:
 class TestRedisReliability:
     """Test Redis failure handling."""
     
+<<<<<<< HEAD
     @override_settings(REDIS_URL='redis://localhost:6379/0')
+=======
+>>>>>>> origin/main
     def test_readiness_detects_redis_failure(self, api_client):
         """Test: Readiness check detects Redis unavailability."""
         # Mock Redis failure
@@ -544,7 +608,10 @@ class TestRedisReliability:
             assert response.status_code == 503
             assert response.data['checks']['redis'] is False
     
+<<<<<<< HEAD
     @override_settings(REDIS_URL='redis://localhost:6379/0')
+=======
+>>>>>>> origin/main
     def test_readiness_detects_celery_broker_failure(self, api_client):
         """Test: Readiness check detects Celery broker failure."""
         # Mock Celery broker failure

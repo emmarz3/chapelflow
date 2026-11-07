@@ -9,7 +9,11 @@ from django.utils import timezone
 from apps.audit.models import AuditAction
 from apps.audit.services import write_audit_log
 
+<<<<<<< HEAD
 from .models import ContentEntry, ContentRevision, ContentStatus, ContentType
+=======
+from .models import ContentEntry, ContentRevision, ContentStatus
+>>>>>>> origin/main
 from .serializers import ContentEntrySerializer
 
 
@@ -44,9 +48,12 @@ def publish_scheduled_content():
                 entry.id,
                 metadata={"status": ContentStatus.PUBLISHED, "scheduled": True},
             )
+<<<<<<< HEAD
             if entry.content_type == ContentType.LIVESTREAM:
                 from apps.notifications.live import notify_live_service_published
 
                 transaction.on_commit(lambda entry_id=str(entry.id): notify_live_service_published.delay(entry_id))
+=======
+>>>>>>> origin/main
             published += 1
     return {"published": published}

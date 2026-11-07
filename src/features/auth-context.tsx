@@ -8,7 +8,11 @@ import {
   type ReactNode,
 } from "react";
 import type { Role, User } from "../types/domain";
+<<<<<<< HEAD
 import { api, ApiError } from "../lib/api";
+=======
+import { api } from "../lib/api";
+>>>>>>> origin/main
 import { buildDemoUser, hasPermission } from "../lib/permissions";
 import { isDemoMode } from "../lib/fixtures";
 import { useQueryClient } from "@tanstack/react-query";
@@ -16,8 +20,11 @@ import { useQueryClient } from "@tanstack/react-query";
 interface AuthContextValue {
   user: User | null;
   loading: boolean;
+<<<<<<< HEAD
   authError: string | null;
   retryAuth: () => void;
+=======
+>>>>>>> origin/main
   login: (
     identifier: string,
     password: string,
@@ -56,14 +63,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return role ? buildDemoUser(role) : null;
   });
   const [loading, setLoading] = useState(!isDemoMode);
+<<<<<<< HEAD
   const [authError, setAuthError] = useState<string | null>(null);
   const [authRetry, setAuthRetry] = useState(0);
+=======
+>>>>>>> origin/main
   useEffect(() => {
     if (isDemoMode) return;
     let active = true;
     const revision = authRevision.current;
     getCurrentUserOnce()
       .then((response) => {
+<<<<<<< HEAD
         if (active && authRevision.current === revision) {
           setUser(response.data);
           setAuthError(null);
@@ -76,6 +87,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
           setUser(null);
         }
+=======
+        if (active && authRevision.current === revision) setUser(response.data);
+      })
+      .catch(() => {
+        if (active && authRevision.current === revision) setUser(null);
+>>>>>>> origin/main
       })
       .finally(() => {
         if (active && authRevision.current === revision) setLoading(false);
@@ -83,17 +100,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       active = false;
     };
+<<<<<<< HEAD
   }, [authRetry]);
+=======
+  }, []);
+>>>>>>> origin/main
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
       loading,
+<<<<<<< HEAD
       authError,
       retryAuth() {
         setAuthError(null);
         setLoading(true);
         setAuthRetry((attempt) => attempt + 1);
       },
+=======
+>>>>>>> origin/main
       async login(identifier, password, role = "chapel_admin", otp) {
         authRevision.current += 1;
         setLoading(true);
@@ -111,7 +135,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             ...(otp ? { otp } : {}),
           });
           queryClient.clear();
+<<<<<<< HEAD
           setAuthError(null);
+=======
+>>>>>>> origin/main
           setUser(response.data);
           return response.data;
         } finally {
@@ -123,7 +150,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (isDemoMode)
           window.sessionStorage.removeItem("chapelflow-demo-role");
         queryClient.clear();
+<<<<<<< HEAD
         setAuthError(null);
+=======
+>>>>>>> origin/main
         setUser(null);
         setLoading(false);
         if (!isDemoMode) await api.post("/auth/logout");
@@ -135,7 +165,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       },
     }),
+<<<<<<< HEAD
     [user, loading, authError, queryClient],
+=======
+    [user, loading, queryClient],
+>>>>>>> origin/main
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

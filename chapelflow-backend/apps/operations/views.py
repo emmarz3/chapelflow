@@ -311,7 +311,11 @@ class AssetMovementView(APIView):
 
         with transaction.atomic():
             asset = _scope(
+<<<<<<< HEAD
                 Asset.objects.select_related("location", "custodian").select_for_update(of=("self",)), request.user
+=======
+                Asset.objects.select_for_update().select_related("location", "custodian"), request.user
+>>>>>>> origin/main
             ).filter(pk=pk).first()
             if not asset:
                 raise PermissionDenied("Asset not found in your branch scope.")
@@ -921,10 +925,13 @@ class ContentWorkflowView(APIView):
                 raise ValidationError({"action": "Unknown content workflow action."})
             entry.save()
             _create_content_revision(entry, request.user)
+<<<<<<< HEAD
             if entry.content_type == ContentType.LIVESTREAM and entry.status == ContentStatus.PUBLISHED and previous != ContentStatus.PUBLISHED:
                 from apps.notifications.live import notify_live_service_published
 
                 transaction.on_commit(lambda entry_id=str(entry.id): notify_live_service_published.delay(entry_id))
+=======
+>>>>>>> origin/main
         write_audit_log(
             AuditAction.UPDATE, "operations.content", entry.id,
             metadata={"previous_status": previous, "status": entry.status, "workflow_action": action},
@@ -981,10 +988,13 @@ class PrivacyRequestCreateView(APIView):
     permission_classes = [IsAuthenticated]
     request_type = None
 
+<<<<<<< HEAD
     def get(self, request):
         requests = PrivacyRequest.objects.filter(user=request.user)
         return success_response(PrivacyRequestSerializer(requests, many=True).data)
 
+=======
+>>>>>>> origin/main
     def post(self, request):
         existing = PrivacyRequest.objects.filter(
             user=request.user, request_type=self.request_type, status="PENDING"
@@ -996,6 +1006,10 @@ class PrivacyRequestCreateView(APIView):
             )
         serializer = PrivacyRequestSerializer(data={
             "request_type": self.request_type,
+<<<<<<< HEAD
+=======
+            "reason": request.data.get("reason", ""),
+>>>>>>> origin/main
         })
         serializer.is_valid(raise_exception=True)
         instance = serializer.save(user=request.user)

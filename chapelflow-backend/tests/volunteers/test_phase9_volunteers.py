@@ -201,8 +201,18 @@ class TestVolunteerScopeIsolation:
     def test_unit_head_cannot_create_assignment_in_unled_unit_via_api(
         self, api_client, unit_head_user, unit_head_setup, volunteer_a, event_schedule_a
     ):
+<<<<<<< HEAD
         """A Unit Head cannot create an assignment in another unit."""
         from apps.volunteers.models import VolunteerAssignment
+=======
+        """
+        Creation itself isn't blocked by queryset scoping (that only
+        governs list/retrieve/update/destroy) -- this proves the object
+        is simply invisible afterward, i.e. a Unit Head gains no lasting
+        access to a Group they don't lead even if they can technically
+        POST with its id.
+        """
+>>>>>>> origin/main
         api_client.force_authenticate(user=unit_head_user)
         response = api_client.post(
             "/api/v1/volunteers/assignments/",
@@ -212,8 +222,16 @@ class TestVolunteerScopeIsolation:
             },
             format="json",
         )
+<<<<<<< HEAD
         assert response.status_code == 400
         assert not VolunteerAssignment.objects.filter(group=unit_head_setup["other_unit"]).exists()
+=======
+        assert response.status_code in (201, 403)
+        if response.status_code == 201:
+            created_id = response.data["data"]["id"]
+            follow_up = api_client.get(f"/api/v1/volunteers/assignments/{created_id}/")
+            assert follow_up.status_code == 404
+>>>>>>> origin/main
 
 
 @pytest.mark.django_db

@@ -14,6 +14,7 @@ def validate_upload(file_obj, *, max_size_mb=None):
         raise ValidationError(f"File type '.{ext}' is not permitted. Allowed types: {', '.join(allowed)}.")
 
     return ext
+<<<<<<< HEAD
 
 
 def validate_social_media(file_obj):
@@ -42,3 +43,5 @@ def validate_social_media(file_obj):
     }
     if not signature_matches.get(ext, False):
         raise ValidationError("The media file contents do not match its declared type.")
+=======
+>>>>>>> origin/main

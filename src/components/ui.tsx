@@ -13,6 +13,7 @@ import {
   useEffect,
   useId,
   useMemo,
+<<<<<<< HEAD
   useRef,
   useState,
   type ButtonHTMLAttributes,
@@ -45,6 +46,13 @@ export function LocalBrandImage({
     />
   );
 }
+=======
+  useState,
+  type ButtonHTMLAttributes,
+  type InputHTMLAttributes,
+  type ReactNode,
+} from "react";
+>>>>>>> origin/main
 
 export function Brand({
   inverse = false,
@@ -54,8 +62,13 @@ export function Brand({
 }) {
   return (
     <span className={`brand ${inverse ? "brand--inverse" : ""}`}>
+<<<<<<< HEAD
       <LocalBrandImage
         src={BRAND_ASSETS.institutionLogo}
+=======
+      <img
+        src="/chrisland-university-chapel.png"
+>>>>>>> origin/main
         alt="Chrisland University Chapel"
       />
     </span>
@@ -269,6 +282,7 @@ export function Modal({
   children: ReactNode;
   footer?: ReactNode;
 }) {
+<<<<<<< HEAD
   const dialogRef = useRef<HTMLElement>(null);
   useEffect(() => {
     if (!open) return;
@@ -304,6 +318,14 @@ export function Modal({
       document.removeEventListener("keydown", handler);
       previouslyFocused?.focus();
     };
+=======
+  useEffect(() => {
+    if (!open) return;
+    const handler = (event: KeyboardEvent) =>
+      event.key === "Escape" && onClose();
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+>>>>>>> origin/main
   }, [open, onClose]);
   return (
     <AnimatePresence>
@@ -316,7 +338,10 @@ export function Modal({
           onMouseDown={onClose}
         >
           <motion.section
+<<<<<<< HEAD
             ref={dialogRef}
+=======
+>>>>>>> origin/main
             role="dialog"
             aria-modal="true"
             aria-labelledby="dialog-title"

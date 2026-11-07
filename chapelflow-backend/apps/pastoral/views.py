@@ -238,7 +238,10 @@ class PastoralNoteViewSet(StandardModelViewSet):
     Phase 13: Pastoral notes with audit logging.
     """
     serializer_class = PastoralNoteSerializer
+<<<<<<< HEAD
     http_method_names = ["get", "post", "head", "options"]
+=======
+>>>>>>> origin/main
     permission_classes = [PastoralCaseAccess]
     filterset_fields = ["case"]
     permission_action_map = {

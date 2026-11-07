@@ -71,6 +71,7 @@ export default defineConfig(({ mode }) => {
           clientsClaim: true,
           skipWaiting: true,
           navigateFallback: "/index.html",
+<<<<<<< HEAD
           navigateFallbackDenylist: [/^\/api\//],
           globPatterns: ["**/*.{js,css,html,ico,svg,woff2}"],
           runtimeCaching: [
@@ -79,6 +80,11 @@ export default defineConfig(({ mode }) => {
                 request.destination === "image" &&
                 url.origin === (globalThis as unknown as { location: { origin: string } }).location.origin &&
                 /^\/(?:chapel-|chapelflow-|chrisland-|chaplain(?:\.|-)|student-chaplain\.)[^/]*\.(?:jpe?g|png|svg|webp)$/.test(url.pathname),
+=======
+          runtimeCaching: [
+            {
+              urlPattern: ({ request }) => request.destination === "image",
+>>>>>>> origin/main
               handler: "CacheFirst",
               options: {
                 cacheName: "chapelflow-images",

@@ -21,6 +21,10 @@ vi.mock("../components/motion/motion-system", () => ({
   usePortalMotion: vi.fn(),
   usePublicMotion: vi.fn(),
   useFeatureMotion: vi.fn(),
+<<<<<<< HEAD
+=======
+  RouteMotionLayer: () => null,
+>>>>>>> origin/main
   MOTION: {
     duration: { micro: 0.16, fast: 0.24, normal: 0.4, medium: 0.55, slow: 0.8 },
     ease: { standard: "power2.out", smooth: "power3.out", enter: "power4.out", exit: "power2.inOut" },

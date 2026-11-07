@@ -146,7 +146,11 @@ class TestMemberAnalytics:
         )
         
         # Create member created 10 days ago
+<<<<<<< HEAD
         old_member = Member.objects.create(
+=======
+        Member.objects.create(
+>>>>>>> origin/main
             branch=branch,
             first_name="New",
             last_name="Old",
@@ -155,15 +159,22 @@ class TestMemberAnalytics:
         )
         
         # Create member created 40 days ago (outside default range)
+<<<<<<< HEAD
         older_member = Member.objects.create(
+=======
+        Member.objects.create(
+>>>>>>> origin/main
             branch=branch,
             first_name="Old",
             last_name="Member",
             membership_status=MembershipStatus.ACTIVE,
             created_at=timezone.now() - timedelta(days=40),
         )
+<<<<<<< HEAD
         Member.objects.filter(pk=old_member.pk).update(created_at=timezone.now() - timedelta(days=10))
         Member.objects.filter(pk=older_member.pk).update(created_at=timezone.now() - timedelta(days=40))
+=======
+>>>>>>> origin/main
         
         # Get new members count (default: last 30 days)
         count = services.get_new_members_count(admin_user)
@@ -176,30 +187,45 @@ class TestMemberAnalytics:
         today = timezone.now().date()
         
         # Create members at different times
+<<<<<<< HEAD
         jan_member = Member.objects.create(
+=======
+        Member.objects.create(
+>>>>>>> origin/main
             branch=branch,
             first_name="Jan",
             last_name="Member",
             membership_status=MembershipStatus.ACTIVE,
             created_at=datetime(2026, 1, 15, tzinfo=timezone.get_current_timezone()),
         )
+<<<<<<< HEAD
         feb_member_1 = Member.objects.create(
+=======
+        Member.objects.create(
+>>>>>>> origin/main
             branch=branch,
             first_name="Feb",
             last_name="Member1",
             membership_status=MembershipStatus.ACTIVE,
             created_at=datetime(2026, 2, 10, tzinfo=timezone.get_current_timezone()),
         )
+<<<<<<< HEAD
         feb_member_2 = Member.objects.create(
+=======
+        Member.objects.create(
+>>>>>>> origin/main
             branch=branch,
             first_name="Feb",
             last_name="Member2",
             membership_status=MembershipStatus.ACTIVE,
             created_at=datetime(2026, 2, 20, tzinfo=timezone.get_current_timezone()),
         )
+<<<<<<< HEAD
         Member.objects.filter(pk=jan_member.pk).update(created_at=datetime(2026, 1, 15, tzinfo=timezone.get_current_timezone()))
         Member.objects.filter(pk=feb_member_1.pk).update(created_at=datetime(2026, 2, 10, tzinfo=timezone.get_current_timezone()))
         Member.objects.filter(pk=feb_member_2.pk).update(created_at=datetime(2026, 2, 20, tzinfo=timezone.get_current_timezone()))
+=======
+>>>>>>> origin/main
         
         # Get growth trend
         start_date = date(2026, 1, 1)
@@ -248,8 +274,13 @@ class TestMemberAnalytics:
         
         assert age_dict["0-17"] == 1
         assert age_dict["18-25"] == 1
+<<<<<<< HEAD
         assert age_dict["26-35"] == 1
         assert age_dict["36-50"] == 0
+=======
+        assert age_dict["26-35"] == 0
+        assert age_dict["36-50"] == 1
+>>>>>>> origin/main
 
 
 # =============================================================================
@@ -343,10 +374,13 @@ class TestAttendanceAnalytics:
             branch=branch,
             label="Test Session",
         )
+<<<<<<< HEAD
         second_session = AttendanceSession.objects.create(
             branch=branch,
             label="Second Session",
         )
+=======
+>>>>>>> origin/main
         
         # Create member
         member = Member.objects.create(
@@ -363,7 +397,11 @@ class TestAttendanceAnalytics:
             checked_in_at=datetime(2026, 8, 10, tzinfo=timezone.get_current_timezone()),
         )
         AttendanceRecord.objects.create(
+<<<<<<< HEAD
             session=second_session,
+=======
+            session=session,
+>>>>>>> origin/main
             member=member,
             method=AttendanceMethod.MANUAL,
             checked_in_at=datetime(2026, 8, 17, tzinfo=timezone.get_current_timezone()),
@@ -401,14 +439,21 @@ class TestVisitorAnalytics:
             status=VisitorStatus.CONTACTED,
             created_at=timezone.now() - timedelta(days=10),
         )
+<<<<<<< HEAD
         old_visitor = Visitor.objects.create(
+=======
+        Visitor.objects.create(
+>>>>>>> origin/main
             branch=branch,
             full_name="Converted Visitor",
             status=VisitorStatus.REGISTERED,
             converted_at=timezone.now() - timedelta(days=5),
             created_at=timezone.now() - timedelta(days=40),  # Outside default range
         )
+<<<<<<< HEAD
         Visitor.objects.filter(pk=old_visitor.pk).update(created_at=timezone.now() - timedelta(days=40))
+=======
+>>>>>>> origin/main
         
         # Get visitor counts
         today = timezone.now().date()
@@ -456,7 +501,11 @@ class TestFinanceAnalytics:
     def test_giving_totals_accuracy(self, admin_user, branch):
         """Giving totals match actual transactions."""
         # Create category
+<<<<<<< HEAD
         category, _ = GivingCategory.objects.get_or_create(name="Tithe")
+=======
+        category = GivingCategory.objects.create(name="Tithe")
+>>>>>>> origin/main
         
         # Create member
         member = Member.objects.create(
@@ -498,7 +547,11 @@ class TestFinanceAnalytics:
     
     def test_giving_trend_time_series(self, admin_user, branch):
         """Giving trend time-series is accurate."""
+<<<<<<< HEAD
         category, _ = GivingCategory.objects.get_or_create(name="Tithe")
+=======
+        category = GivingCategory.objects.create(name="Tithe")
+>>>>>>> origin/main
         member = Member.objects.create(branch=branch, first_name="Test", last_name="Member")
         
         # Create giving at different times
@@ -534,6 +587,7 @@ class TestFinanceAnalytics:
     
     def test_reconciliation_status_integration(self, admin_user, branch):
         """Reconciliation status integration with Phase 14."""
+<<<<<<< HEAD
         for month, reconciliation_status, difference in (
             (1, ReconciliationStatus.PENDING, Decimal("0.00")),
             (2, ReconciliationStatus.RECONCILED, Decimal("0.00")),
@@ -549,6 +603,34 @@ class TestFinanceAnalytics:
                 difference=difference,
                 created_by=admin_user,
             )
+=======
+        # Create financial period
+        period = FinancialPeriod.objects.create(
+            branch=branch,
+            name="Q1 2026",
+            start_date=date(2026, 1, 1),
+            end_date=date(2026, 3, 31),
+            status=FinancialPeriodStatus.OPEN,
+        )
+        
+        # Create reconciliations
+        Reconciliation.objects.create(
+            branch=branch,
+            period=period,
+            status=ReconciliationStatus.OPEN,
+        )
+        Reconciliation.objects.create(
+            branch=branch,
+            period=period,
+            status=ReconciliationStatus.PENDING_APPROVAL,
+        )
+        Reconciliation.objects.create(
+            branch=branch,
+            period=period,
+            status=ReconciliationStatus.APPROVED,
+            has_discrepancy=True,
+        )
+>>>>>>> origin/main
         
         # Get reconciliation status
         status = services.get_reconciliation_status(admin_user)
@@ -578,13 +660,20 @@ class TestEdgeCases:
     def test_empty_date_range(self, admin_user, branch):
         """Analytics handle empty date ranges."""
         # Create member created 60 days ago
+<<<<<<< HEAD
         old_member = Member.objects.create(
+=======
+        Member.objects.create(
+>>>>>>> origin/main
             branch=branch,
             first_name="Old",
             last_name="Member",
             created_at=timezone.now() - timedelta(days=60),
         )
+<<<<<<< HEAD
         Member.objects.filter(pk=old_member.pk).update(created_at=timezone.now() - timedelta(days=60))
+=======
+>>>>>>> origin/main
         
         # Query last 7 days (should be empty)
         today = timezone.now().date()

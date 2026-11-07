@@ -391,9 +391,12 @@ export function ChapelFlowIntro() {
               className="cf-intro__official-logo"
               src={INTRO_CONFIG.brand.chapelFlowAsset}
               alt=""
+<<<<<<< HEAD
               onError={(event) => {
                 event.currentTarget.src = "/chapelflow-mark.svg";
               }}
+=======
+>>>>>>> origin/main
               initial={false}
               animate={{
                 opacity: showOfficial ? 1 : 0,
@@ -418,9 +421,12 @@ export function ChapelFlowIntro() {
               <motion.img
                 src={INTRO_CONFIG.brand.institutionAsset}
                 alt=""
+<<<<<<< HEAD
                 onError={(event) => {
                   event.currentTarget.src = "/chapelflow-mark.svg";
                 }}
+=======
+>>>>>>> origin/main
                 initial={{ y: 18, scale: 0.97 }}
                 animate={{ y: 0, scale: 1 }}
                 transition={{ duration: 0.82, ease: GLOW_EASE, delay: 0.08 }}

@@ -68,12 +68,19 @@ def check_storage_provider_credentials(app_configs, **kwargs):
                 )
             )
     elif provider == "s3":
+<<<<<<< HEAD
         missing = [name for name in ("AWS_STORAGE_BUCKET_NAME", "AWS_S3_REGION_NAME") if not getattr(settings, name, "")]
         if not getattr(settings, "AWS_USE_IAM_ROLE", False):
             missing += [
                 name for name in ("AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY")
                 if not getattr(settings, name, "")
             ]
+=======
+        missing = [
+            name for name in ("AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_STORAGE_BUCKET_NAME")
+            if not getattr(settings, name, "")
+        ]
+>>>>>>> origin/main
         if missing:
             warnings.append(
                 Warning(
@@ -128,12 +135,27 @@ def check_payment_provider_configured(app_configs, **kwargs):
 
 @register(Tags.security, deploy=True)
 def check_sms_provider_configured(app_configs, **kwargs):
+<<<<<<< HEAD
     """An enabled SMS channel needs provider credentials."""
     if settings.SMS_CHANNEL_ENABLED and not settings.SMS_API_KEY:
         return [
             Warning(
                 "SMS_CHANNEL_ENABLED is true but SMS_API_KEY is not set. "
                 "SMS delivery cannot succeed.",
+=======
+    """
+    Informational only: Phase 0 already made the notification system
+    honest about this (NotificationStatus.STUBBED instead of a fake
+    SENT), so a missing SMS_API_KEY is not a bug -- just worth
+    surfacing explicitly at deploy-check time.
+    """
+    if not settings.SMS_API_KEY:
+        return [
+            Warning(
+                "SMS_API_KEY is not set. SMS notifications will be "
+                "recorded as STUBBED rather than actually sent "
+                "(see apps.notifications) until a real provider key is added.",
+>>>>>>> origin/main
                 id="chapelflow.W006",
             )
         ]

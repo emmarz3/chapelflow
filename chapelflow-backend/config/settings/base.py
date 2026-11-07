@@ -1,6 +1,10 @@
 """
 ChapelFlow base settings, shared by development and production.
 """
+<<<<<<< HEAD
+=======
+
+>>>>>>> origin/main
 import os
 from datetime import timedelta
 from pathlib import Path
@@ -64,7 +68,10 @@ LOCAL_APPS = [
     "apps.reports",
     "apps.uploads",
     "apps.audit",
+<<<<<<< HEAD
     "apps.moderation",
+=======
+>>>>>>> origin/main
     "apps.dashboard",
     "apps.operations",
     "apps.social",
@@ -73,6 +80,10 @@ LOCAL_APPS = [
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
 
 MIDDLEWARE = [
+<<<<<<< HEAD
+=======
+    "common.middleware.health_check.HealthCheckMiddleware",
+>>>>>>> origin/main
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
     "corsheaders.middleware.CorsMiddleware",
@@ -110,6 +121,7 @@ ASGI_APPLICATION = "config.asgi.application"
 # --------------------------------------------------------------------------
 # Database
 # --------------------------------------------------------------------------
+<<<<<<< HEAD
 if env("DATABASE_HOST", default=""):
     DATABASES = {"default": {
         "ENGINE": "django.db.backends.postgresql",
@@ -125,6 +137,14 @@ else:
         "DATABASE_URL",
         default="postgres://chapelflow:chapelflow@localhost:5433/chapelflow",
     )}
+=======
+DATABASES = {
+    "default": env.db(
+        "DATABASE_URL",
+        default="postgres://chapelflow:chapelflow@localhost:5433/chapelflow",
+    )
+}
+>>>>>>> origin/main
 
 # --------------------------------------------------------------------------
 # Auth
@@ -188,9 +208,12 @@ REST_FRAMEWORK = {
         "sync": "30/min",
         "attendance_scan": "20/min",
         "reports": "20/min",
+<<<<<<< HEAD
         "moderation_report": "5/hour",
         "community_post": "10/min",
         "community_comment": "20/min",
+=======
+>>>>>>> origin/main
         "public": "20/min",
     },
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
@@ -255,8 +278,11 @@ def _redis_settings(redis_url: str | None) -> dict:
 
 
 REDIS_URL = env("REDIS_URL", default=None)
+<<<<<<< HEAD
 if not REDIS_URL and env("REDIS_HOST", default=""):
     REDIS_URL = f"rediss://{env('REDIS_HOST')}:{env.int('REDIS_PORT', default=6379)}/0"
+=======
+>>>>>>> origin/main
 _REDIS_SETTINGS = _redis_settings(REDIS_URL)
 CELERY_BROKER_URL = _REDIS_SETTINGS["CELERY_BROKER_URL"]
 if "CELERY_TASK_ALWAYS_EAGER" in _REDIS_SETTINGS:
@@ -281,7 +307,10 @@ CLOUDINARY_API_SECRET = env("CLOUDINARY_API_SECRET", default="")
 
 AWS_ACCESS_KEY_ID = env("AWS_ACCESS_KEY_ID", default="")
 AWS_SECRET_ACCESS_KEY = env("AWS_SECRET_ACCESS_KEY", default="")
+<<<<<<< HEAD
 AWS_USE_IAM_ROLE = env.bool("AWS_USE_IAM_ROLE", default=False)
+=======
+>>>>>>> origin/main
 AWS_STORAGE_BUCKET_NAME = env("AWS_STORAGE_BUCKET_NAME", default="")
 AWS_S3_REGION_NAME = env("AWS_S3_REGION_NAME", default="")
 
@@ -317,7 +346,10 @@ EMAIL_USE_TLS = env.bool("EMAIL_USE_TLS", default=True)
 DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="no-reply@chapelflow.app")
 
 SMS_API_KEY = env("SMS_API_KEY", default="")
+<<<<<<< HEAD
 SMS_CHANNEL_ENABLED = env.bool("SMS_CHANNEL_ENABLED", default=False)
+=======
+>>>>>>> origin/main
 SMS_PROVIDER = env("SMS_PROVIDER", default="termii")
 SMS_SENDER_ID = env("SMS_SENDER_ID", default="N-Alert")  # Termii's shared/default sender ID, no registration required
 

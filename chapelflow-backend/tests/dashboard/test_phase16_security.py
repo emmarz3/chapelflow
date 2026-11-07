@@ -172,7 +172,11 @@ def test_data(branches, users):
         members_b1.append(member)
     
     # Giving data
+<<<<<<< HEAD
     category, _ = GivingCategory.objects.get_or_create(name="Tithe")
+=======
+    category = GivingCategory.objects.create(name="Tithe")
+>>>>>>> origin/main
     
     Giving.objects.create(
         branch=branches["branch_a1"],
@@ -194,7 +198,10 @@ def test_data(branches, users):
     PastoralCase.objects.create(
         branch=branches["branch_a1"],
         member=members_a1[0],
+<<<<<<< HEAD
         summary="Care for Branch A member",
+=======
+>>>>>>> origin/main
         status=PastoralCaseStatus.OPEN,
         assigned_to=users["chaplain_a"],
     )
@@ -202,7 +209,10 @@ def test_data(branches, users):
     PastoralCase.objects.create(
         branch=branches["branch_b1"],
         member=members_b1[0],
+<<<<<<< HEAD
         summary="Care for Branch B member",
+=======
+>>>>>>> origin/main
         status=PastoralCaseStatus.OPEN,
         assigned_to=users["admin_b1"],
     )
@@ -268,7 +278,11 @@ class TestDashboardAuthorization:
         
         response = client.get("/api/v1/dashboard/admin/")
         assert response.status_code == 403
+<<<<<<< HEAD
         assert "not authorized" in response.json()["message"].lower()
+=======
+        assert "not authorized" in response.json()["error"].lower()
+>>>>>>> origin/main
     
     def test_admin_dashboard_allows_super_admin(self, users, test_data):
         """Admin dashboard allows super admin."""
@@ -729,7 +743,11 @@ class TestFilterBypass:
     
     def test_ministry_dashboard_validates_ministry_access(self, users, branches):
         """Ministry dashboard validates ministry access."""
+<<<<<<< HEAD
         from apps.ministries.models import Group, GroupType
+=======
+        from apps.groups.models import Group, GroupType
+>>>>>>> origin/main
         
         # Create ministry in Branch A1
         ministry_a = Group.objects.create(
@@ -749,17 +767,24 @@ class TestFilterBypass:
         
         client = APIClient()
         client.force_authenticate(user=users["admin_a1"])
+<<<<<<< HEAD
 
         own_response = client.get(f"/api/v1/dashboard/ministry/?ministry_id={ministry_a.id}")
         assert own_response.status_code == 200
         assert own_response.json()["data"]["ministry_info"]["id"] == str(ministry_a.id)
+=======
+>>>>>>> origin/main
         
         # Attempt to access Ministry B (different org) via ministry_id
         response = client.get(f"/api/v1/dashboard/ministry/?ministry_id={ministry_b.id}")
         
         # Should be rejected (404 - not found in scoped queryset)
         assert response.status_code == 404
+<<<<<<< HEAD
         assert "not found" in response.json()["message"].lower() or "denied" in response.json()["message"].lower()
+=======
+        assert "not found" in response.json()["error"].lower() or "denied" in response.json()["error"].lower()
+>>>>>>> origin/main
 
 
 # =============================================================================

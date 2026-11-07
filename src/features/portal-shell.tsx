@@ -65,9 +65,12 @@ const navGroups: { label: string; items: NavItem[] }[] = [
         permission: "dashboard:view",
       },
       { label: "The Upper Room", path: "/app/upper-room", icon: <MessagesSquare /> },
+<<<<<<< HEAD
       { label: "Community safety", path: "/app/community-safety", icon: <ShieldCheck /> },
       { label: "Notifications", path: "/app/notifications", icon: <Bell /> },
       { label: "Notification settings", path: "/app/notification-settings", icon: <Settings /> },
+=======
+>>>>>>> origin/main
       {
         label: "Members",
         path: "/app/members",
@@ -222,7 +225,10 @@ function studentNavGroups(communities: { type: string }[]): { label: string; ite
         { label: "Fellowships & Units", path: "/app/join-community", icon: <Users />, roles: ["member"] },
         { label: "Prayer and care", path: "/app/care", icon: <HeartHandshake />, roles: ["member"] },
         { label: "The Upper Room", path: "/app/upper-room", icon: <MessagesSquare />, roles: ["member"] },
+<<<<<<< HEAD
         { label: "Community safety", path: "/app/community-safety", icon: <ShieldCheck />, roles: ["member"] },
+=======
+>>>>>>> origin/main
         ...(hasFellowship ? [{ label: "My fellowship", path: "/app/communities", icon: <Users />, roles: ["member"] as Role[] }] : []),
         ...(hasUnit ? [{ label: "My chapel unit", path: "/app/communities", icon: <Building2 />, roles: ["member"] as Role[] }] : []),
       ],
@@ -234,7 +240,10 @@ function studentNavGroups(communities: { type: string }[]): { label: string; ite
         { label: "Offerings & tithes", path: "/app/giving", icon: <Coins />, roles: ["member"] },
         { label: "Announcements", path: "/app/announcements", icon: <MessageSquareText />, roles: ["member"] },
         { label: "Notifications", path: "/app/notifications", icon: <Bell />, roles: ["member"] },
+<<<<<<< HEAD
         { label: "Notification settings", path: "/app/notification-settings", icon: <Settings />, roles: ["member"] },
+=======
+>>>>>>> origin/main
         { label: "Profile and security", path: "/app/profile/edit", icon: <UserRound />, roles: ["member"] },
         { label: "Help and support", path: "/contact", icon: <MessageSquareText />, roles: ["member"] },
       ],
@@ -251,11 +260,17 @@ function memberAccountNavGroups(): { label: string; items: NavItem[] }[] {
         { label: "Service times", path: "/service-times", icon: <CalendarDays />, roles: ["member"] },
         { label: "Chapel events", path: "/events", icon: <CalendarDays />, roles: ["member"] },
         { label: "The Upper Room", path: "/app/upper-room", icon: <MessagesSquare />, roles: ["member"] },
+<<<<<<< HEAD
         { label: "Community safety", path: "/app/community-safety", icon: <ShieldCheck />, roles: ["member"] },
         { label: "Offerings & tithes", path: "/app/giving", icon: <Coins />, roles: ["member"] },
         { label: "Announcements", path: "/app/announcements", icon: <Bell />, roles: ["member"] },
         { label: "Notifications", path: "/app/notifications", icon: <Bell />, roles: ["member"] },
         { label: "Notification settings", path: "/app/notification-settings", icon: <Settings />, roles: ["member"] },
+=======
+        { label: "Offerings & tithes", path: "/app/giving", icon: <Coins />, roles: ["member"] },
+        { label: "Announcements", path: "/app/announcements", icon: <Bell />, roles: ["member"] },
+        { label: "Notifications", path: "/app/notifications", icon: <Bell />, roles: ["member"] },
+>>>>>>> origin/main
         { label: "Profile and security", path: "/app/profile/edit", icon: <UserRound />, roles: ["member"] },
         { label: "Help and support", path: "/contact", icon: <MessageSquareText />, roles: ["member"] },
       ],
@@ -271,19 +286,30 @@ function operationalNavGroups(user: User): { label: string; items: NavItem[] }[]
   const operations: NavItem = { label: "Operations", path: "/app/operations", icon: <Activity />, roles: [role] };
   const care: NavItem = { label: "Prayer and care", path: "/app/care", icon: <HeartHandshake />, roles: [role] };
   const upperRoom: NavItem = { label: "The Upper Room", path: "/app/upper-room", icon: <MessagesSquare />, roles: [role] };
+<<<<<<< HEAD
   const safety: NavItem = { label: "Community safety", path: "/app/community-safety", icon: <ShieldCheck />, roles: [role] };
   const notificationSettings: NavItem = { label: "Notification settings", path: "/app/notification-settings", icon: <Settings />, roles: [role] };
   const inbox: NavItem = { label: "Notifications", path: "/app/notifications", icon: <Bell />, roles: [role] };
+=======
+>>>>>>> origin/main
   const officialGallery: NavItem = { label: "Official gallery", path: "/app/media", icon: <Image />, permission: "media:write", roles: [role] };
   const mediaItems = hasPermission(user, "media:write") ? [officialGallery] : [];
   const giving: NavItem = { label: "Offerings & tithes", path: "/app/giving", icon: <Coins />, roles: [role] };
   const inventory: NavItem = { label: "Inventory", path: "/app/assets", icon: <Package />, permission: "assets:read", roles: [role] };
   const inventoryItems = hasPermission(user, "assets:read") ? [inventory] : [];
+<<<<<<< HEAD
   if (role === "chaplain") return [{ label: "Chapel oversight", items: [overview, operations, care, upperRoom, safety, inbox, notificationSettings, giving, ...mediaItems, ...inventoryItems, members, events] }];
   if (role === "student_chaplain") return [{ label: "Student operations", items: [overview, operations, care, upperRoom, safety, inbox, notificationSettings, giving, ...mediaItems, ...inventoryItems, members, { ...events, label: "Chapel services" }] }];
   if (role === "unit_leader" || role === "fellowship_leader") {
     const label = role === "unit_leader" ? "Unit" : "Fellowship";
     return [{ label: `${label} workspace`, items: [overview, operations, care, upperRoom, safety, inbox, notificationSettings, giving, ...mediaItems, ...inventoryItems, { ...members, label: "Members" }, { ...events, label: "Meetings and programmes" }] }];
+=======
+  if (role === "chaplain") return [{ label: "Chapel oversight", items: [overview, operations, care, upperRoom, giving, ...mediaItems, ...inventoryItems, members, events] }];
+  if (role === "student_chaplain") return [{ label: "Student operations", items: [overview, operations, care, upperRoom, giving, ...mediaItems, ...inventoryItems, members, { ...events, label: "Chapel services" }] }];
+  if (role === "unit_leader" || role === "fellowship_leader") {
+    const label = role === "unit_leader" ? "Unit" : "Fellowship";
+    return [{ label: `${label} workspace`, items: [overview, operations, care, upperRoom, giving, ...mediaItems, ...inventoryItems, { ...members, label: "Members" }, { ...events, label: "Meetings and programmes" }] }];
+>>>>>>> origin/main
   }
   return null;
 }
@@ -309,7 +335,11 @@ export function ProtectedRoute({
   permission?: Permission;
   roles?: Role[];
 }) {
+<<<<<<< HEAD
   const { user, loading, authError, retryAuth } = useAuth();
+=======
+  const { user, loading } = useAuth();
+>>>>>>> origin/main
   if (loading)
     return (
       <div className="route-loader" role="status">
@@ -317,6 +347,7 @@ export function ProtectedRoute({
         <p>Opening ChapelFlow securely…</p>
       </div>
     );
+<<<<<<< HEAD
   if (authError)
     return (
       <div className="route-loader" role="alert">
@@ -324,6 +355,8 @@ export function ProtectedRoute({
         <button className="button button--secondary" onClick={retryAuth}>Retry</button>
       </div>
     );
+=======
+>>>>>>> origin/main
   if (!user) return <Navigate to="/login" replace />;
   if (user.passwordChangeRequired)
     return <Navigate to="/change-password-required" replace />;
@@ -358,8 +391,13 @@ export function PortalShell() {
     () => localStorage.getItem("chapelflow-theme") || "light",
   );
   const notificationQuery = useQuery({
+<<<<<<< HEAD
     queryKey: ["notification-unread-count"],
     queryFn: async () => (await notificationService.unreadCount()).data.count,
+=======
+    queryKey: ["notifications"],
+    queryFn: async () => (await notificationService.list()).data,
+>>>>>>> origin/main
     enabled: Boolean(user),
     refetchInterval: 30_000,
   });
@@ -368,7 +406,12 @@ export function PortalShell() {
     queryFn: async () => (await communityService.mine()).data,
     enabled: isStudent,
   });
+<<<<<<< HEAD
   const unreadNotifications = notificationQuery.data ?? 0;
+=======
+  const unreadNotifications =
+    notificationQuery.data?.filter((item) => !item.read_at).length ?? 0;
+>>>>>>> origin/main
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
     localStorage.setItem("chapelflow-theme", theme);
@@ -534,9 +577,12 @@ export function PortalShell() {
             </button>
             <button
               className="profile-button"
+<<<<<<< HEAD
               type="button"
               aria-expanded={profileOpen}
               aria-haspopup="menu"
+=======
+>>>>>>> origin/main
               onClick={() => setProfileOpen((value) => !value)}
             >
               <span className="avatar">{user.initials}</span>
@@ -653,6 +699,7 @@ function BirthdayPrompt({ userId }: { userId: string }) {
 function NotificationPanel({ onClose, showCommunities }: { onClose: () => void; showCommunities: boolean }) {
   const client = useQueryClient();
   const query = useQuery({
+<<<<<<< HEAD
     queryKey: ["notifications", "preview"],
     queryFn: async () => (await notificationService.list()).data.items,
   });
@@ -662,6 +709,15 @@ function NotificationPanel({ onClose, showCommunities }: { onClose: () => void; 
       void client.invalidateQueries({ queryKey: ["notifications"] });
       void client.invalidateQueries({ queryKey: ["notification-unread-count"] });
     },
+=======
+    queryKey: ["notifications"],
+    queryFn: async () => (await notificationService.list()).data,
+  });
+  const markRead = useMutation({
+    mutationFn: notificationService.markRead,
+    onSuccess: () =>
+      void client.invalidateQueries({ queryKey: ["notifications"] }),
+>>>>>>> origin/main
   });
   const items = query.data ?? [];
   const unread = items.filter((item) => !item.read_at).length;
@@ -672,7 +728,11 @@ function NotificationPanel({ onClose, showCommunities }: { onClose: () => void; 
           <h2>Notifications</h2>
           <p>{unread} unread updates</p>
         </div>
+<<<<<<< HEAD
         <button className="icon-button" type="button" aria-label="Close notifications" onClick={onClose}>
+=======
+        <button className="icon-button" onClick={onClose}>
+>>>>>>> origin/main
           <X />
         </button>
       </header>
@@ -680,7 +740,11 @@ function NotificationPanel({ onClose, showCommunities }: { onClose: () => void; 
         <article key={item.id}>
           <span>{item.community_id ? <Users /> : <Activity />}</span>
           <div>
+<<<<<<< HEAD
             <Link to={item.href || "/app/notifications"} onClick={() => { if (!item.read_at) markRead.mutate(item.id); onClose(); }}><strong>{item.title}</strong></Link>
+=======
+            <strong>{item.title}</strong>
+>>>>>>> origin/main
             <p>{item.body}</p>
             <small>{new Date(item.created_at).toLocaleString()}</small>
           </div>
@@ -698,8 +762,11 @@ function NotificationPanel({ onClose, showCommunities }: { onClose: () => void; 
       {!items.length && (
         <p className="notification-panel__empty">No new notifications.</p>
       )}
+<<<<<<< HEAD
       <Link to="/app/notifications" onClick={onClose}>See all notifications</Link>
       <Link to="/app/notification-settings" onClick={onClose}>Notification settings</Link>
+=======
+>>>>>>> origin/main
       {showCommunities && <Link to="/app/communities" onClick={onClose}>Open my communities</Link>}
     </div>
   );

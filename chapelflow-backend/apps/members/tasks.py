@@ -70,8 +70,13 @@ def bulk_import_members_task(file_url, requesting_user_id):
 
 
 def _notify_member_import_result(user, summary, *, succeeded):
+<<<<<<< HEAD
     from apps.notifications.models import NotificationCategory, NotificationChannel
     from apps.notifications.preferences import queue_notification
+=======
+    from apps.notifications.models import Notification, NotificationChannel
+    from apps.notifications.tasks import deliver_notification
+>>>>>>> origin/main
 
     if succeeded:
         created = summary.get("created", 0)
@@ -89,13 +94,22 @@ def _notify_member_import_result(user, summary, *, succeeded):
             "processed. Please review your access and file, then try again."
         )
 
+<<<<<<< HEAD
     queue_notification(
         recipient=user,
         category=NotificationCategory.ADMIN_ALERT,
+=======
+    notification = Notification.objects.create(
+        recipient=user,
+>>>>>>> origin/main
         title=title,
         body=body,
         channel=NotificationChannel.EMAIL,
     )
+<<<<<<< HEAD
+=======
+    deliver_notification.delay(str(notification.id))
+>>>>>>> origin/main
 
 
 
@@ -127,8 +141,13 @@ def send_member_follow_up_reminders():
     from django.utils import timezone
     
     from apps.members.models import MemberFollowUp
+<<<<<<< HEAD
     from apps.notifications.models import NotificationCategory
     from apps.notifications.preferences import queue_notification
+=======
+    from apps.notifications.models import Notification
+    from apps.notifications.tasks import deliver_notification
+>>>>>>> origin/main
     
     now = timezone.now()
     
@@ -148,19 +167,32 @@ def send_member_follow_up_reminders():
             follow_up.save(update_fields=["reminder_sent_at"])
             
             # Create notification
+<<<<<<< HEAD
             notification = queue_notification(
                 recipient=follow_up.assigned_to,
                 category=NotificationCategory.ADMIN_ALERT,
+=======
+            notification = Notification.objects.create(
+                recipient=follow_up.assigned_to,
+>>>>>>> origin/main
                 title=f"{follow_up.get_milestone_display()} Reminder",
                 body=(
                     f"Follow-up with {follow_up.member.full_name} is due. "
                     f"This is their {follow_up.get_milestone_display().lower()}."
                 ),
                 channel="EMAIL",
+<<<<<<< HEAD
                 idempotency_key=f"member-follow-up:{follow_up.id}:EMAIL",
             )
             if notification:
                 sent += 1
+=======
+            )
+            
+            # Queue delivery
+            deliver_notification.delay(str(notification.id))
+            sent += 1
+>>>>>>> origin/main
     
     logger.info(f"send_member_follow_up_reminders: sent {sent} reminders")
     return {"reminders_sent": sent, "timestamp": now.isoformat()}

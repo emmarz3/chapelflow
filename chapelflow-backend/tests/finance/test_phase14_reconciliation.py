@@ -473,9 +473,15 @@ class TestReconciliationResult:
             membership_status=MembershipStatus.ACTIVE
         )
         
+<<<<<<< HEAD
         category, _ = GivingCategory.objects.get_or_create(
             name="Tithe",
             defaults={"description": "Regular tithe"}
+=======
+        category = GivingCategory.objects.create(
+            name="Tithe",
+            description="Regular tithe"
+>>>>>>> origin/main
         )
         
         reconciliation = Reconciliation.objects.create(

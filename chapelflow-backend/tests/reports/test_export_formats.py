@@ -181,6 +181,7 @@ class TestReportsAPIFormats:
         job = ReportJob.objects.get(id=response.data["data"]["id"])
         # CELERY_TASK_ALWAYS_EAGER in test settings runs this synchronously.
         assert job.file_url.endswith(".xlsx")
+<<<<<<< HEAD
 
     def test_report_history_and_downloads_are_limited_to_requester(
         self, api_client, chapel_admin_a, branch_a, seed_member_permissions,
@@ -207,3 +208,5 @@ class TestReportsAPIFormats:
 
         detail = api_client.get(f"/api/v1/reports/jobs/{peer_job.id}/")
         assert detail.status_code == 404
+=======
+>>>>>>> origin/main

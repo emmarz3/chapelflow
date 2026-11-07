@@ -99,11 +99,14 @@ class CommunityMessageView(APIView):
 
     permission_classes = [IsAuthenticated]
 
+<<<<<<< HEAD
     def get_throttles(self):
         if self.request.method == "POST":
             self.throttle_scope = "community_comment"
         return super().get_throttles()
 
+=======
+>>>>>>> origin/main
     def _group(self, request, group_id):
         allowed_type = {
             "UNIT_HEAD": "UNIT",
@@ -132,7 +135,11 @@ class CommunityMessageView(APIView):
         return {
             "id": str(item.id), "body": item.body, "reply_to_id": None, "pinned": False,
             "created_at": item.created_at, "edited_at": None,
+<<<<<<< HEAD
             "sender_id": str(item.author_id), "sender_name": item.author.full_name or item.author.email,
+=======
+            "sender_id": str(item.author_id), "sender_name": item.author.get_full_name() or item.author.email,
+>>>>>>> origin/main
         }
 
     def get(self, request, group_id):
@@ -143,10 +150,14 @@ class CommunityMessageView(APIView):
         group = self._group(request, group_id)
         if not group:
             return error_response("Community not found.", status=404)
+<<<<<<< HEAD
         from apps.moderation.models import TargetKind
         from apps.moderation.services import visible
 
         messages = visible(GroupMessage.objects.filter(group=group), TargetKind.GROUP_MESSAGE).select_related("author")
+=======
+        messages = GroupMessage.objects.filter(group=group).select_related("author")
+>>>>>>> origin/main
         search = str(request.query_params.get("search", "")).strip()
         if search:
             messages = messages.filter(body__icontains=search)
@@ -165,6 +176,7 @@ class CommunityMessageView(APIView):
             return error_response("Write a message before sending it.", status=400)
         if len(body) > 4000:
             return error_response("Messages cannot exceed 4,000 characters.", status=400)
+<<<<<<< HEAD
         from datetime import timedelta
         from django.utils import timezone
 
@@ -173,6 +185,8 @@ class CommunityMessageView(APIView):
             created_at__gte=timezone.now() - timedelta(minutes=1),
         ).exists():
             return error_response("You recently sent this message.", status=400)
+=======
+>>>>>>> origin/main
         message = GroupMessage.objects.create(group=group, author=request.user, body=body)
         return success_response(self._data(message), status=201)
 
@@ -191,7 +205,11 @@ class CommunityResourceView(APIView):
     def _data(item):
         return {
             "id": str(item.id), "title": item.title, "url": item.url, "description": item.description,
+<<<<<<< HEAD
             "created_at": item.created_at, "created_by_name": item.created_by.full_name if item.created_by else "",
+=======
+            "created_at": item.created_at, "created_by_name": item.created_by.get_full_name() if item.created_by else "",
+>>>>>>> origin/main
         }
 
     def get(self, request, group_id):
@@ -200,10 +218,14 @@ class CommunityResourceView(APIView):
         membership = self._membership(request, group_id)
         if not membership:
             return error_response("Community not found.", status=404)
+<<<<<<< HEAD
         from apps.moderation.models import TargetKind
         from apps.moderation.services import visible
 
         resources = visible(GroupResource.objects.filter(group=membership.group), TargetKind.GROUP_RESOURCE).select_related("created_by")
+=======
+        resources = GroupResource.objects.filter(group=membership.group).select_related("created_by")
+>>>>>>> origin/main
         return success_response([self._data(item) for item in resources])
 
     def post(self, request, group_id):
@@ -225,10 +247,13 @@ class CommunityResourceView(APIView):
             URLValidator(schemes=["http", "https"])(url)
         except DjangoValidationError:
             return error_response("Use a valid http or https resource link.", status=400)
+<<<<<<< HEAD
         from urllib.parse import urlsplit
 
         if urlsplit(url).username or urlsplit(url).password:
             return error_response("Resource links cannot contain embedded credentials.", status=400)
+=======
+>>>>>>> origin/main
         resource = GroupResource.objects.create(
             group=membership.group, title=title[:180], url=url, description=description, created_by=request.user
         )
@@ -267,7 +292,11 @@ class CommunityAnnouncementView(_CommunityMemberView):
         return {
             "id": str(item.id), "title": item.title, "content": item.body, "pinned": False,
             "priority": "normal", "published_at": item.completed_at or item.publish_at,
+<<<<<<< HEAD
             "expires_at": item.expires_at, "author_name": item.created_by.full_name if item.created_by else "",
+=======
+            "expires_at": item.expires_at, "author_name": item.created_by.get_full_name() if item.created_by else "",
+>>>>>>> origin/main
         }
 
     def get(self, request, group_id):
@@ -279,12 +308,17 @@ class CommunityAnnouncementView(_CommunityMemberView):
             branch=membership.group.branch,
             target_groups=membership.group,
             status__in=[AnnouncementStatus.QUEUED, AnnouncementStatus.SENDING, AnnouncementStatus.COMPLETED],
+<<<<<<< HEAD
         ).select_related("created_by").order_by("-publish_at")
         from apps.moderation.models import TargetKind
         from apps.moderation.services import visible
 
         rows = visible(rows, TargetKind.GROUP_ANNOUNCEMENT)
         return success_response([self._data(item) for item in rows[:100]])
+=======
+        ).select_related("created_by").order_by("-publish_at")[:100]
+        return success_response([self._data(item) for item in rows])
+>>>>>>> origin/main
 
     def post(self, request, group_id):
         membership, error = self.leader_membership(request, group_id)
@@ -303,7 +337,11 @@ class CommunityAnnouncementView(_CommunityMemberView):
             return error_response(str(exc), status=403)
         announcement = Announcement.objects.create(
             branch=membership.group.branch, title=title[:255], body=body,
+<<<<<<< HEAD
             audience_type=AudienceType.CUSTOM, channels=["IN_APP"], publish_at=timezone.now(),
+=======
+            audience_type=AudienceType.CUSTOM, channels=["PUSH"], publish_at=timezone.now(),
+>>>>>>> origin/main
             created_by=request.user, status=AnnouncementStatus.QUEUED,
         )
         announcement.target_groups.add(membership.group)

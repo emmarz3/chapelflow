@@ -432,6 +432,7 @@ export const upperRoomService = {
   deleteComment: (postId: string, commentId: string) => api.delete<void>(`/social/posts/${encodeURIComponent(postId)}/comments/${encodeURIComponent(commentId)}`),
 };
 
+<<<<<<< HEAD
 export type ModerationTarget = "POST" | "COMMENT" | "GROUP_MESSAGE" | "GROUP_RESOURCE" | "GROUP_ANNOUNCEMENT" | "PRAYER" | "TESTIMONY";
 export type ModerationReason = "HARASSMENT" | "BULLYING" | "SPAM" | "IMPERSONATION" | "HATE_SPEECH" | "INAPPROPRIATE" | "PRIVACY" | "OTHER";
 export type ModerationStatus = "PENDING" | "REVIEWED" | "DISMISSED" | "ESCALATED";
@@ -463,6 +464,8 @@ export const moderationService = {
     api.post<{ data: ModerationReport }>(`/moderation/queue/${encodeURIComponent(id)}`, { action, note, assignedToId }),
 };
 
+=======
+>>>>>>> origin/main
 const demoCommunities: CommunitySummary[] = [
   {
     id: "11111111-1111-4111-a111-111111111111",
@@ -614,6 +617,7 @@ export const communityAdminService = {
     }>("/admin/accounts", payload),
 };
 
+<<<<<<< HEAD
 export interface NotificationItem {
   id: string;
   community_id: string | null;
@@ -631,6 +635,13 @@ export const notificationService = {
     isDemoMode
       ? Promise.resolve({
           data: { items: page === 1 ? [
+=======
+export const notificationService = {
+  list: () =>
+    isDemoMode
+      ? Promise.resolve({
+          data: [
+>>>>>>> origin/main
             {
               id: "demo-community-notification",
               community_id: demoCommunities[0]!.id,
@@ -638,6 +649,7 @@ export const notificationService = {
               title: "Music",
               body: "Friday rehearsal begins at 5:00 PM.",
               href: "/app/communities/music?tab=announcements",
+<<<<<<< HEAD
               category: "FELLOWSHIP",
               read_at: null,
               created_at: new Date().toISOString(),
@@ -675,6 +687,29 @@ export interface NotificationPreferences {
   timezoneName: string;
 }
 
+=======
+              read_at: null,
+              created_at: new Date().toISOString(),
+            },
+          ],
+        })
+      : api.get<{
+          data: {
+            id: string;
+            community_id: string | null;
+            type: string;
+            title: string;
+            body: string;
+            href: string | null;
+            read_at: string | null;
+            created_at: string;
+          }[];
+        }>("/notifications"),
+  markRead: (id: string) =>
+    api.patch<void>(`/notifications/${encodeURIComponent(id)}/read`, {}),
+};
+
+>>>>>>> origin/main
 export const dashboardService = {
   get: (branchId: string, role: Role) =>
     api.get<{ data: DashboardPayload }>(
@@ -763,7 +798,11 @@ export const volunteerService = {
 };
 export const careService = {
   prayers: () => api.get<PagedResponse<PrayerEntry>>("/care/prayers"),
+<<<<<<< HEAD
   submitPrayer: (payload: { category: string; details: string; privacyLevel: "PRIVATE" | "PASTORAL"; consentToShare: boolean }) =>
+=======
+  submitPrayer: (payload: { category: string; details: string; privacyLevel: "PRIVATE" | "PASTORAL" }) =>
+>>>>>>> origin/main
     api.post<{ data: PrayerEntry }>("/care/prayers", payload),
   counsellingRequests: () => api.get<PagedResponse<PastoralCaseEntry>>("/care/pastoral-cases"),
   updateCounsellingCase: (id: string, payload: { status: string; closureReason?: string }) =>
@@ -878,11 +917,14 @@ export const attendanceService = {
       data: { result: "recorded" | "duplicate"; record: AttendanceRecord };
       message?: string;
     }>("/attendance/student-scan", { token }),
+<<<<<<< HEAD
   qrCheckIn: (payload: { token: string; sessionId: string }) =>
     api.post<{
       data: AttendanceRecord;
       message?: string;
     }>("/attendance/qr-check-in", payload),
+=======
+>>>>>>> origin/main
   manual: (payload: {
     identifier: string;
     sessionId: string;
@@ -1137,10 +1179,17 @@ export const privacyService = {
     api.patch<void>("/account/privacy-preferences", payload),
   requestExport: () =>
     api.post<{ data: { requestId: string } }>("/account/data-export-requests"),
+<<<<<<< HEAD
   requestDeletion: () =>
     api.post<{ data: { requestId: string } }>("/account/deletion-requests"),
   requests: () =>
     api.get<{ data: Array<{ id: string; request_type: string; status: string; created_at: string; completed_at: string | null; deletion_due_at: string | null }> }>("/account/deletion-requests"),
+=======
+  requestDeletion: (reason: string) =>
+    api.post<{ data: { requestId: string } }>("/account/deletion-requests", {
+      reason,
+    }),
+>>>>>>> origin/main
 };
 
 export function requireApiMode<T>(

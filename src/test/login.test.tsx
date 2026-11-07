@@ -49,7 +49,11 @@ describe("login", () => {
     await user.type(screen.getByLabelText(/email, matric number/i), "x");
     await user.type(screen.getByLabelText(/^password/i), "short");
     await user.click(screen.getByRole("button", { name: /sign in/i }));
+<<<<<<< HEAD
     expect(screen.getByText(/enter your email/i)).toBeInTheDocument();
+=======
+    expect(screen.getByRole("alert")).toHaveTextContent(/enter your email/i);
+>>>>>>> origin/main
   });
 
   it("provides an accessible password visibility control", async () => {
@@ -164,6 +168,7 @@ describe("login", () => {
     expect(fetchMock.mock.calls.some(([input]) => String(input).endsWith("/auth/logout/"))).toBe(true);
     finishLogout(new Response(null, { status: 204 }));
   });
+<<<<<<< HEAD
 
   it("keeps the dashboard route during an account service outage and retries", async () => {
     let attempts = 0;
@@ -206,4 +211,6 @@ describe("login", () => {
     await user.click(screen.getByRole("button", { name: "Retry" }));
     expect(await screen.findByRole("heading", { name: "Member dashboard" })).toBeInTheDocument();
   });
+=======
+>>>>>>> origin/main
 });

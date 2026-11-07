@@ -5,7 +5,10 @@ import { useEffect, useState, type FormEvent } from "react";
 import { Button, EmptyState, ErrorState, LoadingState, useToast } from "../components/ui";
 import { upperRoomService, type UpperRoomPost } from "../services/chapelflow";
 import { useAuth } from "./auth-context";
+<<<<<<< HEAD
 import { ReportContentButton } from "./moderation";
+=======
+>>>>>>> origin/main
 
 function failureMessage(error: unknown) {
   return error instanceof Error ? error.message : "The Upper Room could not complete that action. Try again.";
@@ -114,7 +117,12 @@ function PostCard({ post }: { post: UpperRoomPost }) {
     {post.caption && <p className="upper-room-post__caption">{post.caption}</p>}
     {post.media.length > 0 && <div className={`upper-room-post__media upper-room-post__media--${Math.min(post.media.length, 4)}`}>{post.media.map((media) => media.mediaType === "VIDEO" ? <video key={media.id} controls preload="metadata"><source src={media.url} /></video> : <img key={media.id} src={media.url} alt="Shared Upper Room post" loading="lazy" />)}</div>}
     <div className="upper-room-post__counts"><span>{post.likeCount ? `${post.likeCount} ${post.likeCount === 1 ? "like" : "likes"}` : "Be the first to like this"}</span><button type="button" onClick={() => setShowComments((open) => !open)}>{post.commentCount ? `${post.commentCount} ${post.commentCount === 1 ? "comment" : "comments"}` : "Comment"}</button></div>
+<<<<<<< HEAD
     <div className="upper-room-post__actions"><button type="button" className={post.isLiked ? "is-liked" : ""} disabled={like.isPending} onClick={() => like.mutate()}><Heart fill={post.isLiked ? "currentColor" : "none"} /> {post.isLiked ? "Liked" : "Like"}</button><button type="button" onClick={() => setShowComments((open) => !open)}><MessageCircle /> Comment</button><ReportContentButton targetKind="POST" targetId={post.id} label="Report post" /></div>
     {showComments && <div className="upper-room-post__comments">{comments.isPending ? <p>Loading conversation…</p> : comments.isError ? <p>Comments could not be loaded. Try again.</p> : comments.data?.length ? comments.data.map((item) => <article key={item.id}><span>{initials(item.authorName)}</span><p><strong>{item.authorName}</strong>{item.body}</p><ReportContentButton targetKind="COMMENT" targetId={item.id} label="Report comment" /></article>) : <p>Start the conversation with kindness.</p>}<form onSubmit={(event) => { event.preventDefault(); if (comment.trim()) addComment.mutate(); }}><input value={comment} onChange={(event) => setComment(event.target.value)} maxLength={750} placeholder="Add a thoughtful comment…" aria-label="Add a comment" /><Button type="submit" variant="ghost" loading={addComment.isPending} icon={<Send />}>Post</Button></form></div>}
+=======
+    <div className="upper-room-post__actions"><button type="button" className={post.isLiked ? "is-liked" : ""} disabled={like.isPending} onClick={() => like.mutate()}><Heart fill={post.isLiked ? "currentColor" : "none"} /> {post.isLiked ? "Liked" : "Like"}</button><button type="button" onClick={() => setShowComments((open) => !open)}><MessageCircle /> Comment</button></div>
+    {showComments && <div className="upper-room-post__comments">{comments.isPending ? <p>Loading conversation…</p> : comments.isError ? <p>Comments could not be loaded. Try again.</p> : comments.data?.length ? comments.data.map((item) => <article key={item.id}><span>{initials(item.authorName)}</span><p><strong>{item.authorName}</strong>{item.body}</p></article>) : <p>Start the conversation with kindness.</p>}<form onSubmit={(event) => { event.preventDefault(); if (comment.trim()) addComment.mutate(); }}><input value={comment} onChange={(event) => setComment(event.target.value)} maxLength={750} placeholder="Add a thoughtful comment…" aria-label="Add a comment" /><Button type="submit" variant="ghost" loading={addComment.isPending} icon={<Send />}>Post</Button></form></div>}
+>>>>>>> origin/main
   </article>;
 }

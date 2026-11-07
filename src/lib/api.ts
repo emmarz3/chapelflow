@@ -134,9 +134,13 @@ async function rawRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
     if (!response.ok) {
       const fallback = {
         code: "REQUEST_FAILED",
+<<<<<<< HEAD
         message: response.status === 503
           ? "ChapelFlow is temporarily unavailable. Please try again shortly."
           : "We could not complete that request.",
+=======
+        message: "We could not complete that request.",
+>>>>>>> origin/main
         status: response.status,
       };
       let body: Partial<ApiErrorShape> & { errors?: Record<string, string[]> } =

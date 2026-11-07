@@ -13,11 +13,15 @@ class NotificationChannel(models.TextChoices):
 
 class NotificationStatus(models.TextChoices):
     PENDING = "PENDING", "Pending"
+<<<<<<< HEAD
     SENDING = "SENDING", "Sending"
+=======
+>>>>>>> origin/main
     SENT = "SENT", "Sent"
     DELIVERED = "DELIVERED", "Delivered"
     FAILED = "FAILED", "Failed"
     STUBBED = "STUBBED", "Stubbed (provider not configured)"
+<<<<<<< HEAD
     SKIPPED = "SKIPPED", "Skipped by user preference"
 
 
@@ -33,6 +37,8 @@ class NotificationCategory(models.TextChoices):
     ADMIN_ALERT = "ADMIN_ALERT", "Administrative alert"
     BIRTHDAY = "BIRTHDAY", "Birthday"
     OTHER = "OTHER", "Other"
+=======
+>>>>>>> origin/main
 
 
 class BirthdayAnnouncement(models.Model):
@@ -77,11 +83,14 @@ class Notification(models.Model):
         related_name="notifications",
     )
     channel = models.CharField(max_length=10, choices=NotificationChannel.choices)
+<<<<<<< HEAD
     category = models.CharField(max_length=16, choices=NotificationCategory.choices, default=NotificationCategory.OTHER)
     href = models.CharField(max_length=255, blank=True)
     idempotency_key = models.CharField(max_length=255, null=True, blank=True, unique=True)
     scheduled_for = models.DateTimeField(null=True, blank=True)
     attempts = models.PositiveSmallIntegerField(default=0)
+=======
+>>>>>>> origin/main
     title = models.CharField(max_length=255)
     body = models.TextField()
     status = models.CharField(max_length=10, choices=NotificationStatus.choices, default=NotificationStatus.PENDING)

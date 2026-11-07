@@ -39,13 +39,19 @@ def send_due_event_reminders():
                 status=EventRegistrationStatus.CONFIRMED,
             ).select_related("member", "member__user")
 
+<<<<<<< HEAD
             from apps.notifications.models import NotificationCategory
             from apps.notifications.preferences import queue_notification
+=======
+            from apps.notifications.models import Notification
+            from apps.notifications.tasks import deliver_notification
+>>>>>>> origin/main
 
             event = reminder.schedule.event
             for registration in registrations:
                 if not registration.member.user_id:
                     continue
+<<<<<<< HEAD
                 notification = queue_notification(
                     recipient=registration.member.user,
                     recipient_member=registration.member,
@@ -57,5 +63,16 @@ def send_due_event_reminders():
                 )
                 if notification:
                     notifications_created += 1
+=======
+                notification = Notification.objects.create(
+                    recipient=registration.member.user,
+                    recipient_member=registration.member,
+                    channel=reminder.channel,
+                    title=f"Reminder: {event.title}",
+                    body=f"{event.title} starts at {reminder.schedule.occurrence_start:%Y-%m-%d %H:%M}.",
+                )
+                deliver_notification.delay(str(notification.id))
+                notifications_created += 1
+>>>>>>> origin/main
 
     return {"reminders_processed": reminders_processed, "notifications_created": notifications_created}
