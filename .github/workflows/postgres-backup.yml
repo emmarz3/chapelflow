@@ -1,0 +1,56 @@
+name: Encrypted PostgreSQL backup
+
+on:
+  schedule:
+    - cron: "17 2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: production-postgres-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    container: postgres:18
+    timeout-minutes: 30
+    env:
+      DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+      AGE_RECIPIENT: ${{ secrets.BACKUP_AGE_RECIPIENT }}
+      AWS_REGION: ${{ vars.BACKUP_AWS_REGION }}
+      S3_BUCKET: ${{ vars.BACKUP_S3_BUCKET }}
+    steps:
+      - name: Validate required configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$DATABASE_URL" || { echo "PRODUCTION_DATABASE_URL is required" >&2; exit 1; }
+          test -n "$AGE_RECIPIENT" || { echo "BACKUP_AGE_RECIPIENT is required" >&2; exit 1; }
+          test -n "$AWS_REGION" || { echo "BACKUP_AWS_REGION is required" >&2; exit 1; }
+          test -n "$S3_BUCKET" || { echo "BACKUP_S3_BUCKET is required" >&2; exit 1; }
+
+      - name: Install backup tools
+        run: |
+          apt-get update
+          apt-get install --yes age awscli
+
+      - name: Authenticate to AWS using GitHub OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.BACKUP_AWS_ROLE_ARN }}
+          aws-region: ${{ vars.BACKUP_AWS_REGION }}
+
+      - name: Dump, encrypt, and upload database
+        shell: bash
+        run: |
+          set -euo pipefail
+          timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
+          object="s3://${S3_BUCKET}/chapelflow/postgres/${timestamp}-${GITHUB_RUN_ID}.dump.age"
+          pg_dump --format=custom --no-owner --no-acl "$DATABASE_URL" \
+            | age --recipient "$AGE_RECIPIENT" \
+            | aws s3 cp - "$object" --sse AES256 --only-show-errors
+          echo "Encrypted backup uploaded: ${object}"

@@ -1,0 +1,763 @@
+import { afterEach, describe, expect, it, vi } from "vitest";
+vi.mock("../lib/backend", () => ({ isDjangoBackend: true }));
+import { apiRequest } from "../lib/api";
+
+const response = (data: unknown, status = 200) =>
+  new Response(JSON.stringify(data), { status, headers: { "Content-Type": "application/json" } });
+afterEach(() => vi.unstubAllGlobals());
+
+describe("Django API integration", () => {
+  it("maps notification categories, links and pagination", async () => {
+    const fetch = vi.fn().mockResolvedValue(response({ data: [{ id: "notice-1", title: "Event", body: "Soon", category: "EVENT", href: "/app/events", read_at: null, created_at: "2026-11-06T12:00:00Z" }], pagination: { current_page: 1, page_size: 25, count: 26 } }));
+    vi.stubGlobal("fetch", fetch);
+
+    const result = await apiRequest("/notifications?page=1&pageSize=25") as { data: { items: { category: string; href: string }[]; hasMore: boolean } };
+    expect(result.data.items[0]).toMatchObject({ category: "EVENT", href: "/app/events" });
+    expect(result.data.hasMore).toBe(true);
+    expect(String(fetch.mock.calls[0]?.[0])).toContain("/api/v1/notifications/?page=1&page_size=25");
+  });
+
+  it("sends notification settings and quiet hours to the self-service endpoint", async () => {
+    const fetch = vi.fn().mockResolvedValue(response({ data: { master_enabled: false, timezone_name: "Europe/London" } }));
+    vi.stubGlobal("fetch", fetch);
+
+    await apiRequest("/notifications/preferences", { method: "PATCH", body: JSON.stringify({
+      masterEnabled: false, eventsEnabled: false, emailEnabled: true, quietHoursEnabled: false,
+      quietHoursStart: "", quietHoursEnd: "", timezoneName: "Europe/London",
+    }) });
+
+    const [url, init] = fetch.mock.calls[0]!;
+    expect(String(url)).toContain("/api/v1/communications/preferences/me/");
+    expect(JSON.parse(init.body)).toMatchObject({ master_enabled: false, events_enabled: false, quiet_hours_start: null, timezone_name: "Europe/London" });
+  });
+
+  it("sends community reports with server field names", async () => {
+    const fetch = vi.fn().mockResolvedValue(response({ data: { id: "report-1", status: "PENDING" } }, 201));
+    vi.stubGlobal("fetch", fetch);
+
+    await apiRequest("/moderation/reports", {
+      method: "POST",
+      body: JSON.stringify({ targetKind: "POST", targetId: "post-1", reason: "PRIVACY", explanation: "Private information" }),
+    });
+
+    const [url, init] = fetch.mock.calls[0]!;
+    expect(String(url)).toContain("/api/v1/moderation/reports/");
+    expect(JSON.parse(init.body)).toEqual({ target_kind: "POST", target_id: "post-1", reason: "PRIVACY", explanation: "Private information" });
+  });
+
+  it("sends moderator actions to the scoped review endpoint", async () => {
+    const fetch = vi.fn().mockResolvedValue(response({ data: { id: "report-1", status: "REVIEWED" } }));
+    vi.stubGlobal("fetch", fetch);
+
+    await apiRequest("/moderation/queue/report-1", { method: "POST", body: JSON.stringify({ action: "HIDE", note: "Confirmed" }) });
+
+    const [url, init] = fetch.mock.calls[0]!;
+    expect(String(url)).toContain("/api/v1/moderation/queue/report-1/");
+    expect(JSON.parse(init.body)).toMatchObject({ action: "HIDE", note: "Confirmed" });
+  });
+
+  it("sends a student's selected academic level during registration", async () => {
+    const fetch = vi.fn().mockResolvedValue(response({ data: { user: { id: "user-1" } } }, 201));
+    vi.stubGlobal("fetch", fetch);
+
+    await apiRequest("/auth/register", {
+      method: "POST",
+      body: JSON.stringify({
+        email: "ada@example.edu",
+        password: "StrongPass123!",
+        identifier: "SWE/2026/001",
+        firstName: "Ada",
+        lastName: "Test",
+        phone: "",
+        memberType: "Student",
+        level: "600",
+        acceptedPolicies: true,
+      }),
+    });
+
+    const [, init] = fetch.mock.calls[0]!;
+    expect(JSON.parse(init.body)).toMatchObject({
+      matric_no: "SWE/2026/001",
+      community: "STUDENT",
+      academic_level: "600",
+    });
+  });
+
+  it("sends prayer sharing consent to the server as a distinct field", async () => {
+    const fetch = vi.fn().mockResolvedValue(response({ data: { id: "prayer-1" } }, 201));
+    vi.stubGlobal("fetch", fetch);
+
+    await apiRequest("/care/prayers", {
+      method: "POST",
+      body: JSON.stringify({
+        category: "OTHER",
+        details: "Please pray with me",
+        privacyLevel: "PASTORAL",
+        consentToShare: true,
+      }),
+    });
+
+    const [url, init] = fetch.mock.calls[0]!;
+    expect(String(url)).toContain("/api/v1/prayer/requests/");
+    expect(JSON.parse(init.body)).toEqual({
+      category: "OTHER",
+      details: "Please pray with me",
+      privacy_level: "PASTORAL",
+      consent_to_share: true,
+    });
+  });
+
+  it.each([
+    ["Staff", "staff@example.edu.ng", "STAFF"],
+    ["Guest", "guest@example.com", "GUEST"],
+  ])("registers a %s with email only", async (memberType, email, community) => {
+    const fetch = vi.fn().mockResolvedValue(response({ data: { user: { id: "user-1" } } }, 201));
+    vi.stubGlobal("fetch", fetch);
+
+    await apiRequest("/auth/register", {
+      method: "POST",
+      body: JSON.stringify({
+        email,
+        password: "StrongPass123!",
+        firstName: "Email",
+        lastName: "Only",
+        phone: "",
+        memberType,
+        acceptedPolicies: true,
+      }),
+    });
+
+    const [, init] = fetch.mock.calls[0]!;
+    const payload = JSON.parse(init.body);
+    expect(payload).toMatchObject({ email, community });
+    expect(payload).not.toHaveProperty("matric_no");
+    expect(payload).not.toHaveProperty("academic_level");
+  });
+
+  it("maps a staff account to the limited account experience", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response({
+      data: {
+        id: "staff-1",
+        role: "MEMBER",
+        first_name: "Tolu",
+        last_name: "Staff",
+        email: "tolu@example.edu.ng",
+        community: "STAFF",
+      },
+    })));
+
+    await expect(apiRequest("/auth/me")).resolves.toMatchObject({
+      data: { role: "member", community: "staff" },
+    });
+  });
+
+  it("maps Django sessions to the account security view model", async () => {
+    const fetch = vi.fn().mockResolvedValue(response({ data: [
+      { jti: "session-1", created_at: "2026-09-24T10:00:00Z", expires_at: "2026-10-24T10:00:00Z", is_current: true },
+      { jti: "session-2", created_at: "2026-09-23T10:00:00Z", expires_at: "2026-10-23T10:00:00Z", is_current: false },
+    ] }));
+    vi.stubGlobal("fetch", fetch);
+
+    await expect(apiRequest("/auth/sessions")).resolves.toMatchObject({
+      data: [
+        { id: "session-1", device: "Signed-in device", lastActiveAt: "2026-09-24T10:00:00Z", current: true },
+        { id: "session-2", device: "Signed-in device", lastActiveAt: "2026-09-23T10:00:00Z", current: false },
+      ],
+    });
+    expect(fetch.mock.calls[0]?.[0]).toBe("/api/v1/auth/sessions/");
+  });
+
+  it("derives the current chapel session and joins its attendance records", async () => {
+    const now = Date.now();
+    const opensAt = new Date(now - 60_000).toISOString();
+    const closesAt = new Date(now + 3_600_000).toISOString();
+    const fetch = vi.fn()
+      .mockResolvedValueOnce(response({ data: [{ id: "session-1", branch: "branch-1", label: "Sunday service", venue: "Chapel", is_open: true, state: "OPEN", opened_at: opensAt, window_opens_at: opensAt, window_closes_at: closesAt, record_count: 1 }] }))
+      .mockResolvedValueOnce(response({ data: [{ id: "member-1", full_name: "Ada Okafor", email: "ada@example.edu", matric_no: "CU/26/101" }] }))
+      .mockResolvedValueOnce(response({ data: [{ id: "record-1", member: "member-1", method: "QR_CODE", status: "PRESENT", checked_in_at: opensAt }] }));
+    vi.stubGlobal("fetch", fetch);
+
+    await expect(apiRequest("/attendance/sessions/current?branch=branch-1")).resolves.toMatchObject({
+      data: {
+        session: { id: "session-1", title: "Sunday service", venue: "Chapel", status: "open", count: 1 },
+        records: [{ id: "record-1", memberName: "Ada Okafor", method: "qr", status: "present" }],
+      },
+    });
+    expect(fetch.mock.calls.map(([url]) => url)).toEqual([
+      "/api/v1/attendance/sessions/?branch=branch-1&page_size=100",
+      "/api/v1/members/?branch=branch-1&page_size=100",
+      "/api/v1/attendance/records/?session=session-1&page_size=100",
+    ]);
+  });
+
+  it("includes venue when listing attendance sessions", async () => {
+    const fetch = vi.fn().mockResolvedValue(response({
+      data: [{
+        id: "session-3",
+        label: "Midweek Service",
+        venue: "Marquee",
+        is_open: true,
+        state: "OPEN",
+        opened_at: "2026-09-24T08:00:00Z",
+        window_opens_at: "2026-09-24T08:00:00Z",
+        window_closes_at: "2026-09-24T09:00:00Z",
+      }],
+    }));
+    vi.stubGlobal("fetch", fetch);
+
+    await expect(apiRequest("/attendance/sessions?branch=branch-1")).resolves.toMatchObject({
+      data: [{ id: "session-3", title: "Midweek Service", venue: "Marquee" }],
+    });
+  });
+
+  it("sends an online kiosk check-in through Django's member and session endpoint", async () => {
+    const fetch = vi.fn()
+      .mockResolvedValueOnce(response({ data: [{ id: "member-1", email: "ada@example.edu", matric_no: "CU/26/101" }] }))
+      .mockResolvedValueOnce(response({ data: { id: "record-1" } }, 201));
+    vi.stubGlobal("fetch", fetch);
+
+    await apiRequest("/attendance/manual", {
+      method: "POST",
+      body: JSON.stringify({ branchId: "branch-1", sessionId: "session-1", identifier: "CU/26/101" }),
+    });
+
+    expect(fetch.mock.calls.map(([url]) => url)).toEqual([
+      "/api/v1/members/?branch=branch-1&search=CU%2F26%2F101&page_size=100",
+      "/api/v1/attendance/manual/",
+    ]);
+    expect(JSON.parse(fetch.mock.calls[1]![1].body)).toEqual({
+      member_id: "member-1",
+      session_id: "session-1",
+    });
+  });
+
+  it("resolves and idempotently syncs an offline kiosk check-in", async () => {
+    const fetch = vi.fn()
+      .mockResolvedValueOnce(response({ data: [{ id: "member-1", email: "ada@example.edu", matric_no: "CU/26/101" }] }))
+      .mockResolvedValueOnce(response({ data: { results: [{ index: 0, status: "synced", record_id: "record-1" }] } }));
+    vi.stubGlobal("fetch", fetch);
+
+    await expect(apiRequest("/attendance/sync-record", {
+      method: "POST",
+      body: JSON.stringify({
+        branchId: "branch-1",
+        record: {
+          clientRecordId: "offline-1",
+          sessionId: "session-1",
+          memberIdentifier: "CU/26/101",
+          checkedInAt: "2026-10-22T10:15:00.000Z",
+          method: "kiosk",
+        },
+      }),
+    })).resolves.toMatchObject({ data: { status: "synced" } });
+
+    expect(fetch.mock.calls.map(([url]) => url)).toEqual([
+      "/api/v1/members/?branch=branch-1&search=CU%2F26%2F101&page_size=100",
+      "/api/v1/attendance/sync/",
+    ]);
+    expect(JSON.parse(fetch.mock.calls[1]![1].body)).toEqual({
+      records: [{
+        client_record_id: "offline-1",
+        member_id: "member-1",
+        session_id: "session-1",
+        checked_in_at: "2026-10-22T10:15:00.000Z",
+        method: "KIOSK",
+      }],
+    });
+  });
+
+  it("loads the logged-in usher checkpoint token from its dedicated endpoint", async () => {
+    const fetch = vi.fn().mockResolvedValue(response({ data: {
+      token: "signed-live-token",
+      expires_at: "2026-10-04T09:00:45Z",
+      rotation_seconds: 45,
+      checkpoint_id: "checkpoint-1",
+      checkpoint_name: "Main Chapel",
+      successful_scans: 3,
+      session: { id: "session-1", label: "Eve", state: "OPEN" },
+    } }));
+    vi.stubGlobal("fetch", fetch);
+
+    await expect(apiRequest("/attendance/checkpoint/token")).resolves.toMatchObject({
+      data: { token: "signed-live-token", rotation_seconds: 45, successful_scans: 3, session: { id: "session-1" } },
+    });
+    expect(fetch.mock.calls[0]?.[0]).toBe("/api/v1/attendance/checkpoint/token/");
+  });
+
+  it("maps kiosk identity QR check-in to the staff QR endpoint", async () => {
+    const fetch = vi.fn().mockResolvedValue(response({ data: { id: "record-1", status: "present" }, message: "Checked in successfully." }, 201));
+    vi.stubGlobal("fetch", fetch);
+    await apiRequest("/attendance/qr-check-in", {
+      method: "POST",
+      body: JSON.stringify({ token: "member-identity-token", sessionId: "session-1" }),
+    });
+    expect(fetch.mock.calls[0]?.[0]).toBe("/api/v1/attendance/qr-check-in/");
+    expect(JSON.parse(String(fetch.mock.calls[0]?.[1]?.body))).toEqual({
+      token: "member-identity-token",
+      session_id: "session-1",
+    });
+  });
+
+  it("submits explicit shift windows with volunteer assignments", async () => {
+    const fetch = vi.fn().mockResolvedValue(response({ data: {
+      id: "assignment-1",
+      volunteer: "profile-1",
+      role: "USHER",
+      status: "PENDING",
+      shift_starts_at: "2026-10-04T09:00:00Z",
+      shift_ends_at: "2026-10-05T09:00:00Z",
+    } }, 201));
+    vi.stubGlobal("fetch", fetch);
+
+    await apiRequest("/volunteers/assignments", {
+      method: "POST",
+      body: JSON.stringify({
+        volunteer: "profile-1",
+        role: "USHER",
+        shift_starts_at: "2026-10-04T09:00:00Z",
+        shift_ends_at: "2026-10-05T09:00:00Z",
+      }),
+    });
+
+    expect(fetch.mock.calls[0]?.[0]).toBe("/api/v1/volunteers/assignments/");
+    expect(JSON.parse(fetch.mock.calls[0]?.[1].body)).toMatchObject({
+      shift_starts_at: "2026-10-04T09:00:00Z",
+      shift_ends_at: "2026-10-05T09:00:00Z",
+    });
+  });
+
+  it("maps attendance creation and correction to Django fields and methods", async () => {
+    const fetch = vi.fn()
+      .mockResolvedValueOnce(response({ data: { id: "session-2" } }, 201))
+      .mockResolvedValueOnce(response({ data: { id: "record-1" } }));
+    vi.stubGlobal("fetch", fetch);
+    const date = "2026-10-04";
+
+    await apiRequest("/attendance/sessions", {
+      method: "POST",
+      body: JSON.stringify({ title: "Sunday service", date, opensAt: "09:00", closesAt: "11:00", branchId: "branch-1", venue: "Marquee" }),
+    });
+    await apiRequest("/attendance/records/record-1", {
+      method: "PATCH",
+      body: JSON.stringify({ status: "LATE", reason: "Verified against the usher register." }),
+    });
+
+    const expectedOpen = new Date(`${date}T09:00`).toISOString();
+    const expectedClose = new Date(`${date}T11:00`).toISOString();
+    expect(fetch.mock.calls[0]?.[0]).toBe("/api/v1/attendance/sessions/");
+    expect(JSON.parse(fetch.mock.calls[0]?.[1].body)).toEqual({
+      branch: "branch-1",
+      label: "Sunday service",
+      venue: "Marquee",
+      window_opens_at: expectedOpen,
+      window_closes_at: expectedClose,
+    });
+    expect(fetch.mock.calls[1]?.[0]).toBe("/api/v1/attendance/records/record-1/correct/");
+    expect(fetch.mock.calls[1]?.[1]).toMatchObject({ method: "POST", body: JSON.stringify({ status: "LATE", reason: "Verified against the usher register." }) });
+  });
+
+  it("maps attendance session edits and deletes to the Django detail route", async () => {
+    const fetch = vi.fn()
+      .mockResolvedValueOnce(response({ data: { id: "session-1" } }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+    vi.stubGlobal("fetch", fetch);
+
+    await apiRequest("/attendance/sessions/session-1", {
+      method: "PATCH",
+      body: JSON.stringify({ title: "Eve service", venue: "Marquee", date: "2026-10-04", opensAt: "09:00", closesAt: "11:00" }),
+    });
+    await apiRequest("/attendance/sessions/session-1", { method: "DELETE" });
+
+    expect(fetch.mock.calls[0]?.[0]).toBe("/api/v1/attendance/sessions/session-1/");
+    expect(fetch.mock.calls[0]?.[1]).toMatchObject({ method: "PATCH" });
+    expect(JSON.parse(fetch.mock.calls[0]?.[1].body)).toMatchObject({
+      label: "Eve service",
+      venue: "Marquee",
+      window_opens_at: new Date("2026-10-04T09:00").toISOString(),
+    });
+    expect(fetch.mock.calls[1]?.[0]).toBe("/api/v1/attendance/sessions/session-1/");
+    expect(fetch.mock.calls[1]?.[1]).toMatchObject({ method: "DELETE" });
+  });
+
+  it("loads session attendance records and member names for live updates", async () => {
+    const fetch = vi.fn()
+      .mockResolvedValueOnce(response({ data: [{
+        id: "record-1", session: "session-1", member: "member-1", method: "QR_CODE", status: "PRESENT", checked_in_at: "2026-10-04T09:01:00Z",
+      }] }))
+      .mockResolvedValueOnce(response({ data: [{
+        id: "member-1", full_name: "Ada Test", matric_no: "CU/26/001", email: "ada@example.edu",
+      }] }));
+    vi.stubGlobal("fetch", fetch);
+
+    await expect(apiRequest("/attendance/records?session=session-1&branch=branch-1")).resolves.toMatchObject({
+      data: [{ id: "record-1", memberName: "Ada Test", identifier: "CU/26/001", method: "qr", status: "present" }],
+    });
+    expect(fetch.mock.calls.map(([url]) => url)).toEqual([
+      "/api/v1/attendance/records/?session=session-1&page_size=100",
+      "/api/v1/members/?branch=branch-1&page_size=100",
+    ]);
+  });
+
+  it("shows backend validation details when attendance session creation fails", async () => {
+    const fetch = vi.fn().mockResolvedValue(response({
+      success: false,
+      message: "Validation failed.",
+      errors: { venue: ["This field is required."] },
+    }, 400));
+    vi.stubGlobal("fetch", fetch);
+
+    await expect(apiRequest("/attendance/sessions", {
+      method: "POST",
+      body: JSON.stringify({
+        title: "Sunday service",
+        date: "2026-10-04",
+        opensAt: "09:00",
+        closesAt: "11:00",
+        branchId: "branch-1",
+        venue: "",
+      }),
+    })).rejects.toMatchObject({
+      message: "Validation failed. venue: This field is required.",
+      fieldErrors: { venue: ["This field is required."] },
+      status: 400,
+    });
+
+    expect(fetch.mock.calls[0]?.[0]).toBe("/api/v1/attendance/sessions/");
+    expect(JSON.parse(fetch.mock.calls[0]?.[1].body)).toMatchObject({ branch: "branch-1", venue: "" });
+  });
+
+  it("uses the real JWT login endpoint without sending credentials to browser-only routes", async () => {
+    const fetch = vi.fn().mockResolvedValue(response({
+      data: { user: { id: "user-1", role: "MEMBER", first_name: "Ada", last_name: "Test", email: "ada@example.edu", effective_permissions: ["events.view"] } },
+    }));
+    vi.stubGlobal("fetch", fetch);
+
+    await expect(apiRequest("/auth/login", { method: "POST", body: JSON.stringify({ identifier: "SWE/2024/005", password: "secret" }) }))
+      .resolves.toMatchObject({ data: { id: "user-1", role: "member", name: "Ada Test", permissions: ["dashboard:view", "events:read"] } });
+
+    expect(fetch).toHaveBeenCalledTimes(1);
+    const [url, init] = fetch.mock.calls[0]!;
+    expect(url).toBe("/api/v1/auth/login/");
+    expect(init.credentials).toBe("include");
+    expect(JSON.parse(init.body)).toEqual({ matric_no: "SWE/2024/005", password: "secret" });
+  });
+
+  it("maps Django pagination, filters, and member fields", async () => {
+    const fetch = vi.fn().mockResolvedValue(response({
+      data: [{ id: "m1", full_name: "Ada Test", membership_status: "ACTIVE" }],
+      pagination: { count: 42, current_page: 2, page_size: 10 },
+    }));
+    vi.stubGlobal("fetch", fetch);
+    await expect(apiRequest("/members?page=2&pageSize=10&status=active")).resolves.toMatchObject({
+      total: 42, page: 2, pageSize: 10, data: [{ name: "Ada Test", status: "active" }],
+    });
+    expect(fetch.mock.calls[0]?.[0]).toBe("/api/v1/members/?page=2&page_size=10&membership_status=ACTIVE");
+  });
+
+  it("keeps legacy Unit Leader accounts in the Unit Leader workspace", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response({
+      data: {
+        id: "legacy-unit-leader",
+        role: "UNIT_LEADER",
+        first_name: "Legacy",
+        last_name: "Leader",
+      },
+    })));
+
+    await expect(apiRequest("/auth/me")).resolves.toMatchObject({
+      data: { role: "unit_leader" },
+    });
+  });
+
+  it("grants the inventory route only when Django confirms the Protocol inventory assignment", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response({
+      data: {
+        id: "protocol-leader",
+        role: "UNIT_HEAD",
+        first_name: "Tomi",
+        last_name: "Protocol",
+        inventory_access: true,
+      },
+    })));
+
+    await expect(apiRequest("/auth/me")).resolves.toMatchObject({
+      data: { role: "unit_leader", permissions: expect.arrayContaining(["assets:read", "assets:write"]) },
+    });
+  });
+
+  it("grants media publishing only when Django confirms the approved media assignment", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response({
+      data: {
+        id: "media-leader",
+        role: "UNIT_HEAD",
+        first_name: "Mira",
+        last_name: "Media",
+        media_access: true,
+      },
+    })));
+
+    await expect(apiRequest("/auth/me")).resolves.toMatchObject({
+      data: { role: "unit_leader", permissions: expect.arrayContaining(["media:write"]) },
+    });
+  });
+
+  it("sends device uploads as multipart requests to the Django endpoints", async () => {
+    const fetch = vi.fn().mockResolvedValue(response({ data: { file_url: "https://files.example/photo.jpg" } }, 201));
+    fetch.mockResolvedValueOnce(response({ data: { photo_url: "https://files.example/photo.jpg" } }, 201));
+    vi.stubGlobal("fetch", fetch);
+    const photo = new File(["image"], "photo.jpg", { type: "image/jpeg" });
+    const payload = new FormData();
+    payload.set("file", photo);
+
+    await apiRequest("/account/profile/photo", { method: "POST", body: payload });
+    await apiRequest("/uploads", { method: "POST", body: payload });
+
+    expect(fetch.mock.calls.map(([url]) => url)).toEqual([
+      "/api/v1/auth/profile/photo/",
+      "/api/v1/uploads/upload/",
+    ]);
+    expect(fetch.mock.calls[0]?.[1].headers.get("Content-Type")).toBeNull();
+  });
+
+  it("routes homepage content and sign-up operations to their Django endpoints", async () => {
+    const fetch = vi.fn().mockImplementation(() => Promise.resolve(response({ data: {} })));
+    vi.stubGlobal("fetch", fetch);
+
+    await apiRequest("/site/homepage");
+    await apiRequest("/site/homepage/requests", { method: "POST", body: JSON.stringify({ kind: "event" }) });
+    await apiRequest("/operations/homepage", { method: "PUT", body: JSON.stringify({ content: {}, version: 0 }) });
+    await apiRequest("/operations/homepage", { method: "DELETE" });
+    await apiRequest("/operations/homepage/requests?kind=EVENT&search=Ada");
+    await apiRequest("/operations/homepage/requests/request-1", { method: "PATCH", body: JSON.stringify({ status: "CLOSED" }) });
+    await apiRequest("/operations/homepage/requests/request-1", { method: "DELETE" });
+
+    expect(fetch.mock.calls.map(([url, init]) => [url, init?.method ?? "GET"])).toEqual([
+      ["/api/v1/site/homepage/", "GET"],
+      ["/api/v1/site/homepage/requests/", "POST"],
+      ["/api/v1/operations/homepage/", "PUT"],
+      ["/api/v1/operations/homepage/", "DELETE"],
+      ["/api/v1/operations/homepage/requests/?kind=EVENT&search=Ada", "GET"],
+      ["/api/v1/operations/homepage/requests/request-1/", "PATCH"],
+      ["/api/v1/operations/homepage/requests/request-1/", "DELETE"],
+    ]);
+  });
+
+  it("loads the admin dashboard for administrator sessions", async () => {
+    const fetch = vi.fn().mockResolvedValue(response({
+      data: {
+        members: { total_members: 42, active_members: 38 },
+        events: { upcoming_events: 3 },
+      },
+    }));
+    vi.stubGlobal("fetch", fetch);
+
+    await expect(apiRequest("/dashboard?role=super_admin")).resolves.toMatchObject({
+      data: {
+        metrics: [
+          { label: "members total members", value: "42" },
+          { label: "members active members", value: "38" },
+          { label: "events upcoming events", value: "3" },
+        ],
+      },
+    });
+    expect(fetch.mock.calls[0]?.[0]).toBe("/api/v1/dashboard/admin/");
+  });
+
+  it("normalizes backend validation errors", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response({ message: "Validation failed.", errors: { email: ["Already registered"] } }, 400)));
+    await expect(apiRequest("/auth/login", { method: "POST", body: "{}" })).rejects.toMatchObject({
+      status: 400, fieldErrors: { email: ["Already registered"] },
+    });
+  });
+
+  it("renews an expired access cookie before treating a Django session as signed out", async () => {
+    const fetch = vi
+      .fn()
+      .mockResolvedValueOnce(response({ detail: "Token is invalid" }, 401))
+      .mockResolvedValueOnce(response({ data: {} }))
+      .mockResolvedValueOnce(response({
+        data: { id: "user-1", role: "MEMBER", first_name: "Ada", last_name: "Test" },
+      }));
+    vi.stubGlobal("fetch", fetch);
+
+    await expect(apiRequest("/auth/me")).resolves.toMatchObject({ data: { id: "user-1" } });
+    expect(fetch.mock.calls.map(([url]) => url)).toEqual([
+      "/api/v1/auth/me/",
+      "/api/v1/auth/refresh/",
+      "/api/v1/auth/me/",
+    ]);
+  });
+
+  it("re-reads the rotated CSRF cookie before retrying a mutation after refresh", async () => {
+    document.cookie = "chapelflow_csrf=v1";
+    const fetch = vi
+      .fn()
+      .mockImplementationOnce(() =>
+        Promise.resolve(response({ detail: "Token is invalid" }, 401)))
+      .mockImplementationOnce(() => {
+        // The backend rotates the CSRF cookie on every refresh.
+        document.cookie = "chapelflow_csrf=v2";
+        return Promise.resolve(response({ data: { access: "new-access" } }));
+      })
+      .mockImplementationOnce(() =>
+        Promise.resolve(response({ data: { ok: true } })));
+    vi.stubGlobal("fetch", fetch);
+
+    try {
+      await apiRequest("/volunteers/assignments", {
+        method: "POST",
+        body: "{}",
+      });
+      const retryInit = fetch.mock.calls[2]![1];
+      expect(new Headers(retryInit.headers).get("X-ChapelFlow-CSRF")).toBe("v2");
+    } finally {
+      document.cookie =
+        "chapelflow_csrf=; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+    }
+  });
+
+  it("does not send unsupported operations to unrelated endpoints", async () => {
+    const fetch = vi.fn();
+    vi.stubGlobal("fetch", fetch);
+    await expect(apiRequest("/members", { method: "POST", body: "{}" })).rejects.toMatchObject({ code: "UNSUPPORTED_OPERATION" });
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["/worker-assignments", "/api/v1/operations/workers/?page=1"],
+    ["/finance/transactions", "/api/v1/operations/finance/?page=1"],
+    ["/communications/broadcasts", "/api/v1/operations/communication/?page=1"],
+    ["/assets", "/api/v1/operations/assets/?page=1"],
+    ["/media", "/api/v1/operations/media/?page=1"],
+    ["/cms/content", "/api/v1/operations/cms/?page=1"],
+  ])("connects the %s operations page to Django", async (frontendPath, djangoPath) => {
+    const fetch = vi.fn().mockResolvedValue(response({
+      data: [{ id: "record-1", primary: "Record", secondary: "Branch", detail: "Details", status: "ACTIVE" }],
+    }));
+    vi.stubGlobal("fetch", fetch);
+
+    await expect(apiRequest(`${frontendPath}?page=1`)).resolves.toMatchObject({
+      data: [{ id: "record-1", primary: "Record", status: "ACTIVE" }],
+    });
+    expect(fetch.mock.calls[0]?.[0]).toBe(djangoPath);
+  });
+
+  it("connects analytics, audit, privacy, and operation actions to Django", async () => {
+    const fetch = vi.fn().mockImplementation(() => Promise.resolve(response({ data: [] })));
+    vi.stubGlobal("fetch", fetch);
+
+    await apiRequest("/analytics/overview?page=1");
+    await apiRequest("/audit-events?page=1");
+    await apiRequest("/account/data-export-requests", { method: "POST", body: "{}" });
+    await apiRequest("/assets/asset-1/movements", {
+      method: "POST", body: JSON.stringify({ action: "issue" }),
+    });
+
+    expect(fetch.mock.calls.map(([url]) => url)).toEqual([
+      "/api/v1/analytics/overview/?page=1",
+      "/api/v1/audit/logs/?page=1",
+      "/api/v1/account/data-export-requests/",
+      "/api/v1/operations/assets/asset-1/movement/",
+    ]);
+  });
+
+  it("maps inventory readiness alerts from the protected Django endpoint", async () => {
+    const fetch = vi.fn().mockResolvedValue(response({
+      data: {
+        low_stock: [{ id: "asset-1", primary: "Communion cups", status: "LOW_STOCK", quantity_on_hand: 2, reorder_level: 12 }],
+        maintenance_due: [{ id: "maintenance-1", asset: "asset-2", title: "Service speaker", details: "Annual check", due_at: "2026-09-19", status: "SCHEDULED" }],
+      },
+    }));
+    vi.stubGlobal("fetch", fetch);
+
+    await expect(apiRequest("/assets/alerts")).resolves.toMatchObject({
+      data: {
+        lowStock: [{ id: "asset-1", quantityOnHand: 2, lowStock: false }],
+        maintenanceDue: [{ id: "maintenance-1", assetId: "asset-2", dueAt: "2026-09-19" }],
+      },
+    });
+    expect(fetch.mock.calls[0]?.[0]).toBe("/api/v1/operations/assets/alerts/");
+  });
+
+  it("maps protected inventory history to the register view", async () => {
+    const fetch = vi.fn().mockResolvedValue(response({
+      data: {
+        movements: [{ id: "movement-1", movement_type: "ISSUE", quantity_change: -1, quantity_after: 4, reason: "Sunday service", created_at: "2026-09-19T10:00:00Z" }],
+        maintenance: [{ id: "maintenance-1", title: "Speaker service", due_at: "2026-09-20", status: "SCHEDULED", completed_at: null }],
+      },
+    }));
+    vi.stubGlobal("fetch", fetch);
+
+    await expect(apiRequest("/assets/asset-1/history")).resolves.toMatchObject({
+      data: {
+        movements: [{ type: "ISSUE", quantityChange: -1, quantityAfter: 4 }],
+        maintenance: [{ dueAt: "2026-09-20", completedAt: null }],
+      },
+    });
+    expect(fetch.mock.calls[0]?.[0]).toBe("/api/v1/operations/assets/asset-1/history/");
+  });
+
+  it("passes public media searches and gallery details to Django", async () => {
+    const fetch = vi.fn().mockImplementation(() =>
+      Promise.resolve(response({ data: { sections: [] } })),
+    );
+    vi.stubGlobal("fetch", fetch);
+
+    await apiRequest("/public/content/sermons?search=faith");
+    await apiRequest("/public/gallery/welcome-service");
+
+    expect(fetch.mock.calls.map(([url]) => url)).toEqual([
+      "/api/v1/public/content/sermons/?search=faith",
+      "/api/v1/public/gallery/welcome-service/",
+    ]);
+  });
+
+  it("maps the editorial review workflow to Django", async () => {
+    const fetch = vi.fn().mockResolvedValue(response({
+      data: {
+        id: "content-1",
+        primary: "Sunday message",
+        secondary: "Sermon",
+        detail: "A published message",
+        status: "IN_REVIEW",
+        content_type: "SERMON",
+      },
+    }));
+    vi.stubGlobal("fetch", fetch);
+
+    await expect(
+      apiRequest("/cms/content/content-1/submit", {
+        method: "POST",
+        body: "{}",
+      }),
+    ).resolves.toMatchObject({
+      data: { id: "content-1", status: "IN_REVIEW", contentType: "SERMON" },
+    });
+    expect(fetch.mock.calls[0]?.[0]).toBe(
+      "/api/v1/operations/cms/content-1/submit/",
+    );
+  });
+
+  it("connects testimony moderation and private community resources to Django", async () => {
+    const fetch = vi.fn()
+      .mockResolvedValueOnce(response({ data: { id: "testimony-1", title: "Answered prayer", details: "Details", consent_to_publish: true, status: "PENDING", created_at: "2026-09-19T10:00:00Z" } }, 201))
+      .mockResolvedValueOnce(response({ data: [{ id: "resource-1", title: "Study guide", url: "https://example.edu/guide", description: "Week one", created_at: "2026-09-19T10:00:00Z", created_by_name: "Leader" }] }));
+    vi.stubGlobal("fetch", fetch);
+
+    await expect(apiRequest("/care/testimonies", {
+      method: "POST",
+      body: JSON.stringify({ title: "Answered prayer", details: "Details", consentToPublish: true }),
+    })).resolves.toMatchObject({ data: { consentToPublish: true, status: "PENDING" } });
+    await expect(apiRequest("/communities/group-1/resources")).resolves.toMatchObject({
+      data: [{ title: "Study guide" }],
+    });
+
+    expect(fetch.mock.calls.map(([url]) => url)).toEqual([
+      "/api/v1/prayer/testimonies/",
+      "/api/v1/community-memberships/group-1/resources/",
+    ]);
+    expect(JSON.parse(fetch.mock.calls[0]?.[1].body)).toEqual({
+      title: "Answered prayer", details: "Details", consent_to_publish: true,
+    });
+  });
+});
