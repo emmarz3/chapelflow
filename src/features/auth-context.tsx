@@ -32,7 +32,10 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 let authBootstrapRequest: ReturnType<typeof loadCurrentUser> | null = null;
 
-function loadCurrentUser() {
+async function loadCurrentUser() {
+  // The API cookie belongs to a different Render origin. Bootstrap the
+  // partitioned CSRF cookie and retain its matching token in memory first.
+  await api.get<{ data: { csrf_token: string } }>("/auth/csrf");
   return api.get<{ data: User }>("/auth/me");
 }
 
