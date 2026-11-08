@@ -4,6 +4,7 @@ cloudinary/boto3 directly — swap STORAGE_PROVIDER in settings and every
 caller of get_storage_service() gets the new backend for free.
 """
 import mimetypes
+from io import BytesIO
 import time
 import uuid
 from urllib.parse import urlparse
@@ -68,10 +69,24 @@ class LocalStorageService(StorageService):
 
 
 class CloudinaryStorageService(StorageService):
+    def _credentials(self) -> dict:
+        # The SDK does not read Django's CLOUDINARY_* settings itself. Pass
+        # them per operation rather than mutating the SDK's global config.
+        # Leave unset values out so CLOUDINARY_URL remains supported too.
+        return {
+            key: value
+            for key, value in {
+                "cloud_name": settings.CLOUDINARY_CLOUD_NAME,
+                "api_key": settings.CLOUDINARY_API_KEY,
+                "api_secret": settings.CLOUDINARY_API_SECRET,
+            }.items()
+            if value
+        }
+
     def upload_bytes(self, content: bytes, filename: str, content_type: str = "") -> str:
         import cloudinary.uploader
         result = cloudinary.uploader.upload(
-            content, public_id=filename, resource_type="auto",
+            BytesIO(content), public_id=filename, resource_type="auto", **self._credentials(),
         )
         return result["secure_url"]
 
@@ -80,7 +95,7 @@ class CloudinaryStorageService(StorageService):
         resource_type = "raw" if private else "auto"
         options = {"type": "private"} if private else {}
         result = cloudinary.uploader.upload(
-            fileobj, public_id=filename, resource_type=resource_type, **options,
+            fileobj, public_id=filename, resource_type=resource_type, **options, **self._credentials(),
         )
         return result["secure_url"]
 
@@ -107,12 +122,13 @@ class CloudinaryStorageService(StorageService):
             type="private",
             expires_at=int(time.time()) + max(60, min(expires_in, 900)),
             attachment=True,
+            **self._credentials(),
         )
 
     def delete(self, file_url: str) -> None:
         import cloudinary.uploader
         public_id = file_url.rsplit("/", 1)[-1].rsplit(".", 1)[0]
-        cloudinary.uploader.destroy(public_id)
+        cloudinary.uploader.destroy(public_id, **self._credentials())
 
 
 class S3StorageService(StorageService):

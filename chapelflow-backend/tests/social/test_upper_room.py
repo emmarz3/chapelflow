@@ -3,6 +3,44 @@ import pytest
 
 @pytest.mark.django_db
 class TestUpperRoom:
+    @pytest.mark.parametrize("filename,content,content_type", [
+        ("worship.png", b"\x89PNG\r\n\x1a\n" + b"image content", "image/png"),
+        ("worship.mp4", b"\x00\x00\x00\x18ftypmp42" + b"video content", "video/mp4"),
+    ])
+    def test_media_post_passes_django_credentials_and_binary_stream_to_cloudinary(
+        self, api_client, make_user, branch_a, settings, monkeypatch,
+        filename, content, content_type,
+    ):
+        import cloudinary.uploader
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from apps.social.models import SocialPostMedia
+
+        settings.STORAGE_PROVIDER = "cloudinary"
+        settings.CLOUDINARY_CLOUD_NAME = "test-cloud"
+        settings.CLOUDINARY_API_KEY = "test-key"
+        settings.CLOUDINARY_API_SECRET = "test-secret"
+        url = "https://res.cloudinary.com/test-cloud/upload/worship"
+
+        def upload(file_obj, **options):
+            assert file_obj.read() == content
+            assert options["cloud_name"] == "test-cloud"
+            assert options["api_key"] == "test-key"
+            assert options["api_secret"] == "test-secret"
+            assert options["resource_type"] == "auto"
+            return {"secure_url": url}
+
+        monkeypatch.setattr(cloudinary.uploader, "upload", upload)
+        api_client.force_authenticate(user=make_user(email="media@chapelflow.test", branch=branch_a))
+        response = api_client.post("/api/v1/social/posts/", {
+            "caption": "Sunday worship", "files": SimpleUploadedFile(filename, content, content_type),
+        }, format="multipart")
+
+        assert response.status_code == 201
+        assert SocialPostMedia.objects.get().upload.file_url == url
+        feed = api_client.get("/api/v1/social/posts/")
+        assert feed.status_code == 200
+        assert feed.data["data"]["items"][0]["caption"] == "Sunday worship"
+
     def test_posts_are_visible_only_to_their_chapel_branch(self, api_client, make_user, branch_a, branch_b):
         from apps.social.models import SocialPost
 
