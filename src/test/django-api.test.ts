@@ -760,4 +760,22 @@ describe("Django API integration", () => {
       title: "Answered prayer", details: "Details", consent_to_publish: true,
     });
   });
+
+  it("bootstraps cross-origin CSRF and sends its token with credentialed mutations", async () => {
+    const fetch = vi.fn()
+      .mockResolvedValueOnce(response({ data: { csrf_token: "csrf-test-token" } }))
+      .mockResolvedValueOnce(response({ data: { master_enabled: false } }));
+    vi.stubGlobal("fetch", fetch);
+
+    await apiRequest("/auth/csrf");
+    await apiRequest("/notifications/preferences", {
+      method: "PATCH",
+      body: JSON.stringify({ masterEnabled: false }),
+    });
+
+    expect(String(fetch.mock.calls[0]?.[0])).toBe("/api/v1/auth/csrf/");
+    const [, mutationInit] = fetch.mock.calls[1]!;
+    expect(mutationInit.credentials).toBe("include");
+    expect(new Headers(mutationInit.headers).get("X-ChapelFlow-CSRF")).toBe("csrf-test-token");
+  });
 });
