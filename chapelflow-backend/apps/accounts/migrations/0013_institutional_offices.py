@@ -26,6 +26,8 @@ def seed_office_roles(apps, schema_editor):
         # Do not replace or broaden an existing customized role's permissions.
         for permission in Permission.objects.filter(code__in=grants):
             RolePermission.objects.get_or_create(role_obj=role, permission=permission)
+            # Institutional account creation still writes the legacy role string.
+            RolePermission.objects.get_or_create(legacy_role_code=code, permission=permission)
 
 
 def backfill_legacy_offices(apps, schema_editor):
