@@ -51,7 +51,7 @@ import {
   YAxis,
 } from "recharts";
 import { format } from "date-fns";
-import { Link } from "react-router-dom";
+import { Link, Navigate } from "react-router-dom";
 import {
   Badge,
   Button,
@@ -855,6 +855,8 @@ function DemoMembersPage() {
 }
 
 export function AttendancePage() {
+  const { user } = useAuth();
+  if (user?.role === "super_admin") return <Navigate to="/app/admin/control-room" replace />;
   return isDemoMode ? <DemoAttendancePage /> : <LiveAttendancePage />;
 }
 

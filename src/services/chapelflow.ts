@@ -992,7 +992,7 @@ export const adminAttendanceService = {
     payload: Pick<
       AdminAttendanceSession,
       "label" | "window_opens_at" | "window_closes_at"
-    >,
+    > & { branch: string },
   ) =>
     api.post<{ data: AdminAttendanceSession }>(
       "/admin/attendance/sessions",

@@ -70,6 +70,7 @@ describe("institutional account provisioning", () => {
   it.each([
     ["CHAPLAIN", undefined],
     ["STUDENT_CHAPLAIN", undefined],
+    ["ATTENDANCE_USHER", undefined],
     ["UNIT_HEAD", "unit-4"],
     ["FELLOWSHIP_LEADER", "fellowship-1"],
   ])("submits %s with the right group assignment", async (role, groupId) => {

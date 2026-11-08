@@ -138,6 +138,10 @@ export function LiveDashboardPage() {
         eyebrow={user?.branchName}
         title={`Welcome back, ${user?.name.split(" ")[0] || "member"}.`}
         description="Live information from your authorized chapel workspace."
+        actions={user?.role === "super_admin" ? <div className="button-row">
+          <Link className="button button--primary" to="/app/admin/control-room">Start or stop attendance</Link>
+          <Link className="button button--secondary" to="/app/admin/accounts">Create institutional account</Link>
+        </div> : undefined}
       />
       <div className="metric-grid">
         {data.metrics.map((metric) => (

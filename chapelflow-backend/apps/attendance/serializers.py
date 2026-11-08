@@ -18,6 +18,13 @@ class CheckInDeviceSerializer(ScopedFKValidationMixin, serializers.ModelSerializ
 class AttendanceSessionSerializer(ScopedFKValidationMixin, serializers.ModelSerializer):
     record_count = serializers.IntegerField(source="records.count", read_only=True)
 
+    def validate(self, attrs):
+        opens = attrs.get("window_opens_at", getattr(self.instance, "window_opens_at", None))
+        closes = attrs.get("window_closes_at", getattr(self.instance, "window_closes_at", None))
+        if opens and closes and closes <= opens:
+            raise serializers.ValidationError({"window_closes_at": "Closing time must be after opening time."})
+        return attrs
+
     class Meta:
         model = AttendanceSession
         fields = [
