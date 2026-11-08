@@ -230,7 +230,7 @@ export function buildDemoUser(role: Role): User {
     hostel_coordinator: "Hostel Fellowship Coordinator",
     unit_leader: "Unit Leader",
     fellowship_leader: "Fellowship Leader",
-    treasurer: "Olutanwa Esther",
+    treasurer: "Chapel Treasurer",
     chapel_official: "Chapel Official",
     pastor: "Pastor Daniel Eze",
     worker: "Moyo Bello",
