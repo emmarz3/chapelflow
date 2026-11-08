@@ -281,9 +281,15 @@ function operationalNavGroups(user: User): { label: string; items: NavItem[] }[]
   const inventoryItems = hasPermission(user, "assets:read") ? [inventory] : [];
   if (role === "chaplain") return [{ label: "Chapel oversight", items: [overview, operations, care, upperRoom, safety, inbox, notificationSettings, giving, ...mediaItems, ...inventoryItems, members, events] }];
   if (role === "student_chaplain") return [{ label: "Student operations", items: [overview, operations, care, upperRoom, safety, inbox, notificationSettings, giving, ...mediaItems, ...inventoryItems, members, { ...events, label: "Chapel services" }] }];
+  if (role === "assistant_student_chaplain" || role === "hostel_coordinator") {
+    return [{
+      label: role === "hostel_coordinator" ? "Hostel fellowship coordination" : "Student Chapel support",
+      items: [overview, upperRoom, safety, inbox, notificationSettings, giving, { ...events, label: "Chapel events" }],
+    }];
+  }
   if (role === "unit_leader" || role === "fellowship_leader") {
     const label = role === "unit_leader" ? "Unit" : "Fellowship";
-    return [{ label: `${label} workspace`, items: [overview, operations, care, upperRoom, safety, inbox, notificationSettings, giving, ...mediaItems, ...inventoryItems, { ...members, label: "Members" }, { ...events, label: "Meetings and programmes" }] }];
+    return [{ label: `${label} workspace`, items: [overview, { label: "My community", path: "/app/communities", icon: <Users />, roles: [role], permission: "community:view" }, operations, care, upperRoom, safety, inbox, notificationSettings, giving, ...mediaItems, ...inventoryItems, { ...members, label: "Members" }, { ...events, label: "Meetings and programmes" }] }];
   }
   return null;
 }
