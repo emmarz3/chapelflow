@@ -5218,3 +5218,182 @@ button {
     min-height: 44px;
   }
 }
+
+/* Keep public-page copy and controls clear of each other on phones. */
+@media (max-width: 760px) {
+  :root {
+    scroll-padding-bottom: calc(80px + env(safe-area-inset-bottom));
+  }
+
+  .public-shell {
+    padding-bottom: calc(76px + env(safe-area-inset-bottom));
+  }
+
+  .cuc-home__hero-copy {
+    box-sizing: border-box;
+    min-width: 0;
+    width: 100%;
+  }
+
+  .cuc-home__hero-copy h1 {
+    font-size: clamp(40px, 12vw, 48px);
+    line-height: 1.02;
+  }
+
+  .cuc-home__hero-image figcaption {
+    bottom: 82px;
+    left: 18px;
+    right: 18px;
+    font-size: 18px;
+    text-align: left;
+  }
+
+  .cuc-home__hero-controls {
+    bottom: 16px;
+    left: 16px;
+  }
+
+  .cuc-home__hero-controls button {
+    height: 44px;
+    width: 44px;
+  }
+
+  .cuc-home__hero-pagination {
+    bottom: 39px;
+    left: auto;
+    right: 18px;
+    transform: none;
+  }
+
+  .cuc-home__actions .button,
+  .cuc-home__gallery-entry .button,
+  .cuc-home__closing-copy .button {
+    max-width: 100%;
+    white-space: normal;
+    text-align: center;
+  }
+
+  .cuc-about__note-stage {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    min-height: 0;
+    padding-top: 8px;
+    perspective: none;
+  }
+
+  .cuc-about__note-stage::before {
+    display: none;
+  }
+
+  .cuc-about__note,
+  .cuc-about__note:hover {
+    inset: auto;
+    position: relative;
+    transform: none;
+    width: 100%;
+  }
+
+  .cuc-about__note-pin {
+    align-self: flex-start;
+    margin: 0 0 2px;
+    order: -1;
+    transform: none;
+  }
+
+  .site-footer__main {
+    gap: 36px;
+    padding: 56px 24px 44px;
+  }
+
+  .site-footer__nav {
+    gap: 30px;
+    grid-template-rows: none;
+  }
+
+  .site-footer__nav > div {
+    gap: 0;
+  }
+
+  .site-footer__nav h3,
+  .site-footer__contact h3,
+  .site-footer__social h3 {
+    margin-bottom: 8px;
+  }
+
+  .site-footer__nav a {
+    min-height: 44px;
+    padding: 10px 0;
+  }
+
+  .site-footer__contact p,
+  .site-footer__contact a {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .site-footer__newsletter button {
+    min-width: 48px;
+  }
+
+  .site-footer__legal {
+    gap: 20px;
+    padding: 24px;
+  }
+
+  .site-footer__legal-left {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .site-footer__dot {
+    display: none;
+  }
+
+  .site-footer__legal-right {
+    display: grid;
+    gap: 8px 12px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  .site-footer__legal-right a,
+  .site-footer__cookie-settings,
+  .site-footer__back-to-top {
+    align-items: center;
+    display: inline-flex;
+    font-size: 13px;
+    line-height: 1.4;
+    min-height: 44px;
+  }
+
+  .site-footer__cookie-settings {
+    text-align: left;
+  }
+
+  .site-footer__back-to-top {
+    justify-content: center;
+    padding: 8px 10px;
+  }
+}
+
+@media (max-width: 360px) {
+  .cuc-about__leaders {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .cuc-about__leader {
+    display: grid;
+    grid-template-columns: minmax(0, 40%) minmax(0, 1fr);
+  }
+
+  .cuc-about__leader-photo {
+    aspect-ratio: auto;
+    height: 100%;
+  }
+
+  .cuc-about__leader-copy {
+    align-self: center;
+  }
+}
