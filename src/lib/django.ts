@@ -879,8 +879,24 @@ export async function djangoRequest(
     method === "POST"
   )
     return call(`/auth${route}/`, json("POST", {}));
-  if (route === "/admin/attendance/sessions" && method === "GET")
-    return call("/attendance/sessions/");
+  if (route === "/admin/attendance/sessions" && method === "GET") {
+    // Django paginates sessions by default (25 rows). Without walking pages,
+    // an older open session can disappear from the Super Admin stop controls.
+    const sessions: Row[] = [];
+    let page = 1;
+    while (true) {
+      const response = await call(`/attendance/sessions/?page=${page}&page_size=200`);
+      sessions.push(...list(response.data));
+      const pagination = response.pagination;
+      if (!pagination?.next || page >= Number(pagination.num_pages || 1)) break;
+      page += 1;
+    }
+    sessions.sort((a, b) =>
+      Number(b.is_open === true) - Number(a.is_open === true) ||
+      new Date(str(b.opened_at)).getTime() - new Date(str(a.opened_at)).getTime(),
+    );
+    return { data: sessions };
+  }
   if (route === "/admin/attendance/sessions" && method === "POST")
     return call("/attendance/sessions/", json("POST", body));
   if (
