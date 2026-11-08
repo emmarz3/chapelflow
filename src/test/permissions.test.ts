@@ -43,6 +43,8 @@ describe("role permissions", () => {
   });
 
   it("sends every account type to an allowed opening page", () => {
+    expect(getAuthenticatedHomePath(buildDemoUser("super_admin"))).toBe("/app/admin/dashboard");
+    expect(getAuthenticatedHomePath(buildDemoUser("chapel_admin"))).toBe("/app");
     expect(getAuthenticatedHomePath(buildDemoUser("attendance_usher"))).toBe(
       "/usher/attendance",
     );
@@ -62,6 +64,10 @@ describe("role permissions", () => {
   });
 
   it("preserves only internal destinations within the signed-in user's dashboard", () => {
+    const admin = buildDemoUser("super_admin");
+    expect(getAuthenticatedHomePath(admin, "/app")).toBe("/app/admin/dashboard");
+    expect(getAuthenticatedHomePath(admin, "//example.com/app")).toBe("/app/admin/dashboard");
+    expect(getAuthenticatedHomePath(admin, "/app/admin/accounts")).toBe("/app/admin/accounts");
     const member = buildDemoUser("member");
     const usher = buildDemoUser("attendance_usher");
     expect(getAuthenticatedHomePath(member, "/app/events?filter=upcoming")).toBe(

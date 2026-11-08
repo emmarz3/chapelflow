@@ -69,7 +69,10 @@ describe("login", () => {
     expect(password).toHaveAttribute("type", "text");
   });
 
-  it("opens the role-aware member dashboard after sign-in", async () => {
+  it.each([
+    { role: "MEMBER", path: "/app" },
+    { role: "SUPER_ADMIN", path: "/app/admin/dashboard" },
+  ])("opens the $role dashboard after sign-in", async ({ role, path }) => {
     const fetchMock = vi.fn((input: RequestInfo | URL) => {
       const url = String(input);
       if (url.endsWith("/auth/me/"))
@@ -82,7 +85,7 @@ describe("login", () => {
               email: "ada@example.edu.ng",
               first_name: "Ada",
               last_name: "Okafor",
-              role: "MEMBER",
+              role,
               community: "STUDENT",
               effective_permissions: [],
             },
@@ -101,7 +104,7 @@ describe("login", () => {
           <AuthProvider>
             <Routes>
               <Route path="/login" element={<LoginPage />} />
-              <Route path="/app" element={<AuthenticatedDashboard />} />
+              <Route path={path} element={<AuthenticatedDashboard />} />
             </Routes>
           </AuthProvider>
         </MemoryRouter>

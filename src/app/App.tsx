@@ -386,6 +386,10 @@ export function App() {
                 </Route>
                 <Route element={<ProtectedRoute roles={["super_admin"]} />}>
                   <Route
+                    path="/app/admin/dashboard"
+                    element={<DashboardPage />}
+                  />
+                  <Route
                     path="/app/admin/accounts"
                     element={<InstitutionalAccountsPage />}
                   />

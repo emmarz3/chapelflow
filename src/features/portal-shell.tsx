@@ -393,7 +393,9 @@ export function PortalShell() {
         : user ? operationalNavGroups(user) ?? navGroups : navGroups)
         .map((group) => ({
           ...group,
-          items: group.items.filter(
+          items: group.items.map((item) => user?.role === "super_admin" && item.path === "/app"
+            ? { ...item, path: getAuthenticatedHomePath(user) }
+            : item).filter(
             (item) =>
               hasPermission(user, item.permission) &&
               (!item.roles || Boolean(user && item.roles.includes(user.role))),

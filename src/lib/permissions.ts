@@ -188,7 +188,9 @@ export function getAuthenticatedHomePath(
   user: User | null | undefined,
   returnTo?: string | null,
 ) {
-  const defaultPath = user?.role === "attendance_usher" ? "/usher/attendance" : "/app";
+  const defaultPath = user?.role === "attendance_usher"
+    ? "/usher/attendance"
+    : user?.role === "super_admin" ? "/app/admin/dashboard" : "/app";
   if (!returnTo?.startsWith("/") || returnTo.startsWith("//") || returnTo.includes("\\"))
     return defaultPath;
 
@@ -196,6 +198,8 @@ export function getAuthenticatedHomePath(
     const target = new URL(returnTo, "https://chapelflow.local");
     if (target.origin !== "https://chapelflow.local") return defaultPath;
     const destination = `${target.pathname}${target.search}${target.hash}`;
+    if (user?.role === "super_admin" && target.pathname === "/app")
+      return defaultPath;
     if (user?.role === "attendance_usher")
       return target.pathname === "/usher/attendance" ? destination : defaultPath;
     return target.pathname === "/app" || target.pathname.startsWith("/app/")
