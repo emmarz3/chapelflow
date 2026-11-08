@@ -219,6 +219,7 @@ SIMPLE_JWT = {
 # --------------------------------------------------------------------------
 CORS_ALLOWED_ORIGINS = env.list("CORS_ALLOWED_ORIGINS", default=["http://localhost:3000"])
 CSRF_TRUSTED_ORIGINS = env.list("CSRF_TRUSTED_ORIGINS", default=["http://localhost:3000"])
+CHAPELFLOW_PARTITIONED_COOKIES = env.bool("CHAPELFLOW_PARTITIONED_COOKIES", default=False)
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_HEADERS = (*default_headers, "x-chapelflow-csrf")
 
