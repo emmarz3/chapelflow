@@ -260,6 +260,7 @@ export function InstitutionalAccountsPage() {
             <span>Leadership office</span>
             <select
               name="institutional_office"
+              aria-label="Leadership office"
               value={selectedOffice}
               required
               onChange={(event) => {
