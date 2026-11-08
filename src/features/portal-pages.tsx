@@ -90,7 +90,7 @@ export function DashboardPage() {
   const { user } = useAuth();
   if (user?.role === "member")
     return isStudentMember(user) ? <StudentDashboardPage /> : <MemberAccountHomePage />;
-  if (["chaplain", "student_chaplain", "unit_leader", "fellowship_leader", "attendance_usher"].includes(user?.role ?? "")) return <RoleDashboardPage />;
+  if (["chaplain", "student_chaplain", "assistant_student_chaplain", "hostel_coordinator", "unit_leader", "fellowship_leader", "attendance_usher"].includes(user?.role ?? "")) return <RoleDashboardPage />;
   if (!isDemoMode) return <LiveDashboardPage />;
   return <DemoDashboardPage />;
 }

@@ -32,6 +32,8 @@ function role(value: unknown): Role {
     CHAPEL_ADMIN: "chapel_admin",
     CHAPLAIN: "chaplain",
     STUDENT_CHAPLAIN: "student_chaplain",
+    ASSISTANT_STUDENT_CHAPLAIN: "assistant_student_chaplain",
+    HOSTEL_COORDINATOR: "hostel_coordinator",
     UNIT_HEAD: "unit_leader",
     UNIT_LEADER: "unit_leader",
     FELLOWSHIP_LEADER: "fellowship_leader",

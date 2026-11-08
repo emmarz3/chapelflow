@@ -19,12 +19,48 @@ import { ApiError } from "../lib/api";
 const roles = [
   ["CHAPLAIN", "Chaplain"],
   ["STUDENT_CHAPLAIN", "Student Chaplain"],
+  ["ASSISTANT_STUDENT_CHAPLAIN", "Assistant Student Chaplain"],
+  ["HOSTEL_COORDINATOR", "Hostel Fellowship Coordinator"],
   ["UNIT_HEAD", "Unit leader"],
   ["FELLOWSHIP_LEADER", "Fellowship leader"],
   ["ATTENDANCE_USHER", "Attendance usher"],
 ] as const;
 
 type InstitutionalRole = (typeof roles)[number][0];
+
+// Official office titles are distinct from permissions and Chapel group identities.
+// No incumbent names are stored in this catalog.
+const offices: ReadonlyArray<{
+  code: string;
+  label: string;
+  role: InstitutionalRole;
+  unit?: string;
+}> = [
+  { code: "CHAPLAIN", label: "Chaplain", role: "CHAPLAIN" },
+  { code: "STUDENT_CHAPLAIN", label: "Student Chaplain", role: "STUDENT_CHAPLAIN" },
+  { code: "ASSISTANT_STUDENT_CHAPLAIN_VLBC_ANNEX", label: "Assistant Student Chaplain VLBC Annex Hostel", role: "ASSISTANT_STUDENT_CHAPLAIN" },
+  { code: "UNIT_HEAD", label: "Unit leader (select unit)", role: "UNIT_HEAD" },
+  { code: "INTERCESSORY", label: "Intercessory", role: "UNIT_HEAD", unit: "Intercessory" },
+  { code: "TREASURER", label: "Treasurer", role: "UNIT_HEAD", unit: "Treasurer" },
+  { code: "CHAPEL_PROTOCOL", label: "Chapel Protocol", role: "UNIT_HEAD", unit: "Chapel Protocol" },
+  { code: "HEAD_OF_MUSIC", label: "Head of Music", role: "UNIT_HEAD", unit: "Music" },
+  { code: "ASSISTANT_HEAD_OF_MUSIC", label: "Assistant Head of Music", role: "UNIT_HEAD", unit: "Music" },
+  { code: "HEAD_OF_INSTRUMENTALIST", label: "Head of Instrumentalist", role: "UNIT_HEAD", unit: "Instrumentalist" },
+  { code: "CHIEF_USHER", label: "Chief Usher", role: "UNIT_HEAD", unit: "Ushering" },
+  { code: "ASSISTANT_CHIEF_USHER", label: "Assistant Chief Usher", role: "UNIT_HEAD", unit: "Ushering" },
+  { code: "HEAD_OF_SANCTUARY_KEEPERS", label: "Head of Sanctuary Keepers", role: "UNIT_HEAD", unit: "Sanctuary Keepers" },
+  { code: "ASSISTANT_HEAD_OF_SANCTUARY_KEEPERS", label: "Assistant Head of Sanctuary Keepers", role: "UNIT_HEAD", unit: "Sanctuary Keepers" },
+  { code: "MEDIA_ICT", label: "Media & ICT", role: "UNIT_HEAD", unit: "Media & ICT" },
+  { code: "SOCIAL_MEDIA", label: "Social Media", role: "UNIT_HEAD", unit: "Social Media" },
+  { code: "LIBRARY", label: "Library", role: "UNIT_HEAD", unit: "Library" },
+  { code: "DRAMA_TEAM", label: "Drama Team", role: "UNIT_HEAD", unit: "Drama Team" },
+  { code: "TECHNICAL_SOUND", label: "Technical & Sound", role: "UNIT_HEAD", unit: "Technical & Sound" },
+  { code: "FELLOWSHIP_LEADER", label: "Campus Fellowship Leader (select fellowship)", role: "FELLOWSHIP_LEADER" },
+  { code: "MALE_HOSTEL_FELLOWSHIP_COORDINATOR", label: "Male Hostel Fellowship Coordinator", role: "HOSTEL_COORDINATOR" },
+  { code: "FEMALE_HOSTEL_FELLOWSHIP_COORDINATOR_1", label: "Female Hostel Fellowship Coordinator 1", role: "HOSTEL_COORDINATOR" },
+  { code: "FEMALE_HOSTEL_FELLOWSHIP_COORDINATOR_2", label: "Female Hostel Fellowship Coordinator 2", role: "HOSTEL_COORDINATOR" },
+  { code: "ATTENDANCE_USHER", label: "Attendance usher", role: "ATTENDANCE_USHER" },
+];
 
 function roleGroupType(role: InstitutionalRole) {
   if (role === "UNIT_HEAD") return "UNIT";
@@ -42,6 +78,7 @@ export function InstitutionalAccountsPage() {
   const [open, setOpen] = useState(false);
   const [selectedRole, setSelectedRole] = useState<InstitutionalRole>("CHAPLAIN");
   const [selectedGroup, setSelectedGroup] = useState("");
+  const [selectedOffice, setSelectedOffice] = useState("CHAPLAIN");
   const [resetAccount, setResetAccount] = useState<{ id: string; name: string } | null>(null);
   const [temporaryPassword, setTemporaryPassword] = useState("");
   const accounts = useQuery({
@@ -52,6 +89,14 @@ export function InstitutionalAccountsPage() {
     queryKey: ["chapel-groups", "institutional-accounts"],
     queryFn: async () => (await chapelGroupService.list()).data,
   });
+  const selectedOfficeDetails = offices.find((office) => office.code === selectedOffice);
+  const fixedUnit = selectedOfficeDetails?.unit;
+  const groupType = roleGroupType(selectedRole);
+  const resolvedGroup = fixedUnit
+    ? (groups.data?.find((group) =>
+        group.name === fixedUnit && group.group_type === "UNIT" && group.is_active,
+      )?.id ?? "")
+    : selectedGroup;
   const refresh = () =>
     void client.invalidateQueries({ queryKey: ["institutional-accounts"] });
   const create = useMutation({
@@ -91,15 +136,20 @@ export function InstitutionalAccountsPage() {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
     const role = String(data.get("role")) as InstitutionalRole;
-    const groupType = roleGroupType(role);
+    const requestedGroupType = roleGroupType(role);
+    if (requestedGroupType && !resolvedGroup) {
+      toast("Select or add the required Chapel Unit or Fellowship first.");
+      return;
+    }
     create.mutate({
       first_name: String(data.get("first_name")),
       last_name: String(data.get("last_name")),
       email: String(data.get("email")),
       password: String(data.get("password")),
       role,
+      institutional_office: selectedOffice,
       password_change_required: true,
-      ...(groupType && selectedGroup ? { institutional_group: selectedGroup } : {}),
+      ...(requestedGroupType ? { institutional_group: resolvedGroup } : {}),
     });
   }
   if (accounts.isPending)
@@ -116,7 +166,7 @@ export function InstitutionalAccountsPage() {
       <PageHeader
         eyebrow="Super administration"
         title="Institutional accounts"
-        description="Create leadership accounts for each active Chapel Unit or Fellowship. Account holders are selected by the Super Admin; no leader names are preloaded."
+        description="Create accounts for every Chapel leadership office, including assistant heads and hostel fellowship coordinators. No names are preloaded."
         actions={
           <div className="button-row">
             <Button variant="secondary" loading={addUnits.isPending} onClick={() => addUnits.mutate()}>
@@ -186,7 +236,9 @@ export function InstitutionalAccountsPage() {
               name="role"
               value={selectedRole}
               onChange={(event) => {
-                setSelectedRole(event.target.value as InstitutionalRole);
+                const nextRole = event.target.value as InstitutionalRole;
+                setSelectedRole(nextRole);
+                setSelectedOffice(offices.find((office) => office.role === nextRole)?.code ?? "");
                 setSelectedGroup("");
               }}
               aria-invalid={Boolean(validationMessage(create.error, "role"))}
@@ -205,24 +257,51 @@ export function InstitutionalAccountsPage() {
             )}
           </label>
           <label className="field">
+            <span>Leadership office</span>
+            <select
+              name="institutional_office"
+              aria-label="Leadership office"
+              value={selectedOffice}
+              required
+              onChange={(event) => {
+                setSelectedOffice(event.target.value);
+                setSelectedGroup("");
+              }}
+              aria-invalid={Boolean(validationMessage(create.error, "institutional_office"))}
+            >
+              {offices
+                .filter((office) => office.role === selectedRole)
+                .map((office) => (
+                  <option key={office.code} value={office.code}>{office.label}</option>
+                ))}
+            </select>
+            {validationMessage(create.error, "institutional_office") && (
+              <small className="field__error" role="alert">
+                {validationMessage(create.error, "institutional_office")}
+              </small>
+            )}
+            <small>Choose the exact leadership position from the Chapel register.</small>
+          </label>
+          <label className="field">
             <span>Unit or fellowship</span>
             <select
               name="institutional_group"
-              value={selectedGroup}
-              disabled={groups.isPending || !roleGroupType(selectedRole)}
-              required={Boolean(roleGroupType(selectedRole))}
+              value={resolvedGroup}
+              disabled={groups.isPending || !groupType || Boolean(fixedUnit)}
+              required={Boolean(groupType)}
               onChange={(event) => setSelectedGroup(event.target.value)}
               aria-invalid={Boolean(validationMessage(create.error, "institutional_group"))}
               aria-describedby="institutional-group-note institutional-group-error"
             >
               <option value="">
-                {roleGroupType(selectedRole) ? "Select an assignment" : "Not applicable to this role"}
+                {groupType ? (fixedUnit ? `Assigned to ${fixedUnit}` : "Select an assignment") : "Not applicable to this role"}
               </option>
               {groups.data
                 ?.filter(
                   (group) =>
                     group.is_active &&
-                    group.group_type === roleGroupType(selectedRole),
+                    group.group_type === groupType &&
+                    (!fixedUnit || group.name === fixedUnit),
                 )
                 .map((group) => (
                   <option key={group.id} value={group.id}>
@@ -231,9 +310,11 @@ export function InstitutionalAccountsPage() {
                 ))}
             </select>
             <small id="institutional-group-note">
-              {roleGroupType(selectedRole)
-                ? "Leaders are assigned only to their matching unit or fellowship."
-                : "Only Unit and Fellowship leaders are assigned to a chapel group."}
+              {fixedUnit
+                ? "This office is tied to the named Chapel Unit. Add the standard groups first if it is missing."
+                : groupType
+                  ? "Leaders are assigned only to their matching unit or fellowship."
+                  : "This leadership office does not require a Unit or Fellowship assignment."}
             </small>
             {validationMessage(create.error, "institutional_group") && (
               <small id="institutional-group-error" className="field__error" role="alert">
@@ -270,6 +351,7 @@ export function InstitutionalAccountsPage() {
             <tr>
               <th>Name</th>
               <th>Role</th>
+              <th>Office & assignment</th>
               <th>Status</th>
               <th>Actions</th>
             </tr>
@@ -286,6 +368,12 @@ export function InstitutionalAccountsPage() {
                 <td>
                   {roles.find(([role]) => role === account.role)?.[1] ||
                     account.role}
+                </td>
+                <td>
+                  <strong>{offices.find((office) => office.code === account.institutional_office)?.label || "Not specified"}</strong>
+                  {account.institutional_group && (
+                    <small>{groups.data?.find((group) => group.id === account.institutional_group)?.name || "Assigned Chapel group"}</small>
+                  )}
                 </td>
                 <td>
                   <Badge tone={account.is_active ? "success" : "danger"}>

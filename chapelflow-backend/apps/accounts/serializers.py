@@ -10,6 +10,7 @@ from common.permissions.inventory import user_has_inventory_access
 from common.permissions.media import user_has_media_management_access
 from common.permissions.rbac import user_requires_mfa
 from .models import InstitutionalAccountControl, Permission, RolePermission, User
+from .institutional_offices import INSTITUTIONAL_OFFICES, DEFAULT_OFFICES_BY_ROLE
 
 
 class UserPublicSerializer(serializers.ModelSerializer):
@@ -88,14 +89,20 @@ class InstitutionalAccountSerializer(serializers.ModelSerializer):
         ("CHAPLAIN", "Chaplain"), ("STUDENT_CHAPLAIN", "Student Chaplain"),
         ("UNIT_HEAD", "Unit leader"), ("FELLOWSHIP_LEADER", "Fellowship leader"),
         ("ATTENDANCE_USHER", "Attendance usher"),
+        ("ASSISTANT_STUDENT_CHAPLAIN", "Assistant Student Chaplain"),
+        ("HOSTEL_COORDINATOR", "Hostel Fellowship Coordinator"),
     ])
+    institutional_office = serializers.ChoiceField(
+        choices=[(code, label) for code, (label, _, _) in INSTITUTIONAL_OFFICES.items()],
+        required=False, allow_blank=True,
+    )
     last_login = serializers.DateTimeField(read_only=True)
 
     class Meta:
         model = User
         fields = [
             "id", "email", "first_name", "last_name", "phone_number", "role", "branch",
-            "institutional_group", "is_active", "password_change_required", "date_joined",
+            "institutional_group", "institutional_office", "is_active", "password_change_required", "date_joined",
             "last_login", "last_login_ip", "created_by", "password",
         ]
         read_only_fields = ["id", "date_joined", "last_login", "last_login_ip", "created_by"]
@@ -116,12 +123,43 @@ class InstitutionalAccountSerializer(serializers.ModelSerializer):
             if not attrs["branch"]:
                 raise serializers.ValidationError({"branch": ["Chrisland University Chapel is not configured yet."]})
         role = attrs.get("role", self.instance.role if self.instance else "")
+        office = attrs.get(
+            "institutional_office",
+            self.instance.institutional_office if self.instance else "",
+        )
+        if not office:
+            office = DEFAULT_OFFICES_BY_ROLE.get(role, "")
+            if office:
+                attrs["institutional_office"] = office
+        office_definition = INSTITUTIONAL_OFFICES.get(office)
+        if not office_definition:
+            raise serializers.ValidationError({
+                "institutional_office": ["Select a valid Chapel office for this account."]
+            })
+        if office_definition[1] != role:
+            raise serializers.ValidationError({
+                "institutional_office": ["The selected office is not permitted for this account role."]
+            })
         group = attrs.get("institutional_group", self.instance.institutional_group if self.instance else None)
         if role == "ATTENDANCE_USHER" and group:
             raise serializers.ValidationError({"institutional_group": ["Usher accounts cannot be assigned to a group."]})
         expected_group_types = {"FELLOWSHIP_LEADER": "FELLOWSHIP", "UNIT_HEAD": "UNIT"}
+        if role in expected_group_types and not group and (
+            self.instance is None or "role" in attrs or "institutional_group" in attrs
+        ):
+            raise serializers.ValidationError({"institutional_group": ["Select a Chapel Unit or Fellowship for this leader."]})
+        expected_name = office_definition[2]
+        if expected_name and group and group.name != expected_name:
+            raise serializers.ValidationError({
+                "institutional_group": [f"This office must be assigned to the {expected_name} Unit."]
+            })
         if group and role in expected_group_types and group.group_type != expected_group_types[role]:
             raise serializers.ValidationError({"institutional_group": [f"This role must be assigned to a {expected_group_types[role].lower()}."]})
+        branch = attrs.get("branch", self.instance.branch if self.instance else None)
+        if group and branch and group.branch_id != branch.id:
+            raise serializers.ValidationError({"institutional_group": ["The group must belong to the assigned chapel branch."]})
+        if group and not group.is_active:
+            raise serializers.ValidationError({"institutional_group": ["Select an active Chapel Unit or Fellowship."]})
         if group and role not in expected_group_types:
             raise serializers.ValidationError({"institutional_group": ["Only unit and fellowship leaders can be assigned to a chapel group."]})
         return attrs

@@ -492,7 +492,7 @@ class InstitutionalAccountListCreateView(APIView):
 
     def get(self, request):
         accounts = User.objects.exclude(role=Roles.SUPER_ADMIN).filter(
-            role__in=["CHAPLAIN", "STUDENT_CHAPLAIN", "UNIT_HEAD", "FELLOWSHIP_LEADER", "ATTENDANCE_USHER"]
+            role__in=["CHAPLAIN", "STUDENT_CHAPLAIN", "ASSISTANT_STUDENT_CHAPLAIN", "UNIT_HEAD", "FELLOWSHIP_LEADER", "HOSTEL_COORDINATOR", "ATTENDANCE_USHER"]
         ).select_related("branch", "institutional_group", "created_by").order_by("last_name", "first_name")
         query = request.query_params.get("search")
         if query:
@@ -521,7 +521,7 @@ class InstitutionalAccountDetailView(APIView):
 
     def _account(self, pk):
         return User.objects.exclude(role=Roles.SUPER_ADMIN).filter(
-            pk=pk, role__in=["CHAPLAIN", "STUDENT_CHAPLAIN", "UNIT_HEAD", "FELLOWSHIP_LEADER", "ATTENDANCE_USHER"],
+            pk=pk, role__in=["CHAPLAIN", "STUDENT_CHAPLAIN", "ASSISTANT_STUDENT_CHAPLAIN", "UNIT_HEAD", "FELLOWSHIP_LEADER", "HOSTEL_COORDINATOR", "ATTENDANCE_USHER"],
         ).first()
 
     def get(self, request, pk):
