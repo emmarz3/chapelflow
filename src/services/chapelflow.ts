@@ -524,10 +524,7 @@ export const communityService = {
               {
                 position:
                   slug === "music" ? "Head of Music" : "Fellowship Leader",
-                name:
-                  slug === "music"
-                    ? "Olaoti Mofiyinfoluwa"
-                    : "Dada Mofopefoluwa",
+                name: "Community leader",
               },
             ],
             pinnedAnnouncement: null,
