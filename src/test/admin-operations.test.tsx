@@ -77,7 +77,7 @@ it("pre-fills today's local start time and a later closing time", async () => {
   await screen.findByRole("option", { name: "Chrisland Chapel" });
   const opening = (screen.getByLabelText("Opens") as HTMLInputElement).value;
   const closing = (screen.getByLabelText("Closes") as HTMLInputElement).value;
-  expect(opening).toMatch(/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}$/);
+  expect(opening).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/);
   expect(new Date(closing).getTime()).toBeGreaterThan(new Date(opening).getTime());
 });
 
