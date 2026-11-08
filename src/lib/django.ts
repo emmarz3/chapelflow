@@ -4,7 +4,7 @@ import { buildDemoUser } from "./permissions";
 type Row = Record<string, unknown>;
 type Envelope = {
   data: unknown;
-  pagination?: { current_page: number; page_size: number; count: number };
+  pagination?: { current_page: number; page_size: number; count: number; num_pages?: number; next?: string | null };
 };
 export type DjangoTransport = (
   path: string,
