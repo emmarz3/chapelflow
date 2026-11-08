@@ -18,6 +18,8 @@ class Roles:
     STUDENT_CHAPLAIN = "STUDENT_CHAPLAIN"
     CHAPEL_ADMIN = "CHAPEL_ADMIN"
     ATTENDANCE_USHER = "ATTENDANCE_USHER"
+    ASSISTANT_STUDENT_CHAPLAIN = "ASSISTANT_STUDENT_CHAPLAIN"
+    HOSTEL_COORDINATOR = "HOSTEL_COORDINATOR"
     FELLOWSHIP_LEADER = "FELLOWSHIP_LEADER"
     UNIT_HEAD = "UNIT_HEAD"
     MINISTRY_GROUP_LEADER = "MINISTRY_GROUP_LEADER"
@@ -28,6 +30,8 @@ class Roles:
         (SUPER_ADMIN, "Super Admin"),
         (CHAPLAIN, "Chaplain"),
         (STUDENT_CHAPLAIN, "Student Chaplain"),
+        (ASSISTANT_STUDENT_CHAPLAIN, "Assistant Student Chaplain"),
+        (HOSTEL_COORDINATOR, "Hostel Fellowship Coordinator"),
         (CHAPEL_ADMIN, "Chapel Admin"),
         (ATTENDANCE_USHER, "Attendance Usher"),
         (FELLOWSHIP_LEADER, "Fellowship Leader"),
