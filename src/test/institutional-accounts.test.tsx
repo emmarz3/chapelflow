@@ -102,7 +102,7 @@ describe("institutional account provisioning", () => {
       "Drama Team", "Technical & Sound",
     ];
     for (const unit of units) {
-      expect(screen.getByRole("option", { name: new RegExp(unit) })).toBeInTheDocument();
+      expect(within(assignment).getByRole("option", { name: new RegExp(unit) })).toBeInTheDocument();
     }
     expect(within(assignment).getAllByRole("option")).toHaveLength(13);
 
@@ -114,7 +114,7 @@ describe("institutional account provisioning", () => {
       "Peace Campus Fellowship",
     ];
     for (const fellowship of fellowships) {
-      expect(screen.getByRole("option", { name: new RegExp(fellowship) })).toBeInTheDocument();
+      expect(within(assignment).getByRole("option", { name: new RegExp(fellowship) })).toBeInTheDocument();
     }
     expect(within(assignment).getAllByRole("option")).toHaveLength(11);
     expect(assignment).toBeInTheDocument();
