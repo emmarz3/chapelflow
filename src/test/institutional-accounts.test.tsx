@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { InstitutionalAccountsPage } from "../features/institutional-accounts";
@@ -104,7 +104,7 @@ describe("institutional account provisioning", () => {
     for (const unit of units) {
       expect(screen.getByRole("option", { name: new RegExp(unit) })).toBeInTheDocument();
     }
-    expect(screen.getAllByRole("option")).toHaveLength(13);
+    expect(within(assignment).getAllByRole("option")).toHaveLength(13);
 
     await user.selectOptions(screen.getByLabelText("Role"), "FELLOWSHIP_LEADER");
     const fellowships = [
@@ -116,8 +116,66 @@ describe("institutional account provisioning", () => {
     for (const fellowship of fellowships) {
       expect(screen.getByRole("option", { name: new RegExp(fellowship) })).toBeInTheDocument();
     }
-    expect(screen.getAllByRole("option")).toHaveLength(11);
+    expect(within(assignment).getAllByRole("option")).toHaveLength(11);
     expect(assignment).toBeInTheDocument();
+  });
+
+  it.each([
+    ["ASSISTANT_STUDENT_CHAPLAIN", "ASSISTANT_STUDENT_CHAPLAIN_VLBC_ANNEX", undefined],
+    ["HOSTEL_COORDINATOR", "MALE_HOSTEL_FELLOWSHIP_COORDINATOR", undefined],
+    ["HOSTEL_COORDINATOR", "FEMALE_HOSTEL_FELLOWSHIP_COORDINATOR_1", undefined],
+    ["HOSTEL_COORDINATOR", "FEMALE_HOSTEL_FELLOWSHIP_COORDINATOR_2", undefined],
+    ["UNIT_HEAD", "HEAD_OF_MUSIC", "unit-4"],
+    ["UNIT_HEAD", "ASSISTANT_HEAD_OF_MUSIC", "unit-4"],
+    ["UNIT_HEAD", "CHIEF_USHER", "unit-6"],
+    ["UNIT_HEAD", "ASSISTANT_CHIEF_USHER", "unit-6"],
+    ["UNIT_HEAD", "HEAD_OF_SANCTUARY_KEEPERS", "unit-7"],
+    ["UNIT_HEAD", "ASSISTANT_HEAD_OF_SANCTUARY_KEEPERS", "unit-7"],
+    ["UNIT_HEAD", "HEAD_OF_INSTRUMENTALIST", "unit-5"],
+  ])("can provision the %s office %s", async (role, office, groupId) => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(await screen.findByRole("button", { name: "Create account" }));
+    await user.type(screen.getByLabelText("First name"), "Ada");
+    await user.type(screen.getByLabelText("Last name"), "Lovelace");
+    await user.type(screen.getByLabelText(/^Email/), `${office.toLowerCase()}@example.edu`);
+    await user.type(screen.getByLabelText(/^Initial password/), "Safe-Initial-Password-483!");
+    await user.selectOptions(screen.getByLabelText("Role"), role);
+    await user.selectOptions(screen.getByLabelText("Leadership office"), office);
+    await user.click(screen.getByRole("button", { name: "Create securely" }));
+    await waitFor(() => expect(institutionalAccountService.create).toHaveBeenCalled());
+    expect(vi.mocked(institutionalAccountService.create).mock.calls[0]?.[0]).toMatchObject({
+      role, institutional_office: office,
+      ...(groupId ? { institutional_group: groupId } : {}),
+    });
+  });
+
+  it("lists every office from the Chapel register without preloading leader names", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(await screen.findByRole("button", { name: "Create account" }));
+    for (const [role, labels] of [
+      ["UNIT_HEAD", [
+        "Intercessory", "Treasurer", "Chapel Protocol", "Head of Music",
+        "Assistant Head of Music", "Head of Instrumentalist", "Chief Usher",
+        "Assistant Chief Usher", "Head of Sanctuary Keepers",
+        "Assistant Head of Sanctuary Keepers", "Media & ICT", "Social Media",
+        "Library", "Drama Team", "Technical & Sound",
+      ]],
+      ["HOSTEL_COORDINATOR", [
+        "Male Hostel Fellowship Coordinator", "Female Hostel Fellowship Coordinator 1",
+        "Female Hostel Fellowship Coordinator 2",
+      ]],
+      ["ASSISTANT_STUDENT_CHAPLAIN", [
+        "Assistant Student Chaplain VLBC Annex Hostel",
+      ]],
+    ] as const) {
+      await user.selectOptions(screen.getByLabelText("Role"), role);
+      const officeSelect = screen.getByLabelText("Leadership office");
+      for (const label of labels) {
+        expect(within(officeSelect).getByRole("option", { name: label })).toBeInTheDocument();
+      }
+    }
   });
 
   it("shows server-side password validation when account creation is rejected", async () => {
