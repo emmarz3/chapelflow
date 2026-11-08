@@ -5379,6 +5379,14 @@ button {
 }
 
 @media (max-width: 360px) {
+  .site-footer__legal-right {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .site-footer__back-to-top {
+    justify-self: start;
+  }
+
   .cuc-about__leaders {
     grid-template-columns: minmax(0, 1fr);
   }
