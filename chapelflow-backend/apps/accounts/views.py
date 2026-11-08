@@ -65,23 +65,42 @@ def _use_partitioned_local_cookies():
     )
 
 
+def _partitioned_cookies_enabled():
+    return bool(
+        getattr(settings, "CHAPELFLOW_PARTITIONED_COOKIES", False)
+        or _use_partitioned_local_cookies()
+    )
+
+
 def _mark_partitioned_local_cookies(response):
-    if _use_partitioned_local_cookies():
+    if _partitioned_cookies_enabled():
+        # Python 3.12's http.cookies.Morsel does not register the CHIPS
+        # attribute by default. Register it so Set-Cookie emits Partitioned.
+        if "partitioned" not in Morsel._reserved:
+            Morsel._reserved["partitioned"] = "Partitioned"
         for name in (ACCESS_COOKIE, REFRESH_COOKIE, CSRF_COOKIE):
-            response.cookies[name]["partitioned"] = True
+            if name in response.cookies:
+                response.cookies[name]["partitioned"] = True
     return response
 
 
 def _set_auth_cookies(response, access, refresh):
-    """Keep browser credentials HttpOnly while preserving bearer-token API use."""
+    """Keep auth credentials HttpOnly and issue a JS-readable CSRF token."""
     cookie_options = _auth_cookie_options()
     common = {"httponly": True, "path": "/", **cookie_options}
     response.set_cookie(ACCESS_COOKIE, access, max_age=15 * 60, **common)
     response.set_cookie(REFRESH_COOKIE, refresh, max_age=7 * 24 * 60 * 60, **common)
+    csrf_token = secrets.token_urlsafe(32)
     response.set_cookie(
-        CSRF_COOKIE, secrets.token_urlsafe(32), max_age=7 * 24 * 60 * 60,
+        CSRF_COOKIE, csrf_token, max_age=7 * 24 * 60 * 60,
         httponly=False, path="/", **cookie_options,
     )
+    # The SPA is hosted on a different Render origin and cannot read this
+    # API host's cookie. Returning the CSRF value in the JSON envelope lets
+    # it send the matching double-submit header without exposing auth tokens.
+    payload = getattr(response, "data", None)
+    if isinstance(payload, dict) and isinstance(payload.get("data"), dict):
+        payload["data"]["csrf_token"] = csrf_token
     return _mark_partitioned_local_cookies(response)
 
 
@@ -91,6 +110,27 @@ def _clear_auth_cookies(response):
     response.delete_cookie(REFRESH_COOKIE, path="/", **cookie_options)
     response.delete_cookie(CSRF_COOKIE, path="/", **cookie_options)
     return _mark_partitioned_local_cookies(response)
+
+
+class CsrfTokenView(APIView):
+    """Bootstrap the CSRF double-submit token for the cross-origin SPA."""
+
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        token = request.COOKIES.get(CSRF_COOKIE) or secrets.token_urlsafe(32)
+        response = success_response({"csrf_token": token})
+        response.set_cookie(
+            CSRF_COOKIE,
+            token,
+            max_age=7 * 24 * 60 * 60,
+            httponly=False,
+            path="/",
+            **_auth_cookie_options(),
+        )
+        response["Cache-Control"] = "no-store"
+        return _mark_partitioned_local_cookies(response)
 
 
 class RegisterView(APIView):
