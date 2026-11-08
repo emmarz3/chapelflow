@@ -120,8 +120,14 @@ class InstitutionalAccountSerializer(serializers.ModelSerializer):
         if role == "ATTENDANCE_USHER" and group:
             raise serializers.ValidationError({"institutional_group": ["Usher accounts cannot be assigned to a group."]})
         expected_group_types = {"FELLOWSHIP_LEADER": "FELLOWSHIP", "UNIT_HEAD": "UNIT"}
+        if role in expected_group_types and not group:
+            raise serializers.ValidationError({"institutional_group": ["Select a Chapel Unit or Fellowship for this leader."]})
         if group and role in expected_group_types and group.group_type != expected_group_types[role]:
             raise serializers.ValidationError({"institutional_group": [f"This role must be assigned to a {expected_group_types[role].lower()}."]})
+        if group and group.branch_id != attrs["branch"].id if "branch" in attrs else (group and self.instance and group.branch_id != self.instance.branch_id):
+            raise serializers.ValidationError({"institutional_group": ["The group must belong to the assigned chapel branch."]})
+        if group and not group.is_active:
+            raise serializers.ValidationError({"institutional_group": ["Select an active Chapel Unit or Fellowship."]})
         if group and role not in expected_group_types:
             raise serializers.ValidationError({"institutional_group": ["Only unit and fellowship leaders can be assigned to a chapel group."]})
         return attrs
