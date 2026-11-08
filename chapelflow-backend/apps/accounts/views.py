@@ -78,6 +78,8 @@ def _mark_partitioned_local_cookies(response):
         # attribute by default. Register it so Set-Cookie emits Partitioned.
         if "partitioned" not in Morsel._reserved:
             Morsel._reserved["partitioned"] = "Partitioned"
+        if "partitioned" not in Morsel._flags:
+            Morsel._flags.add("partitioned")
         for name in (ACCESS_COOKIE, REFRESH_COOKIE, CSRF_COOKIE):
             if name in response.cookies:
                 response.cookies[name]["partitioned"] = True
@@ -416,6 +418,13 @@ class RefreshView(APIView):
     throttle_scope = "auth"
 
     def post(self, request):
+        # Browser cookie refreshes are cross-site on separate *.onrender.com
+        # hosts, so require the matching double-submit token as well.
+        if not request.data.get("refresh"):
+            csrf_cookie = request.COOKIES.get(CSRF_COOKIE, "")
+            csrf_header = request.headers.get("X-ChapelFlow-CSRF", "")
+            if not csrf_cookie or not csrf_header or csrf_cookie != csrf_header:
+                return error_response("CSRF verification failed.", status=403)
         refresh_token = request.data.get("refresh") or request.COOKIES.get(REFRESH_COOKIE)
         if not refresh_token:
             return error_response("Refresh token is required.", status=400)
