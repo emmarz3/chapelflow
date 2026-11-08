@@ -761,6 +761,24 @@ describe("Django API integration", () => {
     });
   });
 
+  it("recovers a CSRF-rejected media mutation without treating it as logout", async () => {
+    const form = new FormData();
+    form.set("caption", "Test image");
+    const fetch = vi.fn()
+      .mockResolvedValueOnce(response({ success: false, message: "Your security token is invalid or expired. Please retry.", errors: {} }, 403))
+      .mockResolvedValueOnce(response({ data: { csrf_token: "csrf-recovered" } }))
+      .mockResolvedValueOnce(response({ data: { id: "post-1", caption: "Test image", media: [] } }, 201));
+    vi.stubGlobal("fetch", fetch);
+
+    await expect(apiRequest("/social/posts", { method: "POST", body: form }))
+      .resolves.toMatchObject({ data: { id: "post-1" } });
+
+    expect(String(fetch.mock.calls[1]?.[0])).toBe("/api/v1/auth/csrf/");
+    const [, retryInit] = fetch.mock.calls[2]!;
+    expect(retryInit.credentials).toBe("include");
+    expect(new Headers(retryInit.headers).get("X-ChapelFlow-CSRF")).toBe("csrf-recovered");
+  });
+
   it("bootstraps cross-origin CSRF and sends its token with credentialed mutations", async () => {
     const fetch = vi.fn()
       .mockResolvedValueOnce(response({ data: { csrf_token: "csrf-test-token" } }))

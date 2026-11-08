@@ -43,27 +43,63 @@ function csrfCookie() {
     ?.split("=")[1];
 }
 
+async function isCsrfFailure(response: Response) {
+  if (response.status !== 403) return false;
+  try {
+    const body = await response.clone().json() as { message?: unknown };
+    const message = typeof body.message === "string" ? body.message.toLowerCase() : "";
+    return message.includes("csrf") || message.includes("security token");
+  } catch {
+    return false;
+  }
+}
+
+let csrfBootstrapRequest: Promise<boolean> | null = null;
+
+function bootstrapCsrfToken() {
+  if (!csrfBootstrapRequest) {
+    csrfBootstrapRequest = fetch(`${API_BASE_URL}/auth/csrf/`, {
+      method: "GET",
+      credentials: "include",
+      headers: { Accept: "application/json" },
+    })
+      .then(async (response) => {
+        if (!response.ok) return false;
+        rememberCsrfToken(await response.json());
+        return Boolean(csrfCookie());
+      })
+      .finally(() => {
+        csrfBootstrapRequest = null;
+      });
+  }
+  return csrfBootstrapRequest;
+}
+
 let refreshRequest: Promise<boolean> | null = null;
 
 function refreshSession() {
   if (!refreshRequest) {
     const controller = new AbortController();
     const timeout = window.setTimeout(() => controller.abort(), 60_000);
-    const csrf = csrfCookie();
-    refreshRequest = fetch(`${API_BASE_URL}/auth/refresh/`, {
-      method: "POST",
-      credentials: "include",
-      signal: controller.signal,
-      headers: new Headers({
-        Accept: "application/json",
-        ...(csrf ? { "X-ChapelFlow-CSRF": csrf } : {}),
-      }),
-    })
-      .then(async (response) => {
-        if (!response.ok) return false;
-        rememberCsrfToken(await response.json());
-        return true;
-      })
+    refreshRequest = (async () => {
+      const sendRefresh = (csrf: string | undefined) => fetch(`${API_BASE_URL}/auth/refresh/`, {
+        method: "POST",
+        credentials: "include",
+        signal: controller.signal,
+        headers: new Headers({
+          Accept: "application/json",
+          ...(csrf ? { "X-ChapelFlow-CSRF": csrf } : {}),
+        }),
+      });
+
+      let response = await sendRefresh(csrfCookie());
+      if (await isCsrfFailure(response) && await bootstrapCsrfToken()) {
+        response = await sendRefresh(csrfCookie());
+      }
+      if (!response.ok) return false;
+      rememberCsrfToken(await response.json());
+      return true;
+    })()
       .finally(() => {
         window.clearTimeout(timeout);
         refreshRequest = null;
@@ -109,6 +145,28 @@ async function rawRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
       signal,
       headers,
     });
+
+    // A CSRF cookie can be rotated or rejected independently of the login.
+    // Re-bootstrap and retry a CSRF-specific 403 once; do not mistake it for
+    // an expired login and redirect a member out of The Upper Room.
+    if (
+      await isCsrfFailure(response) &&
+      ["POST", "PUT", "PATCH", "DELETE"].includes((init.method || "GET").toUpperCase()) &&
+      path !== "/auth/csrf/" &&
+      path !== "/auth/refresh/"
+    ) {
+      if (await bootstrapCsrfToken()) {
+        const freshCsrf = csrfCookie();
+        if (freshCsrf) headers.set("X-ChapelFlow-CSRF", freshCsrf);
+        response = await fetch(`${API_BASE_URL}${path}`, {
+          ...init,
+          credentials: "include",
+          signal,
+          headers,
+        });
+      }
+    }
+
     if (
       response.status === 401 &&
       isDjangoBackend &&

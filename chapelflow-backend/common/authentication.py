@@ -4,7 +4,9 @@ API clients can continue to use ``Authorization: Bearer``. Browsers receive
 short-lived access tokens and rotating refresh tokens only as HttpOnly cookies,
 so the SPA never needs to persist credentials in web storage.
 """
-from rest_framework.exceptions import AuthenticationFailed
+import hmac
+
+from rest_framework.exceptions import AuthenticationFailed, PermissionDenied
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework_simplejwt.exceptions import TokenError
 
@@ -60,10 +62,12 @@ class CookieJWTAuthentication(JWTAuthentication):
         if request.method not in {"GET", "HEAD", "OPTIONS", "TRACE"}:
             cookie_token = request.COOKIES.get(self.csrf_cookie_name, "")
             header_token = request.META.get(self.csrf_header_name, "")
-            if not cookie_token or not header_token or cookie_token != header_token:
-                # CSRF mismatch also degrades to anonymous; permission
-                # classes still gate state-changing requests.
-                return None
+            if not cookie_token or not header_token or not hmac.compare_digest(cookie_token, header_token):
+                # Keep an otherwise valid login authenticated. A stale/missing
+                # CSRF token is a forbidden mutation, not an expired session;
+                # returning None here incorrectly turns it into a 401 and logs
+                # the member out through the SPA's session-expired handler.
+                raise PermissionDenied("Your security token is invalid or expired. Please retry.")
         return self._enforce_required_password_change(
             request, (user, validated_token)
         )
