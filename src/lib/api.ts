@@ -25,7 +25,18 @@ function safeRedirect(value: string | null) {
   return value?.startsWith("/") && !value.startsWith("//") ? value : "/app";
 }
 
+let csrfTokenValue: string | null = null;
+
+function rememberCsrfToken(payload: unknown) {
+  if (!payload || typeof payload !== "object") return;
+  const data = (payload as { data?: unknown }).data;
+  if (!data || typeof data !== "object") return;
+  const token = (data as { csrf_token?: unknown }).csrf_token;
+  if (typeof token === "string" && token.length > 0) csrfTokenValue = token;
+}
+
 function csrfCookie() {
+  if (csrfTokenValue) return csrfTokenValue;
   return document.cookie
     .split("; ")
     .find((cookie) => cookie.startsWith("chapelflow_csrf="))
@@ -48,7 +59,11 @@ function refreshSession() {
         ...(csrf ? { "X-ChapelFlow-CSRF": csrf } : {}),
       }),
     })
-      .then((response) => response.ok)
+      .then(async (response) => {
+        if (!response.ok) return false;
+        rememberCsrfToken(await response.json());
+        return true;
+      })
       .finally(() => {
         window.clearTimeout(timeout);
         refreshRequest = null;
@@ -168,7 +183,10 @@ async function rawRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
       });
     }
     if (response.status === 204) return undefined as T;
-    return (await response.json()) as T;
+    const payload = await response.json();
+    rememberCsrfToken(payload);
+    if (path === "/auth/logout/" || path === "/auth/logout") csrfTokenValue = null;
+    return payload as T;
   } catch (error) {
     if (error instanceof ApiError) throw error;
     if (error instanceof DOMException && error.name === "AbortError")
