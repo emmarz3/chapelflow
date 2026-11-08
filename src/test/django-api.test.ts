@@ -7,6 +7,59 @@ const response = (data: unknown, status = 200) =>
 afterEach(() => vi.unstubAllGlobals());
 
 describe("Django API integration", () => {
+  it("loads every admin attendance page so older live sessions stay stoppable", async () => {
+    const fetch = vi.fn()
+      .mockResolvedValueOnce(response({
+        data: [{ id: "closed-recent", state: "CLOSED", is_open: false, opened_at: "2026-11-07T10:00:00Z" }],
+        pagination: { count: 201, current_page: 1, num_pages: 2, page_size: 200, next: "/api/v1/attendance/sessions/?page=2" },
+      }))
+      .mockResolvedValueOnce(response({
+        data: [{ id: "still-open", state: "OPEN", is_open: true, opened_at: "2026-11-06T10:00:00Z" }],
+        pagination: { count: 201, current_page: 2, num_pages: 2, page_size: 200, next: null },
+      }));
+    vi.stubGlobal("fetch", fetch);
+
+    const result = await apiRequest("/admin/attendance/sessions") as { data: { id: string }[] };
+    expect(result.data.map((item) => item.id)).toEqual(["still-open", "closed-recent"]);
+    expect(fetch.mock.calls.map(([url]) => url)).toEqual([
+      "/api/v1/attendance/sessions/?page=1&page_size=200",
+      "/api/v1/attendance/sessions/?page=2&page_size=200",
+    ]);
+  });
+
+  it("sends super admin attendance start and stop to the secured Django endpoints", async () => {
+    const fetch = vi.fn()
+      .mockResolvedValueOnce(response({ data: { id: "session-1", state: "OPEN" } }, 201))
+      .mockResolvedValueOnce(response({ data: { id: "session-1", state: "CLOSED", is_open: false } }));
+    vi.stubGlobal("fetch", fetch);
+    const payload = {
+      branch: "chapel-1", label: "Sunday worship",
+      window_opens_at: "2026-11-08T10:00:00Z", window_closes_at: "2026-11-08T12:00:00Z",
+    };
+
+    await apiRequest("/admin/attendance/sessions", { method: "POST", body: JSON.stringify(payload) });
+    await apiRequest("/admin/attendance/sessions/session-1/close", { method: "POST" });
+
+    expect(fetch.mock.calls.map(([url]) => url)).toEqual([
+      "/api/v1/attendance/sessions/",
+      "/api/v1/attendance/sessions/session-1/close/",
+    ]);
+    expect(JSON.parse(fetch.mock.calls[0]![1].body)).toEqual(payload);
+    expect(fetch.mock.calls[1]![1].method).toBe("POST");
+  });
+
+  it("surfaces a Django field validation message instead of a generic error", async () => {
+    const fetch = vi.fn().mockResolvedValue(response({
+      message: "Validation failed.",
+      errors: { window_closes_at: "Closing time must be after opening time." },
+    }, 400));
+    vi.stubGlobal("fetch", fetch);
+    await expect(apiRequest("/admin/attendance/sessions", {
+      method: "POST", body: JSON.stringify({ branch: "chapel-1" }),
+    })).rejects.toThrow("window closes at: Closing time must be after opening time.");
+  });
+
+
   it("maps notification categories, links and pagination", async () => {
     const fetch = vi.fn().mockResolvedValue(response({ data: [{ id: "notice-1", title: "Event", body: "Soon", category: "EVENT", href: "/app/events", read_at: null, created_at: "2026-11-06T12:00:00Z" }], pagination: { current_page: 1, page_size: 25, count: 26 } }));
     vi.stubGlobal("fetch", fetch);
