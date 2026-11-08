@@ -127,7 +127,7 @@ class InstitutionalAccountSerializer(serializers.ModelSerializer):
             "institutional_office",
             self.instance.institutional_office if self.instance else "",
         )
-        if not office and self.instance is None:
+        if not office:
             office = DEFAULT_OFFICES_BY_ROLE.get(role, "")
             if office:
                 attrs["institutional_office"] = office
