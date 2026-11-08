@@ -225,12 +225,20 @@ async function rawRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
           : typeof (body as { detail?: unknown }).detail === "string"
             ? (body as { detail: string }).detail
             : fallback.message;
-      const fieldErrors = body.fieldErrors ?? body.errors;
+      // Django validation errors are commonly strings per field, not just
+      // arrays. Preserve those messages so admins can resolve invalid forms.
+      const rawFieldErrors = body.fieldErrors ?? body.errors;
+      const fieldErrors = rawFieldErrors && typeof rawFieldErrors === "object" && !Array.isArray(rawFieldErrors)
+        ? Object.fromEntries(
+            Object.entries(rawFieldErrors).map(([field, messages]) => [
+              field,
+              (Array.isArray(messages) ? messages : [messages]).map(String),
+            ]),
+          )
+        : undefined;
       const fieldDetails = Object.entries(fieldErrors ?? {}).flatMap(
         ([field, messages]) =>
-          Array.isArray(messages)
-            ? messages.map((message) => `${field.replaceAll("_", " ")}: ${message}`)
-            : [],
+          messages.map((message) => `${field.replaceAll("_", " ")}: ${message}`),
       );
       throw new ApiError({
         ...fallback,
