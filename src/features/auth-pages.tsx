@@ -38,7 +38,6 @@ const VIDEO_REGISTRY = {
   },
   register: {
     sources: ["/auth-videos/register/auth-register-1.mp4", "/auth-videos/register/auth-register-2.mp4"],
-    poster: "/chapelflow-auth-register-visual.png",
   },
 } as const;
 
@@ -125,81 +124,47 @@ export function AuthLayout({ children }: { children: React.ReactNode }) {
   const registration = location.pathname === "/register";
   const reducedMotion = useReducedMotionPreference();
   const [displayIndex, setDisplayIndex] = useState(0);
-  const [crossFade, setCrossFade] = useState({ current: 1, next: 0 });
+  const [videoFailed, setVideoFailed] = useState(false);
   const loginSet = VIDEO_REGISTRY.login;
   const registerSet = VIDEO_REGISTRY.register;
   const videoSet = registration ? registerSet : loginSet;
   const videos = videoSet.sources;
-  const poster = registration ? registerSet.poster : undefined;
 
   useAuthMotion(rootRef, location.pathname);
 
   useEffect(() => {
     setDisplayIndex(0);
-    setCrossFade({ current: 1, next: 0 });
+    setVideoFailed(false);
   }, [registration]);
 
-  useEffect(() => {
-    if (videos.length <= 1 || reducedMotion) return;
-    const timer = window.setInterval(() => {
-      setCrossFade({ current: 0, next: 1 });
-      setDisplayIndex((index) => (index + 1) % videos.length);
-      window.setTimeout(() => {
-        setCrossFade({ current: 1, next: 0 });
-      }, 800);
-    }, 8000);
-    return () => window.clearInterval(timer);
-  }, [videos.length, reducedMotion]);
-
   const currentVideo = videos[displayIndex];
-  const nextVideo = videos[(displayIndex + 1) % videos.length];
 
   return (
     <div className={`auth-layout auth-layout--${registration ? "register" : "login"}`} ref={rootRef}>
       <aside className="auth-visual">
-        {reducedMotion ? (
-          registration ? (
-            <img src={poster} className="auth-visual__poster" alt="" aria-hidden="true" />
-          ) : (
-            <div className="auth-visual__poster auth-visual__poster--static" aria-hidden="true" />
-          )
+        {(reducedMotion || videoFailed) ? (
+          <div className="auth-visual__poster auth-visual__poster--static" aria-hidden="true" />
         ) : (
-          <>
-            <video
-              className="auth-visual__video is-current"
-              src={currentVideo}
-              poster={poster}
-              autoPlay
-              loop
-              muted
-              playsInline
-              preload="metadata"
-              disableRemotePlayback
-              aria-hidden="true"
-              tabIndex={-1}
-              style={{ opacity: crossFade.current }}
-            />
-            {videos.length > 1 && (
-              <video
-                className="auth-visual__video is-next"
-                src={nextVideo}
-                poster={poster}
-                autoPlay
-                loop
-                muted
-                playsInline
-                preload="metadata"
-                disableRemotePlayback
-                aria-hidden="true"
-                tabIndex={-1}
-                style={{ opacity: crossFade.next }}
-              />
-            )}
-          </>
+          <video
+            key={`${registration}-${displayIndex}`}
+            className="auth-visual__video is-current"
+            src={currentVideo}
+            autoPlay
+            muted
+            playsInline
+            preload="metadata"
+            disableRemotePlayback
+            aria-hidden="true"
+            tabIndex={-1}
+            onEnded={() => setDisplayIndex((index) => (index + 1) % videos.length)}
+            onError={() => {
+              if (displayIndex + 1 < videos.length) setDisplayIndex(displayIndex + 1);
+              else setVideoFailed(true);
+            }}
+          />
         )}
         <div className="auth-visual__shade" />
         <div className="auth-visual__branding">
-          <LocalBrandImage src={BRAND_ASSETS.institutionLogo} alt="Chrisland University Chapel" className="auth-visual__mark" />
           <span className="auth-visual__tagline">Nurturing faith. Shaping lives. Impacting Nigeria.</span>
         </div>
       </aside>

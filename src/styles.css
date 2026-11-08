@@ -1551,7 +1551,6 @@ button {
   flex-direction: column;
   color: #fff;
 }
-.auth-visual > img,
 .auth-visual > video,
 .auth-visual__shade,
 .auth-visual__poster {
@@ -1571,16 +1570,9 @@ button {
     rgb(30 13 43 / 0.94)
   );
 }
-.auth-visual > *:not(img):not(video):not(.auth-visual__shade):not(.auth-visual__poster):not(.auth-visual__branding) {
+.auth-visual > *:not(video):not(.auth-visual__shade):not(.auth-visual__poster):not(.auth-visual__branding) {
   position: relative;
   z-index: 1;
-}
-.auth-visual__video {
-  transition: opacity 800ms ease;
-}
-.auth-visual__video.is-next {
-  position: absolute;
-  inset: 0;
 }
 .auth-visual__branding {
   position: absolute;
@@ -1591,13 +1583,6 @@ button {
   flex-direction: column;
   gap: 10px;
   z-index: 1;
-}
-.auth-visual__mark {
-  align-self: flex-start;
-  height: 48px;
-  width: auto;
-  object-fit: contain;
-  filter: brightness(0) invert(1);
 }
 .auth-visual__tagline {
   color: rgb(255 255 255 / 0.82);
@@ -5110,12 +5095,11 @@ button {
   .completion-figure__halo { display: none; }
 }
 
-/* Static ChapelFlow login color treatment. */
+/* ChapelFlow auth video color treatment. */
 .auth-layout--login .auth-visual {
   background: #081d3b;
   isolation: isolate;
 }
-.auth-layout--login .auth-visual > img,
 .auth-layout--login .auth-visual__shade {
   background: linear-gradient(145deg, rgba(8, 29, 59, .34), rgba(49, 38, 115, .3) 50%, rgba(8, 91, 105, .48)), linear-gradient(180deg, rgba(3, 17, 31, .04), rgba(3, 17, 31, .74));
   z-index: 1;
