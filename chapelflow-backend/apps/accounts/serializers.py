@@ -144,7 +144,9 @@ class InstitutionalAccountSerializer(serializers.ModelSerializer):
         if role == "ATTENDANCE_USHER" and group:
             raise serializers.ValidationError({"institutional_group": ["Usher accounts cannot be assigned to a group."]})
         expected_group_types = {"FELLOWSHIP_LEADER": "FELLOWSHIP", "UNIT_HEAD": "UNIT"}
-        if role in expected_group_types and not group:
+        if role in expected_group_types and not group and (
+            self.instance is None or "role" in attrs or "institutional_group" in attrs
+        ):
             raise serializers.ValidationError({"institutional_group": ["Select a Chapel Unit or Fellowship for this leader."]})
         expected_name = office_definition[2]
         if expected_name and group and group.name != expected_name:
