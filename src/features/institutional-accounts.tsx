@@ -24,34 +24,6 @@ const roles = [
   ["ATTENDANCE_USHER", "Attendance usher"],
 ] as const;
 
-const chapelUnits: readonly string[] = [
-  "Intercessory",
-  "Treasurer",
-  "Chapel Protocol",
-  "Music",
-  "Instrumentalist",
-  "Ushering",
-  "Sanctuary Keepers",
-  "Media & ICT",
-  "Social Media",
-  "Library",
-  "Drama Team",
-  "Technical & Sound",
-] as const;
-
-const chapelFellowships: readonly string[] = [
-  "Love Campus Fellowship",
-  "Truth Campus Fellowship",
-  "Favour Campus Fellowship",
-  "Integrity Campus Fellowship",
-  "Righteousness Campus Fellowship",
-  "Mercy Campus Fellowship",
-  "Excellence Campus Fellowship",
-  "Grace Campus Fellowship",
-  "Outstanding Campus Fellowship",
-  "Peace Campus Fellowship",
-] as const;
-
 type InstitutionalRole = (typeof roles)[number][0];
 
 function roleGroupType(role: InstitutionalRole) {
@@ -144,7 +116,7 @@ export function InstitutionalAccountsPage() {
       <PageHeader
         eyebrow="Super administration"
         title="Institutional accounts"
-        description="Provision and safely manage chapel leadership and the two attendance usher accounts."
+        description="Create leadership accounts for each active Chapel Unit or Fellowship. Account holders are selected by the Super Admin; no leader names are preloaded."
         actions={
           <div className="button-row">
             <Button variant="secondary" loading={addUnits.isPending} onClick={() => addUnits.mutate()}>
@@ -250,10 +222,7 @@ export function InstitutionalAccountsPage() {
                 ?.filter(
                   (group) =>
                     group.is_active &&
-                    group.group_type === roleGroupType(selectedRole) &&
-                    (group.group_type === "UNIT"
-                      ? chapelUnits.includes(group.name)
-                      : chapelFellowships.includes(group.name)),
+                    group.group_type === roleGroupType(selectedRole),
                 )
                 .map((group) => (
                   <option key={group.id} value={group.id}>

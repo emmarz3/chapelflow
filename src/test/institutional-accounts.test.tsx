@@ -46,7 +46,6 @@ beforeEach(() => {
         "Library",
         "Drama Team",
         "Technical & Sound",
-        "Head of Music",
       ].map((name, index) => ({ id: `unit-${index + 1}`, name, group_type: "UNIT", is_active: true })),
       ...[
         "Love Campus Fellowship",
@@ -59,7 +58,6 @@ beforeEach(() => {
         "Grace Campus Fellowship",
         "Outstanding Campus Fellowship",
         "Peace Campus Fellowship",
-        "Love Fellowship",
       ].map((name, index) => ({ id: `fellowship-${index + 1}`, name, group_type: "FELLOWSHIP", is_active: true })),
     ],
   });
@@ -98,17 +96,28 @@ describe("institutional account provisioning", () => {
 
     const assignment = screen.getByLabelText(/^Unit or fellowship/);
     await user.selectOptions(screen.getByLabelText("Role"), "UNIT_HEAD");
-    for (const unit of ["Intercessory", "Treasurer", "Music", "Technical & Sound"]) {
+    const units = [
+      "Intercessory", "Treasurer", "Chapel Protocol", "Music", "Instrumentalist",
+      "Ushering", "Sanctuary Keepers", "Media & ICT", "Social Media", "Library",
+      "Drama Team", "Technical & Sound",
+    ];
+    for (const unit of units) {
       expect(screen.getByRole("option", { name: new RegExp(unit) })).toBeInTheDocument();
     }
-    expect(screen.queryByRole("option", { name: /Head of Music/ })).toBeNull();
+    expect(screen.getAllByRole("option")).toHaveLength(13);
 
     await user.selectOptions(screen.getByLabelText("Role"), "FELLOWSHIP_LEADER");
-    for (const fellowship of ["Love Campus Fellowship", "Truth Campus Fellowship", "Peace Campus Fellowship"]) {
+    const fellowships = [
+      "Love Campus Fellowship", "Truth Campus Fellowship", "Favour Campus Fellowship",
+      "Integrity Campus Fellowship", "Righteousness Campus Fellowship", "Mercy Campus Fellowship",
+      "Excellence Campus Fellowship", "Grace Campus Fellowship", "Outstanding Campus Fellowship",
+      "Peace Campus Fellowship",
+    ];
+    for (const fellowship of fellowships) {
       expect(screen.getByRole("option", { name: new RegExp(fellowship) })).toBeInTheDocument();
     }
+    expect(screen.getAllByRole("option")).toHaveLength(11);
     expect(assignment).toBeInTheDocument();
-    expect(screen.queryByRole("option", { name: /Love Fellowship/ })).toBeNull();
   });
 
   it("shows server-side password validation when account creation is rejected", async () => {
