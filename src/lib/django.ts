@@ -325,6 +325,7 @@ export async function djangoRequest(
   }
   const suffix = query.size ? `?${query}` : "";
 
+  if (route === "/auth/csrf") return call("/auth/csrf/");
   if (route === "/auth/me")
     return { data: user(row((await call("/auth/me/")).data)) };
   if (route === "/auth/login") {
