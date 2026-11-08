@@ -83,6 +83,14 @@ const rolePermissions: Record<Role, Permission[]> = {
     "leadership:view",
     "chapel:announce",
   ],
+  assistant_student_chaplain: [
+    "dashboard:view",
+    "events:read",
+  ],
+  hostel_coordinator: [
+    "dashboard:view",
+    "events:read",
+  ],
   unit_leader: [
     "dashboard:view",
     "members:read",
@@ -148,6 +156,8 @@ const rolePermissions: Record<Role, Permission[]> = {
 const operationalWorkspaceRoles = new Set<Role>([
   "chaplain",
   "student_chaplain",
+  "assistant_student_chaplain",
+  "hostel_coordinator",
   "unit_leader",
   "fellowship_leader",
 ]);
@@ -215,7 +225,9 @@ export function buildDemoUser(role: Role): User {
     super_admin: "Dr. Tola Adebayo",
     chapel_admin: "Grace Adeyemi",
     chaplain: "Chaplain Emmanuel Adekunle",
-    student_chaplain: "Akintobi Oluwabori Favour",
+    student_chaplain: "Student Chaplain",
+    assistant_student_chaplain: "Assistant Student Chaplain",
+    hostel_coordinator: "Hostel Fellowship Coordinator",
     unit_leader: "Unit Leader",
     fellowship_leader: "Fellowship Leader",
     treasurer: "Olutanwa Esther",
