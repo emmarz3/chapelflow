@@ -192,6 +192,10 @@ class User(AbstractBaseUser, PermissionsMixin):
         "self", null=True, blank=True, on_delete=models.SET_NULL,
         related_name="created_accounts",
     )
+    institutional_office = models.CharField(
+        max_length=64, blank=True, default="",
+        help_text="Position in Chapel leadership register; never prefilled with a person name.",
+    )
     institutional_group = models.ForeignKey(
         "ministries.Group", null=True, blank=True, on_delete=models.SET_NULL,
         related_name="institutional_accounts",
