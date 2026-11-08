@@ -28,6 +28,14 @@ def seed_office_roles(apps, schema_editor):
             RolePermission.objects.get_or_create(role_obj=role, permission=permission)
 
 
+def backfill_legacy_offices(apps, schema_editor):
+    User = apps.get_model("accounts", "User")
+    for role in ("CHAPLAIN", "STUDENT_CHAPLAIN", "UNIT_HEAD", "FELLOWSHIP_LEADER", "ATTENDANCE_USHER"):
+        User.objects.filter(role=role, institutional_office="").update(
+            institutional_office=role,
+        )
+
+
 class Migration(migrations.Migration):
     dependencies = [
         ("accounts", "0012_student_chaplain_mfa"),
@@ -43,4 +51,5 @@ class Migration(migrations.Migration):
             ),
         ),
         migrations.RunPython(seed_office_roles, migrations.RunPython.noop),
+        migrations.RunPython(backfill_legacy_offices, migrations.RunPython.noop),
     ]
