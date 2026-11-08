@@ -320,7 +320,7 @@ export function AdminOperationsPage() {
                 {transition.variables.action === "close" ? "Attendance stopped. New QR check-ins are blocked."
                   : transition.variables.action === "pause" ? "Attendance paused."
                     : "Attendance resumed."}
-              </p>
+              </p>}
             </section>
           </section>
           <section className="table-panel">
