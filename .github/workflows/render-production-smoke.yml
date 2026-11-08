@@ -1,0 +1,23 @@
+name: Render Production Smoke
+
+on:
+  pull_request:
+    paths:
+      - "scripts/render-production-smoke.py"
+      - ".github/workflows/render-production-smoke.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  read-only-render-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Probe deployed ChapelFlow frontend, backend, CORS, and attendance permissions
+        run: python scripts/render-production-smoke.py
