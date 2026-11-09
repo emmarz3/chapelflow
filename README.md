@@ -70,6 +70,8 @@ Production routes fetch backend-authorized content and show explicit loading, em
 
 ## Deployment
 
+Vercel uses the repository-root `vercel.json` to deploy the Vite frontend and Django API in one project. The browser calls `/api/v1` on the same origin. See the [Vercel cutover runbook](docs/PRODUCTION_OPERATIONS.md#cut-over-to-vercel) for database recovery, environment variables, and verification.
+
 The root `render.yaml` provisions the Django Docker service, managed PostgreSQL, Redis and Celery workers. The frontend static site is configured separately in Render. Set the prompted `SUPER_ADMIN_EMAIL`, `SUPER_ADMIN_PASSWORD`, Cloudinary credentials, SMTP credentials, `CORS_ALLOWED_ORIGINS`, and `CSRF_TRUSTED_ORIGINS` before serving users. The frontend must proxy `/api/v1/*` to the running Django service or use its public API URL at build time. The Blueprint uses paid Render compute and database plans; review the current Render pricing before syncing it. File uploads use Cloudinary so media survives app deploys and restarts.
 
 The backend and database can also be deployed separately: use `chapelflow-backend/Dockerfile`, set `DJANGO_SETTINGS_MODULE=config.settings.production`, provide a managed PostgreSQL `DATABASE_URL`, and configure the runtime values listed in `chapelflow-backend/.env.example`. Never use local SQLite or local media storage for production.
