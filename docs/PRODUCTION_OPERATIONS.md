@@ -1,11 +1,55 @@
 # Production operations
 
-This runbook covers the production resources defined in `render.yaml`, encrypted
-PostgreSQL backups, release/rollback, alerting, and the provider checks required
-before launch. Keep provider credentials in Render/GitHub secret stores; do not
-put real credentials in this repository.
+This runbook covers deployment, encrypted PostgreSQL backups, release and rollback,
+alerting, and provider checks. Keep credentials in each platform's secret store.
 
-## Deploy the production stack
+## Cut over to Vercel
+
+Use the existing ChapelFlow project linked to this repository, with the repository
+root as its Root Directory. The project configuration builds Vite and Django as
+separate Vercel Services behind a single domain.
+
+1. Recover an export from the existing Render PostgreSQL database or a verified
+   backup. Restore it to an empty PostgreSQL instance reachable from Vercel over
+   TLS. Confirm that the restored database contains the expected accounts,
+   attendance, communities, and media references before applying migrations.
+2. In the Vercel project, enable Git LFS and automatic exposure of System
+   Environment Variables. Git LFS supplies the frontend's images and videos.
+   Set the variables below for the intended deployment environment. Use separate
+   PostgreSQL and storage resources for previews that can accept writes.
+
+   | Variable | Value |
+   | --- | --- |
+   | `DJANGO_SETTINGS_MODULE` | `config.settings.vercel` |
+   | `DATABASE_URL` | TLS connection URL for the restored database |
+   | `SECRET_KEY` | The existing production signing key |
+   | `STORAGE_PROVIDER`, `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` | `cloudinary` and the existing Cloudinary account credentials |
+   | `ALLOWED_HOSTS`, `PUBLIC_BACKEND_URL`, `FRONTEND_URL` | Set these for custom domains as needed. Vercel deployment hosts are added automatically. |
+
+   The frontend build uses Django API mode with `/api/v1` on the shared domain.
+   Transfer enabled email, payment, SMS and push settings. Update provider
+   callbacks and webhooks to the new public domain. Configure an externally
+   reachable `REDIS_URL` for shared rate limits and caching before serving
+   production traffic.
+3. With the backend dependencies and target environment loaded securely, run
+   `python manage.py migrate --noinput` from `chapelflow-backend` against the
+   restored database. Run migrations as a release step before promoting the
+   deployment. Production startup assumes an existing, migrated database.
+4. Before routing users, verify `/login`, `/health/`, `/readiness/`, a frontend
+   image and video, login and logout, Super Admin attendance start and stop,
+   and community join approval and messaging with test accounts. Check
+   `/readiness/` for PostgreSQL and configured Redis connectivity. Update the
+   encrypted backup workflow for the destination database and verify an export.
+
+The web services run request-triggered Celery tasks inline by default. Scheduled
+announcements and reminders need Celery Beat and a worker using the same Redis
+broker and database. Once those processes are active, set
+`CELERY_TASK_ALWAYS_EAGER=false` on the web deployment for queued execution.
+Vercel Functions limit request and response bodies to 4.5 MB. Existing multipart
+uploads and report downloads above that limit require a direct storage transfer
+before those larger files can be supported on this deployment.
+
+## Render deployment
 
 The Render Blueprint provisions the Django API, PostgreSQL, persistent Redis
 Key Value, a Celery worker, and one Celery Beat scheduler. The web service runs
