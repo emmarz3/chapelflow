@@ -1,0 +1,58 @@
+name: Render Production Smoke
+
+on:
+  pull_request:
+    paths:
+      - "scripts/render-production-smoke.py"
+      - ".github/workflows/render-production-smoke.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  read-only-render-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Probe deployed ChapelFlow frontend, backend, CORS, and attendance permissions
+        run: python scripts/render-production-smoke.py
+
+  attendance-lifecycle-postgres:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: chapelflow
+          POSTGRES_PASSWORD: chapelflow
+          POSTGRES_DB: chapelflow_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U chapelflow -d chapelflow_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 15
+    env:
+      DATABASE_URL: postgres://chapelflow:chapelflow@127.0.0.1:5432/chapelflow_test
+      SECRET_KEY: github-actions-chapelflow-test-key-not-for-production
+      DJANGO_SETTINGS_MODULE: config.settings.test
+    defaults:
+      run:
+        working-directory: chapelflow-backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: chapelflow-backend/requirements.txt
+      - run: pip install -r requirements.txt
+      - name: Test privileged attendance start, pause, resume, stop, security restrictions
+        run: python -m pytest tests/attendance/test_super_admin_controls.py -v --disable-warnings
