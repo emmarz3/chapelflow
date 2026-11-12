@@ -43,6 +43,7 @@ import { LivePublicDetailPage, LivePublicPage } from "./live-public";
 
 const publicNav = [
   ["About", "/about"],
+  ["Fellowship", "/fellowship"],
   ["Events", "/events"],
   ["Sermons", "/sermons"],
   ["Gallery", "/gallery"],
@@ -517,6 +518,82 @@ export function AboutPage() {
         <div><p className="cuc-home__eyebrow">Your place is here</p><h2>Come as you are. Grow as you go.</h2><p>Join ChapelFlow to follow programmes, find a community, receive chapel updates, and take part in the life of CUC.</p></div>
         <div>{!loading && <Link className="button button--primary" to={user ? "/app" : "/register"}>{user ? "Open your dashboard" : "Create account"} <ArrowRight size={18} /></Link>}<Link className="button button--ghost" to="/contact">Contact the chapel</Link></div>
       </section>
+    </div>
+  );
+}
+
+const fellowships = [
+  { name: "GRACE Campus fellowship", leader: "Oyenekan Oluwanifemi", initials: "OO", image: "/fellowships/kendo.jpg", schedule: "Friday · 5:00pm", phone: "08060584445", whatsapp: "2348060584445", about: "God loves you, and so do I." },
+  { name: "MERCY Campus Fellowship", leader: "Aborisade Oluwadarasimi", initials: "AO", image: "/fellowships/281691.jpg", phone: "08148549589", whatsapp: "2348148549589" },
+  { name: "PEACE Campus Fellowship", leader: "Adebesin Kofoworola", initials: "AK", image: "/fellowships/kofo.jpg", phone: "07089415182", whatsapp: "2347089415182" },
+  { name: "EXCELLENT Campus Fellowship", leader: "Adewale Phillip", initials: "AP", image: "/fellowships/281637.jpg", phone: "07086438585", whatsapp: "2347086438585" },
+  { name: "TRUTH Campus Fellowship", leader: "Fayemi Ajibola", initials: "FA", image: "/fellowships/aj.jpg", phone: "09136832621", whatsapp: "2349136832621" },
+  { name: "LOVE Campus Fellowship", leader: "Dada Mofopefoluwa", initials: "DM", image: "/fellowships/fope.jpg", phone: "08025838409", whatsapp: "2348025838409" },
+  { name: "FAVOUR Campus Fellowship", leader: "Ojekunle Daniel", initials: "OD", phone: "08067475491", whatsapp: "2348067475491" },
+];
+
+export function FellowshipPage() {
+  const [selected, setSelected] = useState<(typeof fellowships)[number] | null>(null);
+  useEffect(() => {
+    if (!selected) return;
+    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === "Escape") setSelected(null); };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [selected]);
+
+  return (
+    <div className="cuc-fellowship">
+      <section className="cuc-fellowship__hero">
+        <div className="cuc-fellowship__hero-image" aria-hidden="true" />
+        <div className="cuc-fellowship__hero-copy">
+          <p className="cuc-home__eyebrow">Find your people</p>
+          <h1>Our Fellowships</h1>
+          <p>Find your place and grow together with others who share your faith.</p>
+        </div>
+      </section>
+      <section className="cuc-fellowship__section">
+        <div className="cuc-fellowship__intro">
+          <p className="cuc-home__eyebrow">Life together on campus</p>
+          <h2>Faith grows in community.</h2>
+          <p>Chrisland University Chapel provides students with fellowships to connect, grow, and serve together. Explore the options and find a fellowship that fits your interests and values. We’d love to see you there.</p>
+        </div>
+        <div className="cuc-fellowship__grid">
+          {fellowships.map((fellowship, index) => (
+            <article className="cuc-fellowship__card" key={fellowship.name} style={{ "--fellowship-index": index } as React.CSSProperties}>
+              <div className="cuc-fellowship__photo">
+                <span aria-hidden="true">{fellowship.initials}</span>
+                {fellowship.image && <img src={fellowship.image} alt={fellowship.leader} loading="lazy" onError={(event) => { event.currentTarget.style.display = "none"; }} />}
+              </div>
+              <div className="cuc-fellowship__card-copy">
+                <h3>{fellowship.name}</h3>
+                <p className="cuc-fellowship__tagline">Raising a generation for Christ.</p>
+                <p className="cuc-fellowship__leader"><span>Fellowship leader</span>{fellowship.leader}</p>
+                <button className="cuc-fellowship__profile-button" type="button" onClick={() => setSelected(fellowship)}>View Profile</button>
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
+      {selected && (
+        <div className="cuc-fellowship__overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) setSelected(null); }}>
+          <section className="cuc-fellowship__profile" role="dialog" aria-modal="true" aria-labelledby="fellowship-profile-name">
+            <button className="cuc-fellowship__close" type="button" aria-label="Close profile" onClick={() => setSelected(null)}><X size={20} /></button>
+            <p className="cuc-home__eyebrow">{selected.name}</p>
+            <h2 id="fellowship-profile-name">{selected.leader}</h2>
+            <figure className="cuc-fellowship__profile-portrait">
+              {selected.image && <img src={selected.image} alt={selected.leader} />}
+              {!selected.image && <span aria-hidden="true">{selected.initials}</span>}
+            </figure>
+            <p className="cuc-fellowship__profile-role">Fellowship leader</p>
+            {selected.schedule && <p className="cuc-fellowship__profile-schedule">{selected.schedule}</p>}
+            <div className="cuc-fellowship__profile-section">
+              <h3>Contact</h3>
+              {selected.phone ? <><a href={`tel:${selected.phone}`}><span>Phone</span>{selected.phone}</a><a href={`https://wa.me/${selected.whatsapp}`} target="_blank" rel="noreferrer"><span>WhatsApp</span>Chat on WhatsApp</a></> : <p>Contact details are not available yet.</p>}
+            </div>
+            <div className="cuc-fellowship__profile-section"><h3>About</h3><p>{selected.about ?? "Raising a generation for Christ through faith, fellowship, and service."}</p></div>
+          </section>
+        </div>
+      )}
     </div>
   );
 }

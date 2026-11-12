@@ -44,6 +44,7 @@ import {
 } from "../features/portal-shell";
 import {
   AboutPage,
+  FellowshipPage,
   CookieConsent,
   HomePage,
   LegalPage,
@@ -155,6 +156,7 @@ export function App() {
                 path="/about"
                 element={<AboutPage />}
               />
+              <Route path="/fellowship" element={<FellowshipPage />} />
               <Route
                 path="/mission"
                 element={<PublicInfoPage page="mission" />}
