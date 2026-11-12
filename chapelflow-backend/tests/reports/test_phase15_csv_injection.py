@@ -183,7 +183,7 @@ class TestCSVExportSecurity:
 class TestReportFilterValidation:
     """Test report filter security validation."""
     
-    def test_invalid_filter_keys_rejected(self, client):
+    def test_invalid_filter_keys_rejected(self, api_client):
         """Test that unauthorized filter keys are rejected."""
         from django.contrib.auth import get_user_model
         from apps.organizations.models import Branch, Organization
@@ -199,12 +199,13 @@ class TestReportFilterValidation:
             branch=branch
         )
         
-        client.force_login(user)
+        api_client.force_authenticate(user=user)
         
         # Try to create report with invalid filter
-        response = client.post(
+        response = api_client.post(
             '/api/v1/reports/jobs/',
             data={
+                'branch': str(branch.id),
                 'report_type': 'MEMBERSHIP',
                 'export_format': 'CSV',
                 'filters': {
@@ -219,7 +220,7 @@ class TestReportFilterValidation:
         assert response.status_code == 400
         assert 'invalid_key' in str(response.data).lower() or 'filters' in str(response.data).lower()
     
-    def test_sql_injection_patterns_rejected(self, client):
+    def test_sql_injection_patterns_rejected(self, api_client):
         """Test that SQL injection patterns in filters are rejected."""
         from django.contrib.auth import get_user_model
         from apps.organizations.models import Branch
@@ -235,12 +236,13 @@ class TestReportFilterValidation:
             branch=branch
         )
         
-        client.force_login(user)
+        api_client.force_authenticate(user=user)
         
         # Try SQL injection in filter value
-        response = client.post(
+        response = api_client.post(
             '/api/v1/reports/jobs/',
             data={
+                'branch': str(branch.id),
                 'report_type': 'MEMBERSHIP',
                 'export_format': 'CSV',
                 'filters': {

@@ -28,7 +28,7 @@ export function UsherCheckpointQr({ compact = false, expectedSessionId }: { comp
     const delay = Math.max(0, new Date(data.expires_at).getTime() - Date.now());
     const timer = window.setTimeout(() => void refetch(), delay);
     return () => window.clearTimeout(timer);
-  }, [data?.token, data?.expires_at, refetch]);
+  }, [data, refetch]);
   useEffect(() => {
     if (!data) return;
     let active = true;
@@ -40,7 +40,7 @@ export function UsherCheckpointQr({ compact = false, expectedSessionId }: { comp
       .then((url) => { if (active) setImage(url); })
       .catch(() => { if (active) setImage(""); });
     return () => { active = false; };
-  }, [data?.token]);
+  }, [data]);
 
   if (isPending) return <LoadingState label="Preparing your secure attendance checkpoint" />;
   if (isError) return <ErrorState description={error.message} onRetry={() => void refetch()} />;

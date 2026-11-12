@@ -13,10 +13,26 @@ class NotificationChannel(models.TextChoices):
 
 class NotificationStatus(models.TextChoices):
     PENDING = "PENDING", "Pending"
+    SENDING = "SENDING", "Sending"
     SENT = "SENT", "Sent"
     DELIVERED = "DELIVERED", "Delivered"
     FAILED = "FAILED", "Failed"
     STUBBED = "STUBBED", "Stubbed (provider not configured)"
+    SKIPPED = "SKIPPED", "Skipped by user preference"
+
+
+class NotificationCategory(models.TextChoices):
+    ANNOUNCEMENT = "ANNOUNCEMENT", "Chapel announcement"
+    EVENT = "EVENT", "Event"
+    SERVICE = "SERVICE", "Service reminder"
+    DEVOTIONAL = "DEVOTIONAL", "Devotional"
+    PRAYER = "PRAYER", "Prayer update"
+    PUBLIC_PRAYER = "PUBLIC_PRAYER", "Public prayer"
+    FELLOWSHIP = "FELLOWSHIP", "Fellowship update"
+    LIVE_SERVICE = "LIVE_SERVICE", "Live service"
+    ADMIN_ALERT = "ADMIN_ALERT", "Administrative alert"
+    BIRTHDAY = "BIRTHDAY", "Birthday"
+    OTHER = "OTHER", "Other"
 
 
 class BirthdayAnnouncement(models.Model):
@@ -61,6 +77,11 @@ class Notification(models.Model):
         related_name="notifications",
     )
     channel = models.CharField(max_length=10, choices=NotificationChannel.choices)
+    category = models.CharField(max_length=16, choices=NotificationCategory.choices, default=NotificationCategory.OTHER)
+    href = models.CharField(max_length=255, blank=True)
+    idempotency_key = models.CharField(max_length=255, null=True, blank=True, unique=True)
+    scheduled_for = models.DateTimeField(null=True, blank=True)
+    attempts = models.PositiveSmallIntegerField(default=0)
     title = models.CharField(max_length=255)
     body = models.TextField()
     status = models.CharField(max_length=10, choices=NotificationStatus.choices, default=NotificationStatus.PENDING)

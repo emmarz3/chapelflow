@@ -45,6 +45,7 @@ class PrayerRequestAccess(BasePermission):
                 obj.privacy_level == "PUBLIC"
                 and obj.branch_id == user.branch_id
                 and not obj.is_private
+                and obj.consent_to_share
             )
         return is_owner and obj.status == "NEW"
 
@@ -86,13 +87,17 @@ class PrayerRequestViewSet(StandardModelViewSet):
     }
 
     def get_queryset(self):
-        qs = PrayerRequest.objects.select_related("branch", "member", "assigned_to", "created_by").prefetch_related("notes")
+        qs = PrayerRequest.objects.select_related("branch", "member", "assigned_to", "created_by")
+        from apps.moderation.models import TargetKind
+        from apps.moderation.services import visible
+
+        qs = visible(qs, TargetKind.PRAYER)
         user = self.request.user
 
         if user.role in Roles.GLOBAL_SCOPE_ROLES or user.role in Roles.PASTORAL_ACCESS_ROLES:
             if user.role in Roles.GLOBAL_SCOPE_ROLES:
-                return qs
-            return qs.filter(branch_id=user.branch_id) if user.branch_id else qs.none()
+                return qs.prefetch_related("notes")
+            return qs.filter(branch_id=user.branch_id).prefetch_related("notes") if user.branch_id else qs.none()
 
         # Ordinary users can see their own requests and moderated public
         # requests in their branch. Fellowship and pastoral visibility is not
@@ -101,7 +106,7 @@ class PrayerRequestViewSet(StandardModelViewSet):
         own_member_filter = Q(member__user=user)
         return qs.filter(
             Q(branch_id=user.branch_id)
-            & (own_member_filter | Q(privacy_level="PUBLIC", is_private=False))
+            & (own_member_filter | Q(privacy_level="PUBLIC", is_private=False, consent_to_share=True))
         )
 
     def perform_create(self, serializer):
@@ -243,6 +248,7 @@ class PrayerNoteViewSet(StandardModelViewSet):
     Phase 13: Audit logging for note creation.
     """
     serializer_class = PrayerNoteSerializer
+    http_method_names = ["get", "post", "head", "options"]
     permission_classes = [PastoralStaffOnly]
     filterset_fields = ["prayer_request"]
     permission_action_map = {
@@ -298,6 +304,10 @@ class TestimonyViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = Testimony.objects.select_related("branch", "member", "reviewed_by")
+        from apps.moderation.models import TargetKind
+        from apps.moderation.services import visible
+
+        qs = visible(qs, TargetKind.TESTIMONY)
         user = self.request.user
         if self._is_moderator():
             if user.role in Roles.GLOBAL_SCOPE_ROLES:

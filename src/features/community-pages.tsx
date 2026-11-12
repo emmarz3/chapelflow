@@ -29,6 +29,7 @@ import { ApiError } from "../lib/api";
 import { isDemoMode } from "../lib/fixtures";
 import { isDjangoBackend } from "../lib/backend";
 import { CommunityChat } from "./community-chat";
+import { ReportContentButton } from "./moderation";
 import {
   communityAdminService,
   communityService,
@@ -79,8 +80,8 @@ export function CommunitiesPage() {
     <>
       <PageHeader
         eyebrow="Private community workspaces"
-        title="My communities"
-        description="Announcements, conversations, meetings, and leadership updates from the groups you belong to."
+        title="Unit & Fellowship chats"
+        description="Your approved communities are separated into two spaces, so Unit conversations never get mixed with Fellowship conversations."
         actions={
           user?.permissions.includes("community:manage") ? (
             <Link
@@ -92,53 +93,22 @@ export function CommunitiesPage() {
           ) : undefined
         }
       />
-      {query.data.length ? (
-        <div className="community-ledger">
-          {query.data.map((community) => (
-            <Link
-              className="community-ledger__row"
-              key={community.id}
-              to={`/app/communities/${community.slug}`}
-            >
-              <span
-                className={`community-ledger__mark community-ledger__mark--${community.type}`}
-              >
-                {community.type === "unit" ? <Users /> : <BellRing />}
-              </span>
-              <span className="community-ledger__identity">
-                <small>{communityTypeLabel(community.type)}</small>
-                <strong>{community.name}</strong>
-                <span>{community.description}</span>
-              </span>
-              <span className="community-ledger__status">
-                {community.is_leader && <Badge tone="purple">Leadership</Badge>}
-                {community.membership_status && (
-                  <Badge
-                    tone={
-                      community.membership_status === "active"
-                        ? "success"
-                        : "warning"
-                    }
-                  >
-                    {community.membership_status}
-                  </Badge>
-                )}
-              </span>
-              <span className="community-ledger__unread">
-                <strong>{community.unreadCount ?? 0}</strong>
-                <small>unread</small>
-              </span>
-              <ChevronRight />
-            </Link>
-          ))}
-        </div>
-      ) : (
-        <EmptyState
-          icon={<Users />}
-          title="No community memberships yet"
-          description="Your approved chapel unit and fellowship memberships will appear here."
+      <div className="community-chat-hub-grid">
+        <CommunityChatSection
+          type="unit"
+          title="Unit chats"
+          description="Private conversations with students in each Chapel Unit you have joined."
+          empty="You have no approved Chapel Unit memberships yet. Join a unit to start chatting with its members."
+          communities={query.data.filter((community) => community.type === "unit")}
         />
-      )}
+        <CommunityChatSection
+          type="campus_fellowship"
+          title="Fellowship chats"
+          description="Your Fellowship has its own conversation space, separate from your Unit chats."
+          empty="You have no approved Fellowship membership yet. Join a Fellowship to connect with its members."
+          communities={query.data.filter((community) => community.type === "campus_fellowship")}
+        />
+      </div>
       <section className="community-directory-link panel">
         <div>
           <small>Chapel organization</small>
@@ -150,6 +120,70 @@ export function CommunitiesPage() {
         </Link>
       </section>
     </>
+  );
+}
+ 
+function CommunityChatSection({
+  type,
+  title,
+  description,
+  empty,
+  communities,
+}: {
+  type: "unit" | "campus_fellowship";
+  title: string;
+  description: string;
+  empty: string;
+  communities: CommunitySummary[];
+}) {
+  const isUnit = type === "unit";
+  return (
+    <section className="community-chat-hub-panel">
+      <header className="community-chat-hub-panel__heading">
+        <div>
+          <small>{isUnit ? "CHAPEL UNIT" : "CAMPUS FELLOWSHIP"}</small>
+          <h2>{title}</h2>
+          <p>{description}</p>
+        </div>
+        <Badge>{communities.length} joined</Badge>
+      </header>
+      {communities.length ? (
+        <div className="community-ledger">
+          {communities.map((community) => (
+            <Link
+              className="community-ledger__row"
+              key={community.id}
+              to={`/app/communities/${community.slug}?tab=chat`}
+              aria-label={`Open ${community.name} chat`}
+            >
+              <span className={`community-ledger__mark community-ledger__mark--${community.type}`}>
+                {isUnit ? <Users /> : <BellRing />}
+              </span>
+              <span className="community-ledger__identity">
+                <small>{communityTypeLabel(community.type)}</small>
+                <strong>{community.name}</strong>
+                <span>{community.description || "Private member conversation"}</span>
+              </span>
+              <span className="community-ledger__status">
+                <Badge tone="success">Active</Badge>
+              </span>
+              <span className="community-ledger__unread">
+                <strong>{community.unreadCount ?? 0}</strong>
+                <small>unread</small>
+              </span>
+              <ChevronRight />
+            </Link>
+          ))}
+        </div>
+      ) : (
+        <div className="community-chat-hub__empty">
+          <p>{empty}</p>
+          <Link className="text-link" to="/app/join-community">
+            {isUnit ? "Browse Chapel Units" : "Browse Fellowships"} <ChevronRight />
+          </Link>
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -419,6 +453,7 @@ function AnnouncementsPanel({
               </div>
               <h3>{item.title}</h3>
               <p>{item.content}</p>
+              <ReportContentButton targetKind="GROUP_ANNOUNCEMENT" targetId={item.id} label="Report announcement" />
               <small>
                 {item.author_name} ·{" "}
                 {new Date(item.published_at).toLocaleString()}
@@ -641,6 +676,7 @@ function CommunityResourcesPanel({
               <h3>{resource.title}</h3>
               {resource.description && <p>{resource.description}</p>}
               <a className="text-link" href={resource.url} target="_blank" rel="noreferrer">Open resource <ChevronRight /></a>
+              <ReportContentButton targetKind="GROUP_RESOURCE" targetId={resource.id} label="Report link" />
               <small>Added {new Date(resource.created_at).toLocaleDateString()}</small>
             </article>
           ))}

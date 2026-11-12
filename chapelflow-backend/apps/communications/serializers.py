@@ -85,6 +85,12 @@ class AnnouncementSerializer(ScopedFKValidationMixin, serializers.ModelSerialize
             raise serializers.ValidationError(
                 f"Invalid channels: {invalid}. Must be one of: {valid_channels}"
             )
+        if "PUSH" in channels:
+            raise serializers.ValidationError("Browser push is unavailable until device subscriptions are configured.")
+        if "SMS" in channels:
+            from django.conf import settings
+            if not settings.SMS_CHANNEL_ENABLED:
+                raise serializers.ValidationError("SMS delivery is unavailable.")
         
         return channels
     
@@ -123,30 +129,30 @@ class CommunicationPreferenceSerializer(serializers.ModelSerializer):
         model = CommunicationPreference
         fields = [
             "id", "member",
-            "email_enabled", "sms_enabled", "push_enabled",
-            "announcements_enabled", "prayer_notifications_enabled",
+            "master_enabled", "email_enabled", "sms_enabled", "push_enabled", "in_app_enabled",
+            "announcements_enabled", "events_enabled", "service_reminders_enabled",
+            "devotional_enabled", "fellowship_enabled", "prayer_updates_enabled",
+            "prayer_notifications_enabled", "live_service_enabled", "admin_alerts_enabled",
+            "birthday_enabled", "quiet_hours_enabled", "quiet_hours_start", "quiet_hours_end",
+            "timezone_name",
             "updated_at",
         ]
         read_only_fields = ["id", "member", "updated_at"]
     
     def validate(self, attrs):
-        """
-        Prevent disabling all channels (would make member unreachable).
-        At least one channel should remain enabled.
-        """
-        # Get current values if updating
-        if self.instance:
-            email = attrs.get('email_enabled', self.instance.email_enabled)
-            sms = attrs.get('sms_enabled', self.instance.sms_enabled)
-            push = attrs.get('push_enabled', self.instance.push_enabled)
-        else:
-            email = attrs.get('email_enabled', True)
-            sms = attrs.get('sms_enabled', True)
-            push = attrs.get('push_enabled', True)
-        
-        # Allow all disabled (user's choice), just warn in UI
-        # This validation could be stricter if business requires it
-        
+        from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+        current = self.instance
+        enabled = attrs.get("quiet_hours_enabled", current.quiet_hours_enabled if current else False)
+        start = attrs.get("quiet_hours_start", current.quiet_hours_start if current else None)
+        end = attrs.get("quiet_hours_end", current.quiet_hours_end if current else None)
+        name = attrs.get("timezone_name", current.timezone_name if current else "Africa/Lagos")
+        try:
+            ZoneInfo(name)
+        except (ZoneInfoNotFoundError, ValueError, TypeError):
+            raise serializers.ValidationError({"timezone_name": "Enter a valid IANA time zone."})
+        if enabled and (not start or not end or start == end):
+            raise serializers.ValidationError({"quiet_hours_start": "Choose different start and end times for quiet hours."})
         return attrs
 
 

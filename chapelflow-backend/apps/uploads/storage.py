@@ -4,7 +4,10 @@ cloudinary/boto3 directly — swap STORAGE_PROVIDER in settings and every
 caller of get_storage_service() gets the new backend for free.
 """
 import mimetypes
+from io import BytesIO
+import time
 import uuid
+from urllib.parse import urlparse
 
 from django.conf import settings
 
@@ -13,8 +16,11 @@ class StorageService:
     def upload_bytes(self, content: bytes, filename: str, content_type: str = "") -> str:
         raise NotImplementedError
 
-    def upload_fileobj(self, fileobj, filename: str, content_type: str = "") -> str:
+    def upload_fileobj(self, fileobj, filename: str, content_type: str = "", *, private: bool = False) -> str:
         raise NotImplementedError
+
+    def get_download_url(self, file_url: str, *, expires_in: int = 300) -> str:
+        raise NotImplementedError("This storage provider does not support private downloads.")
 
     def delete(self, file_url: str) -> None:
         raise NotImplementedError
@@ -33,7 +39,11 @@ class LocalStorageService(StorageService):
             return f"{media_url}/{filename}"
         return f"{settings.PUBLIC_BACKEND_URL.rstrip('/')}/{media_url.lstrip('/')}/{filename}"
 
-    def upload_fileobj(self, fileobj, filename: str, content_type: str = "") -> str:
+    def upload_fileobj(self, fileobj, filename: str, content_type: str = "", *, private: bool = False) -> str:
+        if private and not (
+            settings.DEBUG or getattr(settings, "PRIVATE_REPORTS_LOCAL_STORAGE", False)
+        ):
+            raise RuntimeError("Local storage cannot provide private report downloads in production.")
         from pathlib import Path
         import shutil
         path = Path(settings.MEDIA_ROOT) / filename
@@ -45,6 +55,11 @@ class LocalStorageService(StorageService):
             return f"{media_url}/{filename}"
         return f"{settings.PUBLIC_BACKEND_URL.rstrip('/')}/{media_url.lstrip('/')}/{filename}"
 
+    def get_download_url(self, file_url: str, *, expires_in: int = 300) -> str:
+        return file_url if (
+            settings.DEBUG or getattr(settings, "PRIVATE_REPORTS_LOCAL_STORAGE", False)
+        ) else ""
+
     def delete(self, file_url: str) -> None:
         from pathlib import Path
         relative = file_url.replace(settings.MEDIA_URL, "", 1)
@@ -54,32 +69,81 @@ class LocalStorageService(StorageService):
 
 
 class CloudinaryStorageService(StorageService):
+    def _credentials(self) -> dict:
+        # The SDK does not read Django's CLOUDINARY_* settings itself. Pass
+        # them per operation rather than mutating the SDK's global config.
+        # Leave unset values out so CLOUDINARY_URL remains supported too.
+        return {
+            key: value
+            for key, value in {
+                "cloud_name": settings.CLOUDINARY_CLOUD_NAME,
+                "api_key": settings.CLOUDINARY_API_KEY,
+                "api_secret": settings.CLOUDINARY_API_SECRET,
+            }.items()
+            if value
+        }
+
     def upload_bytes(self, content: bytes, filename: str, content_type: str = "") -> str:
         import cloudinary.uploader
         result = cloudinary.uploader.upload(
-            content, public_id=filename, resource_type="auto",
+            BytesIO(content), public_id=filename, resource_type="auto", **self._credentials(),
         )
         return result["secure_url"]
 
-    def upload_fileobj(self, fileobj, filename: str, content_type: str = "") -> str:
+    def upload_fileobj(self, fileobj, filename: str, content_type: str = "", *, private: bool = False) -> str:
         import cloudinary.uploader
-        result = cloudinary.uploader.upload(fileobj, public_id=filename, resource_type="auto")
+        resource_type = "raw" if private else "auto"
+        options = {"type": "private"} if private else {}
+        result = cloudinary.uploader.upload(
+            fileobj, public_id=filename, resource_type=resource_type, **options, **self._credentials(),
+        )
         return result["secure_url"]
+
+    def get_download_url(self, file_url: str, *, expires_in: int = 300) -> str:
+        parsed = urlparse(file_url)
+        marker = "/raw/private/"
+        if marker not in parsed.path:
+            # Older report objects were uploaded with public delivery. Never
+            # return those URLs from the authenticated report API.
+            return ""
+        public_id = parsed.path.split(marker, 1)[1]
+        parts = public_id.split("/")
+        if parts and parts[0].startswith("v") and parts[0][1:].isdigit():
+            parts = parts[1:]
+        public_id = "/".join(parts)
+        if "." not in public_id:
+            return ""
+        public_id, file_format = public_id.rsplit(".", 1)
+        import cloudinary.utils
+        return cloudinary.utils.private_download_url(
+            public_id,
+            file_format,
+            resource_type="raw",
+            type="private",
+            expires_at=int(time.time()) + max(60, min(expires_in, 900)),
+            attachment=True,
+            **self._credentials(),
+        )
 
     def delete(self, file_url: str) -> None:
         import cloudinary.uploader
         public_id = file_url.rsplit("/", 1)[-1].rsplit(".", 1)[0]
-        cloudinary.uploader.destroy(public_id)
+        cloudinary.uploader.destroy(public_id, **self._credentials())
 
 
 class S3StorageService(StorageService):
     def _client(self):
         import boto3
         from botocore.config import Config
+        credentials = {}
+        if not settings.AWS_USE_IAM_ROLE:
+            credentials = {
+                "aws_access_key_id": settings.AWS_ACCESS_KEY_ID,
+                "aws_secret_access_key": settings.AWS_SECRET_ACCESS_KEY,
+            }
         return boto3.client(
             "s3",
-            aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
-            aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
+            **credentials,
             region_name=settings.AWS_S3_REGION_NAME,
             config=Config(connect_timeout=5, read_timeout=60, retries={"max_attempts": 3, "mode": "standard"}),
         )
@@ -92,11 +156,22 @@ class S3StorageService(StorageService):
         )
         return f"https://{settings.AWS_STORAGE_BUCKET_NAME}.s3.{settings.AWS_S3_REGION_NAME}.amazonaws.com/{filename}"
 
-    def upload_fileobj(self, fileobj, filename: str, content_type: str = "") -> str:
+    def upload_fileobj(self, fileobj, filename: str, content_type: str = "", *, private: bool = False) -> str:
         client = self._client()
         content_type = content_type or mimetypes.guess_type(filename)[0] or "application/octet-stream"
         client.upload_fileobj(fileobj, settings.AWS_STORAGE_BUCKET_NAME, filename, ExtraArgs={"ContentType": content_type})
         return f"https://{settings.AWS_STORAGE_BUCKET_NAME}.s3.{settings.AWS_S3_REGION_NAME}.amazonaws.com/{filename}"
+
+    def get_download_url(self, file_url: str, *, expires_in: int = 300) -> str:
+        parsed = urlparse(file_url)
+        expected_host = f"{settings.AWS_STORAGE_BUCKET_NAME}.s3.{settings.AWS_S3_REGION_NAME}.amazonaws.com"
+        if parsed.hostname != expected_host:
+            return ""
+        return self._client().generate_presigned_url(
+            "get_object",
+            Params={"Bucket": settings.AWS_STORAGE_BUCKET_NAME, "Key": parsed.path.lstrip("/")},
+            ExpiresIn=max(60, min(expires_in, 900)),
+        )
 
     def delete(self, file_url: str) -> None:
         key = file_url.split(".amazonaws.com/", 1)[-1]
@@ -137,7 +212,9 @@ class SupabaseStorageService(StorageService):
         response.raise_for_status()
         return f"{self._base_url()}/storage/v1/object/public/{bucket}/{filename}"
 
-    def upload_fileobj(self, fileobj, filename: str, content_type: str = "") -> str:
+    def upload_fileobj(self, fileobj, filename: str, content_type: str = "", *, private: bool = False) -> str:
+        if private:
+            raise RuntimeError("Supabase report downloads require a private storage bucket; configure one before enabling exports.")
         import requests
         content_type = content_type or mimetypes.guess_type(filename)[0] or "application/octet-stream"
         bucket = settings.SUPABASE_STORAGE_BUCKET

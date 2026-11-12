@@ -30,7 +30,13 @@ class ReportJobViewSet(BranchScopedQuerysetMixin, StandardModelViewSet):
     }
 
     def get_base_queryset(self):
-        return ReportJob.objects.select_related("branch", "requested_by")
+        return ReportJob.objects.select_related("branch", "requested_by").order_by("-created_at")
+
+    def get_queryset(self):
+        # Exports can contain member, attendance or giving data. A branch
+        # permission to create reports must not expose another user's job or
+        # its short-lived download link.
+        return super().get_queryset().filter(requested_by=self.request.user)
 
     def perform_create(self, serializer):
         job = serializer.save(requested_by=self.request.user)

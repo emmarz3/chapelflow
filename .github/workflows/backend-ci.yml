@@ -1,0 +1,78 @@
+name: Backend CI
+
+on:
+  pull_request:
+    paths:
+      - "chapelflow-backend/**"
+      - "infra/aws/**"
+      - "render.yaml"
+      - ".github/workflows/backend-ci.yml"
+  push:
+    paths:
+      - "chapelflow-backend/**"
+      - "infra/aws/**"
+      - "render.yaml"
+      - ".github/workflows/backend-ci.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  django:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: chapelflow
+          POSTGRES_USER: chapelflow
+          POSTGRES_PASSWORD: chapelflow
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U chapelflow -d chapelflow"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    defaults:
+      run:
+        working-directory: chapelflow-backend
+    env:
+      DJANGO_SETTINGS_MODULE: config.settings.test
+      DATABASE_URL: postgres://chapelflow:chapelflow@127.0.0.1:5432/chapelflow
+      REDIS_URL: redis://127.0.0.1:6379/0
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: chapelflow-backend/requirements.txt
+      - run: python -m pip install -r requirements.txt
+      - run: python manage.py check
+      - run: python manage.py makemigrations --check --dry-run
+      - run: python -m pytest tests apps -q --junitxml=backend-junit.xml
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-junit
+          path: chapelflow-backend/backend-junit.xml
+          if-no-files-found: ignore
+
+  image:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t chapelflow-backend:ci ./chapelflow-backend

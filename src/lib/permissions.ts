@@ -83,6 +83,14 @@ const rolePermissions: Record<Role, Permission[]> = {
     "leadership:view",
     "chapel:announce",
   ],
+  assistant_student_chaplain: [
+    "dashboard:view",
+    "events:read",
+  ],
+  hostel_coordinator: [
+    "dashboard:view",
+    "events:read",
+  ],
   unit_leader: [
     "dashboard:view",
     "members:read",
@@ -148,6 +156,8 @@ const rolePermissions: Record<Role, Permission[]> = {
 const operationalWorkspaceRoles = new Set<Role>([
   "chaplain",
   "student_chaplain",
+  "assistant_student_chaplain",
+  "hostel_coordinator",
   "unit_leader",
   "fellowship_leader",
 ]);
@@ -188,7 +198,9 @@ export function getAuthenticatedHomePath(
   user: User | null | undefined,
   returnTo?: string | null,
 ) {
-  const defaultPath = user?.role === "attendance_usher" ? "/usher/attendance" : "/app";
+  const defaultPath = user?.role === "attendance_usher"
+    ? "/usher/attendance"
+    : user?.role === "super_admin" ? "/app/admin/dashboard" : "/app";
   if (!returnTo?.startsWith("/") || returnTo.startsWith("//") || returnTo.includes("\\"))
     return defaultPath;
 
@@ -196,6 +208,8 @@ export function getAuthenticatedHomePath(
     const target = new URL(returnTo, "https://chapelflow.local");
     if (target.origin !== "https://chapelflow.local") return defaultPath;
     const destination = `${target.pathname}${target.search}${target.hash}`;
+    if (user?.role === "super_admin" && target.pathname === "/app")
+      return defaultPath;
     if (user?.role === "attendance_usher")
       return target.pathname === "/usher/attendance" ? destination : defaultPath;
     return target.pathname === "/app" || target.pathname.startsWith("/app/")
@@ -211,10 +225,12 @@ export function buildDemoUser(role: Role): User {
     super_admin: "Dr. Tola Adebayo",
     chapel_admin: "Grace Adeyemi",
     chaplain: "Chaplain Emmanuel Adekunle",
-    student_chaplain: "Akintobi Oluwabori Favour",
+    student_chaplain: "Student Chaplain",
+    assistant_student_chaplain: "Assistant Student Chaplain",
+    hostel_coordinator: "Hostel Fellowship Coordinator",
     unit_leader: "Unit Leader",
     fellowship_leader: "Fellowship Leader",
-    treasurer: "Olutanwa Esther",
+    treasurer: "Chapel Treasurer",
     chapel_official: "Chapel Official",
     pastor: "Pastor Daniel Eze",
     worker: "Moyo Bello",

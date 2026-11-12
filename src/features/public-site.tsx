@@ -19,25 +19,31 @@ import {
   Users,
   X,
   Mail,
-  Phone,
   Instagram,
   Twitter,
   Facebook,
   Youtube,
-  Linkedin,
   ChevronUp,
   Send,
   BookOpen,
   GraduationCap,
 } from "lucide-react";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "./auth-context";
 import { Button, PageHeader, SectionLink } from "../components/ui";
+import {
+  COOKIE_CONSENT_EVENT,
+  isSafeExternalUrl,
+  readCookieConsent,
+  requestCookiePreferenceReview,
+  writeCookieConsent,
+  type CookieConsentChoice,
+} from "../lib/cookie-consent";
 import { usePublicMotion } from "../components/motion/motion-system";
 import { isDemoMode } from "../lib/fixtures";
-import { publicService } from "../services/chapelflow";
+import { homepageService, publicService } from "../services/chapelflow";
 import type { EventSummary } from "../types/domain";
 import { LivePublicDetailPage, LivePublicPage } from "./live-public";
 
@@ -66,6 +72,9 @@ export function PublicLayout() {
   const mainRef = useRef<HTMLElement>(null);
   usePublicMotion(mainRef, location.pathname);
   useEffect(() => {
+    setOpen(false);
+  }, [location.pathname]);
+  useEffect(() => {
     document.documentElement.dataset.theme = theme;
     localStorage.setItem("chapelflow-theme", theme);
   }, [theme]);
@@ -91,16 +100,20 @@ export function PublicLayout() {
         </div>
         <button
           className="icon-button public-nav__menu"
-          aria-label="Open navigation"
+          type="button"
+          aria-expanded={open}
+          aria-controls="public-mobile-menu"
+          aria-label={open ? "Close navigation" : "Open navigation"}
           onClick={() => setOpen(true)}
         >
           <Menu />
         </button>
       </header>
       {open && (
-        <div className="mobile-menu">
+        <div className="mobile-menu" id="public-mobile-menu" role="dialog" aria-modal="true" aria-label="Site navigation">
           <button
             className="icon-button"
+            type="button"
             aria-label="Close navigation"
             onClick={() => setOpen(false)}
           >
@@ -191,31 +204,11 @@ function SiteFooter() {
             <Mail size={16} aria-hidden="true" />
             <a href="mailto:chapel@chrislanduniversity.edu.ng">chapel@chrislanduniversity.edu.ng</a>
           </p>
-          <p>
-            <Phone size={16} aria-hidden="true" />
-            <a href="tel:+2348000000000">+234 800 000 0000</a>
-          </p>
         </div>
 
         <div className="site-footer__social">
           <h3>Follow along</h3>
-          <div className="site-footer__social-links">
-            <a href="#" aria-label="Instagram" className="site-footer__social-link">
-              <Instagram size={20} aria-hidden="true" />
-            </a>
-            <a href="#" aria-label="Twitter" className="site-footer__social-link">
-              <Twitter size={20} aria-hidden="true" />
-            </a>
-            <a href="#" aria-label="Facebook" className="site-footer__social-link">
-              <Facebook size={20} aria-hidden="true" />
-            </a>
-            <a href="#" aria-label="YouTube" className="site-footer__social-link">
-              <Youtube size={20} aria-hidden="true" />
-            </a>
-            <a href="#" aria-label="LinkedIn" className="site-footer__social-link">
-              <Linkedin size={20} aria-hidden="true" />
-            </a>
-          </div>
+          <FooterSocialLinks />
           <form className="site-footer__newsletter" onSubmit={handleSubscribe}>
             <label htmlFor="footer-newsletter">Chapel updates</label>
             <div className="site-footer__newsletter-row">
@@ -244,6 +237,9 @@ function SiteFooter() {
         </div>
         <div className="site-footer__legal-right">
           <Link to="/cookies">Cookie policy</Link>
+          <button type="button" className="site-footer__cookie-settings" onClick={requestCookiePreferenceReview}>
+            Cookie settings
+          </button>
           <Link to="/accessibility">Accessibility</Link>
           <button
             type="button"
@@ -257,6 +253,46 @@ function SiteFooter() {
         </div>
       </div>
     </footer>
+  );
+}
+
+function FooterSocialLinks() {
+  const homepage = useQuery({
+    queryKey: ["site-homepage"],
+    queryFn: async () => (await homepageService.get()).data,
+    staleTime: 5 * 60_000,
+  });
+  const contact = homepage.data?.content?.contact;
+  const channels = [
+    { label: "Chrisland University Chapel on Instagram", href: isSafeExternalUrl(contact?.instagram), Icon: Instagram },
+    { label: "Chrisland University Chapel on X", href: isSafeExternalUrl(contact?.x), Icon: Twitter },
+    { label: "Chrisland University Chapel on Facebook", href: isSafeExternalUrl(contact?.facebook), Icon: Facebook },
+    { label: "Chrisland University Chapel on YouTube", href: isSafeExternalUrl(contact?.youtube), Icon: Youtube },
+  ].filter((channel): channel is typeof channel & { href: string } => Boolean(channel.href));
+
+  if (!channels.length) {
+    return (
+      <p className="site-footer__social-unavailable">
+        Official chapel social channels are not listed yet. They will appear here after the chapel publishes verified destinations.
+      </p>
+    );
+  }
+
+  return (
+    <div className="site-footer__social-links">
+      {channels.map(({ label, href, Icon }) => (
+        <a
+          key={label}
+          href={href}
+          aria-label={label}
+          className="site-footer__social-link"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          <Icon size={20} aria-hidden="true" />
+        </a>
+      ))}
+    </div>
   );
 }
 
@@ -290,48 +326,91 @@ function DemoHomePage() {
     .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`));
   return (
     <div className="cuc-home">
-      <NextGathering events={upcomingEvents} loading={eventsQuery.isPending} failed={eventsQuery.isError} />
       <section className="cuc-home__hero">
         <div className="cuc-home__hero-copy">
           <p className="cuc-home__eyebrow">Chrisland University Chapel</p>
           <h1>Where faith becomes <em>community.</em></h1>
           <p className="cuc-home__lede">One beautiful place to worship, belong, grow, and stay connected to chapel life at CUC.</p>
           <div className="cuc-home__actions">
-            {!loading && <Link className="button button--primary" to={user ? "/app" : "/register"}>{user ? "Open your dashboard" : "Create your ChapelFlow account"} <ArrowRight size={18} /></Link>}
-            <Link className="button button--ghost" to="/about">Explore ChapelFlow</Link>
+            <Link className="button button--primary" to="/service-times">Plan your visit <ArrowRight size={18} /></Link>
+            {!loading && <Link className="button button--ghost" to={user ? "/app" : "/login"}>Open ChapelFlow</Link>}
           </div>
         </div>
         <HomeHeroSlideshow />
       </section>
+      <section className="cuc-home__worship" aria-labelledby="cuc-home-worship-title">
+        <div>
+          <p className="cuc-home__eyebrow">Worship with us</p>
+          <h2 id="cuc-home-worship-title">You are welcome at the chapel.</h2>
+          <p>Join us for worship, prayer and fellowship. Check the chapel's current service information before you visit.</p>
+        </div>
+        <Link className="cuc-home__service-link" to="/service-times">
+          <span><small>Service times and venues</small><strong>Plan your visit</strong><em>View the latest published schedule</em></span>
+          <ArrowRight aria-hidden="true" />
+        </Link>
+        <p className="cuc-home__schedule-note">Schedule details are awaiting chapel confirmation.</p>
+      </section>
       <section className="cuc-home__belonging">
         <div>
-          <p className="cuc-home__eyebrow">One chapel · one community · one flow</p>
-          <h2>A richer campus life, rooted in purpose.</h2>
-          <p>ChapelFlow is the digital home for worship, fellowship, service, and spiritual growth at Chrisland University Chapel.</p>
-          <p className="cuc-home__quote">“Faith is lived best when it is lived together.”</p>
+          <p className="cuc-home__eyebrow">Who we are</p>
+          <h2>About the Chapel</h2>
+          <p>Chrisland University Chapel is the spiritual heart of campus: a community where faith and academic excellence grow together.</p>
+          <blockquote className="cuc-home__quote">“The intensification of worship is an inner Godward experience of the heart, and the act of serving God is a consistent expression of allegiance to Him.”</blockquote>
+          <p className="cuc-home__about-detail">At CUC, we come together as one family in God for electrifying moments of worship, the undiluted Word of God, fervent prayers, and refreshing programmes.</p>
         </div>
         <div className="cuc-home__photo-rail" role="img" aria-label="Students sharing a joyful moment at Chrisland University Chapel, shown as a three-panel photograph">
           <span aria-hidden="true" /><span aria-hidden="true" /><span aria-hidden="true" />
         </div>
         <div className="cuc-home__pillars">
-          {[['Worship together', 'Services and shared moments'], ['Belong deeply', 'Units and fellowships'], ['Grow in faith', 'Sermons and resources'], ['Serve with purpose', 'Community and leadership']].map(([title, detail]) => <article key={title}><strong>{title}</strong><span>{detail}</span></article>)}
+          <article><h3>Our Role</h3><p>Nurturing the spiritual life of students, staff, and faculty through worship, teaching, and pastoral care.</p></article>
+          <article><h3>Our Impact</h3><p>Shaping character, building lasting friendships, and sending graduates into the world with purpose.</p></article>
+          <article><h3>Our Programs</h3><p>Weekly services, fellowships, church units, outreach, counselling, and special events through the year.</p><Link to="/events">See programs &amp; upcoming events <ArrowRight size={16} aria-hidden="true" /></Link></article>
         </div>
       </section>
-      <section className="cuc-home__attendance">
+      <section className="cuc-home__chaplain" aria-labelledby="cuc-home-chaplain-title">
+        <div className="cuc-home__chaplain-photo"><img src="/chaplain.jpg" alt="Portrait of the University Chaplain" loading="lazy" /></div>
         <div>
-          <p className="cuc-home__eyebrow">Secure chapel attendance</p>
-          <h2>Present in the moment.<br />Confirmed in seconds.</h2>
-          <p>Students scan the official QR shown by an authorized usher. Every live code refreshes automatically and one attendance record is kept for each service.</p>
-          <ol><li><span>01</span> Official usher QR</li><li><span>02</span> Rotates every 45 seconds</li><li><span>03</span> Scan with ChapelFlow</li><li><span>04</span> One attendance per service</li></ol>
+          <p className="cuc-home__eyebrow">Pastoral leadership</p>
+          <h2 id="cuc-home-chaplain-title">Meet the Chaplain</h2>
+          <p>Learn about the chapel's pastoral leadership and the people who guide our community.</p>
+          <blockquote className="cuc-home__chaplain-quote">
+            <p>Sharing the core values of Chrisland University Chapel means more than preaching or organising programmes; it is about living out the message of Christ daily and encouraging others to do the same. Through the commitment to raising godly morals and instilling spiritual values, the Chapel remains a beacon of hope and a catalyst for change in the lives of students, shaping them into leaders who fear God, serve humanity, and transform the world.</p>
+            <footer><cite>Rev. Canon Oluwajuwonlo Onasanya</cite><span>University Chaplain</span></footer>
+          </blockquote>
+          <Link to="/leadership">Read profile <ArrowRight size={17} /></Link>
         </div>
-        <div className="cuc-home__attendance-art">
-          <AttendanceProcessIllustration />
+      </section>
+      <section className="cuc-home__growth" aria-labelledby="cuc-home-growth-title">
+        <div className="cuc-home__growth-inner">
+          <div><p className="cuc-home__eyebrow">Life at the chapel</p><h2 id="cuc-home-growth-title">Belonging, Purpose <em>&amp;</em> Growth</h2></div>
+          <div className="cuc-home__growth-list">
+            <article><h3>Belonging &amp; Support</h3><p>Every student finds a family here: people who pray with you, walk with you, and cheer you on.</p></article>
+            <article><h3>Visionary Mandate</h3><p>Raising a generation grounded in faith, excellence, and service to God and humanity.</p></article>
+            <article><h3>Community Expansion</h3><p>Reaching beyond the campus walls to serve our neighbours and grow the fellowship.</p></article>
+          </div>
         </div>
+      </section>
+      <section className="cuc-home__university" aria-labelledby="cuc-home-university-title">
+        <header><p className="cuc-home__eyebrow">Chrisland University</p><h2 id="cuc-home-university-title">The university we serve.</h2></header>
+        <div className="cuc-home__university-statements">
+          <article><span>Where we are going</span><h3>Our Vision</h3><p>To become a world-class university renowned for intellectual freedom, ethical standards, research, community service and the outstanding training of a new generation of leaders.</p></article>
+          <article><span>Why we exist</span><h3>Our Mission</h3><p>To create a learning environment that nurtures a sound moral and intellectual culture that attracts an excellent blend of faculty from across the world and deploys resources to educate the total person.</p></article>
+        </div>
+      </section>
+      <section className="cuc-home__fellowships" aria-labelledby="cuc-home-fellowships-title">
+        <div>
+          <p className="cuc-home__eyebrow">Find your people</p>
+          <h2 id="cuc-home-fellowships-title">Fellowships and units</h2>
+          <p>Whether you want to worship, welcome, create, pray or serve, there is room to take part in chapel life.</p>
+        </div>
+        {!loading && <Link className="button button--primary" to={user ? "/app/join-community" : "/register"}>{user ? "Explore communities" : "Join the chapel community"} <ArrowRight size={17} /></Link>}
       </section>
       <section className="cuc-home__programmes">
-        <p className="cuc-home__eyebrow">Upcoming programmes</p>
+        <NextGathering events={upcomingEvents} loading={eventsQuery.isPending} failed={eventsQuery.isError} />
+        <p className="cuc-home__eyebrow">What's on</p>
         <div className="cuc-home__section-head"><h2>Moments worth showing up for.</h2><Link to="/events">See all programmes <ArrowRight size={17} /></Link></div>
         <HomepageCalendar events={upcomingEvents} loading={eventsQuery.isPending} failed={eventsQuery.isError} />
+        <div className="cuc-home__media-links"><Link to="/gallery">Explore the chapel gallery <ArrowRight size={16} /></Link><Link to="/sermons">Listen to a sermon <ArrowRight size={16} /></Link><Link to="/giving">Support chapel life <ArrowRight size={16} /></Link></div>
       </section>
       <section className="cuc-home__gallery-entry">
         <div><p className="cuc-home__eyebrow">Chapel gallery</p><h2>Keep the moments close.</h2><p>Browse photographs and videos from worship, fellowship, service, and the life of the chapel.</p></div>
@@ -341,9 +420,18 @@ function DemoHomePage() {
         <div className="cuc-home__wisdom-image"><img src="/chaplain-sermon.jpg" alt="The Chaplain preaching at Chrisland University Chapel" /></div>
         <div className="cuc-home__sermons-link"><p className="cuc-home__eyebrow">Sermons and media</p><h2>Wisdom for the journey.</h2><p>Watch messages and teaching shared by the Chaplain.</p><Link className="button button--primary" to="/sermons">Explore sermons <ArrowRight size={17} /></Link></div>
       </section>
+      <section className="cuc-home__attendance cuc-home__attendance--compact">
+        <div>
+          <p className="cuc-home__eyebrow">For students</p>
+          <h2>Check in and stay connected.</h2>
+          <p>Use ChapelFlow to scan the official usher QR code for attendance, then keep up with your chapel activity in your student account.</p>
+          {!loading && <Link className="button button--primary" to={user ? "/app/chapel-pass" : "/login"}>{user ? "Open attendance pass" : "Sign in to ChapelFlow"} <ArrowRight size={17} /></Link>}
+        </div>
+        <div className="cuc-home__attendance-art"><AttendanceProcessIllustration /></div>
+      </section>
       <section className="cuc-home__closing">
         <div className="cuc-home__closing-content">
-          <div className="cuc-home__closing-copy"><p className="cuc-home__eyebrow">Chrisland University Chapel</p><h2>Stay connected to everything happening at CUC.</h2><p>Join ChapelFlow and become part of a growing community of faith, purpose, and impact.</p>{!loading && <Link className="button button--primary" to={user ? "/app" : "/register"}>{user ? "Open your dashboard" : "Join the chapel community"} <ArrowRight size={18} /></Link>}</div>
+          <div className="cuc-home__closing-copy"><p className="cuc-home__eyebrow">Chrisland University Chapel</p><h2>Stay connected to everything happening at CUC.</h2><p>Join ChapelFlow and become part of a growing community of faith, purpose, and impact.</p><div className="cuc-home__closing-actions">{!loading && <Link className="button button--primary" to={user ? "/app" : "/register"}>{user ? "Open your dashboard" : "Join the chapel community"} <ArrowRight size={18} /></Link>}<Link className="button button--ghost" to="/contact">Contact the chapel</Link></div></div>
           <div className="cuc-home__closing-media"><video className="cuc-home__closing-video" autoPlay muted loop playsInline preload="metadata" aria-hidden="true" tabIndex={-1}><source src="/you-are-blessed.mp4" type="video/mp4" /></video></div>
         </div>
       </section>
@@ -421,11 +509,54 @@ const HOME_HERO_SLIDES = [
 
 function HomeHeroSlideshow() {
   const [activeIndex, setActiveIndex] = useState(0);
+  const [outgoingIndex, setOutgoingIndex] = useState<number | null>(null);
+  const [readyIndex, setReadyIndex] = useState<number | null>(null);
   const [paused, setPaused] = useState(false);
   const [hovered, setHovered] = useState(false);
   const [focused, setFocused] = useState(false);
   const [reducedMotion, setReducedMotion] = useState(false);
+  const activeIndexRef = useRef(0);
+  const pendingIndexRef = useRef<number | null>(null);
+  const requestRef = useRef(0);
+  const preloadRef = useRef<HTMLImageElement | null>(null);
+  const fadeTimerRef = useRef<number | null>(null);
   const shouldPause = paused || hovered || focused || reducedMotion;
+
+  const goTo = useCallback((index: number) => {
+    const target = (index + HOME_HERO_SLIDES.length) % HOME_HERO_SLIDES.length;
+    if (target === activeIndexRef.current || target === pendingIndexRef.current) return;
+    const slide = HOME_HERO_SLIDES[target];
+    if (!slide) return;
+    const request = ++requestRef.current;
+    pendingIndexRef.current = target;
+    if (preloadRef.current) preloadRef.current.onload = preloadRef.current.onerror = null;
+    const image = new Image();
+    preloadRef.current = image;
+    let settled = false;
+    const show = () => {
+      if (settled || request !== requestRef.current) return;
+      settled = true;
+      image.onload = image.onerror = null;
+      pendingIndexRef.current = null;
+      const previous = activeIndexRef.current;
+      activeIndexRef.current = target;
+      setOutgoingIndex(previous);
+      setReadyIndex(target);
+      setActiveIndex(target);
+      if (fadeTimerRef.current !== null) window.clearTimeout(fadeTimerRef.current);
+      fadeTimerRef.current = window.setTimeout(() => setOutgoingIndex(null), 900);
+    };
+    image.onload = show;
+    image.onerror = () => { if (request === requestRef.current) pendingIndexRef.current = null; };
+    image.src = slide.src;
+    if (image.complete && image.naturalWidth > 0) show();
+  }, []);
+
+  useEffect(() => () => {
+    requestRef.current += 1;
+    if (preloadRef.current) preloadRef.current.onload = preloadRef.current.onerror = null;
+    if (fadeTimerRef.current !== null) window.clearTimeout(fadeTimerRef.current);
+  }, []);
 
   useEffect(() => {
     const query = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -437,21 +568,26 @@ function HomeHeroSlideshow() {
 
   useEffect(() => {
     if (shouldPause) return;
-    const timer = window.setInterval(() => setActiveIndex((index) => (index + 1) % HOME_HERO_SLIDES.length), 5600);
+    const timer = window.setInterval(() => goTo(activeIndexRef.current + 1), 5600);
     return () => window.clearInterval(timer);
-  }, [shouldPause]);
+  }, [goTo, shouldPause]);
 
-  const goTo = (index: number) => setActiveIndex((index + HOME_HERO_SLIDES.length) % HOME_HERO_SLIDES.length);
   const visibleSlideIndices = Array.from(
     { length: Math.min(5, HOME_HERO_SLIDES.length) },
     (_, position) => (activeIndex + position - 2 + HOME_HERO_SLIDES.length) % HOME_HERO_SLIDES.length,
   );
+  const shownIndices = outgoingIndex !== null && outgoingIndex !== activeIndex
+    ? [outgoingIndex, activeIndex]
+    : [activeIndex];
 
   return (
     <figure className="cuc-home__hero-image" role="region" aria-roledescription="carousel" aria-label="Chrisland University Chapel photos" onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)} onFocus={() => setFocused(true)} onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setFocused(false); }}>
-      {HOME_HERO_SLIDES.map((slide, index) => (
-        <img key={slide.src} className={`cuc-home__hero-slide${index === activeIndex ? " is-active" : ""}`} src={index === activeIndex || index === (activeIndex + 1) % HOME_HERO_SLIDES.length ? slide.src : undefined} alt={index === activeIndex ? slide.alt : ""} aria-hidden={index !== activeIndex} fetchPriority={index === activeIndex ? "high" : "auto"} decoding="async" />
-      ))}
+      {shownIndices.map((index) => {
+        const slide = HOME_HERO_SLIDES[index];
+        if (!slide) return null;
+        const active = index === activeIndex;
+        return <img key={slide.src} className={`cuc-home__hero-slide${active ? ` is-active${readyIndex === index ? " is-ready" : ""}` : " is-outgoing"}`} src={slide.src} alt={active ? slide.alt : ""} aria-hidden={!active} fetchPriority={active ? "high" : "auto"} decoding="async" onLoad={() => { if (activeIndexRef.current === index) setReadyIndex(index); }} onError={() => { if (active) goTo(index + 1); }} />;
+      })}
       <div className="cuc-home__hero-controls" role="group" aria-label="Slideshow controls">
         <button type="button" aria-label="Previous image" onClick={() => goTo(activeIndex - 1)}><ChevronLeft size={16} /></button>
         <button type="button" aria-label={paused ? "Play slideshow" : "Pause slideshow"} aria-pressed={paused} onClick={() => setPaused((value) => !value)}>{paused ? <Play size={15} /> : <Pause size={15} />}</button>
@@ -598,38 +734,33 @@ export function FellowshipPage() {
   );
 }
 
-const cookieConsentKey = "chapelflow:cookie-consent-v1";
-type CookieConsentChoice = "all" | "necessary";
-
-function savedCookieConsent(): CookieConsentChoice | null {
-  try {
-    const record: unknown = JSON.parse(localStorage.getItem(cookieConsentKey) || "null");
-    if (record && typeof record === "object" && "choice" in record) {
-      const choice = record.choice;
-      return choice === "all" || choice === "necessary" ? choice : null;
-    }
-  } catch {
-    // Storage may be unavailable in a privacy-restricted browser.
-  }
-  return null;
-}
-
 export function CookieConsent() {
-  const [choice, setChoice] = useState<CookieConsentChoice | null>(savedCookieConsent);
+  const [choice, setChoice] = useState<CookieConsentChoice | null>(readCookieConsent);
+  const [reviewing, setReviewing] = useState(false);
+  useEffect(() => {
+    const open = () => setReviewing(true);
+    window.addEventListener(COOKIE_CONSENT_EVENT, open);
+    return () => window.removeEventListener(COOKIE_CONSENT_EVENT, open);
+  }, []);
   const save = (nextChoice: CookieConsentChoice) => {
-    try {
-      localStorage.setItem(cookieConsentKey, JSON.stringify({ choice: nextChoice, version: 1, savedAt: new Date().toISOString() }));
-    } catch {
-      // The preference remains active for this page session when storage is unavailable.
-    }
+    writeCookieConsent(nextChoice);
     setChoice(nextChoice);
+    setReviewing(false);
   };
-  if (choice || import.meta.env.VITE_E2E_TEST === "true") return null;
+  if (import.meta.env.VITE_E2E_TEST === "true" && !reviewing) return null;
+  if (choice && !reviewing) return null;
   return (
-    <section className="cookie-consent" role="dialog" aria-modal="false" aria-labelledby="cookie-consent-title">
+    <section className="cookie-consent" role="region" aria-labelledby="cookie-consent-title" tabIndex={-1}>
       <Cookie aria-hidden="true" />
-      <div><strong id="cookie-consent-title">Your privacy, your choice</strong><p>ChapelFlow uses essential cookies for secure sign-in and reliable service. We do not enable optional analytics or marketing cookies unless they are configured and you choose to allow them.</p><Link to="/cookies">Read the Cookie Policy</Link></div>
-      <div className="cookie-consent__actions"><button className="button button--secondary" type="button" onClick={() => save("necessary")}>Use necessary only</button><button className="button button--primary" type="button" onClick={() => save("all")}>Accept cookies</button></div>
+      <div>
+        <h2 id="cookie-consent-title">Your privacy, your choice</h2>
+        <p>ChapelFlow uses essential cookies for secure sign-in and reliable service. Optional analytics and marketing cookies are not active in this version.</p>
+        <Link to="/cookies">Read the Cookie Policy</Link>
+      </div>
+      <div className="cookie-consent__actions">
+        <button className="button button--secondary" type="button" onClick={() => save("necessary")}>Use necessary only</button>
+        <button className="button button--primary" type="button" onClick={() => save("all")}>Accept cookies</button>
+      </div>
     </section>
   );
 }
@@ -859,9 +990,9 @@ const legalPolicies: Record<LegalPolicy, { title: string; description: string; s
     description: "How Chrisland University Chapel handles information within ChapelFlow.",
     sections: [
       { id: "overview", title: "Our commitment", paragraphs: ["ChapelFlow supports worship, membership, attendance, events, communication, giving, and administration for Chrisland University Chapel. Information is used only for legitimate chapel and university purposes, with access limited by role and responsibility."] },
-      { id: "information", title: "Information we use", paragraphs: ["Depending on your use of ChapelFlow, this may include account identity, student or membership details, attendance, programme registrations, giving records, communication preferences, and technical security information.", "These records help operate chapel services, maintain accurate administration, communicate relevant updates, protect accounts, and meet institutional obligations."] },
-      { id: "sharing", title: "Access, security, and retention", paragraphs: ["Authorized chapel and university personnel may access only the information needed for their responsibilities. Service providers may process limited information under appropriate contractual and security arrangements. Personal data is not sold.", "Administrative, technical, and organizational controls protect records. Information is retained according to approved institutional requirements, then securely deleted or anonymized where appropriate."] },
-      { id: "choices", title: "Your choices", paragraphs: ["You may request access to or correction of your information, manage communication preferences, and submit an account or data request where institutional policy permits. Some records may need to be retained for legitimate administrative, financial, security, or legal reasons."] },
+      { id: "information", title: "Information we use", paragraphs: ["Depending on your use of ChapelFlow, this may include account identity, student or membership details, attendance, programme registrations, giving records, prayer or counselling requests, testimony submissions, communication preferences, and technical security information.", "These records help operate chapel services, maintain accurate administration, communicate relevant updates, protect accounts, and meet institutional obligations."] },
+      { id: "sharing", title: "Access, security, and retention", paragraphs: ["Authorized chapel and university personnel may access information needed for their responsibilities. Private prayer and counselling requests are limited to the requester and authorized pastoral staff. Prayer details are shared with the chapel community only after requester consent and pastoral approval; the requester's identity is not included in the community view. Avoid including names or other identifying details in prayer text you consent to share.", "Service providers may process limited information under appropriate contractual and security arrangements. Personal data is not sold. Information is retained according to approved institutional requirements, then securely deleted or anonymized where appropriate."] },
+      { id: "choices", title: "Your choices", paragraphs: ["You may review and update permitted profile information, manage communication preferences, and submit a data export or account deletion request. ChapelFlow records a 30-day action deadline for deletion requests. Requests are reviewed under institutional policy; some records may need to be retained for legitimate administrative, financial, safeguarding, security, or legal reasons."] },
     ],
   },
   terms: {
@@ -878,9 +1009,9 @@ const legalPolicies: Record<LegalPolicy, { title: string; description: string; s
     title: "Cookie Policy",
     description: "How ChapelFlow uses essential browser storage and records your cookie choice.",
     sections: [
-      { id: "overview", title: "Essential cookies", paragraphs: ["ChapelFlow uses essential cookies and local storage to keep sign-in sessions secure, protect requests from forgery, remember accessibility and display preferences, and make the service work reliably. These are necessary for the service to operate."] },
-      { id: "optional", title: "Optional technologies", paragraphs: ["ChapelFlow does not enable optional analytics or marketing cookies in this version. If an optional technology is added later, it will be described here and enabled only after the appropriate choice has been recorded."] },
-      { id: "choice", title: "Your choice", paragraphs: ["The cookie request records whether you accepted all cookies or chose necessary cookies only. You can remove ChapelFlow site data from your browser settings to show the request again. Removing essential cookies may require you to sign in again."] },
+      { id: "overview", title: "Essential cookies and storage", paragraphs: ["ChapelFlow uses secure HttpOnly cookies for signed-in sessions and a CSRF cookie to protect form submissions. These are required for the service to work and are not used for advertising.", "The browser may also keep ChapelFlow display preferences, the cookie-choice record, the brand-introduction flag, and a temporary attendance queue in session storage so kiosk check-ins can sync when a connection returns. Service-worker caches may store previously downloaded ChapelFlow pages and local brand images so they remain available offline after an online visit."] },
+      { id: "optional", title: "Optional technologies", paragraphs: ["ChapelFlow does not currently run optional analytics, advertising, or marketing cookies. Choosing “Accept cookies” records that preference so a future optional technology can respect it; it does not enable analytics today."] },
+      { id: "choice", title: "Your choice", paragraphs: ["You can choose necessary cookies only or accept cookies, and you can reopen that choice from Cookie settings in the footer. If browser storage is blocked, the choice is kept for the current page session only. Removing ChapelFlow site data from the browser will show the request again and may require you to sign in again."] },
       { id: "contact", title: "More information", paragraphs: ["Read the Privacy Policy for details about information handling. Contact the chapel office if you need help with your ChapelFlow account or privacy preferences."] },
     ],
   },

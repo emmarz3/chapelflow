@@ -36,16 +36,18 @@ def send_pending_follow_up_reminders():
             follow_up.reminder_sent_at = timezone.now()
             follow_up.save(update_fields=["reminder_sent_at"])
 
-            from apps.notifications.models import Notification
-            from apps.notifications.tasks import deliver_notification
+            from apps.notifications.models import NotificationCategory
+            from apps.notifications.preferences import queue_notification
 
-            notification = Notification.objects.create(
+            notification = queue_notification(
                 recipient=follow_up.assigned_to,
+                category=NotificationCategory.ADMIN_ALERT,
                 title="Follow-up reminder",
                 body=f"Your follow-up with {follow_up.visitor.full_name} was due and is still pending.",
                 channel="EMAIL",
+                idempotency_key=f"visitor-follow-up:{follow_up.id}:EMAIL",
             )
-            deliver_notification.delay(str(notification.id))
-            sent += 1
+            if notification:
+                sent += 1
 
     return {"reminders_sent": sent}

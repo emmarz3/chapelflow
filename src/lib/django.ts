@@ -4,7 +4,7 @@ import { buildDemoUser } from "./permissions";
 type Row = Record<string, unknown>;
 type Envelope = {
   data: unknown;
-  pagination?: { current_page: number; page_size: number; count: number };
+  pagination?: { current_page: number; page_size: number; count: number; num_pages?: number; next?: string | null };
 };
 export type DjangoTransport = (
   path: string,
@@ -32,6 +32,8 @@ function role(value: unknown): Role {
     CHAPEL_ADMIN: "chapel_admin",
     CHAPLAIN: "chaplain",
     STUDENT_CHAPLAIN: "student_chaplain",
+    ASSISTANT_STUDENT_CHAPLAIN: "assistant_student_chaplain",
+    HOSTEL_COORDINATOR: "hostel_coordinator",
     UNIT_HEAD: "unit_leader",
     UNIT_LEADER: "unit_leader",
     FELLOWSHIP_LEADER: "fellowship_leader",
@@ -325,6 +327,7 @@ export async function djangoRequest(
   }
   const suffix = query.size ? `?${query}` : "";
 
+  if (route === "/auth/csrf") return call("/auth/csrf/");
   if (route === "/auth/me")
     return { data: user(row((await call("/auth/me/")).data)) };
   if (route === "/auth/login") {
@@ -425,6 +428,17 @@ export async function djangoRequest(
   const socialComment = route.match(/^\/social\/posts\/([^/]+)\/comments\/([^/]+)$/);
   if (socialComment && method === "DELETE")
     return call(`/social/posts/${encodeURIComponent(socialComment[1]!)}/comments/${encodeURIComponent(socialComment[2]!)}/`, { method: "DELETE" });
+  if (route === "/moderation/reports")
+    return call("/moderation/reports/", method === "POST" ? json("POST", {
+      target_kind: body.targetKind, target_id: body.targetId, reason: body.reason, explanation: body.explanation,
+    }) : init);
+  if (route === "/moderation/queue")
+    return call(`/moderation/queue/${suffix}`);
+  const moderationCase = route.match(/^\/moderation\/queue\/([^/]+)$/);
+  if (moderationCase)
+    return call(`/moderation/queue/${encodeURIComponent(moderationCase[1]!)}/`, method === "POST" ? json("POST", {
+      action: body.action, note: body.note, assigned_to_id: body.assignedToId,
+    }) : init);
   if (route === "/student/announcements")
     return call("/communications/announcements/me/");
   if (route === "/student/join-requests")
@@ -587,6 +601,7 @@ export async function djangoRequest(
       category: body.category,
       details: body.details,
       privacy_level: body.privacyLevel,
+      consent_to_share: body.consentToShare,
     }) : init);
     if (method === "GET") return paged(response, prayerEntry);
     return { data: prayerEntry(row(response.data)) };
@@ -636,6 +651,11 @@ export async function djangoRequest(
     return call(
       "/attendance/student-scan/",
       json("POST", { token: body.token }),
+    );
+  if (route === "/attendance/qr-check-in" && method === "POST")
+    return call(
+      "/attendance/qr-check-in/",
+      json("POST", { token: body.token, session_id: body.sessionId }),
     );
   const attendanceSessions = async (branchId: string) => {
     const response = await call(`/attendance/sessions/?branch=${encodeURIComponent(branchId)}&page_size=100`);
@@ -859,8 +879,24 @@ export async function djangoRequest(
     method === "POST"
   )
     return call(`/auth${route}/`, json("POST", {}));
-  if (route === "/admin/attendance/sessions" && method === "GET")
-    return call("/attendance/sessions/");
+  if (route === "/admin/attendance/sessions" && method === "GET") {
+    // Django paginates sessions by default (25 rows). Without walking pages,
+    // an older open session can disappear from the Super Admin stop controls.
+    const sessions: Row[] = [];
+    let page = 1;
+    while (true) {
+      const response = await call(`/attendance/sessions/?page=${page}&page_size=200`);
+      sessions.push(...list(response.data));
+      const pagination = response.pagination;
+      if (!pagination?.next || page >= Number(pagination.num_pages || 1)) break;
+      page += 1;
+    }
+    sessions.sort((a, b) =>
+      Number(b.is_open === true) - Number(a.is_open === true) ||
+      new Date(str(b.opened_at)).getTime() - new Date(str(a.opened_at)).getTime(),
+    );
+    return { data: sessions };
+  }
   if (route === "/admin/attendance/sessions" && method === "POST")
     return call("/attendance/sessions/", json("POST", body));
   if (
@@ -958,7 +994,7 @@ export async function djangoRequest(
   if (route === "/notifications" && method === "GET") {
     const response = await call(`/notifications/${suffix}`);
     return {
-      data: list(response.data).map((notification) => ({
+      data: { items: list(response.data).map((notification) => ({
         id: str(notification.id),
         title: str(notification.title),
         body: str(notification.body),
@@ -966,15 +1002,64 @@ export async function djangoRequest(
         created_at: str(notification.created_at),
         community_id: null,
         type: str(notification.channel),
-        href: null,
-      })),
+        category: str(notification.category || "OTHER"),
+        href: str(notification.href || "/app/notifications"),
+      })), hasMore: Boolean(response.pagination && response.pagination.current_page * response.pagination.page_size < response.pagination.count) },
     };
   }
+  if (route === "/notifications/unread-count" && method === "GET")
+    return call("/notifications/unread-count/");
   if (/^\/notifications\/[^/]+\/read$/.test(route))
     return call(
       `/notifications/${encodeURIComponent(route.split("/")[2]!)}/mark-read/`,
       json("POST", {}),
     );
+  if (route === "/notifications/preferences") {
+    const response = await call(
+      "/communications/preferences/me/",
+      method === "PATCH" ? json("PATCH", {
+        master_enabled: body.masterEnabled,
+        email_enabled: body.emailEnabled,
+        sms_enabled: body.smsEnabled,
+        in_app_enabled: body.inAppEnabled,
+        announcements_enabled: body.announcementsEnabled,
+        events_enabled: body.eventsEnabled,
+        service_reminders_enabled: body.serviceRemindersEnabled,
+        devotional_enabled: body.devotionalEnabled,
+        fellowship_enabled: body.fellowshipEnabled,
+        prayer_updates_enabled: body.prayerUpdatesEnabled,
+        prayer_notifications_enabled: body.publicPrayerEnabled,
+        live_service_enabled: body.liveServiceEnabled,
+        admin_alerts_enabled: body.adminAlertsEnabled,
+        birthday_enabled: body.birthdayEnabled,
+        quiet_hours_enabled: body.quietHoursEnabled,
+        quiet_hours_start: body.quietHoursStart || null,
+        quiet_hours_end: body.quietHoursEnd || null,
+        timezone_name: body.timezoneName,
+      }) : init,
+    );
+    const preference = row(response.data);
+    return { data: {
+      masterEnabled: Boolean(preference.master_enabled),
+      emailEnabled: Boolean(preference.email_enabled),
+      smsEnabled: Boolean(preference.sms_enabled),
+      inAppEnabled: Boolean(preference.in_app_enabled),
+      announcementsEnabled: Boolean(preference.announcements_enabled),
+      eventsEnabled: Boolean(preference.events_enabled),
+      serviceRemindersEnabled: Boolean(preference.service_reminders_enabled),
+      devotionalEnabled: Boolean(preference.devotional_enabled),
+      fellowshipEnabled: Boolean(preference.fellowship_enabled),
+      prayerUpdatesEnabled: Boolean(preference.prayer_updates_enabled),
+      publicPrayerEnabled: Boolean(preference.prayer_notifications_enabled),
+      liveServiceEnabled: Boolean(preference.live_service_enabled),
+      adminAlertsEnabled: Boolean(preference.admin_alerts_enabled),
+      birthdayEnabled: Boolean(preference.birthday_enabled),
+      quietHoursEnabled: Boolean(preference.quiet_hours_enabled),
+      quietHoursStart: str(preference.quiet_hours_start).slice(0, 5),
+      quietHoursEnd: str(preference.quiet_hours_end).slice(0, 5),
+      timezoneName: str(preference.timezone_name || "Africa/Lagos"),
+    } };
+  }
   if (route === "/account/privacy-preferences" && method === "GET") {
     const response = await call("/communications/preferences/me/");
     const preference = row(response.data);
@@ -1153,6 +1238,8 @@ export async function djangoRequest(
     return call("/account/data-export-requests/", json("POST", body));
   if (route === "/account/deletion-requests" && method === "POST")
     return call("/account/deletion-requests/", json("POST", body));
+  if (route === "/account/deletion-requests" && method === "GET")
+    return call("/account/deletion-requests/", init);
   unsupported(
     "This feature is not available in the connected Django backend yet.",
   );

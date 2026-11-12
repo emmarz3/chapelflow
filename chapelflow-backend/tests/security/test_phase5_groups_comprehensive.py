@@ -270,7 +270,7 @@ class TestRoleBasedGroupAccess:
         response = api_client.get("/api/v1/groups-catalog/")
         
         assert response.status_code == status.HTTP_200_OK
-        assert response.data['count'] >= 3
+        assert response.data['pagination']['count'] >= 3
     
     def test_chaplain_can_view_org_groups_only(
         self, api_client, chaplain, fellowship_a, fellowship_b, fellowship_c, branch_c
@@ -288,7 +288,7 @@ class TestRoleBasedGroupAccess:
         response = api_client.get("/api/v1/groups-catalog/")
         
         assert response.status_code == status.HTTP_200_OK
-        group_ids = [g['id'] for g in response.data['results']]
+        group_ids = [g['id'] for g in response.data['data']]
         
         # Should see fellowship_a, fellowship_b (same org)
         assert str(fellowship_a.id) in group_ids
@@ -305,7 +305,7 @@ class TestRoleBasedGroupAccess:
         response = api_client.get("/api/v1/groups-catalog/")
         
         assert response.status_code == status.HTTP_200_OK
-        group_ids = [g['id'] for g in response.data['results']]
+        group_ids = [g['id'] for g in response.data['data']]
         
         assert str(fellowship_a.id) in group_ids
         assert str(fellowship_b.id) in group_ids
@@ -321,7 +321,7 @@ class TestRoleBasedGroupAccess:
         response = api_client.get("/api/v1/groups-catalog/")
         
         assert response.status_code == status.HTTP_200_OK
-        group_ids = [g['id'] for g in response.data['results']]
+        group_ids = [g['id'] for g in response.data['data']]
         
         assert str(fellowship_a.id) in group_ids
         assert str(fellowship_b.id) not in group_ids  # Different fellowship
@@ -336,7 +336,7 @@ class TestRoleBasedGroupAccess:
         response = api_client.get("/api/v1/groups-catalog/")
         
         assert response.status_code == status.HTTP_200_OK
-        group_ids = [g['id'] for g in response.data['results']]
+        group_ids = [g['id'] for g in response.data['data']]
         
         assert str(unit_a.id) in group_ids
         assert str(unit_b.id) not in group_ids  # Different unit
@@ -356,7 +356,7 @@ class TestRoleBasedGroupAccess:
         response = api_client.get("/api/v1/groups-catalog/")
         
         assert response.status_code == status.HTTP_200_OK
-        group_ids = [g['id'] for g in response.data['results']]
+        group_ids = [g['id'] for g in response.data['data']]
         
         assert str(ministry_a.id) in group_ids
         assert str(ministry_b.id) not in group_ids  # Different ministry
@@ -436,7 +436,7 @@ class TestGroupCreationSecurity:
             "group_type": "FELLOWSHIP"
         }, format="json")
         
-        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert response.status_code == status.HTTP_403_FORBIDDEN
     
     def test_ordinary_member_cannot_create_group(
         self, api_client, branch_a
@@ -697,7 +697,7 @@ class TestGroupHierarchyValidation:
         }, format="json")
         
         assert response.status_code == status.HTTP_200_OK
-        assert response.data['data']['parent'] == str(fellowship_a.id)
+        assert str(response.data['data']['parent']) == str(fellowship_a.id)
 
 
 # ==================== AUDIT LOGGING ====================

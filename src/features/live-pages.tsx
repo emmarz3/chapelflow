@@ -138,6 +138,10 @@ export function LiveDashboardPage() {
         eyebrow={user?.branchName}
         title={`Welcome back, ${user?.name.split(" ")[0] || "member"}.`}
         description="Live information from your authorized chapel workspace."
+        actions={user?.role === "super_admin" ? <div className="button-row">
+          <Link className="button button--primary" to="/app/admin/control-room">Start or stop attendance</Link>
+          <Link className="button button--secondary" to="/app/admin/accounts">Create institutional account</Link>
+        </div> : undefined}
       />
       <div className="metric-grid">
         {data.metrics.map((metric) => (
@@ -1756,8 +1760,6 @@ function LiveModuleOperationsPage({
                 <span>Channel</span>
                 <select name="channel">
                   <option value="EMAIL">Email</option>
-                  <option value="SMS">SMS</option>
-                  <option value="PUSH">Push notification</option>
                   <option value="IN_APP">In-app inbox</option>
                 </select>
               </label>
@@ -2166,38 +2168,26 @@ function LiveModuleOperationsPage({
 
   function LiveSettingsPage() {
     const toast = useToast();
-    const { user } = useAuth();
-    const query = useQuery({
-    queryKey: ["privacy-preferences"],
-    queryFn: async () => (await privacyService.preferences()).data,
-  });
-  const update = useMutation({
-    mutationFn: (payload: Record<string, boolean>) =>
-      privacyService.updatePreferences(payload),
-    onSuccess: () => toast("Privacy preferences updated."),
+    const queryClient = useQueryClient();
+  const privacyRequests = useQuery({
+    queryKey: ["privacy-requests"],
+    queryFn: async () => (await privacyService.requests()).data,
   });
   const exportRequest = useMutation({
     mutationFn: () => privacyService.requestExport(),
-    onSuccess: (response) =>
-      toast(`Data request submitted: ${response.data.requestId}`),
+    onSuccess: (response) => {
+      toast(`Data request submitted: ${response.data.requestId}`);
+      void queryClient.invalidateQueries({ queryKey: ["privacy-requests"] });
+    },
   });
   const deleteRequest = useMutation({
-    mutationFn: (reason: string) => privacyService.requestDeletion(reason),
-    onSuccess: (response) =>
-      toast(`Account request submitted: ${response.data.requestId}`),
+    mutationFn: () => privacyService.requestDeletion(),
+    onSuccess: (response) => {
+      toast(`Account request submitted: ${response.data.requestId}`);
+      void queryClient.invalidateQueries({ queryKey: ["privacy-requests"] });
+    },
   });
   const [deleteOpen, setDeleteOpen] = useState(false);
-  function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const data = new FormData(event.currentTarget);
-    update.mutate({
-      email: data.has("email"),
-      sms: data.has("sms"),
-      push: data.has("push"),
-      prayer: data.has("prayer"),
-      analytics: data.has("analytics"),
-    });
-  }
   return (
     <>
       <PageHeader
@@ -2207,83 +2197,8 @@ function LiveModuleOperationsPage({
       />
       <div className="settings-grid">
         <section className="panel">
-          <header className="panel-heading">
-            <div>
-              <h2>Communication preferences</h2>
-              <p>Essential service messages cannot be disabled.</p>
-            </div>
-          </header>
-          {query.isPending ? (
-            <LoadingState />
-          ) : user?.role === "super_admin" ? (
-              <p className="empty-copy">Communication preferences apply to member accounts.</p>
-            ) : query.isError ? (
-            <ErrorState
-              description={message(query.error)}
-              onRetry={() => void query.refetch()}
-            />
-          ) : (
-            <form className="preference-form" onSubmit={submit}>
-              <label>
-                <span>
-                  <strong>Email updates</strong>
-                  <small>Programmes and chapel announcements</small>
-                </span>
-                <input
-                  name="email"
-                  type="checkbox"
-                  defaultChecked={query.data.email}
-                />
-              </label>
-              <label>
-                <span>
-                  <strong>SMS updates</strong>
-                  <small>Time-sensitive service notices</small>
-                </span>
-                <input
-                  name="sms"
-                  type="checkbox"
-                  defaultChecked={query.data.sms}
-                />
-              </label>
-              <label>
-                <span>
-                  <strong>Push notifications</strong>
-                  <small>In-app and device updates</small>
-                </span>
-                <input
-                  name="push"
-                  type="checkbox"
-                  defaultChecked={query.data.push}
-                />
-              </label>
-              <label>
-                <span>
-                  <strong>Public prayer updates</strong>
-                  <small>Email me when a public chapel prayer request is shared</small>
-                </span>
-                <input
-                  name="prayer"
-                  type="checkbox"
-                  defaultChecked={query.data.prayer}
-                />
-              </label>
-              <label>
-                <span>
-                  <strong>Optional analytics</strong>
-                  <small>Help improve the ChapelFlow experience</small>
-                </span>
-                <input
-                  name="analytics"
-                  type="checkbox"
-                  defaultChecked={query.data.analytics}
-                />
-              </label>
-              <Button type="submit" loading={update.isPending}>
-                Save preferences
-              </Button>
-            </form>
-          )}
+          <header className="panel-heading"><div><h2>Notifications</h2><p>Choose topics, delivery channels, and quiet hours.</p></div></header>
+          <Link className="button button--secondary" to="/app/notification-settings">Open notification settings</Link>
         </section>
         <section className="panel">
           <header className="panel-heading">
@@ -2302,7 +2217,7 @@ function LiveModuleOperationsPage({
               </span>
               <div>
                 <strong>Request a copy of your data</strong>
-                <p>Receive an export of eligible ChapelFlow records.</p>
+                <p>Request an export of eligible ChapelFlow records. Track its status below.</p>
               </div>
               <Button
                 variant="secondary"
@@ -2330,13 +2245,38 @@ function LiveModuleOperationsPage({
               </span>
               <div>
                 <strong>Request account deletion</strong>
-                <p>Some records may be retained where policy requires it.</p>
+                <p>Requests are due for review and action within 30 days. Some records may be retained where policy requires it.</p>
               </div>
               <Button variant="secondary" onClick={() => setDeleteOpen(true)}>
                 Request
               </Button>
             </article>
           </div>
+          {privacyRequests.isPending ? (
+            <LoadingState label="Loading data request status" />
+          ) : privacyRequests.isError ? (
+            <ErrorState
+              description={message(privacyRequests.error)}
+              onRetry={() => void privacyRequests.refetch()}
+            />
+          ) : privacyRequests.data.length > 0 ? (
+            <div className="stack-list" aria-label="Your data request status">
+              {privacyRequests.data.map((request) => (
+                <article key={request.id}>
+                  <div>
+                    <strong>{request.request_type === "EXPORT" ? "Data export" : "Account deletion"}</strong>
+                    <small>Submitted {new Date(request.created_at).toLocaleDateString()}</small>
+                    {request.deletion_due_at && request.status !== "COMPLETED" && (
+                      <small>Action due {new Date(request.deletion_due_at).toLocaleDateString()}</small>
+                    )}
+                  </div>
+                  <Badge tone={request.status === "COMPLETED" ? "success" : "warning"}>
+                    {request.status.toLowerCase()}
+                  </Badge>
+                </article>
+              ))}
+            </div>
+          ) : null}
         </section>
         <LiveSecurityPanel />
       </div>
@@ -2344,7 +2284,7 @@ function LiveModuleOperationsPage({
         open={deleteOpen}
         onClose={() => setDeleteOpen(false)}
         title="Request account deletion"
-        description="This submits a review request; it does not immediately erase institutional records."
+        description="This submits a request for review and action within 30 days; it does not immediately erase institutional records."
         footer={
           <>
             <Button variant="ghost" onClick={() => setDeleteOpen(false)}>
@@ -2354,9 +2294,7 @@ function LiveModuleOperationsPage({
               variant="danger"
               loading={deleteRequest.isPending}
               onClick={() =>
-                deleteRequest.mutate(
-                  "User requested account deletion through ChapelFlow.",
-                )
+                deleteRequest.mutate()
               }
             >
               Submit request

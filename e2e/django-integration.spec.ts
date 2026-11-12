@@ -22,7 +22,6 @@ test("register, sign in, restore the session, and load a real chapel pass", asyn
   await page.getByRole("checkbox", { name: /I have read and accept/ }).check();
   await page.getByRole("button", { name: "Submit registration" }).click();
   await expect(page.getByRole("heading", { name: "Your account is ready." })).toBeVisible();
-  await context.clearCookies();
   await page.getByRole("link", { name: "Return to sign in" }).click();
   await page.getByLabel("Email, matric number, or staff ID").fill(email);
   await page.getByLabel(/^Password/).fill(password);
@@ -49,4 +48,19 @@ test("register, sign in, restore the session, and load a real chapel pass", asyn
   const registrationResponse = await registration;
   expect(registrationResponse.status(), await registrationResponse.text()).toBe(201);
   await expect(page.getByText(/registration confirmed/i)).toBeVisible();
+});
+
+test("signs in when the local app is embedded in a phone preview", async ({ page, baseURL }) => {
+  await page.setContent(`<iframe src="${baseURL}/login" title="ChapelFlow preview"></iframe>`);
+  const preview = page.frameLocator('iframe[title="ChapelFlow preview"]');
+  await preview.getByLabel("Email, matric number, or staff ID").fill("DEMO/2024/001");
+  await preview.getByLabel(/^Password/).fill("ChangeMe123!");
+  await preview.getByRole("button", { name: /^Sign in/ }).click();
+
+  await expect.poll(() => page.frames()[1]?.url()).toBe(`${baseURL}/app`);
+  await expect.poll(() => preview.locator("body").evaluate(async () => {
+    const response = await fetch("/api/v1/auth/me/", { credentials: "include" });
+    return response.status;
+  })).toBe(200);
+  await expect(preview.getByRole("heading", { name: "Sign in to ChapelFlow" })).not.toBeVisible();
 });

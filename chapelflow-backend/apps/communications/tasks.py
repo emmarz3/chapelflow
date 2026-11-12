@@ -52,13 +52,17 @@ def dispatch_announcement(announcement_id):
         
         # Get channels (default to EMAIL for backward compatibility)
         channels = announcement.channels if announcement.channels else ["EMAIL"]
+        if "PUSH" in channels:
+            raise ValueError("Browser push delivery is unavailable without device subscriptions.")
+        from apps.notifications.models import NotificationCategory
+        category = NotificationCategory.FELLOWSHIP if announcement.target_groups.exists() else NotificationCategory.ANNOUNCEMENT
         
         # Dispatch to each channel
         from apps.notifications.tasks import send_notification_to_members
         
         for channel in channels:
             # Filter by communication preferences for this channel
-            filtered_members = services.filter_by_preference(members, channel)
+            filtered_members = services.filter_by_preference(members, channel, category)
             
             # Send to filtered members
             member_ids = [str(m.id) for m in filtered_members]

@@ -9,8 +9,10 @@ import hashlib
 import hmac
 import json
 import logging
+from uuid import UUID
 
 from django.conf import settings
+from django.db import transaction
 
 from .models import Notification, NotificationStatus
 
@@ -57,29 +59,37 @@ def process_delivery_webhook(request) -> dict:
     except (ValueError, TypeError):
         raise WebhookVerificationError("Malformed JSON payload.")
 
+    if not isinstance(payload, dict):
+        raise WebhookVerificationError("Webhook payload must be an object.")
     notification_id = payload.get("notification_id")
     event = payload.get("event")
     if not notification_id:
         raise WebhookVerificationError("Webhook payload missing notification_id.")
+    try:
+        notification_id = UUID(str(notification_id))
+    except (TypeError, ValueError, AttributeError):
+        raise WebhookVerificationError("Invalid notification_id.")
+    if event not in {"delivered", "failed"}:
+        raise WebhookVerificationError("Unsupported delivery event.")
 
-    notification = Notification.objects.filter(id=notification_id).first()
-    if notification is None:
-        notifications_logger.warning("notification_webhook_unknown_id id=%s", notification_id)
-        raise WebhookVerificationError("No matching notification for this id.")
+    with transaction.atomic():
+        notification = Notification.objects.select_for_update().filter(id=notification_id).first()
+        if notification is None:
+            notifications_logger.warning("notification_webhook_unknown_id id=%s", notification_id)
+            raise WebhookVerificationError("No matching notification for this id.")
 
-    if event == "delivered":
-        if notification.status == NotificationStatus.SENT:
-            notification.status = NotificationStatus.DELIVERED
-            notification.provider_response = {**(notification.provider_response or {}), "delivered": True, **payload}
-            notification.save(update_fields=["status", "provider_response"])
-        else:
-            notifications_logger.info(
-                "notification_webhook_idempotent_skip id=%s status=%s", notification_id, notification.status
-            )
-    elif event == "failed":
-        if notification.status in (NotificationStatus.SENT, NotificationStatus.PENDING):
+        if event == "delivered":
+            if notification.status == NotificationStatus.SENT:
+                notification.status = NotificationStatus.DELIVERED
+                notification.provider_response = {**(notification.provider_response or {}), "delivered": True, **payload}
+                notification.save(update_fields=["status", "provider_response"])
+            else:
+                notifications_logger.info(
+                    "notification_webhook_idempotent_skip id=%s status=%s", notification_id, notification.status
+                )
+        elif notification.status in (NotificationStatus.SENT, NotificationStatus.PENDING):
             notification.status = NotificationStatus.FAILED
             notification.provider_response = {**(notification.provider_response or {}), **payload}
             notification.save(update_fields=["status", "provider_response"])
 
-    return {"notification_id": str(notification.id), "status": notification.status}
+        return {"notification_id": str(notification.id), "status": notification.status}

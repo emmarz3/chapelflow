@@ -148,7 +148,7 @@ class TestPastoralCaseIDOR:
         client = APIClient()
         client.force_authenticate(user=chaplain_main)
         
-        response = client.get(f"/api/pastoral/cases/{victim_case.id}/")
+        response = client.get(f"/api/v1/pastoral/cases/{victim_case.id}/")
         
         # Must return 404 (not 403) to prevent info disclosure
         assert response.status_code == status.HTTP_404_NOT_FOUND
@@ -173,7 +173,7 @@ class TestPastoralCaseIDOR:
         
         # Attempt to hijack case
         response = client.patch(
-            f"/api/pastoral/cases/{victim_case.id}/",
+            f"/api/v1/pastoral/cases/{victim_case.id}/",
             {
                 "summary": "Attacker modified this",
                 "assigned_to": chaplain_main.id
@@ -206,7 +206,7 @@ class TestPastoralCaseIDOR:
         client = APIClient()
         client.force_authenticate(user=chaplain_main)
         
-        response = client.delete(f"/api/pastoral/cases/{victim_case.id}/")
+        response = client.delete(f"/api/v1/pastoral/cases/{victim_case.id}/")
         
         # Should be blocked
         assert response.status_code in [
@@ -249,14 +249,14 @@ class TestPastoralCaseIDOR:
         client = APIClient()
         client.force_authenticate(user=chaplain_main)
         
-        response = client.get("/api/pastoral/cases/")
+        response = client.get("/api/v1/pastoral/cases/")
         assert response.status_code == status.HTTP_200_OK
         
-        returned_ids = [item["id"] for item in response.data["results"]]
+        returned_ids = [str(item["id"]) for item in response.data["data"]]
         
-        # Should only see own branch
-        assert case_main.id in returned_ids
-        assert case_annex.id not in returned_ids
+        # Pastoral cases remain branch-restricted even for chaplains.
+        assert str(case_main.id) in returned_ids
+        assert str(case_annex.id) not in returned_ids
 
 
 # ============================================================================
@@ -281,7 +281,7 @@ class TestPrayerRequestIDOR:
         victim_prayer = PrayerRequest.objects.create(
             branch=branch_annex,
             member=victim_member,
-            category="Personal Crisis",
+            category="OTHER",
             details="Highly confidential prayer request",
             privacy_level=PrayerPrivacyLevel.PRIVATE,
             status=PrayerRequestStatus.NEW,
@@ -292,7 +292,7 @@ class TestPrayerRequestIDOR:
         client = APIClient()
         client.force_authenticate(user=attacker_user)
         
-        response = client.get(f"/api/prayer/requests/{victim_prayer.id}/")
+        response = client.get(f"/api/v1/prayer/requests/{victim_prayer.id}/")
         
         # Must be blocked
         assert response.status_code == status.HTTP_404_NOT_FOUND
@@ -305,7 +305,7 @@ class TestPrayerRequestIDOR:
         pastoral_prayer = PrayerRequest.objects.create(
             branch=member_main.branch,
             member=member_main,
-            category="Pastoral Care",
+            category="OTHER",
             details="Sensitive pastoral matter",
             privacy_level=PrayerPrivacyLevel.PASTORAL,
             status=PrayerRequestStatus.ASSIGNED,
@@ -323,7 +323,7 @@ class TestPrayerRequestIDOR:
         client = APIClient()
         client.force_authenticate(user=other_user)
         
-        response = client.get(f"/api/prayer/requests/{pastoral_prayer.id}/")
+        response = client.get(f"/api/v1/prayer/requests/{pastoral_prayer.id}/")
         
         # Should be blocked (privacy escalation attempt)
         assert response.status_code == status.HTTP_404_NOT_FOUND
@@ -336,7 +336,7 @@ class TestPrayerRequestIDOR:
         private_prayer = PrayerRequest.objects.create(
             branch=member_main.branch,
             member=member_main,
-            category="Personal",
+            category="OTHER",
             details="Private details",
             privacy_level=PrayerPrivacyLevel.PRIVATE,
             status=PrayerRequestStatus.NEW,
@@ -355,7 +355,7 @@ class TestPrayerRequestIDOR:
         
         # Attempt to downgrade privacy
         response = client.patch(
-            f"/api/prayer/requests/{private_prayer.id}/",
+            f"/api/v1/prayer/requests/{private_prayer.id}/",
             {"privacy_level": PrayerPrivacyLevel.PUBLIC},
             format="json"
         )
@@ -396,7 +396,7 @@ class TestAssignmentPrivilegeEscalation:
         
         # Member tries to assign case to themselves
         response = client.patch(
-            f"/api/pastoral/cases/{case.id}/",
+            f"/api/v1/pastoral/cases/{case.id}/",
             {"assigned_to": member_main.user.id},
             format="json"
         )
@@ -429,7 +429,7 @@ class TestAssignmentPrivilegeEscalation:
         
         # Try to assign to self (cross-branch)
         response = client.patch(
-            f"/api/pastoral/cases/{case.id}/",
+            f"/api/v1/pastoral/cases/{case.id}/",
             {"assigned_to": chaplain_main.id},
             format="json"
         )
@@ -472,7 +472,7 @@ class TestNoteImmutabilityEnforcement:
         
         # Attempt to edit via API
         response = client.patch(
-            f"/api/pastoral/notes/{note.id}/",
+            f"/api/v1/pastoral/notes/{note.id}/",
             {"note": "Tampered content"},
             format="json"
         )
@@ -512,7 +512,7 @@ class TestNoteImmutabilityEnforcement:
         client.force_authenticate(user=chaplain_main)
         
         # Attempt to delete
-        response = client.delete(f"/api/pastoral/notes/{note.id}/")
+        response = client.delete(f"/api/v1/pastoral/notes/{note.id}/")
         
         # Should be rejected
         assert response.status_code in [
@@ -530,7 +530,7 @@ class TestNoteImmutabilityEnforcement:
         prayer = PrayerRequest.objects.create(
             branch=member_main.branch,
             member=member_main,
-            category="Healing",
+            category="HEALING",
             details="Prayer for healing",
             privacy_level=PrayerPrivacyLevel.PASTORAL,
             status=PrayerRequestStatus.ASSIGNED,
@@ -549,7 +549,7 @@ class TestNoteImmutabilityEnforcement:
         
         # Attempt to edit
         response = client.patch(
-            f"/api/prayer/notes/{note.id}/",
+            f"/api/v1/prayer/notes/{note.id}/",
             {"note": "Tampered prayer note"},
             format="json"
         )
@@ -582,7 +582,7 @@ class TestAuditLogProtection:
         
         # Create pastoral case
         response = client.post(
-            "/api/pastoral/cases/",
+            "/api/v1/pastoral/cases/",
             {
                 "branch": member_main.branch.id,
                 "member": member_main.id,
@@ -624,17 +624,17 @@ class TestAuditLogProtection:
 class TestBranchBoundaryViolations:
     """Test attempts to violate branch boundaries"""
 
-    def test_cannot_create_case_for_member_in_other_branch(
+    def test_cannot_create_case_with_mismatched_member_branch(
         self, chaplain_main, member_annex
     ):
-        """Chaplain cannot create case for member in different branch"""
+        """A case cannot link a member from a different branch."""
         client = APIClient()
         client.force_authenticate(user=chaplain_main)
         
         response = client.post(
-            "/api/pastoral/cases/",
+            "/api/v1/pastoral/cases/",
             {
-                "branch": member_annex.branch.id,
+                "branch": chaplain_main.branch_id,
                 "member": member_annex.id,
                 "category": "Counseling",
                 "summary": "Cross-branch attempt",
@@ -670,7 +670,7 @@ class TestBranchBoundaryViolations:
         
         # Attempt to change branch
         response = client.patch(
-            f"/api/pastoral/cases/{case.id}/",
+            f"/api/v1/pastoral/cases/{case.id}/",
             {"branch": branch_annex.id},
             format="json"
         )

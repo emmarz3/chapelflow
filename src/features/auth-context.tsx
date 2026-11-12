@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import type { Role, User } from "../types/domain";
-import { api } from "../lib/api";
+import { api, ApiError } from "../lib/api";
 import { buildDemoUser, hasPermission } from "../lib/permissions";
 import { isDemoMode } from "../lib/fixtures";
 import { useQueryClient } from "@tanstack/react-query";
@@ -16,6 +16,8 @@ import { useQueryClient } from "@tanstack/react-query";
 interface AuthContextValue {
   user: User | null;
   loading: boolean;
+  authError: string | null;
+  retryAuth: () => void;
   login: (
     identifier: string,
     password: string,
@@ -30,7 +32,10 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 let authBootstrapRequest: ReturnType<typeof loadCurrentUser> | null = null;
 
-function loadCurrentUser() {
+async function loadCurrentUser() {
+  // The API cookie belongs to a different Render origin. Bootstrap the
+  // partitioned CSRF cookie and retain its matching token in memory first.
+  await api.get<{ data: { csrf_token: string } }>("/auth/csrf");
   return api.get<{ data: User }>("/auth/me");
 }
 
@@ -54,16 +59,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return role ? buildDemoUser(role) : null;
   });
   const [loading, setLoading] = useState(!isDemoMode);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [authRetry, setAuthRetry] = useState(0);
   useEffect(() => {
     if (isDemoMode) return;
     let active = true;
     const revision = authRevision.current;
     getCurrentUserOnce()
       .then((response) => {
-        if (active && authRevision.current === revision) setUser(response.data);
+        if (active && authRevision.current === revision) {
+          setUser(response.data);
+          setAuthError(null);
+        }
       })
-      .catch(() => {
-        if (active && authRevision.current === revision) setUser(null);
+      .catch((error: unknown) => {
+        if (active && authRevision.current === revision) {
+          if (!(error instanceof ApiError && error.status === 401)) {
+            setAuthError("ChapelFlow could not reach its account service. Please retry shortly.");
+          }
+          setUser(null);
+        }
       })
       .finally(() => {
         if (active && authRevision.current === revision) setLoading(false);
@@ -71,11 +86,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       active = false;
     };
-  }, []);
+  }, [authRetry]);
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
       loading,
+      authError,
+      retryAuth() {
+        setAuthError(null);
+        setLoading(true);
+        setAuthRetry((attempt) => attempt + 1);
+      },
       async login(identifier, password, role = "chapel_admin", otp) {
         authRevision.current += 1;
         setLoading(true);
@@ -93,6 +114,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             ...(otp ? { otp } : {}),
           });
           queryClient.clear();
+          setAuthError(null);
           setUser(response.data);
           return response.data;
         } finally {
@@ -104,6 +126,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (isDemoMode)
           window.sessionStorage.removeItem("chapelflow-demo-role");
         queryClient.clear();
+        setAuthError(null);
         setUser(null);
         setLoading(false);
         if (!isDemoMode) await api.post("/auth/logout");
@@ -115,7 +138,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       },
     }),
-    [user, loading, queryClient],
+    [user, loading, authError, queryClient],
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

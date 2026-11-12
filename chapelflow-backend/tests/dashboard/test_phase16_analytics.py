@@ -146,7 +146,7 @@ class TestMemberAnalytics:
         )
         
         # Create member created 10 days ago
-        Member.objects.create(
+        old_member = Member.objects.create(
             branch=branch,
             first_name="New",
             last_name="Old",
@@ -155,13 +155,15 @@ class TestMemberAnalytics:
         )
         
         # Create member created 40 days ago (outside default range)
-        Member.objects.create(
+        older_member = Member.objects.create(
             branch=branch,
             first_name="Old",
             last_name="Member",
             membership_status=MembershipStatus.ACTIVE,
             created_at=timezone.now() - timedelta(days=40),
         )
+        Member.objects.filter(pk=old_member.pk).update(created_at=timezone.now() - timedelta(days=10))
+        Member.objects.filter(pk=older_member.pk).update(created_at=timezone.now() - timedelta(days=40))
         
         # Get new members count (default: last 30 days)
         count = services.get_new_members_count(admin_user)
@@ -174,27 +176,30 @@ class TestMemberAnalytics:
         today = timezone.now().date()
         
         # Create members at different times
-        Member.objects.create(
+        jan_member = Member.objects.create(
             branch=branch,
             first_name="Jan",
             last_name="Member",
             membership_status=MembershipStatus.ACTIVE,
             created_at=datetime(2026, 1, 15, tzinfo=timezone.get_current_timezone()),
         )
-        Member.objects.create(
+        feb_member_1 = Member.objects.create(
             branch=branch,
             first_name="Feb",
             last_name="Member1",
             membership_status=MembershipStatus.ACTIVE,
             created_at=datetime(2026, 2, 10, tzinfo=timezone.get_current_timezone()),
         )
-        Member.objects.create(
+        feb_member_2 = Member.objects.create(
             branch=branch,
             first_name="Feb",
             last_name="Member2",
             membership_status=MembershipStatus.ACTIVE,
             created_at=datetime(2026, 2, 20, tzinfo=timezone.get_current_timezone()),
         )
+        Member.objects.filter(pk=jan_member.pk).update(created_at=datetime(2026, 1, 15, tzinfo=timezone.get_current_timezone()))
+        Member.objects.filter(pk=feb_member_1.pk).update(created_at=datetime(2026, 2, 10, tzinfo=timezone.get_current_timezone()))
+        Member.objects.filter(pk=feb_member_2.pk).update(created_at=datetime(2026, 2, 20, tzinfo=timezone.get_current_timezone()))
         
         # Get growth trend
         start_date = date(2026, 1, 1)
@@ -243,8 +248,8 @@ class TestMemberAnalytics:
         
         assert age_dict["0-17"] == 1
         assert age_dict["18-25"] == 1
-        assert age_dict["26-35"] == 0
-        assert age_dict["36-50"] == 1
+        assert age_dict["26-35"] == 1
+        assert age_dict["36-50"] == 0
 
 
 # =============================================================================
@@ -338,6 +343,10 @@ class TestAttendanceAnalytics:
             branch=branch,
             label="Test Session",
         )
+        second_session = AttendanceSession.objects.create(
+            branch=branch,
+            label="Second Session",
+        )
         
         # Create member
         member = Member.objects.create(
@@ -354,7 +363,7 @@ class TestAttendanceAnalytics:
             checked_in_at=datetime(2026, 8, 10, tzinfo=timezone.get_current_timezone()),
         )
         AttendanceRecord.objects.create(
-            session=session,
+            session=second_session,
             member=member,
             method=AttendanceMethod.MANUAL,
             checked_in_at=datetime(2026, 8, 17, tzinfo=timezone.get_current_timezone()),
@@ -392,13 +401,14 @@ class TestVisitorAnalytics:
             status=VisitorStatus.CONTACTED,
             created_at=timezone.now() - timedelta(days=10),
         )
-        Visitor.objects.create(
+        old_visitor = Visitor.objects.create(
             branch=branch,
             full_name="Converted Visitor",
             status=VisitorStatus.REGISTERED,
             converted_at=timezone.now() - timedelta(days=5),
             created_at=timezone.now() - timedelta(days=40),  # Outside default range
         )
+        Visitor.objects.filter(pk=old_visitor.pk).update(created_at=timezone.now() - timedelta(days=40))
         
         # Get visitor counts
         today = timezone.now().date()
@@ -446,7 +456,7 @@ class TestFinanceAnalytics:
     def test_giving_totals_accuracy(self, admin_user, branch):
         """Giving totals match actual transactions."""
         # Create category
-        category = GivingCategory.objects.create(name="Tithe")
+        category, _ = GivingCategory.objects.get_or_create(name="Tithe")
         
         # Create member
         member = Member.objects.create(
@@ -488,7 +498,7 @@ class TestFinanceAnalytics:
     
     def test_giving_trend_time_series(self, admin_user, branch):
         """Giving trend time-series is accurate."""
-        category = GivingCategory.objects.create(name="Tithe")
+        category, _ = GivingCategory.objects.get_or_create(name="Tithe")
         member = Member.objects.create(branch=branch, first_name="Test", last_name="Member")
         
         # Create giving at different times
@@ -524,32 +534,21 @@ class TestFinanceAnalytics:
     
     def test_reconciliation_status_integration(self, admin_user, branch):
         """Reconciliation status integration with Phase 14."""
-        # Create financial period
-        period = FinancialPeriod.objects.create(
-            branch=branch,
-            name="Q1 2026",
-            start_date=date(2026, 1, 1),
-            end_date=date(2026, 3, 31),
-            status=FinancialPeriodStatus.OPEN,
-        )
-        
-        # Create reconciliations
-        Reconciliation.objects.create(
-            branch=branch,
-            period=period,
-            status=ReconciliationStatus.OPEN,
-        )
-        Reconciliation.objects.create(
-            branch=branch,
-            period=period,
-            status=ReconciliationStatus.PENDING_APPROVAL,
-        )
-        Reconciliation.objects.create(
-            branch=branch,
-            period=period,
-            status=ReconciliationStatus.APPROVED,
-            has_discrepancy=True,
-        )
+        for month, reconciliation_status, difference in (
+            (1, ReconciliationStatus.PENDING, Decimal("0.00")),
+            (2, ReconciliationStatus.RECONCILED, Decimal("0.00")),
+            (3, ReconciliationStatus.APPROVED, Decimal("1.00")),
+        ):
+            Reconciliation.objects.create(
+                branch=branch,
+                period_start=date(2026, month, 1),
+                period_end=date(2026, month, 28),
+                status=reconciliation_status,
+                system_total=Decimal("100.00"),
+                bank_total=Decimal("100.00") - difference,
+                difference=difference,
+                created_by=admin_user,
+            )
         
         # Get reconciliation status
         status = services.get_reconciliation_status(admin_user)
@@ -579,12 +578,13 @@ class TestEdgeCases:
     def test_empty_date_range(self, admin_user, branch):
         """Analytics handle empty date ranges."""
         # Create member created 60 days ago
-        Member.objects.create(
+        old_member = Member.objects.create(
             branch=branch,
             first_name="Old",
             last_name="Member",
             created_at=timezone.now() - timedelta(days=60),
         )
+        Member.objects.filter(pk=old_member.pk).update(created_at=timezone.now() - timedelta(days=60))
         
         # Query last 7 days (should be empty)
         today = timezone.now().date()

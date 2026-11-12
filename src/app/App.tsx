@@ -3,7 +3,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { PwaPrompt } from "../components/pwa-prompt";
 import { OfflineAttendanceSync } from "../components/offline-attendance-sync";
 import { ChapelFlowIntro } from "../components/intro/chapelflow-intro";
-import { RouteMotionLayer } from "../components/motion/motion-system";
+import { RouteScrollManager } from "../components/route-scroll";
 import { ToastProvider } from "../components/ui";
 import {
   AuthLayout,
@@ -25,6 +25,8 @@ import { AdminOperationsPage } from "../features/admin-operations";
 import { RoleOperationsPage } from "../features/role-operations";
 import { GivingPage } from "../features/giving-page";
 import { UpperRoomPage } from "../features/upper-room";
+import { CommunitySafetyPage } from "../features/moderation";
+import { NotificationSettingsPage } from "../features/notification-settings";
 import { GalleryPage } from "../features/gallery-page";
 import {
   StudentAttendanceHistoryPage,
@@ -145,7 +147,7 @@ export function App() {
   return (
     <>
       <ChapelFlowIntro />
-      <RouteMotionLayer />
+      <RouteScrollManager />
       <ToastProvider>
         <ErrorBoundary>
           <Suspense fallback={<RouteLoader />}>
@@ -307,6 +309,9 @@ export function App() {
                 <Route path="/app" element={<DashboardPage />} />
                 <Route path="/app/giving" element={<GivingPage />} />
                 <Route path="/app/upper-room" element={<UpperRoomPage />} />
+                <Route path="/app/community-safety" element={<CommunitySafetyPage />} />
+                <Route path="/app/notifications" element={<StudentNotificationsPage />} />
+                <Route path="/app/notification-settings" element={<NotificationSettingsPage />} />
                 <Route element={<ProtectedRoute roles={["chaplain", "student_chaplain", "unit_leader", "fellowship_leader"]} />}>
                   <Route path="/app/operations" element={<RoleOperationsPage />} />
                 </Route>
@@ -342,7 +347,6 @@ export function App() {
                 <Route element={<ProtectedRoute roles={["member"]} />}>
                   <Route path="/app/profile/edit" element={<StudentProfileEditorPage />} />
                   <Route path="/app/announcements" element={<StudentAnnouncementsPage />} />
-                  <Route path="/app/notifications" element={<StudentNotificationsPage />} />
                 </Route>
                 <Route element={<ProtectedRoute permission="events:read" />}>
                   <Route path="/app/events" element={<EventsPage />} />
@@ -383,6 +387,10 @@ export function App() {
                   />
                 </Route>
                 <Route element={<ProtectedRoute roles={["super_admin"]} />}>
+                  <Route
+                    path="/app/admin/dashboard"
+                    element={<DashboardPage />}
+                  />
                   <Route
                     path="/app/admin/accounts"
                     element={<InstitutionalAccountsPage />}

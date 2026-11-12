@@ -1,4 +1,3 @@
-import { BrowserQRCodeReader, type IScannerControls } from "@zxing/browser";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   Camera,
@@ -8,7 +7,7 @@ import {
   ShieldCheck,
   XCircle,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Badge,
   Button,
@@ -16,11 +15,10 @@ import {
   LoadingState,
   PageHeader,
 } from "../components/ui";
+import { useQrScanner } from "../lib/use-qr-scanner";
 import { attendanceService } from "../services/chapelflow";
 
 export function StudentAttendancePassPage() {
-  const video = useRef<HTMLVideoElement>(null);
-  const controls = useRef<IScannerControls | null>(null);
   const [scanning, setScanning] = useState(false);
   const [manualToken, setManualToken] = useState("");
   const [message, setMessage] = useState<{
@@ -38,7 +36,7 @@ export function StudentAttendancePassPage() {
   const scan = useMutation({
     mutationFn: attendanceService.studentScan,
     onSuccess: (response) => {
-      stopCamera();
+      setScanning(false);
       setMessage({
         tone: response.data.result === "recorded" ? "success" : "danger",
         text:
@@ -57,39 +55,21 @@ export function StudentAttendancePassPage() {
             : "Attendance could not be recorded.",
       }),
   });
-  function stopCamera() {
-    controls.current?.stop();
-    controls.current = null;
+  const pendingScan = useRef(false);
+  pendingScan.current = scan.isPending;
+  const mutateScan = scan.mutate;
+  const onScan = useCallback(
+    (text: string) => {
+      if (!pendingScan.current) mutateScan(text);
+    },
+    [mutateScan],
+  );
+  const { videoRef, permissionError } = useQrScanner(onScan, scanning);
+  useEffect(() => {
+    if (!permissionError) return;
     setScanning(false);
-  }
-  useEffect(() => () => controls.current?.stop(), []);
-  async function startCamera() {
-    setMessage(null);
-    setScanning(true);
-    await new Promise<void>((resolve) =>
-      window.requestAnimationFrame(() => resolve()),
-    );
-    if (!video.current) {
-      setScanning(false);
-      return;
-    }
-    try {
-      const reader = new BrowserQRCodeReader();
-      controls.current = await reader.decodeFromConstraints(
-        { video: { facingMode: { ideal: "environment" } }, audio: false },
-        video.current,
-        (result) => {
-          if (result && !scan.isPending) scan.mutate(result.getText());
-        },
-      );
-    } catch {
-      setScanning(false);
-      setMessage({
-        tone: "danger",
-        text: "Camera access is unavailable. Allow camera permission or use the secure recovery field.",
-      });
-    }
-  }
+    setMessage({ tone: "danger", text: permissionError });
+  }, [permissionError]);
   if (pass.isPending)
     return <LoadingState label="Loading your attendance scanner" />;
   if (pass.isError)
@@ -109,7 +89,7 @@ export function StudentAttendancePassPage() {
       <section className="chapel-pass">
         <header>
           <div className="chapel-pass__mark">
-            <QrCode />
+            <QrCode aria-hidden="true" />
           </div>
           <div>
             <small>Chrisland University Chapel</small>
@@ -137,29 +117,36 @@ export function StudentAttendancePassPage() {
           <div className="chapel-pass__qr">
             {scanning ? (
               <video
-                ref={video}
+                ref={videoRef}
                 muted
                 playsInline
                 aria-label="Camera preview for usher QR scanner"
               />
             ) : (
               <div className="chapel-pass__unavailable">
-                <Camera />
+                <Camera aria-hidden="true" />
                 <strong>Ready to scan</strong>
                 <p>Point your camera at the usher's rotating QR code.</p>
               </div>
             )}
             <Button
               icon={<Camera />}
-              onClick={() => void (scanning ? stopCamera() : startCamera())}
+              onClick={() => {
+                setMessage(null);
+                setScanning((value) => !value);
+              }}
             >
               {scanning ? "Stop scanner" : "Open camera"}
             </Button>
           </div>
         </div>
         {message && (
-          <p className={`form-note form-note--${message.tone}`}>
-            <>{message.tone === "success" ? <CheckCircle2 /> : <XCircle />}</>{" "}
+          <p
+            className={`form-note form-note--${message.tone}`}
+            role="status"
+            aria-live="polite"
+          >
+            <>{message.tone === "success" ? <CheckCircle2 aria-hidden="true" /> : <XCircle aria-hidden="true" />}</>{" "}
             {message.text}
           </p>
         )}
@@ -189,7 +176,7 @@ export function StudentAttendancePassPage() {
           </Button>
         </form>
         <footer>
-          <ShieldCheck />
+          <ShieldCheck aria-hidden="true" />
           <span>
             Your permanent personal QR code cannot be used to self-record
             attendance.
@@ -239,7 +226,7 @@ export function StudentAttendancePassPage() {
           </table>
         ) : (
           <div className="empty-state">
-            <QrCode />
+            <QrCode aria-hidden="true" />
             <h3>No attendance yet</h3>
             <p>Your completed chapel check-ins will appear here.</p>
           </div>

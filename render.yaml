@@ -1,21 +1,15 @@
-# ChapelFlow free-tier deployment on Render.
-# Repository layout:
-#   ./render.yaml
-#   ./chapelflow-backend/Dockerfile
-#   React frontend at the repository root (not configured as a Render service here).
-#
-# This Blueprint deploys the Django API, Render Key Value, and Render Postgres.
-# Celery worker and Celery Beat services are intentionally omitted because
-# Render does not offer free background-worker instances.
+# ChapelFlow production deployment on Render.
+# Repo layout expected: this file at the repo root, Django app in ./chapelflow-backend, React app at repo root.
 
 services:
-  # Django REST API
   - type: web
     name: chapelflow-api
     runtime: docker
-    plan: free
+    plan: starter
     dockerfilePath: ./chapelflow-backend/Dockerfile
     dockerContext: ./chapelflow-backend
+    preDeployCommand: /app/release.sh
+    autoDeployTrigger: checksPass
     healthCheckPath: /health/
     envVars:
       - key: DJANGO_SETTINGS_MODULE
@@ -25,6 +19,11 @@ services:
       - key: DATABASE_URL
         fromDatabase:
           name: chapelflow-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: chapelflow-redis
           property: connectionString
       - key: STORAGE_PROVIDER
         value: cloudinary
@@ -62,35 +61,103 @@ services:
         sync: false
       - key: PAYSTACK_CALLBACK_URL
         sync: false
-      - key: FLUTTERWAVE_SECRET_KEY
-        sync: false
-      - key: SMS_API_KEY
-        sync: false
-      - key: FIREBASE_PROJECT_ID
-        sync: false
-      - key: FIREBASE_SERVICE_ACCOUNT_JSON
-        sync: false
-      - key: AWS_ACCESS_KEY_ID
-        sync: false
-      - key: AWS_SECRET_ACCESS_KEY
-        sync: false
-      - key: AWS_STORAGE_BUCKET_NAME
-        sync: false
-      - key: AWS_S3_REGION_NAME
-        sync: false
-      - key: SUPABASE_URL
-        sync: false
-      - key: SUPABASE_SECRET_KEY
-        sync: false
-      - key: SUPABASE_STORAGE_BUCKET
-        value: chapelflow-uploads
+      - key: SMS_CHANNEL_ENABLED
+        value: "false"
 
-  # Redis-compatible Key Value datastore.
-  # An empty IP allow list blocks public access; Render services can use
-  # the internal connection URL when they are in the same region.
+  - type: worker
+    name: chapelflow-celery-worker
+    runtime: docker
+    plan: starter
+    dockerfilePath: ./chapelflow-backend/Dockerfile
+    dockerContext: ./chapelflow-backend
+    dockerCommand: /app/start-celery.sh worker
+    maxShutdownDelaySeconds: 300
+    envVars: &backendWorkerEnv
+      - key: DJANGO_SETTINGS_MODULE
+        value: config.settings.production
+      - key: SECRET_KEY
+        fromService:
+          type: web
+          name: chapelflow-api
+          envVarKey: SECRET_KEY
+      - key: DATABASE_URL
+        fromDatabase:
+          name: chapelflow-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: chapelflow-redis
+          property: connectionString
+      - key: PUBLIC_BACKEND_URL
+        fromService:
+          type: web
+          name: chapelflow-api
+          envVarKey: PUBLIC_BACKEND_URL
+      - key: STORAGE_PROVIDER
+        value: cloudinary
+      - key: CLOUDINARY_CLOUD_NAME
+        fromService:
+          type: web
+          name: chapelflow-api
+          envVarKey: CLOUDINARY_CLOUD_NAME
+      - key: CLOUDINARY_API_KEY
+        fromService:
+          type: web
+          name: chapelflow-api
+          envVarKey: CLOUDINARY_API_KEY
+      - key: CLOUDINARY_API_SECRET
+        fromService:
+          type: web
+          name: chapelflow-api
+          envVarKey: CLOUDINARY_API_SECRET
+      - key: PAYSTACK_SECRET_KEY
+        fromService:
+          type: web
+          name: chapelflow-api
+          envVarKey: PAYSTACK_SECRET_KEY
+      - key: PAYSTACK_CALLBACK_URL
+        fromService:
+          type: web
+          name: chapelflow-api
+          envVarKey: PAYSTACK_CALLBACK_URL
+      - key: EMAIL_HOST
+        fromService:
+          type: web
+          name: chapelflow-api
+          envVarKey: EMAIL_HOST
+      - key: EMAIL_HOST_USER
+        fromService:
+          type: web
+          name: chapelflow-api
+          envVarKey: EMAIL_HOST_USER
+      - key: EMAIL_HOST_PASSWORD
+        fromService:
+          type: web
+          name: chapelflow-api
+          envVarKey: EMAIL_HOST_PASSWORD
+      - key: SMS_CHANNEL_ENABLED
+        value: "false"
+
+  - type: worker
+    name: chapelflow-celery-beat
+    runtime: docker
+    plan: starter
+    dockerfilePath: ./chapelflow-backend/Dockerfile
+    dockerContext: ./chapelflow-backend
+    dockerCommand: /app/start-celery.sh beat
+    maxShutdownDelaySeconds: 60
+    envVars: *backendWorkerEnv
+
+  - type: keyvalue
+    name: chapelflow-redis
+    plan: 256mb
+    ipAllowList: []
+    maxmemoryPolicy: noeviction
+    persistenceMode: journal-snapshot
 
 databases:
   - name: chapelflow-db
-    plan: free
+    plan: 0.5c-1g
     databaseName: chapelflow
     user: chapelflow

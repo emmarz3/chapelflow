@@ -1,4 +1,4 @@
-import { render, renderHook, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, renderHook, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
@@ -21,7 +21,6 @@ vi.mock("../components/motion/motion-system", () => ({
   usePortalMotion: vi.fn(),
   usePublicMotion: vi.fn(),
   useFeatureMotion: vi.fn(),
-  RouteMotionLayer: () => null,
   MOTION: {
     duration: { micro: 0.16, fast: 0.24, normal: 0.4, medium: 0.55, slow: 0.8 },
     ease: { standard: "power2.out", smooth: "power3.out", enter: "power4.out", exit: "power2.inOut" },
@@ -193,8 +192,7 @@ describe("AuthLayout video behavior", () => {
     // Brand overlay should be visible
     const branding = document.querySelector(".auth-visual__branding");
     expect(branding).toBeTruthy();
-    const mark = document.querySelector(".auth-visual__mark");
-    expect(mark).toBeTruthy();
+    expect(document.querySelector(".auth-visual img")).toBeNull();
     const tagline = document.querySelector(".auth-visual__tagline");
     expect(tagline?.textContent).toBe("Nurturing faith. Shaping lives. Impacting Nigeria.");
   });
@@ -211,7 +209,8 @@ describe("AuthLayout video behavior", () => {
 
     const video = document.querySelector(".auth-visual__video.is-current");
     expect(video).toBeTruthy();
-    expect(video).toHaveAttribute("poster", "/chapelflow-auth-register-visual.png");
+    expect(video).not.toHaveAttribute("poster");
+    expect(document.querySelector(".auth-visual > img")).toBeNull();
 
     // Register card should be present
     const card = document.querySelector(".auth-card");
@@ -267,6 +266,28 @@ describe("AuthLayout video behavior", () => {
     expect(registerSrc).toBeTruthy();
     // Verify register uses register videos
     expect(registerSrc).toContain("auth-register");
+  });
+
+  it("plays one clip at a time and advances after it ends", () => {
+    renderWithProviders(<AuthLayout><LoginPage /></AuthLayout>, ["/login"]);
+
+    const first = document.querySelector(".auth-visual__video.is-current");
+    expect(document.querySelectorAll(".auth-visual video")).toHaveLength(1);
+    expect(first).toHaveAttribute("src", "/auth-videos/login/auth-login-1.mp4");
+    fireEvent.ended(first!);
+    expect(document.querySelector(".auth-visual__video.is-current")).toHaveAttribute("src", "/auth-videos/login/auth-login-2.mp4");
+    expect(document.querySelectorAll(".auth-visual video")).toHaveLength(1);
+  });
+
+  it("tries the next clip when playback fails and falls back without an image", () => {
+    renderWithProviders(<AuthLayout><RegisterPage /></AuthLayout>, ["/register"]);
+
+    fireEvent.error(document.querySelector(".auth-visual__video")!);
+    expect(document.querySelector(".auth-visual__video")).toHaveAttribute("src", "/auth-videos/register/auth-register-2.mp4");
+    fireEvent.error(document.querySelector(".auth-visual__video")!);
+    expect(document.querySelector(".auth-visual__video")).toBeNull();
+    expect(document.querySelector(".auth-visual__poster--static")).toBeTruthy();
+    expect(document.querySelector(".auth-visual > img")).toBeNull();
   });
 
   it("keeps registration video decorative and non-focusable", () => {

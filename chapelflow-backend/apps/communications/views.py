@@ -28,11 +28,9 @@ class MyCommunicationPreferenceView(APIView):
     permission_classes = [IsAuthenticated]
 
     def _preference(self, request):
-        member = getattr(request.user, "member_profile", None)
-        if member is None:
-            return None
-        preference, _ = CommunicationPreference.objects.get_or_create(member=member)
-        return preference
+        from apps.notifications.preferences import get_or_create_preference
+
+        return get_or_create_preference(request.user)
 
     def get(self, request):
         preference = self._preference(request)
@@ -78,7 +76,10 @@ class StudentAnnouncementFeedView(APIView):
                 Q(target_groups__isnull=True)
                 | Q(target_groups__memberships__member=member, target_groups__memberships__is_active=True)
             )
-        feed = feed.distinct().order_by("-publish_at")[:50]
+        from apps.moderation.models import TargetKind
+        from apps.moderation.services import visible
+
+        feed = visible(feed, TargetKind.GROUP_ANNOUNCEMENT).distinct().order_by("-publish_at")[:50]
         return success_response([
             {"id": str(item.id), "title": item.title, "body": item.body, "published_at": item.completed_at or item.publish_at}
             for item in feed
@@ -291,6 +292,7 @@ class CommunicationPreferenceViewSet(StandardModelViewSet):
     - Member field is immutable after creation
     """
     serializer_class = CommunicationPreferenceSerializer
+    http_method_names = ["get", "head", "options"]
     permission_classes = [HasRolePermission]
     permission_action_map = {
         "list": PermissionCodes.MEMBERS_VIEW,

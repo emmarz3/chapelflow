@@ -16,14 +16,14 @@ class PrayerNoteSerializer(ScopedFKValidationMixin, serializers.ModelSerializer)
 
 
 class PrayerRequestSerializer(ScopedFKValidationMixin, serializers.ModelSerializer):
-    notes = PrayerNoteSerializer(many=True, read_only=True)
+    notes = serializers.SerializerMethodField()
 
     class Meta:
         model = PrayerRequest
         fields = [
             "id", "branch", "member", "submitted_by_name", "created_by",
             "category", "details", 
-            "privacy_level", "is_private",  # Both for backward compatibility
+            "privacy_level", "consent_to_share", "is_private",  # Both for backward compatibility
             "status", "assigned_to", 
             "answered_at", "closure_reason",
             "notes", "created_at", "updated_at",
@@ -38,6 +38,36 @@ class PrayerRequestSerializer(ScopedFKValidationMixin, serializers.ModelSerializ
             "member": {"required": False},
             "assigned_to": {"required": False},
         }
+
+    def get_notes(self, instance):
+        """Follow-up notes are private pastoral records, even on an owner's request."""
+        if not self._is_pastoral_viewer():
+            return []
+        return PrayerNoteSerializer(instance.notes.all(), many=True, context=self.context).data
+
+    def _is_pastoral_viewer(self):
+        request = self.context.get("request")
+        user = getattr(request, "user", None)
+        if not user or not user.is_authenticated:
+            return False
+        from common.constants.roles import Roles
+
+        role = user.get_role_code() if hasattr(user, "get_role_code") else user.role
+        return role in Roles.PASTORAL_ACCESS_ROLES
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        request = self.context.get("request")
+        user = getattr(request, "user", None)
+        is_owner = bool(
+            user and user.is_authenticated and instance.member_id
+            and instance.member.user_id == user.id
+        )
+        if instance.privacy_level == "PUBLIC" and not is_owner and not self._is_pastoral_viewer():
+            # Public sharing exposes the prayer content, not the requester's identity
+            # or internal assignment/audit identifiers.
+            data.update({"member": None, "submitted_by_name": "", "created_by": None, "assigned_to": None})
+        return data
 
     def validate(self, attrs):
         request = self.context.get("request")
@@ -54,6 +84,27 @@ class PrayerRequestSerializer(ScopedFKValidationMixin, serializers.ModelSerializ
             privacy_level = attrs.get("privacy_level", getattr(self.instance, "privacy_level", "PRIVATE"))
             if privacy_level not in {"PRIVATE", "PASTORAL"}:
                 raise serializers.ValidationError({"privacy_level": "Submit a private or pastoral request. A pastoral leader can approve wider sharing after consent."})
+            if "consent_to_share" in attrs:
+                owner_id = self.instance.member.user_id if self.instance and self.instance.member_id else None
+                if self.instance and owner_id != request.user.id:
+                    raise serializers.ValidationError({"consent_to_share": "Only the requester can change sharing consent."})
+        elif "consent_to_share" in attrs:
+            raise serializers.ValidationError({"consent_to_share": "Only the requester can provide sharing consent."})
+
+        has_consent = attrs.get(
+            "consent_to_share",
+            getattr(self.instance, "consent_to_share", False),
+        )
+        target_privacy = attrs.get("privacy_level", getattr(self.instance, "privacy_level", "PRIVATE"))
+        if attrs.get("consent_to_share") is False:
+            target_privacy = "PRIVATE"
+        has_requester = bool(
+            (self.instance and self.instance.member_id)
+            or attrs.get("member")
+            or (role not in Roles.PASTORAL_ACCESS_ROLES and getattr(request.user, "member_profile", None))
+        )
+        if target_privacy in {"PUBLIC", "FELLOWSHIP"} and not (has_consent and has_requester):
+            raise serializers.ValidationError({"privacy_level": "The requester must consent before this request can be shared with the community."})
         return attrs
     
     def validate_branch(self, branch):
@@ -80,6 +131,20 @@ class PrayerRequestSerializer(ScopedFKValidationMixin, serializers.ModelSerializ
         
         # Existing branch validation
         assigned_to = self.validate_user_fk(assigned_to, 'assigned_to')
+
+        # The assignee must be authorized for this specific care record.
+        # Actor-level org-wide scope alone is insufficient: it must not let a
+        # request in one branch be handed to staff assigned to another.
+        request = self.context.get("request")
+        request_branch_id = (
+            self.instance.branch_id
+            if self.instance
+            else self.initial_data.get("branch") or getattr(request.user, "branch_id", None)
+        )
+        if request_branch_id and str(assigned_to.branch_id) != str(request_branch_id):
+            raise serializers.ValidationError(
+                "Cannot assign a prayer request to staff from another branch."
+            )
         
         # Phase 13: Verify user has pastoral role
         from common.constants.roles import Roles
@@ -114,6 +179,9 @@ class PrayerRequestSerializer(ScopedFKValidationMixin, serializers.ModelSerializ
             from django.utils import timezone
             if validated_data['status'] == 'ANSWERED' and instance.status != 'ANSWERED':
                 instance.answered_at = timezone.now()
+
+        if validated_data.get("consent_to_share") is False and instance.privacy_level in {"PUBLIC", "FELLOWSHIP"}:
+            validated_data["privacy_level"] = "PRIVATE"
         
         return super().update(instance, validated_data)
 

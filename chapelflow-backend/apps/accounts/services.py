@@ -29,7 +29,9 @@ def record_login(user, request, successful: bool, failure_reason: str = "", iden
         from apps.audit.models import AuditAction
         write_audit_log(AuditAction.LOGIN, "accounts.User", user.id, user=user)
     else:
-        security_logger.warning("login_failed identifier=%s reason=%s", identifier_attempted or user, failure_reason)
+        # Keep identifiers in the access-controlled LoginHistory table only;
+        # authentication logs are commonly exported to broader log services.
+        security_logger.warning("login_failed reason=%s", failure_reason)
 
 
 def generate_password_reset_token(user: User):

@@ -85,7 +85,7 @@ class VisitorViewSet(BranchScopedQuerysetMixin, StandardModelViewSet):
         # matching DRF's own multipart handling elsewhere in this codebase).
         raw = request.data.dict() if hasattr(request.data, "dict") else dict(request.data)
         data = {**raw, "visitor": str(visitor.id)}
-        serializer = VisitorFollowUpSerializer(data=data)
+        serializer = VisitorFollowUpSerializer(data=data, context={"request": request})
         serializer.is_valid(raise_exception=True)
         follow_up = serializer.save()
 

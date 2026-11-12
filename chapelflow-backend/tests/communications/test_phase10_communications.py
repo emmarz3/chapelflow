@@ -3,6 +3,7 @@ import hmac
 import json
 
 import pytest
+from django.test import override_settings
 from django.utils import timezone
 
 
@@ -12,6 +13,23 @@ def _grant(role, *codes):
     for code in codes:
         perm, _ = Permission.objects.get_or_create(code=code)
         RolePermission.objects.get_or_create(legacy_role_code=role, permission=perm)
+
+
+@pytest.mark.django_db
+@override_settings(SMS_CHANNEL_ENABLED=False)
+def test_sms_announcement_is_rejected_when_channel_disabled(api_client, chapel_admin_a, branch_a, seed_member_permissions):
+    api_client.force_authenticate(user=chapel_admin_a)
+    response = api_client.post(
+        "/api/v1/communications/announcements/",
+        {
+            "branch": str(branch_a.id), "title": "SMS blast", "body": "Hello",
+            "audience_type": "EVERYONE", "channels": ["SMS"],
+            "publish_at": timezone.now().isoformat(),
+        },
+        format="json",
+    )
+    assert response.status_code == 400
+    assert "channels" in response.data["errors"]
 
 
 @pytest.fixture
@@ -145,8 +163,8 @@ class TestAudienceEscalationPrevention:
 
 @pytest.mark.django_db
 class TestCampaignLifecycle:
-    def test_past_publish_at_is_queued_immediately(self, api_client, chapel_admin_a, seed_member_permissions, branch_a):
-        from apps.communications.models import Announcement, CampaignStatus
+    def test_past_publish_at_dispatches_when_published(self, api_client, chapel_admin_a, seed_member_permissions, branch_a):
+        from apps.communications.models import Announcement, AnnouncementStatus
 
         api_client.force_authenticate(user=chapel_admin_a)
         response = api_client.post(
@@ -156,60 +174,55 @@ class TestCampaignLifecycle:
         )
         assert response.status_code == 201
         announcement = Announcement.objects.get(id=response.data["data"]["id"])
-        # CELERY_TASK_ALWAYS_EAGER in test settings means the dispatch task
-        # already ran synchronously by the time we check.
-        assert announcement.status == CampaignStatus.COMPLETED
+        assert announcement.status == AnnouncementStatus.DRAFT
+        publish = api_client.post(f"/api/v1/communications/announcements/{announcement.id}/publish/")
+        assert publish.status_code == 200
+        announcement.refresh_from_db()
+        assert announcement.status == AnnouncementStatus.COMPLETED
 
-    def test_future_publish_at_is_scheduled_via_eta(self, api_client, chapel_admin_a, seed_member_permissions, branch_a):
-        """
-        CELERY_TASK_ALWAYS_EAGER (test settings) executes tasks immediately
-        and ignores `eta`, so we can't observe "hasn't run yet" via status
-        here the way a real worker would show it. Instead we verify the
-        view actually requests eta-scheduling for a future publish_at,
-        which is what makes a real (non-eager) worker actually wait.
-        """
-        from unittest.mock import patch
-
-        from apps.communications import views as communications_views
+    def test_future_publish_at_stays_scheduled_until_due(self, api_client, chapel_admin_a, seed_member_permissions, branch_a):
+        from apps.communications.models import Announcement, AnnouncementStatus
+        from apps.communications.tasks import dispatch_scheduled_announcements
 
         future = timezone.now() + timezone.timedelta(days=3)
         api_client.force_authenticate(user=chapel_admin_a)
-        with patch.object(communications_views.dispatch_announcement, "apply_async") as mock_apply_async:
-            response = api_client.post(
-                "/api/v1/communications/announcements/",
-                {"branch": str(branch_a.id), "title": "Later", "body": "Hi", "publish_at": future.isoformat()},
-                format="json",
-            )
+        response = api_client.post(
+            "/api/v1/communications/announcements/",
+            {"branch": str(branch_a.id), "title": "Later", "body": "Hi", "publish_at": future.isoformat()},
+            format="json",
+        )
         assert response.status_code == 201
-        assert mock_apply_async.call_count == 1
-        assert mock_apply_async.call_args.kwargs["eta"] is not None
-        from apps.communications.models import Announcement, CampaignStatus
         announcement = Announcement.objects.get(id=response.data["data"]["id"])
-        assert announcement.status == CampaignStatus.SCHEDULED
+        assert announcement.status == AnnouncementStatus.DRAFT
+        publish = api_client.post(f"/api/v1/communications/announcements/{announcement.id}/publish/")
+        assert publish.status_code == 200
+        announcement.refresh_from_db()
+        assert announcement.status == AnnouncementStatus.SCHEDULED
+        assert dispatch_scheduled_announcements() == {"dispatched": 0}
 
-    def test_send_now_forces_dispatch_of_a_scheduled_campaign(
+    def test_scheduled_campaign_cannot_be_published_twice(
         self, api_client, chapel_admin_a, seed_member_permissions, branch_a
     ):
-        from apps.communications.models import Announcement, CampaignStatus
+        from apps.communications.models import Announcement, AnnouncementStatus
 
         future = timezone.now() + timezone.timedelta(days=3)
         announcement = Announcement.objects.create(branch=branch_a, title="Later", body="Hi", publish_at=future)
-        announcement.status = CampaignStatus.SCHEDULED
+        announcement.status = AnnouncementStatus.SCHEDULED
         announcement.save(update_fields=["status"])
 
         api_client.force_authenticate(user=chapel_admin_a)
-        response = api_client.post(f"/api/v1/communications/announcements/{announcement.id}/send-now/")
-        assert response.status_code == 200
+        response = api_client.post(f"/api/v1/communications/announcements/{announcement.id}/publish/")
+        assert response.status_code == 400
         announcement.refresh_from_db()
-        assert announcement.status == CampaignStatus.COMPLETED
+        assert announcement.status == AnnouncementStatus.SCHEDULED
 
     def test_repeated_dispatch_of_completed_campaign_is_a_noop(self, branch_a):
-        from apps.communications.models import Announcement, CampaignStatus
+        from apps.communications.models import Announcement, AnnouncementStatus
         from apps.communications.tasks import dispatch_announcement
         from apps.notifications.models import Notification
 
         announcement = Announcement.objects.create(
-            branch=branch_a, title="X", body="Y", publish_at=timezone.now(), status=CampaignStatus.COMPLETED,
+            branch=branch_a, title="X", body="Y", publish_at=timezone.now(), status=AnnouncementStatus.COMPLETED,
         )
         dispatch_announcement(str(announcement.id))
         assert Notification.objects.filter(source_announcement=announcement).count() == 0
@@ -232,6 +245,7 @@ class TestCommunicationPreferences:
 
         announcement = Announcement.objects.create(
             branch=branch_a, title="Blast", body="Hi", publish_at=timezone.now(), audience_type="EVERYONE",
+            status="QUEUED",
         )
         dispatch_announcement(str(announcement.id))
 
@@ -254,7 +268,7 @@ class TestCommunicationPreferences:
 
         announcement = Announcement.objects.create(
             branch=branch_a, title="Multi", body="Hi", publish_at=timezone.now(),
-            audience_type="EVERYONE", channels=["EMAIL", "SMS"],
+            audience_type="EVERYONE", channels=["EMAIL", "SMS"], status="QUEUED",
         )
         dispatch_announcement(str(announcement.id))
 
@@ -276,7 +290,7 @@ class TestCommunicationPreferences:
         pref_b = CommunicationPreference.objects.create(member=member_b, sms_enabled=False)
 
         from common.constants.roles import PermissionCodes
-        _grant("MEMBER", PermissionCodes.COMMUNICATIONS_VIEW)
+        _grant("MEMBER", PermissionCodes.MEMBERS_VIEW)
 
         api_client.force_authenticate(user=user_a)
         response = api_client.get(f"/api/v1/communications/preferences/{pref_b.id}/")

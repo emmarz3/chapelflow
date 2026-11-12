@@ -68,6 +68,7 @@ class AdminDashboardView(APIView):
     Authorization:
     - SUPER_ADMIN (global scope)
     - CHAPEL_ADMIN (branch scope)
+    - CHAPLAIN (organization scope)
     
     Returns:
     - Member counts and status breakdown
@@ -82,7 +83,7 @@ class AdminDashboardView(APIView):
         user = request.user
         
         # Authorization check
-        if user.role not in (Roles.GLOBAL_SCOPE_ROLES | {Roles.CHAPEL_ADMIN}):
+        if user.role not in (Roles.GLOBAL_SCOPE_ROLES | Roles.ORG_WIDE_SCOPE_ROLES | {Roles.CHAPEL_ADMIN}):
             return error_response("Not authorized for the admin dashboard.", status=403)
         
         # Get date range from query params (default: last 30 days)
@@ -371,12 +372,15 @@ class MinistryLeaderDashboardView(APIView):
             return error_response("ministry_id parameter required.", status=400)
         
         # Validate ministry access
-        from apps.groups.models import Group
+        from apps.ministries.models import Group
+        from common.permissions.scoping import user_can_access_group
         
         try:
             ministry_qs = services.get_scoped_queryset(Group, user)
             ministry = ministry_qs.get(id=ministry_id)
         except Group.DoesNotExist:
+            return error_response("Ministry not found or access denied.", status=404)
+        if user.role in Roles.ASSIGNMENT_SCOPED_ROLES and not user_can_access_group(user, ministry):
             return error_response("Ministry not found or access denied.", status=404)
         
         # Get date range
@@ -392,22 +396,20 @@ class MinistryLeaderDashboardView(APIView):
         start_date = context["period"]["start"]
         
         # Ministry-specific analytics
-        from apps.events.models import Event
-        from apps.volunteers.models import Volunteer
-        from django.db.models import Q
-        
-        # Events for this ministry
-        event_qs = services.get_scoped_queryset(Event, user)
-        ministry_events = event_qs.filter(
-            Q(ministry=ministry) | Q(category__ministry=ministry)
+        from apps.groups.models import GroupMeeting, GroupMembership, GroupRole
+        from apps.volunteers.models import VolunteerAssignment
+
+        meetings = GroupMeeting.objects.filter(group=ministry)
+        period_meetings = meetings.filter(starts_at__date__range=(start_date, end_date))
+        upcoming_events = meetings.filter(starts_at__gte=timezone.now()).count()
+        ministry_volunteers = (
+            VolunteerAssignment.objects.filter(group=ministry)
+            .values("volunteer_id").distinct().count()
         )
-        upcoming_events = ministry_events.filter(schedules__start_time__gte=timezone.now()).distinct().count()
-        
-        # Volunteers in this ministry
-        volunteer_qs = services.get_scoped_queryset(Volunteer, user)
-        ministry_volunteers = volunteer_qs.filter(
-            assignments__schedule__ministry=ministry
-        ).distinct().count()
+        leader = (
+            GroupMembership.objects.filter(group=ministry, role=GroupRole.LEADER, is_active=True)
+            .select_related("member").first()
+        )
         
         data = {
             **context,
@@ -416,11 +418,11 @@ class MinistryLeaderDashboardView(APIView):
                 "name": ministry.name,
                 "type": ministry.group_type,
                 "is_active": ministry.is_active,
-                "leader": ministry.leader.full_name if ministry.leader else None,
+                "leader": leader.member.full_name if leader else None,
             },
             "members": ministry.memberships.filter(is_active=True).count(),
             "active_members": ministry.memberships.filter(is_active=True).count(),
-            "events": ministry_events.count(),
+            "events": period_meetings.count(),
             "upcoming_events": upcoming_events,
             "volunteers": ministry_volunteers,
         }

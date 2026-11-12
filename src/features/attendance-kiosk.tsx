@@ -9,13 +9,14 @@ import {
   WifiOff,
   XCircle,
 } from "lucide-react";
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { Brand, Button } from "../components/ui";
 import { useFeatureMotion } from "../components/motion/motion-system";
 import { attendanceService } from "../services/chapelflow";
 import { queueAttendanceCheckIn } from "../lib/offline-queue";
+import { classifyKioskScan, useQrScanner } from "../lib/use-qr-scanner";
 import { useAuth } from "./auth-context";
 
 type KioskState =
@@ -32,104 +33,103 @@ export function AttendanceKioskPage() {
   const [state, setState] = useState<KioskState>("idle");
   const [message, setMessage] = useState("");
   const [manual, setManual] = useState(false);
-  const video = useRef<HTMLVideoElement>(null);
   const contentRef = useRef<HTMLElement>(null);
-  const stream = useRef<MediaStream | null>(null);
   const timeout = useRef<number | undefined>(undefined);
+  const scanning = state === "camera";
   useFeatureMotion(contentRef, state);
-  function reset() {
-    stream.current?.getTracks().forEach((track) => track.stop());
-    stream.current = null;
+  const reset = useCallback(() => {
     setState("idle");
     setManual(false);
     setMessage("");
     window.clearTimeout(timeout.current);
-  }
-  function scheduleReset(delay = 5000) {
+  }, []);
+  const scheduleReset = useCallback((delay = 5000) => {
     window.clearTimeout(timeout.current);
     timeout.current = window.setTimeout(reset, delay);
-  }
+  }, [reset]);
   useEffect(
-    () => () => {
-      stream.current?.getTracks().forEach((track) => track.stop());
-      window.clearTimeout(timeout.current);
-    },
+    () => () => window.clearTimeout(timeout.current),
     [],
   );
-  async function openCamera() {
-    setState("camera");
-    setMessage("");
-    try {
-      const media = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment" },
-        audio: false,
-      });
-      stream.current = media;
-      if (video.current) {
-        video.current.srcObject = media;
-        await video.current.play();
-      }
-    } catch {
-      setState("error");
-      setMessage(
-        "Camera access was not granted. Use manual entry or review browser permissions.",
-      );
-    }
-  }
-  async function submit(identifier: string) {
-    setState("submitting");
-    try {
-      const session = currentSession.data;
-      if (!session?.id || !user?.branchId) {
-        throw new Error("There is no active attendance session for this branch.");
-      }
-      if (!navigator.onLine) {
-        const queued = queueAttendanceCheckIn({
-          sessionId: session.id,
-          branchId: user.branchId,
-          memberIdentifier: identifier,
-          method: "kiosk",
-        });
-        setState(queued ? "offline" : "error");
-        setMessage(
-          queued
-            ? "Check-in saved securely on this device for synchronization."
-            : "This check-in is already waiting to synchronize.",
-        );
+  const submit = useCallback(
+    async (value: string, kind: "identifier" | "token" = classifyKioskScan(value)) => {
+      setState("submitting");
+      try {
+        const session = currentSession.data;
+        if (!session?.id || !user?.branchId) {
+          throw new Error("There is no active attendance session for this branch.");
+        }
+        if (!navigator.onLine) {
+          if (kind === "token") {
+            throw new Error("QR check-in needs a connection. Use a matric number for offline recovery.");
+          }
+          const queued = queueAttendanceCheckIn({
+            sessionId: session.id,
+            branchId: user.branchId,
+            memberIdentifier: value,
+            method: "kiosk",
+          });
+          setState(queued ? "offline" : "error");
+          setMessage(
+            queued
+              ? "Check-in saved securely on this device for synchronization."
+              : "This check-in is already waiting to synchronize.",
+          );
+          scheduleReset();
+          return;
+        }
+        if (kind === "token") {
+          await attendanceService.qrCheckIn({
+            token: value,
+            sessionId: session.id,
+          });
+        } else {
+          await attendanceService.manual({
+            sessionId: session.id,
+            branchId: user.branchId,
+            identifier: value,
+          });
+        }
+        setState("success");
+        setMessage("Attendance confirmed. You may step away from the kiosk.");
         scheduleReset();
-        return;
+      } catch (error) {
+        setState("error");
+        setMessage(
+          error instanceof Error
+            ? error.message
+            : "The check-in could not be completed.",
+        );
+        scheduleReset(8000);
       }
-      await attendanceService.manual({
-        sessionId: session.id,
-        branchId: user.branchId,
-        identifier,
-      });
-      setState("success");
-      setMessage("Attendance confirmed. You may step away from the kiosk.");
-      scheduleReset();
-    } catch (error) {
-      setState("error");
-      setMessage(
-        error instanceof Error
-          ? error.message
-          : "The check-in could not be completed.",
-      );
-      scheduleReset(8000);
-    }
-  }
+    },
+    [currentSession.data, scheduleReset, user?.branchId],
+  );
+  const onScan = useCallback(
+    (text: string) => {
+      if (state === "camera") void submit(text);
+    },
+    [state, submit],
+  );
+  const { videoRef, permissionError } = useQrScanner(onScan, scanning);
+  useEffect(() => {
+    if (!permissionError) return;
+    setState("error");
+    setMessage(permissionError);
+  }, [permissionError]);
   function manualSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const identifier = String(
       new FormData(event.currentTarget).get("identifier"),
     ).trim();
-    if (identifier) void submit(identifier);
+    if (identifier) void submit(identifier, "identifier");
   }
   return (
     <main className="kiosk">
       <header>
         <Brand inverse />
         <div>
-          <LockKeyhole /> Kiosk mode · administrative navigation disabled
+          <LockKeyhole aria-hidden="true" /> Kiosk mode · administrative navigation disabled
         </div>
         <Link to="/app/attendance">Exit kiosk</Link>
       </header>
@@ -137,16 +137,16 @@ export function AttendanceKioskPage() {
         {state === "idle" && (
           <>
             <span className="kiosk__icon">
-              <QrCode />
+              <QrCode aria-hidden="true" />
             </span>
             <p className="eyebrow">Sunday Worship Service</p>
             <h1>Check in to chapel</h1>
             <p>
-              Use your ChapelFlow QR code or enter your matric number. This
-              screen clears automatically after every check-in.
+              Scan a member ChapelFlow identity QR, or enter a matric number.
+              This screen clears automatically after every check-in.
             </p>
             <div className="kiosk__buttons">
-              <Button onClick={() => void openCamera()} icon={<Camera />}>
+              <Button onClick={() => { setMessage(""); setState("camera"); }} icon={<Camera />}>
                 Scan QR code
               </Button>
               <Button
@@ -177,7 +177,7 @@ export function AttendanceKioskPage() {
           <>
             <div className="kiosk__camera" data-scanning="true">
               <video
-                ref={video}
+                ref={videoRef}
                 muted
                 playsInline
                 aria-label="QR scanner camera preview"
@@ -189,8 +189,8 @@ export function AttendanceKioskPage() {
                 <i />
               </span>
             </div>
-            <h1>Hold your QR code inside the frame</h1>
-            <p>If scanning is unavailable, return and use your identifier.</p>
+            <h1>Hold the ChapelFlow identity QR inside the frame</h1>
+            <p>If scanning is unavailable, return and use a matric number.</p>
             <Button variant="secondary" onClick={reset}>
               Cancel scan
             </Button>
@@ -199,7 +199,7 @@ export function AttendanceKioskPage() {
         {state === "submitting" && (
           <>
             <span className="kiosk__icon kiosk__icon--loading">
-              <RotateCcw />
+              <RotateCcw aria-hidden="true" />
             </span>
             <h1>Checking you in…</h1>
             <p>Please wait. Do not submit the same code again.</p>
@@ -208,19 +208,19 @@ export function AttendanceKioskPage() {
         {state === "success" && (
           <>
             <span className="kiosk__icon kiosk__icon--success">
-              <CheckCircle2 />
+              <CheckCircle2 aria-hidden="true" />
             </span>
             <h1>Check-in confirmed</h1>
             <p>{message}</p>
             <small>
-              <Clock3 /> This screen will reset automatically.
+              <Clock3 aria-hidden="true" /> This screen will reset automatically.
             </small>
           </>
         )}
         {state === "offline" && (
           <>
             <span className="kiosk__icon kiosk__icon--warning">
-              <WifiOff />
+              <WifiOff aria-hidden="true" />
             </span>
             <h1>Saved for synchronization</h1>
             <p>{message}</p>
@@ -232,7 +232,7 @@ export function AttendanceKioskPage() {
         {state === "error" && (
           <>
             <span className="kiosk__icon kiosk__icon--danger">
-              <XCircle />
+              <XCircle aria-hidden="true" />
             </span>
             <h1>Check-in not completed</h1>
             <p>{message}</p>

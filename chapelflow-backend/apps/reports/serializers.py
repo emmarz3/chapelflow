@@ -4,6 +4,8 @@ from .models import ReportJob
 
 
 class ReportJobSerializer(serializers.ModelSerializer):
+    file_url = serializers.SerializerMethodField()
+
     class Meta:
         model = ReportJob
         fields = [
@@ -11,6 +13,12 @@ class ReportJobSerializer(serializers.ModelSerializer):
             "filters", "status", "progress", "rows_processed", "file_url", "error_message", "created_at", "completed_at",
         ]
         read_only_fields = ["id", "requested_by", "status", "progress", "rows_processed", "file_url", "error_message", "created_at", "completed_at"]
+
+    def get_file_url(self, job):
+        if job.status != "COMPLETE" or not job.file_url:
+            return ""
+        from apps.uploads.storage import get_storage_service
+        return get_storage_service().get_download_url(job.file_url)
     
     def validate_filters(self, filters):
         """

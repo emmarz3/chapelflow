@@ -21,7 +21,7 @@ def requesting_user():
 
 
 @pytest.mark.django_db
-def test_successful_import_notifies_requesting_user(requesting_user):
+def test_successful_import_notifies_requesting_user(requesting_user, django_capture_on_commit_callbacks):
     response = MagicMock()
     response.__enter__.return_value.read.return_value = b"csv-content"
     summary = {
@@ -36,6 +36,7 @@ def test_successful_import_notifies_requesting_user(requesting_user):
         patch("urllib.request.urlopen", return_value=response),
         patch("apps.members.services.parse_and_import_members", return_value=summary),
         patch("apps.notifications.tasks.deliver_notification.delay") as deliver,
+        django_capture_on_commit_callbacks(execute=True),
     ):
         result = bulk_import_members_task("https://storage.example/import.csv", requesting_user.id)
 
@@ -49,10 +50,11 @@ def test_successful_import_notifies_requesting_user(requesting_user):
 
 
 @pytest.mark.django_db
-def test_failed_import_notifies_requesting_user_and_reraises(requesting_user):
+def test_failed_import_notifies_requesting_user_and_reraises(requesting_user, django_capture_on_commit_callbacks):
     with (
         patch("urllib.request.urlopen", side_effect=OSError("storage unavailable")),
         patch("apps.notifications.tasks.deliver_notification.delay") as deliver,
+        django_capture_on_commit_callbacks(execute=True),
         pytest.raises(OSError, match="storage unavailable"),
     ):
         bulk_import_members_task("https://storage.example/import.csv", requesting_user.id)

@@ -181,3 +181,29 @@ class TestReportsAPIFormats:
         job = ReportJob.objects.get(id=response.data["data"]["id"])
         # CELERY_TASK_ALWAYS_EAGER in test settings runs this synchronously.
         assert job.file_url.endswith(".xlsx")
+
+    def test_report_history_and_downloads_are_limited_to_requester(
+        self, api_client, chapel_admin_a, branch_a, seed_member_permissions,
+    ):
+        from apps.accounts.models import User
+        from apps.reports.models import ReportJob
+
+        peer = User.objects.create_user(
+            email="peer_admin@test.com", password="Pass12345!",
+            role="CHAPEL_ADMIN", branch=branch_a,
+        )
+        own_job = ReportJob.objects.create(
+            branch=branch_a, requested_by=chapel_admin_a, report_type="MEMBERSHIP",
+        )
+        peer_job = ReportJob.objects.create(
+            branch=branch_a, requested_by=peer, report_type="MEMBERSHIP",
+        )
+
+        api_client.force_authenticate(user=chapel_admin_a)
+        listing = api_client.get("/api/v1/reports/jobs/")
+        assert listing.status_code == 200
+        result_ids = {item["id"] for item in listing.data["data"]}
+        assert result_ids == {str(own_job.id)}
+
+        detail = api_client.get(f"/api/v1/reports/jobs/{peer_job.id}/")
+        assert detail.status_code == 404

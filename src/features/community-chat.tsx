@@ -6,6 +6,7 @@ import { isDjangoBackend } from "../lib/backend";
 import { communityService } from "../services/chapelflow";
 import type { CommunityMessage } from "../types/domain";
 import { useAuth } from "./auth-context";
+import { ReportContentButton } from "./moderation";
 
 function errorMessage(error: unknown) {
   return error instanceof Error
@@ -97,6 +98,7 @@ export function CommunityChat({
                   </time>
                 </header>
                 <p>{message.body}</p>
+                <ReportContentButton targetKind="GROUP_MESSAGE" targetId={message.id} label="Report message" />
               </div>
             </article>
           ))

@@ -10,14 +10,22 @@ const STORAGE_KEY = "chapelflow-pending-attendance";
 export const ATTENDANCE_QUEUE_EVENT = "chapelflow:attendance-queue-changed";
 
 function savePendingAttendance(items: PendingAttendanceCheckIn[]) {
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+  window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify(items));
   window.dispatchEvent(new Event(ATTENDANCE_QUEUE_EVENT));
 }
 
 export function readPendingAttendance(): PendingAttendanceCheckIn[] {
   try {
+    // Migrate any previous localStorage queue, then remove its persistent PII copy.
+    const legacyQueue = window.localStorage.getItem(STORAGE_KEY);
+    if (legacyQueue) {
+      if (!window.sessionStorage.getItem(STORAGE_KEY)) {
+        window.sessionStorage.setItem(STORAGE_KEY, legacyQueue);
+      }
+      window.localStorage.removeItem(STORAGE_KEY);
+    }
     return JSON.parse(
-      window.localStorage.getItem(STORAGE_KEY) || "[]",
+      window.sessionStorage.getItem(STORAGE_KEY) || "[]",
     ) as PendingAttendanceCheckIn[];
   } catch {
     return [];

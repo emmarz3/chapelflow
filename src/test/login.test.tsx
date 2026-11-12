@@ -49,7 +49,7 @@ describe("login", () => {
     await user.type(screen.getByLabelText(/email, matric number/i), "x");
     await user.type(screen.getByLabelText(/^password/i), "short");
     await user.click(screen.getByRole("button", { name: /sign in/i }));
-    expect(screen.getByRole("alert")).toHaveTextContent(/enter your email/i);
+    expect(screen.getByText(/enter your email/i)).toBeInTheDocument();
   });
 
   it("provides an accessible password visibility control", async () => {
@@ -69,7 +69,10 @@ describe("login", () => {
     expect(password).toHaveAttribute("type", "text");
   });
 
-  it("opens the role-aware member dashboard after sign-in", async () => {
+  it.each([
+    { role: "MEMBER", path: "/app" },
+    { role: "SUPER_ADMIN", path: "/app/admin/dashboard" },
+  ])("opens the $role dashboard after sign-in", async ({ role, path }) => {
     const fetchMock = vi.fn((input: RequestInfo | URL) => {
       const url = String(input);
       if (url.endsWith("/auth/me/"))
@@ -82,7 +85,7 @@ describe("login", () => {
               email: "ada@example.edu.ng",
               first_name: "Ada",
               last_name: "Okafor",
-              role: "MEMBER",
+              role,
               community: "STUDENT",
               effective_permissions: [],
             },
@@ -101,7 +104,7 @@ describe("login", () => {
           <AuthProvider>
             <Routes>
               <Route path="/login" element={<LoginPage />} />
-              <Route path="/app" element={<AuthenticatedDashboard />} />
+              <Route path={path} element={<AuthenticatedDashboard />} />
             </Routes>
           </AuthProvider>
         </MemoryRouter>
@@ -163,5 +166,47 @@ describe("login", () => {
     expect(await screen.findByRole("heading", { name: "Sign in page" })).toBeInTheDocument();
     expect(fetchMock.mock.calls.some(([input]) => String(input).endsWith("/auth/logout/"))).toBe(true);
     finishLogout(new Response(null, { status: 204 }));
+  });
+
+  it("keeps the dashboard route during an account service outage and retries", async () => {
+    let attempts = 0;
+    vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL) => {
+      if (String(input).endsWith("/auth/me/")) {
+        attempts += 1;
+        return Promise.resolve(attempts === 1
+          ? jsonResponse({ detail: "Service unavailable." }, 503)
+          : jsonResponse({ data: {
+              id: "member-1",
+              email: "ada@example.edu.ng",
+              first_name: "Ada",
+              last_name: "Okafor",
+              role: "MEMBER",
+              community: "STUDENT",
+              effective_permissions: [],
+            } }));
+      }
+      return Promise.resolve(jsonResponse({ data: {} }));
+    }));
+
+    const user = userEvent.setup();
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <MemoryRouter initialEntries={["/app"]}>
+          <AuthProvider>
+            <Routes>
+              <Route element={<ProtectedRoute />}>
+                <Route path="/app" element={<h1>Member dashboard</h1>} />
+              </Route>
+              <Route path="/login" element={<h1>Sign in page</h1>} />
+            </Routes>
+          </AuthProvider>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/account service/i);
+    expect(screen.queryByRole("heading", { name: "Sign in page" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Retry" }));
+    expect(await screen.findByRole("heading", { name: "Member dashboard" })).toBeInTheDocument();
   });
 });

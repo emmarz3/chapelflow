@@ -7,6 +7,108 @@ const response = (data: unknown, status = 200) =>
 afterEach(() => vi.unstubAllGlobals());
 
 describe("Django API integration", () => {
+  it("loads every admin attendance page so older live sessions stay stoppable", async () => {
+    const fetch = vi.fn()
+      .mockResolvedValueOnce(response({
+        data: [{ id: "closed-recent", state: "CLOSED", is_open: false, opened_at: "2026-11-07T10:00:00Z" }],
+        pagination: { count: 201, current_page: 1, num_pages: 2, page_size: 200, next: "/api/v1/attendance/sessions/?page=2" },
+      }))
+      .mockResolvedValueOnce(response({
+        data: [{ id: "still-open", state: "OPEN", is_open: true, opened_at: "2026-11-06T10:00:00Z" }],
+        pagination: { count: 201, current_page: 2, num_pages: 2, page_size: 200, next: null },
+      }));
+    vi.stubGlobal("fetch", fetch);
+
+    const result = await apiRequest("/admin/attendance/sessions") as { data: { id: string }[] };
+    expect(result.data.map((item) => item.id)).toEqual(["still-open", "closed-recent"]);
+    expect(fetch.mock.calls.map(([url]) => url)).toEqual([
+      "/api/v1/attendance/sessions/?page=1&page_size=200",
+      "/api/v1/attendance/sessions/?page=2&page_size=200",
+    ]);
+  });
+
+  it("sends super admin attendance start and stop to the secured Django endpoints", async () => {
+    const fetch = vi.fn()
+      .mockResolvedValueOnce(response({ data: { id: "session-1", state: "OPEN" } }, 201))
+      .mockResolvedValueOnce(response({ data: { id: "session-1", state: "CLOSED", is_open: false } }));
+    vi.stubGlobal("fetch", fetch);
+    const payload = {
+      branch: "chapel-1", label: "Sunday worship",
+      window_opens_at: "2026-11-08T10:00:00Z", window_closes_at: "2026-11-08T12:00:00Z",
+    };
+
+    await apiRequest("/admin/attendance/sessions", { method: "POST", body: JSON.stringify(payload) });
+    await apiRequest("/admin/attendance/sessions/session-1/close", { method: "POST" });
+
+    expect(fetch.mock.calls.map(([url]) => url)).toEqual([
+      "/api/v1/attendance/sessions/",
+      "/api/v1/attendance/sessions/session-1/close/",
+    ]);
+    expect(JSON.parse(fetch.mock.calls[0]![1].body)).toEqual(payload);
+    expect(fetch.mock.calls[1]![1].method).toBe("POST");
+  });
+
+  it("surfaces a Django field validation message instead of a generic error", async () => {
+    const fetch = vi.fn().mockResolvedValue(response({
+      message: "Validation failed.",
+      errors: { window_closes_at: "Closing time must be after opening time." },
+    }, 400));
+    vi.stubGlobal("fetch", fetch);
+    await expect(apiRequest("/admin/attendance/sessions", {
+      method: "POST", body: JSON.stringify({ branch: "chapel-1" }),
+    })).rejects.toThrow("window closes at: Closing time must be after opening time.");
+  });
+
+
+  it("maps notification categories, links and pagination", async () => {
+    const fetch = vi.fn().mockResolvedValue(response({ data: [{ id: "notice-1", title: "Event", body: "Soon", category: "EVENT", href: "/app/events", read_at: null, created_at: "2026-11-06T12:00:00Z" }], pagination: { current_page: 1, page_size: 25, count: 26 } }));
+    vi.stubGlobal("fetch", fetch);
+
+    const result = await apiRequest("/notifications?page=1&pageSize=25") as { data: { items: { category: string; href: string }[]; hasMore: boolean } };
+    expect(result.data.items[0]).toMatchObject({ category: "EVENT", href: "/app/events" });
+    expect(result.data.hasMore).toBe(true);
+    expect(String(fetch.mock.calls[0]?.[0])).toContain("/api/v1/notifications/?page=1&page_size=25");
+  });
+
+  it("sends notification settings and quiet hours to the self-service endpoint", async () => {
+    const fetch = vi.fn().mockResolvedValue(response({ data: { master_enabled: false, timezone_name: "Europe/London" } }));
+    vi.stubGlobal("fetch", fetch);
+
+    await apiRequest("/notifications/preferences", { method: "PATCH", body: JSON.stringify({
+      masterEnabled: false, eventsEnabled: false, emailEnabled: true, quietHoursEnabled: false,
+      quietHoursStart: "", quietHoursEnd: "", timezoneName: "Europe/London",
+    }) });
+
+    const [url, init] = fetch.mock.calls[0]!;
+    expect(String(url)).toContain("/api/v1/communications/preferences/me/");
+    expect(JSON.parse(init.body)).toMatchObject({ master_enabled: false, events_enabled: false, quiet_hours_start: null, timezone_name: "Europe/London" });
+  });
+
+  it("sends community reports with server field names", async () => {
+    const fetch = vi.fn().mockResolvedValue(response({ data: { id: "report-1", status: "PENDING" } }, 201));
+    vi.stubGlobal("fetch", fetch);
+
+    await apiRequest("/moderation/reports", {
+      method: "POST",
+      body: JSON.stringify({ targetKind: "POST", targetId: "post-1", reason: "PRIVACY", explanation: "Private information" }),
+    });
+
+    const [url, init] = fetch.mock.calls[0]!;
+    expect(String(url)).toContain("/api/v1/moderation/reports/");
+    expect(JSON.parse(init.body)).toEqual({ target_kind: "POST", target_id: "post-1", reason: "PRIVACY", explanation: "Private information" });
+  });
+
+  it("sends moderator actions to the scoped review endpoint", async () => {
+    const fetch = vi.fn().mockResolvedValue(response({ data: { id: "report-1", status: "REVIEWED" } }));
+    vi.stubGlobal("fetch", fetch);
+
+    await apiRequest("/moderation/queue/report-1", { method: "POST", body: JSON.stringify({ action: "HIDE", note: "Confirmed" }) });
+
+    const [url, init] = fetch.mock.calls[0]!;
+    expect(String(url)).toContain("/api/v1/moderation/queue/report-1/");
+    expect(JSON.parse(init.body)).toMatchObject({ action: "HIDE", note: "Confirmed" });
+  });
+
   it("sends a student's selected academic level during registration", async () => {
     const fetch = vi.fn().mockResolvedValue(response({ data: { user: { id: "user-1" } } }, 201));
     vi.stubGlobal("fetch", fetch);
@@ -31,6 +133,30 @@ describe("Django API integration", () => {
       matric_no: "SWE/2026/001",
       community: "STUDENT",
       academic_level: "600",
+    });
+  });
+
+  it("sends prayer sharing consent to the server as a distinct field", async () => {
+    const fetch = vi.fn().mockResolvedValue(response({ data: { id: "prayer-1" } }, 201));
+    vi.stubGlobal("fetch", fetch);
+
+    await apiRequest("/care/prayers", {
+      method: "POST",
+      body: JSON.stringify({
+        category: "OTHER",
+        details: "Please pray with me",
+        privacyLevel: "PASTORAL",
+        consentToShare: true,
+      }),
+    });
+
+    const [url, init] = fetch.mock.calls[0]!;
+    expect(String(url)).toContain("/api/v1/prayer/requests/");
+    expect(JSON.parse(init.body)).toEqual({
+      category: "OTHER",
+      details: "Please pray with me",
+      privacy_level: "PASTORAL",
+      consent_to_share: true,
     });
   });
 
@@ -209,6 +335,20 @@ describe("Django API integration", () => {
       data: { token: "signed-live-token", rotation_seconds: 45, successful_scans: 3, session: { id: "session-1" } },
     });
     expect(fetch.mock.calls[0]?.[0]).toBe("/api/v1/attendance/checkpoint/token/");
+  });
+
+  it("maps kiosk identity QR check-in to the staff QR endpoint", async () => {
+    const fetch = vi.fn().mockResolvedValue(response({ data: { id: "record-1", status: "present" }, message: "Checked in successfully." }, 201));
+    vi.stubGlobal("fetch", fetch);
+    await apiRequest("/attendance/qr-check-in", {
+      method: "POST",
+      body: JSON.stringify({ token: "member-identity-token", sessionId: "session-1" }),
+    });
+    expect(fetch.mock.calls[0]?.[0]).toBe("/api/v1/attendance/qr-check-in/");
+    expect(JSON.parse(String(fetch.mock.calls[0]?.[1]?.body))).toEqual({
+      token: "member-identity-token",
+      session_id: "session-1",
+    });
   });
 
   it("submits explicit shift windows with volunteer assignments", async () => {
@@ -672,5 +812,41 @@ describe("Django API integration", () => {
     expect(JSON.parse(fetch.mock.calls[0]?.[1].body)).toEqual({
       title: "Answered prayer", details: "Details", consent_to_publish: true,
     });
+  });
+
+  it("recovers a CSRF-rejected media mutation without treating it as logout", async () => {
+    const form = new FormData();
+    form.set("caption", "Test image");
+    const fetch = vi.fn()
+      .mockResolvedValueOnce(response({ success: false, message: "Your security token is invalid or expired. Please retry.", errors: {} }, 403))
+      .mockResolvedValueOnce(response({ data: { csrf_token: "csrf-recovered" } }))
+      .mockResolvedValueOnce(response({ data: { id: "post-1", caption: "Test image", media: [] } }, 201));
+    vi.stubGlobal("fetch", fetch);
+
+    await expect(apiRequest("/social/posts", { method: "POST", body: form }))
+      .resolves.toMatchObject({ data: { id: "post-1" } });
+
+    expect(String(fetch.mock.calls[1]?.[0])).toBe("/api/v1/auth/csrf/");
+    const [, retryInit] = fetch.mock.calls[2]!;
+    expect(retryInit.credentials).toBe("include");
+    expect(new Headers(retryInit.headers).get("X-ChapelFlow-CSRF")).toBe("csrf-recovered");
+  });
+
+  it("bootstraps cross-origin CSRF and sends its token with credentialed mutations", async () => {
+    const fetch = vi.fn()
+      .mockResolvedValueOnce(response({ data: { csrf_token: "csrf-test-token" } }))
+      .mockResolvedValueOnce(response({ data: { master_enabled: false } }));
+    vi.stubGlobal("fetch", fetch);
+
+    await apiRequest("/auth/csrf");
+    await apiRequest("/notifications/preferences", {
+      method: "PATCH",
+      body: JSON.stringify({ masterEnabled: false }),
+    });
+
+    expect(String(fetch.mock.calls[0]?.[0])).toBe("/api/v1/auth/csrf/");
+    const [, mutationInit] = fetch.mock.calls[1]!;
+    expect(mutationInit.credentials).toBe("include");
+    expect(new Headers(mutationInit.headers).get("X-ChapelFlow-CSRF")).toBe("csrf-test-token");
   });
 });

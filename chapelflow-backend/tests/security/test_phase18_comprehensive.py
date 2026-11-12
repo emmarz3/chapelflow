@@ -213,7 +213,10 @@ class TestAuthenticationSecurity:
         
         assert response.status_code == 200
         refresh_token = response.data['data']['refresh']
-        
+        # Exercise the documented token-in-body API (not the cookie flow).
+        # Clearing browser cookies avoids the unrelated cookie CSRF middleware.
+        api_client.cookies.clear()
+
         # Use refresh token
         response2 = api_client.post('/api/v1/auth/refresh/', {
             'refresh': refresh_token
@@ -222,7 +225,8 @@ class TestAuthenticationSecurity:
         assert response2.status_code == 200
         new_refresh = response2.data['data']['refresh']
         assert new_refresh != refresh_token  # Token rotated
-        
+        api_client.cookies.clear()
+
         # Old refresh token should be blacklisted
         response3 = api_client.post('/api/v1/auth/refresh/', {
             'refresh': refresh_token  # Try old token
@@ -263,6 +267,7 @@ class TestAuthenticationSecurity:
         
         # Old refresh token should now be invalid
         api_client.credentials()  # Clear auth
+        api_client.cookies.clear()  # Use token-in-body API without cookie CSRF
         response = api_client.post('/api/v1/auth/refresh/', {
             'refresh': old_refresh
         })

@@ -1,5 +1,5 @@
 import QRCode from "qrcode";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Bell,
   CalendarDays,
@@ -205,11 +205,20 @@ export function StudentAttendanceHistoryPage() {
 
 export function StudentNotificationsPage() {
   const client = useQueryClient();
-  const notifications = useQuery({ queryKey: ["notifications"], queryFn: async () => (await notificationService.list()).data });
-  const markRead = useMutation({ mutationFn: notificationService.markRead, onSuccess: () => void client.invalidateQueries({ queryKey: ["notifications"] }) });
+  const notifications = useInfiniteQuery({
+    queryKey: ["notifications", "all"],
+    initialPageParam: 1,
+    queryFn: async ({ pageParam }) => (await notificationService.list(pageParam)).data,
+    getNextPageParam: (lastPage, pages) => lastPage.hasMore ? pages.length + 1 : undefined,
+  });
+  const markRead = useMutation({ mutationFn: notificationService.markRead, onSuccess: () => {
+    void client.invalidateQueries({ queryKey: ["notifications"] });
+    void client.invalidateQueries({ queryKey: ["notification-unread-count"] });
+  } });
   if (notifications.isPending) return <LoadingState label="Loading your notifications" />;
   if (notifications.isError) return <ErrorState description={notifications.error.message} onRetry={() => void notifications.refetch()} />;
-  return <><PageHeader eyebrow="Personal updates" title="Notifications" description="Updates sent to your ChapelFlow account and assigned communities." /><section className="panel student-history-panel">{notifications.data.length ? notifications.data.map((item) => <article key={item.id}><Bell /><div><strong>{item.title}</strong><small>{item.body}</small><small>{displayDate(item.created_at)}</small></div>{!item.read_at && <button className="text-link" disabled={markRead.isPending} onClick={() => markRead.mutate(item.id)}>Mark read</button>}</article>) : <p className="empty-copy">You have no notifications.</p>}</section></>;
+  const items = notifications.data.pages.flatMap((page) => page.items);
+  return <><PageHeader eyebrow="Personal updates" title="Notifications" description="Updates sent to your ChapelFlow account and assigned communities." actions={<Link className="button button--secondary" to="/app/notification-settings">Notification settings</Link>} /><section className="panel student-history-panel">{items.length ? items.map((item) => <article key={item.id}><Bell /><div><Link to={item.href || "/app"} onClick={() => { if (!item.read_at) markRead.mutate(item.id); }}><strong>{item.title}</strong></Link><small>{item.body}</small><small>{displayDate(item.created_at)}</small></div>{!item.read_at && <button className="text-link" disabled={markRead.isPending} onClick={() => markRead.mutate(item.id)}>Mark read</button>}</article>) : <p className="empty-copy">You have no notifications.</p>}{notifications.hasNextPage && <Button type="button" variant="secondary" loading={notifications.isFetchingNextPage} onClick={() => void notifications.fetchNextPage()}>Load more</Button>}</section></>;
 }
 
 export function StudentAnnouncementsPage() {

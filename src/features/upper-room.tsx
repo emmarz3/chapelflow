@@ -5,6 +5,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { Button, EmptyState, ErrorState, LoadingState, useToast } from "../components/ui";
 import { upperRoomService, type UpperRoomPost } from "../services/chapelflow";
 import { useAuth } from "./auth-context";
+import { ReportContentButton } from "./moderation";
 
 function failureMessage(error: unknown) {
   return error instanceof Error ? error.message : "The Upper Room could not complete that action. Try again.";
@@ -20,6 +21,29 @@ function relativeTime(value: string) {
 
 function initials(name: string) {
   return name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase() || "CF";
+}
+
+
+const UPPER_ROOM_MEDIA_TYPES: Record<string, string> = {
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  png: "image/png",
+  gif: "image/gif",
+  webp: "image/webp",
+  mp4: "video/mp4",
+  mov: "video/quicktime",
+  webm: "video/webm",
+};
+
+function mediaFileError(file: File) {
+  const extension = file.name.includes(".") ? file.name.split(".").pop()!.toLowerCase() : "";
+  if (!UPPER_ROOM_MEDIA_TYPES[extension] || file.type !== UPPER_ROOM_MEDIA_TYPES[extension]) {
+    return `${file.name}: use JPG, PNG, GIF, WebP, MP4, MOV, or WebM media.`;
+  }
+  if (file.size > 100 * 1024 * 1024) {
+    return `${file.name}: the maximum file size is 100 MB.`;
+  }
+  return null;
 }
 
 export function UpperRoomPage() {
@@ -82,7 +106,20 @@ export function UpperRoomPage() {
               <label className="sr-only" htmlFor="upper-room-caption">Share with The Upper Room</label>
               <textarea id="upper-room-caption" value={caption} onChange={(event) => setCaption(event.target.value)} maxLength={1000} rows={3} placeholder="Share a thought, a praise report, or a moment from chapel…" />
               {files.length > 0 && <div className="upper-room__files">{files.map((file, index) => <span key={`${file.name}-${index}`}><Video aria-hidden="true" /> {file.name}<button type="button" aria-label={`Remove ${file.name}`} onClick={() => setFiles((items) => items.filter((_, itemIndex) => itemIndex !== index))}><X /></button></span>)}</div>}
-              <div className="upper-room__composer-actions"><label className="upper-room__file-picker"><ImagePlus /> Add photos or videos<input type="file" accept="image/*,video/*" multiple onChange={(event) => setFiles(Array.from(event.target.files ?? []).slice(0, 4))} /></label><small>Up to four files · 100 MB each</small><Button type="submit" loading={publish.isPending} icon={<Send />}>Share</Button></div>
+              <div className="upper-room__composer-actions"><label className="upper-room__file-picker"><ImagePlus /> Add photos or videos<input type="file" accept=".jpg,.jpeg,.png,.gif,.webp,.mp4,.mov,.webm,image/jpeg,image/png,image/gif,image/webp,video/mp4,video/quicktime,video/webm" multiple onChange={(event) => {
+                const selected = Array.from(event.currentTarget.files ?? []);
+                event.currentTarget.value = "";
+                if (selected.length > 4) {
+                  toast("Add up to four photos or videos in one post.", "error");
+                  return;
+                }
+                const invalid = selected.map(mediaFileError).find(Boolean);
+                if (invalid) {
+                  toast(invalid, "error");
+                  return;
+                }
+                setFiles(selected);
+              }} /></label><small>JPG, PNG, GIF, WebP, MP4, MOV or WebM · 100 MB max</small><Button type="submit" loading={publish.isPending} icon={<Send />}>Share</Button></div>
             </form>
           </section>
           <section className="upper-room__feed" aria-label="Upper Room posts">
@@ -113,7 +150,7 @@ function PostCard({ post }: { post: UpperRoomPost }) {
     {post.caption && <p className="upper-room-post__caption">{post.caption}</p>}
     {post.media.length > 0 && <div className={`upper-room-post__media upper-room-post__media--${Math.min(post.media.length, 4)}`}>{post.media.map((media) => media.mediaType === "VIDEO" ? <video key={media.id} controls preload="metadata"><source src={media.url} /></video> : <img key={media.id} src={media.url} alt="Shared Upper Room post" loading="lazy" />)}</div>}
     <div className="upper-room-post__counts"><span>{post.likeCount ? `${post.likeCount} ${post.likeCount === 1 ? "like" : "likes"}` : "Be the first to like this"}</span><button type="button" onClick={() => setShowComments((open) => !open)}>{post.commentCount ? `${post.commentCount} ${post.commentCount === 1 ? "comment" : "comments"}` : "Comment"}</button></div>
-    <div className="upper-room-post__actions"><button type="button" className={post.isLiked ? "is-liked" : ""} disabled={like.isPending} onClick={() => like.mutate()}><Heart fill={post.isLiked ? "currentColor" : "none"} /> {post.isLiked ? "Liked" : "Like"}</button><button type="button" onClick={() => setShowComments((open) => !open)}><MessageCircle /> Comment</button></div>
-    {showComments && <div className="upper-room-post__comments">{comments.isPending ? <p>Loading conversation…</p> : comments.isError ? <p>Comments could not be loaded. Try again.</p> : comments.data?.length ? comments.data.map((item) => <article key={item.id}><span>{initials(item.authorName)}</span><p><strong>{item.authorName}</strong>{item.body}</p></article>) : <p>Start the conversation with kindness.</p>}<form onSubmit={(event) => { event.preventDefault(); if (comment.trim()) addComment.mutate(); }}><input value={comment} onChange={(event) => setComment(event.target.value)} maxLength={750} placeholder="Add a thoughtful comment…" aria-label="Add a comment" /><Button type="submit" variant="ghost" loading={addComment.isPending} icon={<Send />}>Post</Button></form></div>}
+    <div className="upper-room-post__actions"><button type="button" className={post.isLiked ? "is-liked" : ""} disabled={like.isPending} onClick={() => like.mutate()}><Heart fill={post.isLiked ? "currentColor" : "none"} /> {post.isLiked ? "Liked" : "Like"}</button><button type="button" onClick={() => setShowComments((open) => !open)}><MessageCircle /> Comment</button><ReportContentButton targetKind="POST" targetId={post.id} label="Report post" /></div>
+    {showComments && <div className="upper-room-post__comments">{comments.isPending ? <p>Loading conversation…</p> : comments.isError ? <p>Comments could not be loaded. Try again.</p> : comments.data?.length ? comments.data.map((item) => <article key={item.id}><span>{initials(item.authorName)}</span><p><strong>{item.authorName}</strong>{item.body}</p><ReportContentButton targetKind="COMMENT" targetId={item.id} label="Report comment" /></article>) : <p>Start the conversation with kindness.</p>}<form onSubmit={(event) => { event.preventDefault(); if (comment.trim()) addComment.mutate(); }}><input value={comment} onChange={(event) => setComment(event.target.value)} maxLength={750} placeholder="Add a thoughtful comment…" aria-label="Add a comment" /><Button type="submit" variant="ghost" loading={addComment.isPending} icon={<Send />}>Post</Button></form></div>}
   </article>;
 }

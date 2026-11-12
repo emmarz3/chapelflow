@@ -363,6 +363,19 @@ class MemberFollowUpViewSet(StandardModelViewSet):
         return qs.filter(assigned_to=user)
 
 
+class OwnMetricsOrStaffPermission(HasRolePermission):
+    def has_permission(self, request, view):
+        from common.constants.roles import Roles
+        if (
+            request.method in ("GET", "HEAD", "OPTIONS")
+            and request.user.is_authenticated
+            and request.user.is_active
+            and request.user.get_role_code() == Roles.MEMBER
+        ):
+            return True
+        return super().has_permission(request, view)
+
+
 class EngagementMetricsViewSet(viewsets.ReadOnlyModelViewSet):
     """
     Phase 11: Engagement metrics (read-only).
@@ -384,7 +397,8 @@ class EngagementMetricsViewSet(viewsets.ReadOnlyModelViewSet):
     """
     from .serializers import EngagementMetricsSerializer
     serializer_class = EngagementMetricsSerializer
-    permission_classes = [HasRolePermission]
+    permission_classes = [OwnMetricsOrStaffPermission]
+    lookup_field = 'member_id'
     filterset_fields = ['engagement_score', 'days_since_last_activity']
     
     permission_action_map = {

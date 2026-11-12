@@ -13,11 +13,38 @@ import {
   useEffect,
   useId,
   useMemo,
+  useRef,
   useState,
   type ButtonHTMLAttributes,
+  type ImgHTMLAttributes,
   type InputHTMLAttributes,
   type ReactNode,
 } from "react";
+import { brandFallbackFor, BRAND_ASSETS } from "../lib/brand-assets";
+
+export function LocalBrandImage({
+  src,
+  alt,
+  className,
+  ...props
+}: ImgHTMLAttributes<HTMLImageElement> & { src: string }) {
+  const [current, setCurrent] = useState(src);
+  useEffect(() => {
+    setCurrent(src);
+  }, [src]);
+  return (
+    <img
+      {...props}
+      className={className}
+      src={current}
+      alt={alt}
+      onError={() => {
+        const fallback = brandFallbackFor(src);
+        if (current !== fallback) setCurrent(fallback);
+      }}
+    />
+  );
+}
 
 export function Brand({
   inverse = false,
@@ -27,8 +54,8 @@ export function Brand({
 }) {
   return (
     <span className={`brand ${inverse ? "brand--inverse" : ""}`}>
-      <img
-        src="/chrisland-university-chapel.png"
+      <LocalBrandImage
+        src={BRAND_ASSETS.institutionLogo}
         alt="Chrisland University Chapel"
       />
     </span>
@@ -242,12 +269,41 @@ export function Modal({
   children: ReactNode;
   footer?: ReactNode;
 }) {
+  const dialogRef = useRef<HTMLElement>(null);
   useEffect(() => {
     if (!open) return;
-    const handler = (event: KeyboardEvent) =>
-      event.key === "Escape" && onClose();
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+    const dialog = dialogRef.current;
+    const focusable = () =>
+      Array.from(
+        dialog?.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        ) ?? [],
+      );
+    focusable()[0]?.focus();
+    const handler = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        onClose();
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const items = focusable();
+      const first = items[0];
+      const last = items[items.length - 1];
+      if (!first || !last) return;
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
     document.addEventListener("keydown", handler);
-    return () => document.removeEventListener("keydown", handler);
+    return () => {
+      document.removeEventListener("keydown", handler);
+      previouslyFocused?.focus();
+    };
   }, [open, onClose]);
   return (
     <AnimatePresence>
@@ -260,6 +316,7 @@ export function Modal({
           onMouseDown={onClose}
         >
           <motion.section
+            ref={dialogRef}
             role="dialog"
             aria-modal="true"
             aria-labelledby="dialog-title"

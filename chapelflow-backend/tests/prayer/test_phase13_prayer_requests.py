@@ -167,7 +167,7 @@ class TestPrayerRequestPrivacy:
         )
         
         assert request.privacy_level == PrayerPrivacyLevel.PRIVATE
-            assert request.is_private is False  # Legacy field reflects PRIVATE only
+        assert request.is_private is True  # Legacy field reflects PRIVATE only
 
     def test_create_pastoral_prayer_request(self, member_a, chaplain_a):
         """PASTORAL prayer visible to pastoral team"""
@@ -383,7 +383,7 @@ class TestPrayerRequestAssignment:
         )
         
         response = client.patch(
-            f"/api/prayer/requests/{request.id}/",
+            f"/api/v1/prayer/requests/{request.id}/",
             {"assigned_to": fellowship_leader_a.id},
             format="json"
         )
@@ -407,7 +407,7 @@ class TestPrayerRequestAssignment:
         )
         
         response = client.patch(
-            f"/api/prayer/requests/{request.id}/",
+            f"/api/v1/prayer/requests/{request.id}/",
             {"assigned_to": chaplain_b.id},
             format="json"
         )
@@ -435,12 +435,42 @@ class TestPrayerRequestAccessControl:
             status=PrayerRequestStatus.NEW,
             created_by=member_user_a
         )
+        note = PrayerNote.objects.create(
+            prayer_request=request,
+            author=member_user_a,
+            note="Sensitive pastoral follow-up",
+        )
         
         client = APIClient()
         client.force_authenticate(user=member_user_a)
         
-        response = client.get(f"/api/prayer/requests/{request.id}/")
+        response = client.get(f"/api/v1/prayer/requests/{request.id}/")
         assert response.status_code == status.HTTP_200_OK
+        assert response.data["data"]["notes"] == []
+        assert note.note not in str(response.data)
+
+    def test_chaplain_can_view_follow_up_notes(self, chaplain_a, member_a):
+        request = PrayerRequest.objects.create(
+            branch=member_a.branch,
+            member=member_a,
+            category="OTHER",
+            details="Private concern",
+            privacy_level=PrayerPrivacyLevel.PRIVATE,
+            status=PrayerRequestStatus.NEW,
+            created_by=member_a.user,
+        )
+        note = PrayerNote.objects.create(
+            prayer_request=request,
+            author=chaplain_a,
+            note="Authorized pastoral follow-up",
+        )
+
+        client = APIClient()
+        client.force_authenticate(user=chaplain_a)
+        response = client.get(f"/api/v1/prayer/requests/{request.id}/")
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["data"]["notes"][0]["note"] == note.note
 
     def test_other_member_cannot_view_private_request(self, member_user_a, member_user_b, member_a, member_b):
         """Member B should NOT see Member A's PRIVATE request"""
@@ -457,7 +487,7 @@ class TestPrayerRequestAccessControl:
         client = APIClient()
         client.force_authenticate(user=member_user_b)
         
-        response = client.get(f"/api/prayer/requests/{request.id}/")
+        response = client.get(f"/api/v1/prayer/requests/{request.id}/")
         # Should be forbidden (not in same branch OR not pastoral staff)
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
@@ -476,7 +506,7 @@ class TestPrayerRequestAccessControl:
         client = APIClient()
         client.force_authenticate(user=chaplain_a)
         
-        response = client.get(f"/api/prayer/requests/{request.id}/")
+        response = client.get(f"/api/v1/prayer/requests/{request.id}/")
         assert response.status_code == status.HTTP_200_OK
 
     def test_member_can_view_public_request(self, member_user_a, member_a):
@@ -487,6 +517,7 @@ class TestPrayerRequestAccessControl:
             category="THANKSGIVING",
             details="Praise report",
             privacy_level=PrayerPrivacyLevel.PUBLIC,
+            consent_to_share=True,
             status=PrayerRequestStatus.NEW,
             created_by=member_a.user
         )
@@ -494,8 +525,133 @@ class TestPrayerRequestAccessControl:
         client = APIClient()
         client.force_authenticate(user=member_user_a)
         
-        response = client.get(f"/api/prayer/requests/{request.id}/")
+        response = client.get(f"/api/v1/prayer/requests/{request.id}/")
         assert response.status_code == status.HTTP_200_OK
+
+    def test_public_request_hides_requester_identity_from_other_members(self, member_a):
+        from apps.accounts.models import User
+
+        community_user = User.objects.create_user(
+            email="community-member@test.com",
+            password="Pass12345!",
+            role=Roles.MEMBER,
+            branch=member_a.branch,
+        )
+        request = PrayerRequest.objects.create(
+            branch=member_a.branch,
+            member=member_a,
+            submitted_by_name="Private Alias",
+            category="THANKSGIVING",
+            details="Public praise report",
+            privacy_level=PrayerPrivacyLevel.PUBLIC,
+            consent_to_share=True,
+            status=PrayerRequestStatus.NEW,
+            created_by=member_a.user,
+        )
+
+        client = APIClient()
+        client.force_authenticate(user=community_user)
+        response = client.get(f"/api/v1/prayer/requests/{request.id}/")
+
+        assert response.status_code == status.HTTP_200_OK
+        public_data = response.data["data"]
+        assert public_data["details"] == "Public praise report"
+        assert public_data["member"] is None
+        assert public_data["submitted_by_name"] == ""
+        assert public_data["created_by"] is None
+
+    def test_public_request_without_consent_is_hidden_from_other_members(self, member_a):
+        from apps.accounts.models import User
+
+        community_user = User.objects.create_user(
+            email="community-viewer@test.com",
+            password="Pass12345!",
+            role=Roles.MEMBER,
+            branch=member_a.branch,
+        )
+        request = PrayerRequest.objects.create(
+            branch=member_a.branch,
+            member=member_a,
+            category="OTHER",
+            details="Not approved for community sharing",
+            privacy_level=PrayerPrivacyLevel.PUBLIC,
+            consent_to_share=False,
+            status=PrayerRequestStatus.NEW,
+            created_by=member_a.user,
+        )
+
+        client = APIClient()
+        client.force_authenticate(user=community_user)
+        response = client.get(f"/api/v1/prayer/requests/{request.id}/")
+
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+
+    def test_pastoral_staff_cannot_publish_without_requester_consent(self, chaplain_a, member_a):
+        request = PrayerRequest.objects.create(
+            branch=member_a.branch,
+            member=member_a,
+            category="THANKSGIVING",
+            details="Praise report",
+            privacy_level=PrayerPrivacyLevel.PASTORAL,
+            status=PrayerRequestStatus.NEW,
+            created_by=member_a.user,
+        )
+        client = APIClient()
+        client.force_authenticate(user=chaplain_a)
+
+        response = client.patch(
+            f"/api/v1/prayer/requests/{request.id}/",
+            {"privacy_level": "PUBLIC"},
+            format="json",
+        )
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        request.refresh_from_db()
+        assert request.privacy_level == PrayerPrivacyLevel.PASTORAL
+
+    def test_pastoral_staff_can_publish_after_requester_consent(self, chaplain_a, member_a):
+        request = PrayerRequest.objects.create(
+            branch=member_a.branch,
+            member=member_a,
+            category="THANKSGIVING",
+            details="Consented praise report",
+            privacy_level=PrayerPrivacyLevel.PASTORAL,
+            consent_to_share=True,
+            status=PrayerRequestStatus.NEW,
+            created_by=member_a.user,
+        )
+        client = APIClient()
+        client.force_authenticate(user=chaplain_a)
+
+        response = client.patch(
+            f"/api/v1/prayer/requests/{request.id}/",
+            {"privacy_level": "PUBLIC"},
+            format="json",
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        request.refresh_from_db()
+        assert request.privacy_level == PrayerPrivacyLevel.PUBLIC
+        assert request.consent_to_share is True
+
+    def test_member_creation_records_optional_sharing_consent(self, member_user_a, member_a):
+        client = APIClient()
+        client.force_authenticate(user=member_user_a)
+        response = client.post(
+            "/api/v1/prayer/requests/",
+            {
+                "category": "OTHER",
+                "details": "Prayer request with optional sharing consent",
+                "privacy_level": "PASTORAL",
+                "consent_to_share": True,
+            },
+            format="json",
+        )
+
+        assert response.status_code == status.HTTP_201_CREATED
+        created = PrayerRequest.objects.get(id=response.data["data"]["id"])
+        assert created.member == member_a
+        assert created.consent_to_share is True
 
 
 # ============================================================================
@@ -521,7 +677,7 @@ class TestPrayerRequestIDOR:
         client = APIClient()
         client.force_authenticate(user=chaplain_a)
         
-        response = client.get(f"/api/prayer/requests/{request.id}/")
+        response = client.get(f"/api/v1/prayer/requests/{request.id}/")
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
     def test_chaplain_cannot_update_other_branch_requests(self, chaplain_a, chaplain_b, member_b):
@@ -529,7 +685,7 @@ class TestPrayerRequestIDOR:
         request = PrayerRequest.objects.create(
             branch=member_b.branch,
             member=member_b,
-            category="Personal",
+            category="OTHER",
             details="Branch B request",
             privacy_level=PrayerPrivacyLevel.PASTORAL,
             status=PrayerRequestStatus.NEW,
@@ -540,7 +696,7 @@ class TestPrayerRequestIDOR:
         client.force_authenticate(user=chaplain_a)
         
         response = client.patch(
-            f"/api/prayer/requests/{request.id}/",
+            f"/api/v1/prayer/requests/{request.id}/",
             {"details": "Hacked details"},
             format="json"
         )
@@ -556,7 +712,7 @@ class TestPrayerRequestIDOR:
         request_a = PrayerRequest.objects.create(
             branch=member_a.branch,
             member=member_a,
-            category="Personal",
+            category="OTHER",
             details="Branch A request",
             privacy_level=PrayerPrivacyLevel.PRIVATE,
             status=PrayerRequestStatus.NEW,
@@ -566,7 +722,7 @@ class TestPrayerRequestIDOR:
         request_b = PrayerRequest.objects.create(
             branch=member_b.branch,
             member=member_b,
-            category="Personal",
+            category="OTHER",
             details="Branch B request",
             privacy_level=PrayerPrivacyLevel.PRIVATE,
             status=PrayerRequestStatus.NEW,
@@ -576,10 +732,10 @@ class TestPrayerRequestIDOR:
         client = APIClient()
         client.force_authenticate(user=super_admin)
         
-        response = client.get("/api/prayer/requests/")
+        response = client.get("/api/v1/prayer/requests/")
         assert response.status_code == status.HTTP_200_OK
         # Should see both branches
-        assert len(response.data["results"]) >= 2
+        assert len(response.data["data"]) >= 2
 
 
 # ============================================================================
@@ -595,7 +751,7 @@ class TestPrayerNoteImmutability:
         request = PrayerRequest.objects.create(
             branch=member_a.branch,
             member=member_a,
-            category="Healing",
+            category="HEALING",
             details="Prayer for healing",
             privacy_level=PrayerPrivacyLevel.PASTORAL,
             status=PrayerRequestStatus.ASSIGNED,
@@ -617,7 +773,7 @@ class TestPrayerNoteImmutability:
         request = PrayerRequest.objects.create(
             branch=member_a.branch,
             member=member_a,
-            category="Healing",
+            category="HEALING",
             details="Prayer for healing",
             privacy_level=PrayerPrivacyLevel.PASTORAL,
             status=PrayerRequestStatus.ASSIGNED,
@@ -653,10 +809,9 @@ class TestPrayerRequestAuditLogging:
         initial_count = AuditLog.objects.count()
         
         response = client.post(
-            "/api/prayer/requests/",
+            "/api/v1/prayer/requests/",
             {
-                "branch": member_a.branch.id,
-                "category": "Guidance",
+                "category": "SPIRITUAL",
                 "details": "Need direction",
                 "privacy_level": PrayerPrivacyLevel.PRIVATE
             },
@@ -676,7 +831,7 @@ class TestPrayerRequestAuditLogging:
         request = PrayerRequest.objects.create(
             branch=member_a.branch,
             member=member_a,
-            category="Personal",
+            category="OTHER",
             details="Private concern",
             privacy_level=PrayerPrivacyLevel.PRIVATE,
             status=PrayerRequestStatus.NEW,
@@ -688,7 +843,7 @@ class TestPrayerRequestAuditLogging:
         
         initial_count = AuditLog.objects.filter(action=AuditAction.PRAYER_REQUEST_ACCESS).count()
         
-        response = client.get(f"/api/prayer/requests/{request.id}/")
+        response = client.get(f"/api/v1/prayer/requests/{request.id}/")
         assert response.status_code == status.HTTP_200_OK
         
         # Verify audit log created for PRIVATE access
@@ -699,7 +854,7 @@ class TestPrayerRequestAuditLogging:
         request = PrayerRequest.objects.create(
             branch=member_a.branch,
             member=member_a,
-            category="Thanksgiving",
+            category="THANKSGIVING",
             details="Praise report",
             privacy_level=PrayerPrivacyLevel.PUBLIC,
             status=PrayerRequestStatus.NEW,
@@ -711,7 +866,7 @@ class TestPrayerRequestAuditLogging:
         
         initial_count = AuditLog.objects.filter(action=AuditAction.PRAYER_REQUEST_ACCESS).count()
         
-        response = client.get(f"/api/prayer/requests/{request.id}/")
+        response = client.get(f"/api/v1/prayer/requests/{request.id}/")
         assert response.status_code == status.HTTP_200_OK
         
         # Should NOT create audit log for PUBLIC access
@@ -722,7 +877,7 @@ class TestPrayerRequestAuditLogging:
         request = PrayerRequest.objects.create(
             branch=member_a.branch,
             member=member_a,
-            category="Counseling",
+            category="SPIRITUAL",
             details="Need support",
             privacy_level=PrayerPrivacyLevel.PASTORAL,
             status=PrayerRequestStatus.NEW,
@@ -735,7 +890,7 @@ class TestPrayerRequestAuditLogging:
         initial_count = AuditLog.objects.filter(action=AuditAction.PRAYER_REQUEST_ASSIGN).count()
         
         response = client.patch(
-            f"/api/prayer/requests/{request.id}/",
+            f"/api/v1/prayer/requests/{request.id}/",
             {"assigned_to": chaplain_a.id},
             format="json"
         )

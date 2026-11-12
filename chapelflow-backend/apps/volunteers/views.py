@@ -103,12 +103,10 @@ class VolunteerProfileViewSet(BranchScopedQuerysetMixin, StandardModelViewSet):
             })
         
         return Response({
-            "data": {
                 "volunteer_id": str(volunteer.id),
                 "total_hours": float(total_hours),
                 "completed_count": completed_assignments.count(),
                 "assignments": assignment_data,
-            }
         })
 
 
@@ -182,6 +180,7 @@ class VolunteerAssignmentViewSet(BranchScopedQuerysetMixin, StandardModelViewSet
         "complete": PermissionCodes.VOLUNTEERS_UPDATE,
     }
     branch_field_lookup = "volunteer__member__branch"
+    group_field_lookup = "group"
 
     def get_base_queryset(self):
         return VolunteerAssignment.objects.select_related(
@@ -242,7 +241,7 @@ class VolunteerAssignmentViewSet(BranchScopedQuerysetMixin, StandardModelViewSet
         assignment = services.confirm_assignment(assignment)
         
         response_serializer = self.get_serializer(assignment)
-        return Response({"data": response_serializer.data})
+        return Response(response_serializer.data)
     
     @action(detail=True, methods=["post"], url_path="decline")
     def decline(self, request, pk=None):
@@ -266,7 +265,7 @@ class VolunteerAssignmentViewSet(BranchScopedQuerysetMixin, StandardModelViewSet
         assignment = services.decline_assignment(assignment, reason=reason)
         
         response_serializer = self.get_serializer(assignment)
-        return Response({"data": response_serializer.data})
+        return Response(response_serializer.data)
     
     @action(detail=True, methods=["post"], url_path="complete")
     def complete(self, request, pk=None):
@@ -291,4 +290,4 @@ class VolunteerAssignmentViewSet(BranchScopedQuerysetMixin, StandardModelViewSet
         assignment = services.complete_assignment(assignment, hours_logged=hours_logged)
         
         response_serializer = self.get_serializer(assignment)
-        return Response({"data": response_serializer.data})
+        return Response(response_serializer.data)

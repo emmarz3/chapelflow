@@ -25,11 +25,54 @@ function safeRedirect(value: string | null) {
   return value?.startsWith("/") && !value.startsWith("//") ? value : "/app";
 }
 
+let csrfTokenValue: string | null = null;
+
+function rememberCsrfToken(payload: unknown) {
+  if (!payload || typeof payload !== "object") return;
+  const data = (payload as { data?: unknown }).data;
+  if (!data || typeof data !== "object") return;
+  const token = (data as { csrf_token?: unknown }).csrf_token;
+  if (typeof token === "string" && token.length > 0) csrfTokenValue = token;
+}
+
 function csrfCookie() {
+  if (csrfTokenValue) return csrfTokenValue;
   return document.cookie
     .split("; ")
     .find((cookie) => cookie.startsWith("chapelflow_csrf="))
     ?.split("=")[1];
+}
+
+async function isCsrfFailure(response: Response) {
+  if (response.status !== 403) return false;
+  try {
+    const body = await response.clone().json() as { message?: unknown };
+    const message = typeof body.message === "string" ? body.message.toLowerCase() : "";
+    return message.includes("csrf") || message.includes("security token");
+  } catch {
+    return false;
+  }
+}
+
+let csrfBootstrapRequest: Promise<boolean> | null = null;
+
+function bootstrapCsrfToken() {
+  if (!csrfBootstrapRequest) {
+    csrfBootstrapRequest = fetch(`${API_BASE_URL}/auth/csrf/`, {
+      method: "GET",
+      credentials: "include",
+      headers: { Accept: "application/json" },
+    })
+      .then(async (response) => {
+        if (!response.ok) return false;
+        rememberCsrfToken(await response.json());
+        return Boolean(csrfCookie());
+      })
+      .finally(() => {
+        csrfBootstrapRequest = null;
+      });
+  }
+  return csrfBootstrapRequest;
 }
 
 let refreshRequest: Promise<boolean> | null = null;
@@ -38,17 +81,25 @@ function refreshSession() {
   if (!refreshRequest) {
     const controller = new AbortController();
     const timeout = window.setTimeout(() => controller.abort(), 60_000);
-    const csrf = csrfCookie();
-    refreshRequest = fetch(`${API_BASE_URL}/auth/refresh/`, {
-      method: "POST",
-      credentials: "include",
-      signal: controller.signal,
-      headers: new Headers({
-        Accept: "application/json",
-        ...(csrf ? { "X-ChapelFlow-CSRF": csrf } : {}),
-      }),
-    })
-      .then((response) => response.ok)
+    refreshRequest = (async () => {
+      const sendRefresh = (csrf: string | undefined) => fetch(`${API_BASE_URL}/auth/refresh/`, {
+        method: "POST",
+        credentials: "include",
+        signal: controller.signal,
+        headers: new Headers({
+          Accept: "application/json",
+          ...(csrf ? { "X-ChapelFlow-CSRF": csrf } : {}),
+        }),
+      });
+
+      let response = await sendRefresh(csrfCookie());
+      if (await isCsrfFailure(response) && await bootstrapCsrfToken()) {
+        response = await sendRefresh(csrfCookie());
+      }
+      if (!response.ok) return false;
+      rememberCsrfToken(await response.json());
+      return true;
+    })()
       .finally(() => {
         window.clearTimeout(timeout);
         refreshRequest = null;
@@ -94,6 +145,28 @@ async function rawRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
       signal,
       headers,
     });
+
+    // A CSRF cookie can be rotated or rejected independently of the login.
+    // Re-bootstrap and retry a CSRF-specific 403 once; do not mistake it for
+    // an expired login and redirect a member out of The Upper Room.
+    if (
+      await isCsrfFailure(response) &&
+      ["POST", "PUT", "PATCH", "DELETE"].includes((init.method || "GET").toUpperCase()) &&
+      path !== "/auth/csrf/" &&
+      path !== "/auth/refresh/"
+    ) {
+      if (await bootstrapCsrfToken()) {
+        const freshCsrf = csrfCookie();
+        if (freshCsrf) headers.set("X-ChapelFlow-CSRF", freshCsrf);
+        response = await fetch(`${API_BASE_URL}${path}`, {
+          ...init,
+          credentials: "include",
+          signal,
+          headers,
+        });
+      }
+    }
+
     if (
       response.status === 401 &&
       isDjangoBackend &&
@@ -134,7 +207,9 @@ async function rawRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
     if (!response.ok) {
       const fallback = {
         code: "REQUEST_FAILED",
-        message: "We could not complete that request.",
+        message: response.status === 503
+          ? "ChapelFlow is temporarily unavailable. Please try again shortly."
+          : "We could not complete that request.",
         status: response.status,
       };
       let body: Partial<ApiErrorShape> & { errors?: Record<string, string[]> } =
@@ -150,12 +225,20 @@ async function rawRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
           : typeof (body as { detail?: unknown }).detail === "string"
             ? (body as { detail: string }).detail
             : fallback.message;
-      const fieldErrors = body.fieldErrors ?? body.errors;
+      // Django validation errors are commonly strings per field, not just
+      // arrays. Preserve those messages so admins can resolve invalid forms.
+      const rawFieldErrors = body.fieldErrors ?? body.errors;
+      const fieldErrors = rawFieldErrors && typeof rawFieldErrors === "object" && !Array.isArray(rawFieldErrors)
+        ? Object.fromEntries(
+            Object.entries(rawFieldErrors).map(([field, messages]) => [
+              field,
+              (Array.isArray(messages) ? messages : [messages]).map(String),
+            ]),
+          )
+        : undefined;
       const fieldDetails = Object.entries(fieldErrors ?? {}).flatMap(
         ([field, messages]) =>
-          Array.isArray(messages)
-            ? messages.map((message) => `${field.replaceAll("_", " ")}: ${message}`)
-            : [],
+          messages.map((message) => `${field.replaceAll("_", " ")}: ${message}`),
       );
       throw new ApiError({
         ...fallback,
@@ -166,7 +249,10 @@ async function rawRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
       });
     }
     if (response.status === 204) return undefined as T;
-    return (await response.json()) as T;
+    const payload = await response.json();
+    rememberCsrfToken(payload);
+    if (path === "/auth/logout/" || path === "/auth/logout") csrfTokenValue = null;
+    return payload as T;
   } catch (error) {
     if (error instanceof ApiError) throw error;
     if (error instanceof DOMException && error.name === "AbortError")

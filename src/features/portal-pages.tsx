@@ -51,7 +51,7 @@ import {
   YAxis,
 } from "recharts";
 import { format } from "date-fns";
-import { Link } from "react-router-dom";
+import { Link, Navigate } from "react-router-dom";
 import {
   Badge,
   Button,
@@ -90,7 +90,7 @@ export function DashboardPage() {
   const { user } = useAuth();
   if (user?.role === "member")
     return isStudentMember(user) ? <StudentDashboardPage /> : <MemberAccountHomePage />;
-  if (["chaplain", "student_chaplain", "unit_leader", "fellowship_leader", "attendance_usher"].includes(user?.role ?? "")) return <RoleDashboardPage />;
+  if (["chaplain", "student_chaplain", "assistant_student_chaplain", "hostel_coordinator", "unit_leader", "fellowship_leader", "attendance_usher"].includes(user?.role ?? "")) return <RoleDashboardPage />;
   if (!isDemoMode) return <LiveDashboardPage />;
   return <DemoDashboardPage />;
 }
@@ -855,6 +855,8 @@ function DemoMembersPage() {
 }
 
 export function AttendancePage() {
+  const { user } = useAuth();
+  if (user?.role === "super_admin") return <Navigate to="/app/admin/control-room" replace />;
   return isDemoMode ? <DemoAttendancePage /> : <LiveAttendancePage />;
 }
 
@@ -1424,20 +1426,20 @@ const moduleConfigs = {
     button: "Create broadcast",
     icon: <Send />,
     metrics: [
-      ["Sent this month", "18,420", "Across all channels"],
-      ["Delivery rate", "96.8%", "Email, SMS, and push"],
+      ["Sent this month", "18,420", "Email and in-app"],
+      ["Delivery rate", "96.8%", "Email and in-app"],
       ["Scheduled", "4", "Next 7 days"],
     ],
     rows: [
       [
         "Freshers Welcome reminder",
-        "Email + Push",
+        "Email",
         "2,184 recipients",
         "Scheduled",
       ],
       ["Worker roster update", "Email", "286 recipients", "Delivered"],
-      ["Sunday service notice", "SMS + Push", "2,418 recipients", "Delivered"],
-      ["Choir rehearsal change", "Push", "68 recipients", "Draft"],
+      ["Sunday service notice", "Email", "2,418 recipients", "Delivered"],
+      ["Choir rehearsal change", "In-app", "68 recipients", "Draft"],
     ],
   },
   assets: {
@@ -1598,7 +1600,7 @@ const moduleConfigs = {
       ],
       [
         "Notification preferences",
-        "Email, SMS, and push channels",
+        "Email and in-app channels",
         "Configured",
         "Open",
       ],

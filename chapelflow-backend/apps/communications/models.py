@@ -133,9 +133,15 @@ class CommunicationPreference(models.Model):
     """
     member = models.OneToOneField(
         "members.Member",
-        on_delete=models.CASCADE,
+        on_delete=models.CASCADE, null=True, blank=True,
         related_name="communication_preference"
     )
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, null=True, blank=True,
+        related_name="notification_preference",
+    )
+    master_enabled = models.BooleanField(default=True)
+    in_app_enabled = models.BooleanField(default=True)
     
     # Channel preferences
     email_enabled = models.BooleanField(default=True)
@@ -145,11 +151,29 @@ class CommunicationPreference(models.Model):
     # Feature preferences
     announcements_enabled = models.BooleanField(default=True)
     prayer_notifications_enabled = models.BooleanField(default=False)
+    prayer_updates_enabled = models.BooleanField(default=True)
+    events_enabled = models.BooleanField(default=True)
+    service_reminders_enabled = models.BooleanField(default=True)
+    devotional_enabled = models.BooleanField(default=False)
+    fellowship_enabled = models.BooleanField(default=True)
+    live_service_enabled = models.BooleanField(default=True)
+    admin_alerts_enabled = models.BooleanField(default=True)
+    birthday_enabled = models.BooleanField(default=True)
+    quiet_hours_enabled = models.BooleanField(default=False)
+    quiet_hours_start = models.TimeField(null=True, blank=True)
+    quiet_hours_end = models.TimeField(null=True, blank=True)
+    timezone_name = models.CharField(max_length=64, default="Africa/Lagos")
     
     updated_at = models.DateTimeField(auto_now=True)
     
     class Meta:
         db_table = "communications_preference"
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(member__isnull=False) | models.Q(user__isnull=False),
+                name="communication_preference_has_owner",
+            ),
+        ]
     
     def __str__(self):
         return f"Preferences for {self.member}"

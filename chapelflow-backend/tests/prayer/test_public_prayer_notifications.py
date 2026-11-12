@@ -2,7 +2,7 @@ import pytest
 
 
 @pytest.mark.django_db
-def test_prayer_notifications_are_opt_in_and_idempotent(api_client, member_in_branch_a, branch_a, mocker):
+def test_prayer_notifications_are_opt_in_and_idempotent(api_client, member_in_branch_a, branch_a, mocker, django_capture_on_commit_callbacks):
     from apps.communications.models import CommunicationPreference
     from apps.notifications.models import Notification
     from apps.prayer.models import PrayerPrivacyLevel, PrayerRequest, PrayerCategory
@@ -33,11 +33,13 @@ def test_prayer_notifications_are_opt_in_and_idempotent(api_client, member_in_br
         category=PrayerCategory.OTHER,
         details="Private health detail must not be emailed.",
         privacy_level=PrayerPrivacyLevel.PUBLIC,
+        consent_to_share=True,
     )
     deliver = mocker.patch("apps.prayer.notifications.deliver_notification.delay")
 
-    first = broadcast_public_prayer_notifications(str(request.id))
-    second = broadcast_public_prayer_notifications(str(request.id))
+    with django_capture_on_commit_callbacks(execute=True):
+        first = broadcast_public_prayer_notifications(str(request.id))
+        second = broadcast_public_prayer_notifications(str(request.id))
 
     notices = Notification.objects.filter(source_prayer_request=request)
     assert first["notifications_created"] == 1
@@ -45,3 +47,29 @@ def test_prayer_notifications_are_opt_in_and_idempotent(api_client, member_in_br
     assert notices.count() == 1
     assert "Private health detail" not in notices.get().body
     assert deliver.call_count == 1
+
+
+@pytest.mark.django_db
+def test_unconsented_public_prayer_is_private_in_assignment_notification(member_in_branch_a, branch_a, mocker):
+    from apps.notifications.models import Notification
+    from apps.prayer.models import PrayerPrivacyLevel, PrayerRequest, PrayerCategory
+    from apps.prayer.notifications import notify_prayer_request_assigned
+
+    member_in_branch_a.user.email = "pastoral-recipient@example.edu"
+    member_in_branch_a.user.save(update_fields=["email"])
+    request = PrayerRequest.objects.create(
+        branch=branch_a,
+        submitted_by_name="Anonymous requester",
+        category=PrayerCategory.HEALING,
+        details="Sensitive medical information",
+        privacy_level=PrayerPrivacyLevel.PUBLIC,
+        consent_to_share=False,
+    )
+    mocker.patch("apps.prayer.notifications.deliver_notification.delay")
+
+    notify_prayer_request_assigned(request, member_in_branch_a.user)
+
+    notification = Notification.objects.get(recipient=member_in_branch_a.user)
+    assert "Sensitive medical information" not in notification.body
+    assert "Anonymous requester" not in notification.body
+    assert "HEALING" not in notification.body

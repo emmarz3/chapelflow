@@ -11,6 +11,7 @@ Tests comprehensive security validation for:
 """
 
 import pytest
+from types import SimpleNamespace
 from django.db import transaction
 from rest_framework import status
 
@@ -91,8 +92,9 @@ def fellowship_leader_a(branch_a, fellowship_a):
         email="leader_a@test.com", password="pass", role=Roles.FELLOWSHIP_LEADER,
         branch=branch_a, first_name="Leader", last_name="Alpha"
     )
-    from apps.accounts.models import RoleAssignment
-    RoleAssignment.objects.create(user=user, group=fellowship_a, role=Roles.FELLOWSHIP_LEADER)
+    from apps.groups.models import GroupMembership, GroupRole
+    leader_member = Member.objects.create(user=user, branch=branch_a, first_name="Leader", last_name="Alpha")
+    GroupMembership.objects.create(member=leader_member, group=fellowship_a, role=GroupRole.LEADER)
     return user
 
 
@@ -130,7 +132,7 @@ def member_b(branch_a, college_b, department_b, fellowship_b):
 class TestAcademicHierarchyValidation:
     """Phase 4: Validate college/department consistency"""
     
-    def test_reject_inconsistent_college_department(self, branch_a, college_a, department_b):
+    def test_reject_inconsistent_college_department(self, branch_a, college_a, department_b, super_admin):
         """Cannot create member with department from different college"""
         serializer = MemberSerializer(data={
             "branch": branch_a.id,
@@ -139,13 +141,13 @@ class TestAcademicHierarchyValidation:
             "email": "test@test.com",
             "college": college_a.id,  # CST
             "department": department_b.id,  # Biochemistry from CBS
-        })
+        }, context={"request": SimpleNamespace(user=super_admin)})
         
         assert not serializer.is_valid()
         assert "department" in serializer.errors
         assert "belongs to" in str(serializer.errors["department"][0]).lower()
     
-    def test_auto_infer_college_from_department(self, branch_a, department_a, college_a):
+    def test_auto_infer_college_from_department(self, branch_a, department_a, college_a, super_admin):
         """When department provided without college, auto-infer college"""
         serializer = MemberSerializer(data={
             "branch": branch_a.id,
@@ -154,7 +156,7 @@ class TestAcademicHierarchyValidation:
             "email": "test@test.com",
             "department": department_a.id,
             # college not provided
-        })
+        }, context={"request": SimpleNamespace(user=super_admin)})
         
         assert serializer.is_valid(), serializer.errors
         assert serializer.validated_data["college"] == college_a
@@ -198,7 +200,7 @@ class TestAcademicHierarchyValidation:
 class TestUserFieldProtection:
     """Phase 4 CRITICAL: Prevent Member.user ownership manipulation"""
     
-    def test_allow_user_assignment_on_create(self, branch_a, member_user_a):
+    def test_allow_user_assignment_on_create(self, branch_a, member_user_a, super_admin):
         """Allow setting user field during member creation"""
         serializer = MemberSerializer(data={
             "user": member_user_a.id,
@@ -206,7 +208,7 @@ class TestUserFieldProtection:
             "first_name": "Test",
             "last_name": "User",
             "email": "test@test.com",
-        })
+        }, context={"request": SimpleNamespace(user=super_admin)})
         
         assert serializer.is_valid(), serializer.errors
     
@@ -284,24 +286,26 @@ class TestFellowshipValidation:
 class TestTransferProtection:
     """Phase 4: Branch/Fellowship changes must use explicit transfer endpoint"""
     
-    def test_block_branch_change_via_patch(self, member_a, branch_b):
+    def test_block_branch_change_via_patch(self, member_a, branch_b, super_admin):
         """Cannot change branch via normal PATCH"""
         serializer = MemberSerializer(
             instance=member_a,
             data={"branch": branch_b.id},
-            partial=True
+            partial=True,
+            context={"request": SimpleNamespace(user=super_admin)},
         )
         
         assert not serializer.is_valid()
         assert "branch" in serializer.errors
         assert "transfer" in str(serializer.errors["branch"][0]).lower()
     
-    def test_block_fellowship_change_via_patch(self, member_a, fellowship_b):
+    def test_block_fellowship_change_via_patch(self, member_a, fellowship_b, super_admin):
         """Cannot change fellowship via normal PATCH"""
         serializer = MemberSerializer(
             instance=member_a,
             data={"fellowship": fellowship_b.id},
-            partial=True
+            partial=True,
+            context={"request": SimpleNamespace(user=super_admin)},
         )
         
         assert not serializer.is_valid()
@@ -380,7 +384,7 @@ class TestMergeTransactionSafety:
         # Create audit log for merged member
         AuditLog.objects.create(
             user=member_b.user if member_b.user else super_admin,
-            action=AuditAction.MEMBER_UPDATE,
+            action=AuditAction.MEMBER_RECORD_ACCESS,
             resource_type="member",
             resource_id=str(member_b.id),
             metadata={"field": "email"}

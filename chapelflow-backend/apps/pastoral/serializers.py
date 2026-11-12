@@ -99,6 +99,17 @@ class PastoralCaseSerializer(ScopedFKValidationMixin, serializers.ModelSerialize
             )
         
         return assigned_to
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        branch = attrs.get("branch", getattr(self.instance, "branch", None))
+        member = attrs.get("member", getattr(self.instance, "member", None))
+        assigned_to = attrs.get("assigned_to", getattr(self.instance, "assigned_to", None))
+        if branch and member and member.branch_id != branch.id:
+            raise serializers.ValidationError({"member": "Member must belong to the case branch."})
+        if branch and assigned_to and assigned_to.branch_id != branch.id:
+            raise serializers.ValidationError({"assigned_to": "Assignee must belong to the case branch."})
+        return attrs
     
     def update(self, instance, validated_data):
         """
@@ -113,6 +124,9 @@ class PastoralCaseSerializer(ScopedFKValidationMixin, serializers.ModelSerialize
             from django.utils import timezone
             if validated_data['status'] == 'CLOSED' and instance.status != 'CLOSED':
                 instance.closed_at = timezone.now()
+            if validated_data['status'] == 'ESCALATED' and instance.status != 'ESCALATED':
+                instance.escalated_at = timezone.now()
+                instance.escalated_by = request.user
         
         return super().update(instance, validated_data)
 

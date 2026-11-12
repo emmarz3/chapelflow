@@ -1322,7 +1322,7 @@ def get_giving_totals(
     return {
         "total_giving": aggregates["total"] or Decimal("0.00"),
         "total_transactions": aggregates["count"],
-        "average_giving": aggregates["average"] or Decimal("0.00"),
+        "average_giving": (aggregates["average"] or Decimal("0.00")).quantize(Decimal("0.01")),
     }
 
 
@@ -1477,10 +1477,10 @@ def get_pledge_stats(user) -> Dict:
     
     total = qs.count()
     active = qs.filter(is_active=True).count()
-    fulfilled = qs.filter(is_fulfilled=True).count() if hasattr(Pledge, 'is_fulfilled') else 0
+    fulfilled = qs.filter(amount_fulfilled__gte=F("amount_pledged")).count()
     
-    pledged_amount = qs.aggregate(total=Sum("pledged_amount"))["total"] or Decimal("0.00")
-    fulfilled_amount = qs.aggregate(total=Sum("fulfilled_amount"))["total"] or Decimal("0.00")
+    pledged_amount = qs.aggregate(total=Sum("amount_pledged"))["total"] or Decimal("0.00")
+    fulfilled_amount = qs.aggregate(total=Sum("amount_fulfilled"))["total"] or Decimal("0.00")
     
     return {
         "total_pledges": total,
@@ -1508,13 +1508,16 @@ def get_reconciliation_status(user) -> Dict:
     
     qs = get_scoped_queryset(Reconciliation, user)
     
-    open_count = qs.filter(status=ReconciliationStatus.OPEN).count()
-    pending = qs.filter(status=ReconciliationStatus.PENDING_APPROVAL).count()
-    completed = qs.filter(status=ReconciliationStatus.COMPLETED).count()
+    open_count = qs.filter(status__in=[ReconciliationStatus.PENDING, ReconciliationStatus.IN_PROGRESS]).count()
+    pending = qs.filter(status=ReconciliationStatus.PENDING).count()
+    completed = qs.filter(status__in=[ReconciliationStatus.RECONCILED, ReconciliationStatus.DISCREPANCY]).count()
     approved = qs.filter(status=ReconciliationStatus.APPROVED).count()
     
     # Count reconciliations with discrepancies
-    discrepancies = qs.filter(has_discrepancy=True).count()
+    discrepancies = qs.filter(
+        Q(status=ReconciliationStatus.DISCREPANCY)
+        | (Q(status=ReconciliationStatus.APPROVED) & ~Q(difference=0))
+    ).count()
     
     return {
         "open_reconciliations": open_count,
@@ -1537,19 +1540,19 @@ def get_financial_period_status(user) -> Dict:
             "current_period": dict or None,
         }
     """
-    from apps.finance.models import FinancialPeriod, PeriodStatus
+    from apps.finance.models import FinancialPeriod, FinancialPeriodStatus
     
     qs = get_scoped_queryset(FinancialPeriod, user)
     
-    open_count = qs.filter(status=PeriodStatus.OPEN).count()
-    closed = qs.filter(status=PeriodStatus.CLOSED).count()
-    locked = qs.filter(status=PeriodStatus.LOCKED).count()
+    open_count = qs.filter(status=FinancialPeriodStatus.OPEN).count()
+    closed = qs.filter(status=FinancialPeriodStatus.CLOSED).count()
+    locked = qs.filter(status=FinancialPeriodStatus.LOCKED).count()
     
     # Get current period (containing today)
     today = timezone.now().date()
     current_period_qs = qs.filter(
-        start_date__lte=today,
-        end_date__gte=today,
+        period_start__lte=today,
+        period_end__gte=today,
     )
     
     current_period = None
@@ -1558,8 +1561,8 @@ def get_financial_period_status(user) -> Dict:
         current_period = {
             "id": str(period.id),
             "name": period.name,
-            "start_date": period.start_date.isoformat(),
-            "end_date": period.end_date.isoformat(),
+            "start_date": period.period_start.isoformat(),
+            "end_date": period.period_end.isoformat(),
             "status": period.status,
         }
     
@@ -1601,12 +1604,12 @@ def get_pastoral_case_counts(user) -> Dict:
     # Cases assigned to current user
     my_assigned = qs.filter(assigned_to=user).count()
     
-    # Overdue cases (open/in-progress with due date in past)
-    now = timezone.now()
+    # Overdue cases (open/in-progress with a follow-up date in the past)
+    today = timezone.localdate()
     overdue = qs.filter(
         status__in=[PastoralCaseStatus.OPEN, PastoralCaseStatus.IN_PROGRESS],
-        due_date__isnull=False,
-        due_date__lt=now,
+        next_follow_up_date__isnull=False,
+        next_follow_up_date__lt=today,
     ).count()
     
     return {
@@ -1637,7 +1640,7 @@ def get_prayer_request_counts(user) -> Dict:
     
     total = qs.count()
     new = qs.filter(status=PrayerRequestStatus.NEW).count()
-    praying = qs.filter(status=PrayerRequestStatus.PRAYING).count()
+    praying = qs.filter(status=PrayerRequestStatus.IN_PROGRESS).count()
     answered = qs.filter(status=PrayerRequestStatus.ANSWERED).count()
     
     return {

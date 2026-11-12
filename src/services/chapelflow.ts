@@ -432,6 +432,37 @@ export const upperRoomService = {
   deleteComment: (postId: string, commentId: string) => api.delete<void>(`/social/posts/${encodeURIComponent(postId)}/comments/${encodeURIComponent(commentId)}`),
 };
 
+export type ModerationTarget = "POST" | "COMMENT" | "GROUP_MESSAGE" | "GROUP_RESOURCE" | "GROUP_ANNOUNCEMENT" | "PRAYER" | "TESTIMONY";
+export type ModerationReason = "HARASSMENT" | "BULLYING" | "SPAM" | "IMPERSONATION" | "HATE_SPEECH" | "INAPPROPRIATE" | "PRIVACY" | "OTHER";
+export type ModerationStatus = "PENDING" | "REVIEWED" | "DISMISSED" | "ESCALATED";
+
+export interface ModerationReport {
+  id: string;
+  target_kind: ModerationTarget;
+  target_id: string;
+  reason: ModerationReason;
+  explanation: string;
+  status: ModerationStatus;
+  created_at: string;
+  reviewed_at: string | null;
+  content_snapshot?: string;
+  branch_id?: string;
+  reporter_id?: string | null;
+  assigned_to_id?: string | null;
+  restriction?: "HIDDEN" | "REMOVED" | null;
+  events?: { action: string; note: string; actor_id: string | null; created_at: string }[];
+}
+
+export const moderationService = {
+  report: (targetKind: ModerationTarget, targetId: string, reason: ModerationReason, explanation: string) =>
+    api.post<{ data: ModerationReport }>("/moderation/reports", { targetKind, targetId, reason, explanation }),
+  mine: () => api.get<{ data: ModerationReport[] }>("/moderation/reports"),
+  queue: (status: ModerationStatus | "ALL" = "PENDING") =>
+    api.get<{ data: ModerationReport[] }>(`/moderation/queue${queryString({ status })}`),
+  act: (id: string, action: string, note: string, assignedToId?: string) =>
+    api.post<{ data: ModerationReport }>(`/moderation/queue/${encodeURIComponent(id)}`, { action, note, assignedToId }),
+};
+
 const demoCommunities: CommunitySummary[] = [
   {
     id: "11111111-1111-4111-a111-111111111111",
@@ -493,10 +524,7 @@ export const communityService = {
               {
                 position:
                   slug === "music" ? "Head of Music" : "Fellowship Leader",
-                name:
-                  slug === "music"
-                    ? "Olaoti Mofiyinfoluwa"
-                    : "Dada Mofopefoluwa",
+                name: "Community leader",
               },
             ],
             pinnedAnnouncement: null,
@@ -583,11 +611,23 @@ export const communityAdminService = {
     }>("/admin/accounts", payload),
 };
 
+export interface NotificationItem {
+  id: string;
+  community_id: string | null;
+  type: string;
+  category: string;
+  title: string;
+  body: string;
+  href: string | null;
+  read_at: string | null;
+  created_at: string;
+}
+
 export const notificationService = {
-  list: () =>
+  list: (page = 1) =>
     isDemoMode
       ? Promise.resolve({
-          data: [
+          data: { items: page === 1 ? [
             {
               id: "demo-community-notification",
               community_id: demoCommunities[0]!.id,
@@ -595,26 +635,42 @@ export const notificationService = {
               title: "Music",
               body: "Friday rehearsal begins at 5:00 PM.",
               href: "/app/communities/music?tab=announcements",
+              category: "FELLOWSHIP",
               read_at: null,
               created_at: new Date().toISOString(),
             },
-          ],
+          ] : [], hasMore: false },
         })
-      : api.get<{
-          data: {
-            id: string;
-            community_id: string | null;
-            type: string;
-            title: string;
-            body: string;
-            href: string | null;
-            read_at: string | null;
-            created_at: string;
-          }[];
-        }>("/notifications"),
+      : api.get<{ data: { items: NotificationItem[]; hasMore: boolean } }>(`/notifications${queryString({ page, pageSize: 25 })}`),
   markRead: (id: string) =>
     api.patch<void>(`/notifications/${encodeURIComponent(id)}/read`, {}),
+  unreadCount: () => isDemoMode
+    ? Promise.resolve({ data: { count: 1 } })
+    : api.get<{ data: { count: number } }>("/notifications/unread-count"),
+  preferences: () => api.get<{ data: NotificationPreferences }>("/notifications/preferences"),
+  savePreferences: (values: NotificationPreferences) => api.patch<{ data: NotificationPreferences }>("/notifications/preferences", values),
 };
+
+export interface NotificationPreferences {
+  masterEnabled: boolean;
+  emailEnabled: boolean;
+  smsEnabled: boolean;
+  inAppEnabled: boolean;
+  announcementsEnabled: boolean;
+  eventsEnabled: boolean;
+  serviceRemindersEnabled: boolean;
+  devotionalEnabled: boolean;
+  fellowshipEnabled: boolean;
+  prayerUpdatesEnabled: boolean;
+  publicPrayerEnabled: boolean;
+  liveServiceEnabled: boolean;
+  adminAlertsEnabled: boolean;
+  birthdayEnabled: boolean;
+  quietHoursEnabled: boolean;
+  quietHoursStart: string;
+  quietHoursEnd: string;
+  timezoneName: string;
+}
 
 export const dashboardService = {
   get: (branchId: string, role: Role) =>
@@ -704,7 +760,7 @@ export const volunteerService = {
 };
 export const careService = {
   prayers: () => api.get<PagedResponse<PrayerEntry>>("/care/prayers"),
-  submitPrayer: (payload: { category: string; details: string; privacyLevel: "PRIVATE" | "PASTORAL" }) =>
+  submitPrayer: (payload: { category: string; details: string; privacyLevel: "PRIVATE" | "PASTORAL"; consentToShare: boolean }) =>
     api.post<{ data: PrayerEntry }>("/care/prayers", payload),
   counsellingRequests: () => api.get<PagedResponse<PastoralCaseEntry>>("/care/pastoral-cases"),
   updateCounsellingCase: (id: string, payload: { status: string; closureReason?: string }) =>
@@ -819,6 +875,11 @@ export const attendanceService = {
       data: { result: "recorded" | "duplicate"; record: AttendanceRecord };
       message?: string;
     }>("/attendance/student-scan", { token }),
+  qrCheckIn: (payload: { token: string; sessionId: string }) =>
+    api.post<{
+      data: AttendanceRecord;
+      message?: string;
+    }>("/attendance/qr-check-in", payload),
   manual: (payload: {
     identifier: string;
     sessionId: string;
@@ -884,11 +945,14 @@ export interface InstitutionalAccount {
   role:
     | "CHAPLAIN"
     | "STUDENT_CHAPLAIN"
+    | "ASSISTANT_STUDENT_CHAPLAIN"
+    | "HOSTEL_COORDINATOR"
     | "UNIT_HEAD"
     | "FELLOWSHIP_LEADER"
     | "ATTENDANCE_USHER";
   branch?: string | null;
   institutional_group?: string | null;
+  institutional_office?: string;
   is_active: boolean;
   password_change_required?: boolean;
 }
@@ -928,7 +992,7 @@ export const adminAttendanceService = {
     payload: Pick<
       AdminAttendanceSession,
       "label" | "window_opens_at" | "window_closes_at"
-    >,
+    > & { branch: string },
   ) =>
     api.post<{ data: AdminAttendanceSession }>(
       "/admin/attendance/sessions",
@@ -1073,10 +1137,10 @@ export const privacyService = {
     api.patch<void>("/account/privacy-preferences", payload),
   requestExport: () =>
     api.post<{ data: { requestId: string } }>("/account/data-export-requests"),
-  requestDeletion: (reason: string) =>
-    api.post<{ data: { requestId: string } }>("/account/deletion-requests", {
-      reason,
-    }),
+  requestDeletion: () =>
+    api.post<{ data: { requestId: string } }>("/account/deletion-requests"),
+  requests: () =>
+    api.get<{ data: Array<{ id: string; request_type: string; status: string; created_at: string; completed_at: string | null; deletion_due_at: string | null }> }>("/account/deletion-requests"),
 };
 
 export function requireApiMode<T>(

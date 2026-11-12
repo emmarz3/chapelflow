@@ -112,6 +112,10 @@ class PrayerRequest(models.Model):
         default=PrayerPrivacyLevel.PRIVATE,
         help_text="Who can view this prayer request"
     )
+    consent_to_share = models.BooleanField(
+        default=False,
+        help_text="Requester consent for pastoral staff to approve sharing prayer details with the branch community",
+    )
     # Legacy field for backward compatibility
     is_private = models.BooleanField(
         default=True, 

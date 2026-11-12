@@ -19,7 +19,8 @@ import {
 import { AnimatePresence, motion } from "framer-motion";
 import { useQuery } from "@tanstack/react-query";
 import { z } from "zod";
-import { Button, Field } from "../components/ui";
+import { Button, Field, LocalBrandImage } from "../components/ui";
+import { BRAND_ASSETS } from "../lib/brand-assets";
 import { PasswordStrength, defaultPasswordRules, eightCharacterPasswordRules, tenCharacterPasswordRules } from "../components/ui/password-strength";
 import { useAuthMotion, useReducedMotionPreference } from "../components/motion/motion-system";
 import { useCompletionAnimation } from "../components/motion/completion-animation";
@@ -37,7 +38,6 @@ const VIDEO_REGISTRY = {
   },
   register: {
     sources: ["/auth-videos/register/auth-register-1.mp4", "/auth-videos/register/auth-register-2.mp4"],
-    poster: "/chapelflow-auth-register-visual.png",
   },
 } as const;
 
@@ -124,87 +124,53 @@ export function AuthLayout({ children }: { children: React.ReactNode }) {
   const registration = location.pathname === "/register";
   const reducedMotion = useReducedMotionPreference();
   const [displayIndex, setDisplayIndex] = useState(0);
-  const [crossFade, setCrossFade] = useState({ current: 1, next: 0 });
+  const [videoFailed, setVideoFailed] = useState(false);
   const loginSet = VIDEO_REGISTRY.login;
   const registerSet = VIDEO_REGISTRY.register;
   const videoSet = registration ? registerSet : loginSet;
   const videos = videoSet.sources;
-  const poster = registration ? registerSet.poster : undefined;
 
   useAuthMotion(rootRef, location.pathname);
 
   useEffect(() => {
     setDisplayIndex(0);
-    setCrossFade({ current: 1, next: 0 });
+    setVideoFailed(false);
   }, [registration]);
 
-  useEffect(() => {
-    if (videos.length <= 1 || reducedMotion) return;
-    const timer = window.setInterval(() => {
-      setCrossFade({ current: 0, next: 1 });
-      setDisplayIndex((index) => (index + 1) % videos.length);
-      window.setTimeout(() => {
-        setCrossFade({ current: 1, next: 0 });
-      }, 800);
-    }, 8000);
-    return () => window.clearInterval(timer);
-  }, [videos.length, reducedMotion]);
-
   const currentVideo = videos[displayIndex];
-  const nextVideo = videos[(displayIndex + 1) % videos.length];
 
   return (
     <div className={`auth-layout auth-layout--${registration ? "register" : "login"}`} ref={rootRef}>
       <aside className="auth-visual">
-        {reducedMotion ? (
-          registration ? (
-            <img src={poster} className="auth-visual__poster" alt="" aria-hidden="true" />
-          ) : (
-            <div className="auth-visual__poster auth-visual__poster--static" aria-hidden="true" />
-          )
+        {(reducedMotion || videoFailed) ? (
+          <div className="auth-visual__poster auth-visual__poster--static" aria-hidden="true" />
         ) : (
-          <>
-            <video
-              className="auth-visual__video is-current"
-              src={currentVideo}
-              poster={poster}
-              autoPlay
-              loop
-              muted
-              playsInline
-              preload="metadata"
-              disableRemotePlayback
-              aria-hidden="true"
-              tabIndex={-1}
-              style={{ opacity: crossFade.current }}
-            />
-            {videos.length > 1 && (
-              <video
-                className="auth-visual__video is-next"
-                src={nextVideo}
-                poster={poster}
-                autoPlay
-                loop
-                muted
-                playsInline
-                preload="metadata"
-                disableRemotePlayback
-                aria-hidden="true"
-                tabIndex={-1}
-                style={{ opacity: crossFade.next }}
-              />
-            )}
-          </>
+          <video
+            key={`${registration}-${displayIndex}`}
+            className="auth-visual__video is-current"
+            src={currentVideo}
+            autoPlay
+            muted
+            playsInline
+            preload="metadata"
+            disableRemotePlayback
+            aria-hidden="true"
+            tabIndex={-1}
+            onEnded={() => setDisplayIndex((index) => (index + 1) % videos.length)}
+            onError={() => {
+              if (displayIndex + 1 < videos.length) setDisplayIndex(displayIndex + 1);
+              else setVideoFailed(true);
+            }}
+          />
         )}
         <div className="auth-visual__shade" />
         <div className="auth-visual__branding">
-          <img src="/chrisland-university-chapel.png" alt="Chrisland University Chapel" className="auth-visual__mark" />
           <span className="auth-visual__tagline">Nurturing faith. Shaping lives. Impacting Nigeria.</span>
         </div>
       </aside>
       <main className="auth-main">
         <div className="auth-main__brand">
-          <img src="/chrisland-university-chapel.png" alt="Chrisland University Chapel" />
+          <LocalBrandImage src={BRAND_ASSETS.institutionLogo} alt="Chrisland University Chapel" />
           <span>ChapelFlow</span>
         </div>
         <div className="auth-main__bar"><Link className="auth-back" to="/"><ArrowLeft size={17} /> Back to chapel website</Link><span><ShieldCheck size={15} /> Your information is secure</span></div>
@@ -216,7 +182,7 @@ export function AuthLayout({ children }: { children: React.ReactNode }) {
 }
 
 export function LoginPage() {
-  const { user, login, loading } = useAuth();
+  const { user, login, loading, authError } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const returnTo = new URLSearchParams(location.search).get("returnTo");
@@ -283,7 +249,8 @@ export function LoginPage() {
         <h1>Sign in to ChapelFlow</h1>
         <p>Access your chapel account and continue where you left off.</p>
       </div>
-      {reason === "expired" && (
+      {authError && <div className="inline-alert" role="alert">{authError}</div>}
+      {reason === "expired" && !authError && (
         <div className="inline-alert">
           Your session ended securely. Sign in to continue.
         </div>
@@ -627,9 +594,10 @@ export function RegisterPage() {
         >
           {step === 0 && (
             <div className="form-grid">
-              <label className="field field--full">
+              <label className="field field--full" htmlFor="registration-type">
                 <span>Registration type</span>
                 <select
+                  id="registration-type"
                   name="memberType"
                   value={memberType}
                   onChange={(event) => setMemberType(event.target.value)}

@@ -1,14 +1,10 @@
 .cf-intro {
-  --cf-deep-purple: #4c1798;
-  --cf-purple: #6d2dce;
-  --cf-indigo: #4b4fd8;
-  --cf-blue: #1685ee;
   position: fixed;
   z-index: 10000;
   inset: 0;
   overflow: hidden;
   background: #fff;
-  color: #111827;
+  color: #080b2d;
   isolation: isolate;
 }
 
@@ -16,276 +12,88 @@ body.cf-intro-active {
   overflow: hidden;
 }
 
-.cf-intro__visuals,
 .cf-intro__brand-scene,
-.cf-intro__constructed-lockup {
+.cf-intro__chapel-scene {
   position: absolute;
   inset: 0;
   display: grid;
   place-items: center;
+  visibility: hidden;
+  opacity: 0;
 }
 
-.cf-intro__glow {
-  position: absolute;
-  inset: -10%;
-  z-index: 0;
-  pointer-events: none;
-}
-
-.cf-intro__glow-ring {
-  position: absolute;
-  inset: 0;
-  opacity: 0.55;
-  animation: cf-intro-glow-pulse 2.6s ease-in-out infinite;
-}
-
-@keyframes cf-intro-glow-pulse {
-  0%,
-  100% {
-    opacity: 0.38;
-    transform: scale(0.94);
-  }
-  50% {
-    opacity: 0.78;
-    transform: scale(1.06);
-  }
-}
-
-.cf-intro__particles {
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  pointer-events: none;
-  overflow: hidden;
-}
-
-.cf-intro__particle {
-  position: absolute;
-  width: 3px;
-  height: 3px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, var(--cf-purple), var(--cf-blue));
-  filter: blur(0.4px);
-}
-
-.cf-intro__spark {
-  width: 2px;
-  height: 42px;
-  border-radius: 999px;
-  background: linear-gradient(180deg, transparent, var(--cf-purple), var(--cf-blue), transparent);
-  transform-origin: center;
-}
-
-.cf-intro__constructed-lockup {
-  align-content: center;
-  gap: 10px;
-  padding-bottom: 2vh;
-  position: relative;
-  z-index: 2;
+.cf-intro__brand-lockup {
+  display: grid;
+  justify-items: center;
+  gap: 7px;
+  padding: 24px;
 }
 
 .cf-intro__mark {
   width: clamp(172px, 18vw, 252px);
   overflow: visible;
-  filter: drop-shadow(0 22px 32px rgb(76 23 152 / 0.18));
-}
-
-.cf-intro__wordmark {
-  margin-top: -10px;
-  font-family: "DM Sans", system-ui, sans-serif;
-  font-size: clamp(48px, 6vw, 82px);
-  font-weight: 600;
-  line-height: 1;
-  white-space: nowrap;
-}
-
-.cf-intro__wordmark span {
-  color: #080b2d;
-}
-
-.cf-intro__wordmark strong {
-  color: transparent;
-  background: linear-gradient(105deg, var(--cf-purple), var(--cf-blue));
-  background-clip: text;
-  -webkit-background-clip: text;
-  font-weight: 600;
-}
-
-.cf-intro__official-logo {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: min(590px, 78vw);
-  max-width: none;
-  mix-blend-mode: multiply;
-  translate: -50% -50%;
-}
-
-.cf-intro__sweep {
-  position: absolute;
-  z-index: 4;
-  inset: 0;
-  overflow: hidden;
-}
-
-.cf-intro__sweep-layer {
-  position: absolute;
-  top: -24vh;
-  left: -24vw;
-  width: 150vw;
-  height: 145vh;
-  border-radius: 48% 52% 42% 58% / 63% 48% 52% 37%;
-  box-shadow: 0 -2px 0 rgb(255 255 255 / 0.08) inset;
-  will-change: transform;
-}
-
-.cf-intro__sweep span:nth-child(1) {
-  z-index: 1;
-  transform: scale(1.08);
-}
-
-.cf-intro__sweep span:nth-child(2) {
-  z-index: 2;
-  transform: scale(1.02);
-}
-
-.cf-intro__sweep span:nth-child(3) {
-  z-index: 3;
-  transform: scale(0.96);
-}
-
-.cf-intro__sweep span:nth-child(4) {
-  z-index: 4;
-  transform: scale(0.9);
-}
-
-.cf-intro__sweep--reverse .cf-intro__sweep-layer {
-  top: -14vh;
-  left: -16vw;
-  border-radius: 58% 42% 56% 44% / 43% 58% 42% 57%;
-}
-
-.cf-intro__institution {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-content: center;
-  justify-items: center;
-  gap: 18px;
-  padding: 28px;
-  text-align: center;
-}
-
-.cf-intro__institution-stage {
-  position: relative;
-  z-index: 2;
-  display: grid;
-  place-items: center;
-  gap: 18px;
-}
-
-.cf-intro__institution img {
-  width: min(470px, 76vw);
-  max-height: 240px;
-  object-fit: contain;
-  filter: drop-shadow(0 24px 40px rgba(15, 23, 42, 0.14));
-}
-
-.cf-intro__institution-rule {
-  display: block;
-  width: 52px;
-  height: 2px;
-  margin-top: -12px;
-  background: linear-gradient(90deg, var(--cf-purple), #f2a20c);
+  filter: drop-shadow(0 18px 28px rgb(76 23 152 / 0.15));
   transform-origin: center;
 }
 
-.cf-intro__institution p {
-  margin: 0;
-  color: #54475f;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
+.cf-intro__mark-fill {
+  transform-origin: center;
 }
 
-.cf-intro__institution-light {
+.cf-intro__wordmark {
+  margin: 0;
+  font: 600 clamp(48px, 6vw, 82px)/1 "DM Sans", system-ui, sans-serif;
+  letter-spacing: -0.055em;
+  white-space: nowrap;
+}
+
+.cf-intro__wordmark strong {
+  color: #5c22b4;
+  font-weight: 600;
+}
+
+.cf-intro__chapel-logo {
+  display: block;
+  width: min(76vw, 520px);
+  height: auto;
+  max-height: 52vh;
+  object-fit: contain;
+}
+
+.cf-intro__wipe {
   position: absolute;
+  z-index: 2;
   inset: 0;
-  z-index: 1;
+  background: #4c1798;
+  visibility: hidden;
   pointer-events: none;
-  background: radial-gradient(circle at 50% 38%, rgba(37, 99, 235, 0.12), transparent 55%),
-    radial-gradient(circle at 30% 70%, rgba(109, 45, 206, 0.1), transparent 55%);
-  filter: blur(18px);
 }
 
 .cf-intro__skip {
   position: absolute;
-  z-index: 8;
-  top: max(22px, env(safe-area-inset-top));
-  right: max(24px, env(safe-area-inset-right));
-  padding: 8px 2px;
-  border-bottom: 1px solid rgb(17 24 39 / 0.25);
-  color: #4b4650;
-  background: transparent;
-  font-size: 12px;
-  font-weight: 600;
+  z-index: 3;
+  top: max(20px, env(safe-area-inset-top));
+  right: max(22px, env(safe-area-inset-right));
+  padding: 9px 14px;
+  border: 1px solid #4c1798;
+  border-radius: 999px;
+  background: #fff;
+  color: #4c1798;
+  font: 600 12px/1.2 "DM Sans", system-ui, sans-serif;
   cursor: pointer;
 }
 
-.cf-intro--transitionToInstitution .cf-intro__skip {
-  color: #fff;
-  border-color: rgb(255 255 255 / 0.5);
+.cf-intro__skip:focus-visible {
+  outline: 3px solid #4c1798;
+  outline-offset: 4px;
 }
 
 @media (max-width: 600px) {
-  .cf-intro__constructed-lockup {
-    gap: 12px;
-    padding-bottom: 4vh;
-  }
-
-  .cf-intro__mark {
-    width: min(53vw, 210px);
-  }
-
-  .cf-intro__wordmark {
-    margin-top: -4px;
-    font-size: clamp(43px, 14vw, 60px);
-  }
-
-  .cf-intro__official-logo {
-    width: min(490px, 98vw);
-  }
-
-  .cf-intro__sweep-layer {
-    top: -12vh;
-    left: -70vw;
-    width: 240vw;
-    height: 126vh;
-  }
-
-  .cf-intro__institution img {
-    width: min(92vw, 420px);
-  }
-
-  .cf-intro__institution p {
-    max-width: 280px;
-    font-size: 10px;
-    letter-spacing: 0.15em;
-  }
+  .cf-intro__mark { width: min(53vw, 210px); }
+  .cf-intro__wordmark { font-size: clamp(43px, 14vw, 60px); }
+  .cf-intro__chapel-logo { width: min(92vw, 470px); }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .cf-intro__mark {
-    filter: none;
-  }
-
-  .cf-intro__sweep {
-    display: none;
-  }
-
-  .cf-intro__glow,
-  .cf-intro__particles {
-    display: none;
-  }
+  .cf-intro__mark { filter: none; }
 }

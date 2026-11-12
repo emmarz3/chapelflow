@@ -20,29 +20,55 @@ import {
 import {
   adminAttendanceService,
   securityService,
+  operationsService,
+  type AdminAttendanceSession,
 } from "../services/chapelflow";
 
 type Tab = "attendance" | "audit" | "security";
 
+function localDateTime(timestamp: number) {
+  const date = new Date(timestamp);
+  return new Date(timestamp - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
+}
+
+function sessionStatus(session: AdminAttendanceSession) {
+  if (!session.is_open || session.state === "CLOSED") return "closed";
+  if (session.state === "PAUSED") return "paused";
+  if (session.window_opens_at && new Date(session.window_opens_at).getTime() > Date.now()) return "scheduled";
+  if (session.window_closes_at && new Date(session.window_closes_at).getTime() < Date.now()) return "expired";
+  return "open";
+}
+
 export function AdminOperationsPage() {
   const [tab, setTab] = useState<Tab>("attendance");
+  const [selectedBranch, setSelectedBranch] = useState("");
+  const [sessionError, setSessionError] = useState("");
+  const [initialWindow] = useState(() => {
+    const now = Date.now();
+    return { opens: localDateTime(now), closes: localDateTime(now + 2 * 60 * 60_000) };
+  });
+  const branches = useQuery({
+    queryKey: ["admin-attendance", "branches"],
+    queryFn: async () => (await operationsService.list("branches", { pageSize: 100 })).data,
+  });
+  const branchId = selectedBranch || (branches.data?.length === 1 ? branches.data[0]!.id : "");
   const [correction, setCorrection] = useState<{
     id: string;
     status: string;
   } | null>(null);
   const client = useQueryClient();
   const sessions = useQuery({
-    queryKey: ["admin-attendance-sessions"],
+    queryKey: ["admin-attendance", "sessions"],
     queryFn: async () => (await adminAttendanceService.sessions()).data,
     enabled: tab === "attendance",
   });
   const records = useQuery({
-    queryKey: ["admin-attendance-records"],
+    queryKey: ["admin-attendance", "records"],
     queryFn: async () => (await adminAttendanceService.records()).data,
     enabled: tab === "attendance",
   });
   const attempts = useQuery({
-    queryKey: ["admin-scan-attempts"],
+    queryKey: ["admin-attendance", "scan-attempts"],
     queryFn: async () => (await adminAttendanceService.scanAttempts()).data,
     enabled: tab === "attendance",
   });
@@ -98,10 +124,23 @@ export function AdminOperationsPage() {
   function createSession(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
+    setSessionError("");
+    create.reset();
+    const opens = new Date(String(form.get("opens")));
+    const closes = new Date(String(form.get("closes")));
+    if (!branchId || !Number.isFinite(opens.getTime()) || !Number.isFinite(closes.getTime()) || closes <= opens) {
+      setSessionError("Select a chapel branch and a closing time after the opening time.");
+      return;
+    }
+    if (closes.getTime() <= Date.now()) {
+      setSessionError("The attendance closing time must be in the future.");
+      return;
+    }
     create.mutate({
+      branch: branchId,
       label: String(form.get("label")),
-      window_opens_at: new Date(String(form.get("opens"))).toISOString(),
-      window_closes_at: new Date(String(form.get("closes"))).toISOString(),
+      window_opens_at: opens.toISOString(),
+      window_closes_at: closes.toISOString(),
     });
   }
   function submitCorrection(event: FormEvent<HTMLFormElement>) {
@@ -150,26 +189,42 @@ export function AdminOperationsPage() {
             <form className="panel" onSubmit={createSession}>
               <div className="panel-heading">
                 <div>
-                  <h2>Open a service</h2>
+                  <h2>Start attendance</h2>
                   <p>Times are enforced by the server, not student devices.</p>
                 </div>
               </div>
+              <label className="field">
+                <span>Chapel branch</span>
+                <select required value={branchId} onChange={(event) => setSelectedBranch(event.target.value)} disabled={branches.isPending || branches.isError}>
+                  <option value="">Select a chapel branch</option>
+                  {branches.data?.map((branch) => <option key={branch.id} value={branch.id}>{branch.primary}</option>)}
+                </select>
+              </label>
+              {branches.isError && <ErrorState description={branches.error.message} onRetry={() => void branches.refetch()} />}
               <label className="field">
                 <span>Service name</span>
                 <input name="label" required placeholder="Sunday worship" />
               </label>
               <label className="field">
                 <span>Opens</span>
-                <input name="opens" type="datetime-local" required />
+                <input name="opens" type="datetime-local" defaultValue={initialWindow.opens} required />
               </label>
               <label className="field">
                 <span>Closes</span>
-                <input name="closes" type="datetime-local" required />
+                <input name="closes" type="datetime-local" defaultValue={initialWindow.closes} required />
               </label>
-              <Button type="submit" loading={create.isPending}>
-                Open attendance
+              <Button type="submit" loading={create.isPending} disabled={!branchId}>
+                Start attendance
               </Button>
               {create.isError && <p role="alert">{create.error.message}</p>}
+              {sessionError && <p role="alert">{sessionError}</p>}
+              {create.isSuccess && (
+                <p role="status">
+                  {create.variables?.window_opens_at && new Date(create.variables.window_opens_at).getTime() > Date.now()
+                    ? "Attendance scheduled. Check-ins will open at the selected start time."
+                    : "Attendance session started. Students can now check in."}
+                </p>
+              )}
             </form>
             <section className="panel">
               <div className="panel-heading">
@@ -198,20 +253,21 @@ export function AdminOperationsPage() {
                       </div>
                       <Badge
                         tone={
-                          session.state === "OPEN"
+                          sessionStatus(session) === "open"
                             ? "success"
-                            : session.state === "PAUSED"
+                            : sessionStatus(session) === "paused"
                               ? "warning"
                               : "neutral"
                         }
                       >
-                        {session.state.toLowerCase()}
+                        {sessionStatus(session)}
                       </Badge>
                       <span>
                         {session.state === "OPEN" && (
                           <Button
                             variant="ghost"
                             icon={<Pause />}
+                            disabled={transition.isPending}
                             onClick={() =>
                               transition.mutate({
                                 id: session.id,
@@ -226,6 +282,7 @@ export function AdminOperationsPage() {
                           <Button
                             variant="ghost"
                             icon={<Play />}
+                            disabled={transition.isPending}
                             onClick={() =>
                               transition.mutate({
                                 id: session.id,
@@ -240,6 +297,7 @@ export function AdminOperationsPage() {
                           <Button
                             variant="danger"
                             icon={<XCircle />}
+                            disabled={transition.isPending}
                             onClick={() =>
                               transition.mutate({
                                 id: session.id,
@@ -247,7 +305,7 @@ export function AdminOperationsPage() {
                               })
                             }
                           >
-                            Close
+                            Stop attendance
                           </Button>
                         )}
                       </span>
@@ -257,6 +315,12 @@ export function AdminOperationsPage() {
               ) : (
                 <p>No attendance services have been opened.</p>
               )}
+              {transition.isError && <p role="alert">{transition.error.message}</p>}
+              {transition.isSuccess && <p role="status">
+                {transition.variables.action === "close" ? "Attendance stopped. New QR check-ins are blocked."
+                  : transition.variables.action === "pause" ? "Attendance paused."
+                    : "Attendance resumed."}
+              </p>}
             </section>
           </section>
           <section className="table-panel">
@@ -273,6 +337,8 @@ export function AdminOperationsPage() {
             </header>
             {records.isPending ? (
               <LoadingState label="Loading attendance records" />
+            ) : records.isError ? (
+              <ErrorState description={records.error.message} onRetry={() => void records.refetch()} />
             ) : (
               <table>
                 <thead>
@@ -324,6 +390,8 @@ export function AdminOperationsPage() {
             </header>
             {attempts.isPending ? (
               <LoadingState label="Loading scan outcomes" />
+            ) : attempts.isError ? (
+              <ErrorState description={attempts.error.message} onRetry={() => void attempts.refetch()} />
             ) : (
               <table>
                 <thead>

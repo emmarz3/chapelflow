@@ -2,6 +2,7 @@ from django.contrib.auth import get_user_model
 from django.conf import settings
 from django.db import transaction
 import secrets
+from http.cookies import Morsel
 from django.contrib.auth.tokens import default_token_generator
 from django.utils.encoding import force_str
 from django.utils.http import urlsafe_base64_decode
@@ -49,24 +50,60 @@ CSRF_COOKIE = "chapelflow_csrf"
 
 
 def _auth_cookie_options():
-    secure = not settings.DEBUG
+    secure = not settings.DEBUG or _use_partitioned_local_cookies()
     return {
         "secure": secure,
         "samesite": "None" if secure else "Lax",
     }
 
 
+def _use_partitioned_local_cookies():
+    return (
+        settings.DEBUG
+        and getattr(settings, "CHAPELFLOW_LOCAL_EMBEDDED_PREVIEW", False)
+        and "partitioned" in Morsel._reserved
+    )
+
+
+def _partitioned_cookies_enabled():
+    return bool(
+        getattr(settings, "CHAPELFLOW_PARTITIONED_COOKIES", False)
+        or _use_partitioned_local_cookies()
+    )
+
+
+def _mark_partitioned_local_cookies(response):
+    if _partitioned_cookies_enabled():
+        # Python 3.12's http.cookies.Morsel does not register the CHIPS
+        # attribute by default. Register it so Set-Cookie emits Partitioned.
+        if "partitioned" not in Morsel._reserved:
+            Morsel._reserved["partitioned"] = "Partitioned"
+        if "partitioned" not in Morsel._flags:
+            Morsel._flags.add("partitioned")
+        for name in (ACCESS_COOKIE, REFRESH_COOKIE, CSRF_COOKIE):
+            if name in response.cookies:
+                response.cookies[name]["partitioned"] = True
+    return response
+
+
 def _set_auth_cookies(response, access, refresh):
-    """Keep browser credentials HttpOnly while preserving bearer-token API use."""
+    """Keep auth credentials HttpOnly and issue a JS-readable CSRF token."""
     cookie_options = _auth_cookie_options()
     common = {"httponly": True, "path": "/", **cookie_options}
     response.set_cookie(ACCESS_COOKIE, access, max_age=15 * 60, **common)
     response.set_cookie(REFRESH_COOKIE, refresh, max_age=7 * 24 * 60 * 60, **common)
+    csrf_token = secrets.token_urlsafe(32)
     response.set_cookie(
-        CSRF_COOKIE, secrets.token_urlsafe(32), max_age=7 * 24 * 60 * 60,
+        CSRF_COOKIE, csrf_token, max_age=7 * 24 * 60 * 60,
         httponly=False, path="/", **cookie_options,
     )
-    return response
+    # The SPA is hosted on a different Render origin and cannot read this
+    # API host's cookie. Returning the CSRF value in the JSON envelope lets
+    # it send the matching double-submit header without exposing auth tokens.
+    payload = getattr(response, "data", None)
+    if isinstance(payload, dict) and isinstance(payload.get("data"), dict):
+        payload["data"]["csrf_token"] = csrf_token
+    return _mark_partitioned_local_cookies(response)
 
 
 def _clear_auth_cookies(response):
@@ -74,7 +111,28 @@ def _clear_auth_cookies(response):
     response.delete_cookie(ACCESS_COOKIE, path="/", **cookie_options)
     response.delete_cookie(REFRESH_COOKIE, path="/", **cookie_options)
     response.delete_cookie(CSRF_COOKIE, path="/", **cookie_options)
-    return response
+    return _mark_partitioned_local_cookies(response)
+
+
+class CsrfTokenView(APIView):
+    """Bootstrap the CSRF double-submit token for the cross-origin SPA."""
+
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        token = request.COOKIES.get(CSRF_COOKIE) or secrets.token_urlsafe(32)
+        response = success_response({"csrf_token": token})
+        response.set_cookie(
+            CSRF_COOKIE,
+            token,
+            max_age=7 * 24 * 60 * 60,
+            httponly=False,
+            path="/",
+            **_auth_cookie_options(),
+        )
+        response["Cache-Control"] = "no-store"
+        return _mark_partitioned_local_cookies(response)
 
 
 class RegisterView(APIView):
@@ -360,6 +418,13 @@ class RefreshView(APIView):
     throttle_scope = "auth"
 
     def post(self, request):
+        # Browser cookie refreshes are cross-site on separate *.onrender.com
+        # hosts, so require the matching double-submit token as well.
+        if not request.data.get("refresh"):
+            csrf_cookie = request.COOKIES.get(CSRF_COOKIE, "")
+            csrf_header = request.headers.get("X-ChapelFlow-CSRF", "")
+            if not csrf_cookie or not csrf_header or csrf_cookie != csrf_header:
+                return error_response("CSRF verification failed.", status=403)
         refresh_token = request.data.get("refresh") or request.COOKIES.get(REFRESH_COOKIE)
         if not refresh_token:
             return error_response("Refresh token is required.", status=400)
@@ -427,7 +492,7 @@ class InstitutionalAccountListCreateView(APIView):
 
     def get(self, request):
         accounts = User.objects.exclude(role=Roles.SUPER_ADMIN).filter(
-            role__in=["CHAPLAIN", "STUDENT_CHAPLAIN", "UNIT_HEAD", "FELLOWSHIP_LEADER", "ATTENDANCE_USHER"]
+            role__in=["CHAPLAIN", "STUDENT_CHAPLAIN", "ASSISTANT_STUDENT_CHAPLAIN", "UNIT_HEAD", "FELLOWSHIP_LEADER", "HOSTEL_COORDINATOR", "ATTENDANCE_USHER"]
         ).select_related("branch", "institutional_group", "created_by").order_by("last_name", "first_name")
         query = request.query_params.get("search")
         if query:
@@ -456,7 +521,7 @@ class InstitutionalAccountDetailView(APIView):
 
     def _account(self, pk):
         return User.objects.exclude(role=Roles.SUPER_ADMIN).filter(
-            pk=pk, role__in=["CHAPLAIN", "STUDENT_CHAPLAIN", "UNIT_HEAD", "FELLOWSHIP_LEADER", "ATTENDANCE_USHER"],
+            pk=pk, role__in=["CHAPLAIN", "STUDENT_CHAPLAIN", "ASSISTANT_STUDENT_CHAPLAIN", "UNIT_HEAD", "FELLOWSHIP_LEADER", "HOSTEL_COORDINATOR", "ATTENDANCE_USHER"],
         ).first()
 
     def get(self, request, pk):

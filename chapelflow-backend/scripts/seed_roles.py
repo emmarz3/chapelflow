@@ -25,6 +25,7 @@ ROLE_GRANTS = {
     Roles.CHAPEL_ADMIN: [
         PermissionCodes.MEMBERS_VIEW, PermissionCodes.MEMBERS_CREATE, PermissionCodes.MEMBERS_UPDATE,
         PermissionCodes.MEMBERS_DELETE, PermissionCodes.MEMBERS_IMPORT,
+        PermissionCodes.GROUPS_VIEW, PermissionCodes.GROUPS_MANAGE_MEMBERS,
         PermissionCodes.ATTENDANCE_VIEW, PermissionCodes.ATTENDANCE_CREATE, PermissionCodes.ATTENDANCE_EXPORT,
         PermissionCodes.EVENTS_VIEW, PermissionCodes.EVENTS_CREATE, PermissionCodes.EVENTS_UPDATE, PermissionCodes.EVENTS_DELETE,
         PermissionCodes.REPORTS_VIEW, PermissionCodes.REPORTS_EXPORT,
@@ -45,6 +46,7 @@ ROLE_GRANTS = {
     ],
     Roles.CHAPLAIN: [
         PermissionCodes.MEMBERS_VIEW,
+        PermissionCodes.VOLUNTEERS_VIEW,
         PermissionCodes.ATTENDANCE_VIEW,
         PermissionCodes.EVENTS_VIEW,
         PermissionCodes.GROUPS_VIEW, PermissionCodes.GROUPS_MANAGE_MEMBERS,

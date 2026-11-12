@@ -13,8 +13,8 @@ Privacy considerations:
 - No pastoral case details in notification body
 """
 
-from apps.notifications.models import Notification, NotificationChannel
-from apps.notifications.tasks import deliver_notification
+from apps.notifications.models import NotificationCategory, NotificationChannel
+from apps.notifications.preferences import queue_notification
 
 
 def notify_case_assigned(pastoral_case, assigned_to_user):
@@ -29,8 +29,9 @@ def notify_case_assigned(pastoral_case, assigned_to_user):
     
     member_name = pastoral_case.member.full_name if pastoral_case.member else "Unknown"
     
-    notification = Notification.objects.create(
+    notification = queue_notification(
         recipient=assigned_to_user,
+        category=NotificationCategory.ADMIN_ALERT,
         channel=NotificationChannel.EMAIL,
         title=f"Pastoral Case Assigned: {pastoral_case.category}",
         body=(
@@ -42,7 +43,7 @@ def notify_case_assigned(pastoral_case, assigned_to_user):
         )
     )
     
-    deliver_notification.delay(str(notification.id))
+    return notification
 
 
 def notify_case_escalated(pastoral_case, escalated_by_user):
@@ -59,19 +60,20 @@ def notify_case_escalated(pastoral_case, escalated_by_user):
     # Find recipients: chaplains and super admins in same branch
     recipients = User.objects.filter(
         branch=pastoral_case.branch,
-        role__in=[Roles.CHAPLAIN, Roles.SENIOR_PASTOR, Roles.SUPER_ADMIN],
+        role__in=[Roles.CHAPLAIN, Roles.PASTOR, Roles.SUPER_ADMIN],
         is_active=True
     ).exclude(id=escalated_by_user.id if escalated_by_user else None)
     
     member_name = pastoral_case.member.full_name if pastoral_case.member else "Unknown"
-    escalated_by_name = escalated_by_user.get_full_name() if escalated_by_user else "Unknown"
+    escalated_by_name = escalated_by_user.full_name if escalated_by_user else "Unknown"
     
     for recipient in recipients:
         if not recipient.email:
             continue
         
-        notification = Notification.objects.create(
+        queue_notification(
             recipient=recipient,
+            category=NotificationCategory.ADMIN_ALERT,
             channel=NotificationChannel.EMAIL,
             title=f"⚠️ Pastoral Case Escalated: {pastoral_case.category}",
             body=(
@@ -85,7 +87,6 @@ def notify_case_escalated(pastoral_case, escalated_by_user):
             )
         )
         
-        deliver_notification.delay(str(notification.id))
 
 
 def notify_case_closed(pastoral_case, closed_by_user):
@@ -100,9 +101,10 @@ def notify_case_closed(pastoral_case, closed_by_user):
     
     # Notify member (privacy-safe: just confirmation, no details)
     if pastoral_case.member and pastoral_case.member.user and pastoral_case.member.user.email:
-        member_notification = Notification.objects.create(
+        member_notification = queue_notification(
             recipient=pastoral_case.member.user,
             recipient_member=pastoral_case.member,
+            category=NotificationCategory.ADMIN_ALERT,
             channel=NotificationChannel.EMAIL,
             title="Pastoral Care Follow-Up Complete",
             body=(
@@ -115,28 +117,29 @@ def notify_case_closed(pastoral_case, closed_by_user):
                 f"ChapelFlow Pastoral Team"
             )
         )
-        deliver_notification.delay(str(member_notification.id))
-        notifications_sent.append(member_notification)
+        if member_notification:
+            notifications_sent.append(member_notification)
     
     # Notify assigned chaplain (confirmation)
     if pastoral_case.assigned_to and pastoral_case.assigned_to.email:
         if closed_by_user and pastoral_case.assigned_to.id != closed_by_user.id:
             # Only notify if someone else closed it
-            chaplain_notification = Notification.objects.create(
+            chaplain_notification = queue_notification(
                 recipient=pastoral_case.assigned_to,
+                category=NotificationCategory.ADMIN_ALERT,
                 channel=NotificationChannel.EMAIL,
                 title=f"Pastoral Case Closed: {pastoral_case.category}",
                 body=(
                     f"A pastoral case assigned to you has been closed.\n\n"
                     f"Member: {pastoral_case.member.full_name if pastoral_case.member else 'Unknown'}\n"
                     f"Category: {pastoral_case.category}\n"
-                    f"Closed by: {closed_by_user.get_full_name() if closed_by_user else 'Unknown'}\n"
+                    f"Closed by: {closed_by_user.full_name if closed_by_user else 'Unknown'}\n"
                     f"Reason: {pastoral_case.closure_reason or 'Not specified'}\n\n"
                     f"Log in to ChapelFlow to view the complete case history."
                 )
             )
-            deliver_notification.delay(str(chaplain_notification.id))
-            notifications_sent.append(chaplain_notification)
+            if chaplain_notification:
+                notifications_sent.append(chaplain_notification)
     
     return notifications_sent
 
@@ -152,8 +155,9 @@ def notify_follow_up_due(pastoral_case):
     
     member_name = pastoral_case.member.full_name if pastoral_case.member else "Unknown"
     
-    notification = Notification.objects.create(
+    notification = queue_notification(
         recipient=pastoral_case.assigned_to,
+        category=NotificationCategory.ADMIN_ALERT,
         channel=NotificationChannel.EMAIL,
         title=f"📅 Follow-Up Due: {pastoral_case.category}",
         body=(
@@ -166,7 +170,7 @@ def notify_follow_up_due(pastoral_case):
         )
     )
     
-    deliver_notification.delay(str(notification.id))
+    return notification
 
 
 def notify_urgent_case_created(pastoral_case, created_by_user):
@@ -184,19 +188,20 @@ def notify_urgent_case_created(pastoral_case, created_by_user):
     # Find all pastoral staff in same branch
     recipients = User.objects.filter(
         branch=pastoral_case.branch,
-        role__in=[Roles.CHAPLAIN, Roles.SENIOR_PASTOR],
+        role__in=[Roles.CHAPLAIN, Roles.PASTOR],
         is_active=True
     )
     
     member_name = pastoral_case.member.full_name if pastoral_case.member else "Unknown"
-    created_by_name = created_by_user.get_full_name() if created_by_user else "Unknown"
+    created_by_name = created_by_user.full_name if created_by_user else "Unknown"
     
     for recipient in recipients:
         if not recipient.email:
             continue
         
-        notification = Notification.objects.create(
+        queue_notification(
             recipient=recipient,
+            category=NotificationCategory.ADMIN_ALERT,
             channel=NotificationChannel.EMAIL,
             title=f"🚨 URGENT Pastoral Case: {pastoral_case.category}",
             body=(
@@ -207,5 +212,3 @@ def notify_urgent_case_created(pastoral_case, created_by_user):
                 f"Please log in to ChapelFlow immediately to review and assign this case."
             )
         )
-        
-        deliver_notification.delay(str(notification.id))

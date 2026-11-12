@@ -87,6 +87,7 @@ def run_report_job(self, job_id):
                 output,
                 filename=f"reports/{job.report_type.lower()}_{job.id}.{extension}",
                 content_type=content_type,
+                private=True,
             )
 
         job.file_url = file_url

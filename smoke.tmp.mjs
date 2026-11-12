@@ -1,0 +1,10 @@
+﻿import { chromium } from "playwright-core";
+console.log("launching...");
+const browser = await chromium.launch();
+console.log("launched");
+const page = await browser.newPage();
+await page.goto("http://localhost:3001/login", { waitUntil: "domcontentloaded", timeout: 30000 });
+console.log("title:", await page.title());
+console.log("url:", page.url());
+await browser.close();
+console.log("done");
