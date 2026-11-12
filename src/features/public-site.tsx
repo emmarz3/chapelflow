@@ -28,7 +28,7 @@ import {
   BookOpen,
   GraduationCap,
 } from "lucide-react";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "./auth-context";
@@ -325,48 +325,91 @@ function DemoHomePage() {
     .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`));
   return (
     <div className="cuc-home">
-      <NextGathering events={upcomingEvents} loading={eventsQuery.isPending} failed={eventsQuery.isError} />
       <section className="cuc-home__hero">
         <div className="cuc-home__hero-copy">
           <p className="cuc-home__eyebrow">Chrisland University Chapel</p>
           <h1>Where faith becomes <em>community.</em></h1>
           <p className="cuc-home__lede">One beautiful place to worship, belong, grow, and stay connected to chapel life at CUC.</p>
           <div className="cuc-home__actions">
-            {!loading && <Link className="button button--primary" to={user ? "/app" : "/register"}>{user ? "Open your dashboard" : "Create your ChapelFlow account"} <ArrowRight size={18} /></Link>}
-            <Link className="button button--ghost" to="/about">Explore ChapelFlow</Link>
+            <Link className="button button--primary" to="/service-times">Plan your visit <ArrowRight size={18} /></Link>
+            {!loading && <Link className="button button--ghost" to={user ? "/app" : "/login"}>Open ChapelFlow</Link>}
           </div>
         </div>
         <HomeHeroSlideshow />
       </section>
+      <section className="cuc-home__worship" aria-labelledby="cuc-home-worship-title">
+        <div>
+          <p className="cuc-home__eyebrow">Worship with us</p>
+          <h2 id="cuc-home-worship-title">You are welcome at the chapel.</h2>
+          <p>Join us for worship, prayer and fellowship. Check the chapel's current service information before you visit.</p>
+        </div>
+        <Link className="cuc-home__service-link" to="/service-times">
+          <span><small>Service times and venues</small><strong>Plan your visit</strong><em>View the latest published schedule</em></span>
+          <ArrowRight aria-hidden="true" />
+        </Link>
+        <p className="cuc-home__schedule-note">Schedule details are awaiting chapel confirmation.</p>
+      </section>
       <section className="cuc-home__belonging">
         <div>
-          <p className="cuc-home__eyebrow">One chapel · one community · one flow</p>
-          <h2>A richer campus life, rooted in purpose.</h2>
-          <p>ChapelFlow is the digital home for worship, fellowship, service, and spiritual growth at Chrisland University Chapel.</p>
-          <p className="cuc-home__quote">“Faith is lived best when it is lived together.”</p>
+          <p className="cuc-home__eyebrow">Who we are</p>
+          <h2>About the Chapel</h2>
+          <p>Chrisland University Chapel is the spiritual heart of campus: a community where faith and academic excellence grow together.</p>
+          <blockquote className="cuc-home__quote">“The intensification of worship is an inner Godward experience of the heart, and the act of serving God is a consistent expression of allegiance to Him.”</blockquote>
+          <p className="cuc-home__about-detail">At CUC, we come together as one family in God for electrifying moments of worship, the undiluted Word of God, fervent prayers, and refreshing programmes.</p>
         </div>
         <div className="cuc-home__photo-rail" role="img" aria-label="Students sharing a joyful moment at Chrisland University Chapel, shown as a three-panel photograph">
           <span aria-hidden="true" /><span aria-hidden="true" /><span aria-hidden="true" />
         </div>
         <div className="cuc-home__pillars">
-          {[['Worship together', 'Services and shared moments'], ['Belong deeply', 'Units and fellowships'], ['Grow in faith', 'Sermons and resources'], ['Serve with purpose', 'Community and leadership']].map(([title, detail]) => <article key={title}><strong>{title}</strong><span>{detail}</span></article>)}
+          <article><h3>Our Role</h3><p>Nurturing the spiritual life of students, staff, and faculty through worship, teaching, and pastoral care.</p></article>
+          <article><h3>Our Impact</h3><p>Shaping character, building lasting friendships, and sending graduates into the world with purpose.</p></article>
+          <article><h3>Our Programs</h3><p>Weekly services, fellowships, church units, outreach, counselling, and special events through the year.</p><Link to="/events">See programs &amp; upcoming events <ArrowRight size={16} aria-hidden="true" /></Link></article>
         </div>
       </section>
-      <section className="cuc-home__attendance">
+      <section className="cuc-home__chaplain" aria-labelledby="cuc-home-chaplain-title">
+        <div className="cuc-home__chaplain-photo"><img src="/chaplain.jpg" alt="Portrait of the University Chaplain" loading="lazy" /></div>
         <div>
-          <p className="cuc-home__eyebrow">Secure chapel attendance</p>
-          <h2>Present in the moment.<br />Confirmed in seconds.</h2>
-          <p>Students scan the official QR shown by an authorized usher. Every live code refreshes automatically and one attendance record is kept for each service.</p>
-          <ol><li><span>01</span> Official usher QR</li><li><span>02</span> Rotates every 45 seconds</li><li><span>03</span> Scan with ChapelFlow</li><li><span>04</span> One attendance per service</li></ol>
+          <p className="cuc-home__eyebrow">Pastoral leadership</p>
+          <h2 id="cuc-home-chaplain-title">Meet the Chaplain</h2>
+          <p>Learn about the chapel's pastoral leadership and the people who guide our community.</p>
+          <blockquote className="cuc-home__chaplain-quote">
+            <p>Sharing the core values of Chrisland University Chapel means more than preaching or organising programmes; it is about living out the message of Christ daily and encouraging others to do the same. Through the commitment to raising godly morals and instilling spiritual values, the Chapel remains a beacon of hope and a catalyst for change in the lives of students, shaping them into leaders who fear God, serve humanity, and transform the world.</p>
+            <footer><cite>Rev. Canon Oluwajuwonlo Onasanya</cite><span>University Chaplain</span></footer>
+          </blockquote>
+          <Link to="/leadership">Read profile <ArrowRight size={17} /></Link>
         </div>
-        <div className="cuc-home__attendance-art">
-          <AttendanceProcessIllustration />
+      </section>
+      <section className="cuc-home__growth" aria-labelledby="cuc-home-growth-title">
+        <div className="cuc-home__growth-inner">
+          <div><p className="cuc-home__eyebrow">Life at the chapel</p><h2 id="cuc-home-growth-title">Belonging, Purpose <em>&amp;</em> Growth</h2></div>
+          <div className="cuc-home__growth-list">
+            <article><h3>Belonging &amp; Support</h3><p>Every student finds a family here: people who pray with you, walk with you, and cheer you on.</p></article>
+            <article><h3>Visionary Mandate</h3><p>Raising a generation grounded in faith, excellence, and service to God and humanity.</p></article>
+            <article><h3>Community Expansion</h3><p>Reaching beyond the campus walls to serve our neighbours and grow the fellowship.</p></article>
+          </div>
         </div>
+      </section>
+      <section className="cuc-home__university" aria-labelledby="cuc-home-university-title">
+        <header><p className="cuc-home__eyebrow">Chrisland University</p><h2 id="cuc-home-university-title">The university we serve.</h2></header>
+        <div className="cuc-home__university-statements">
+          <article><span>Where we are going</span><h3>Our Vision</h3><p>To become a world-class university renowned for intellectual freedom, ethical standards, research, community service and the outstanding training of a new generation of leaders.</p></article>
+          <article><span>Why we exist</span><h3>Our Mission</h3><p>To create a learning environment that nurtures a sound moral and intellectual culture that attracts an excellent blend of faculty from across the world and deploys resources to educate the total person.</p></article>
+        </div>
+      </section>
+      <section className="cuc-home__fellowships" aria-labelledby="cuc-home-fellowships-title">
+        <div>
+          <p className="cuc-home__eyebrow">Find your people</p>
+          <h2 id="cuc-home-fellowships-title">Fellowships and units</h2>
+          <p>Whether you want to worship, welcome, create, pray or serve, there is room to take part in chapel life.</p>
+        </div>
+        {!loading && <Link className="button button--primary" to={user ? "/app/join-community" : "/register"}>{user ? "Explore communities" : "Join the chapel community"} <ArrowRight size={17} /></Link>}
       </section>
       <section className="cuc-home__programmes">
-        <p className="cuc-home__eyebrow">Upcoming programmes</p>
+        <NextGathering events={upcomingEvents} loading={eventsQuery.isPending} failed={eventsQuery.isError} />
+        <p className="cuc-home__eyebrow">What's on</p>
         <div className="cuc-home__section-head"><h2>Moments worth showing up for.</h2><Link to="/events">See all programmes <ArrowRight size={17} /></Link></div>
         <HomepageCalendar events={upcomingEvents} loading={eventsQuery.isPending} failed={eventsQuery.isError} />
+        <div className="cuc-home__media-links"><Link to="/gallery">Explore the chapel gallery <ArrowRight size={16} /></Link><Link to="/sermons">Listen to a sermon <ArrowRight size={16} /></Link><Link to="/giving">Support chapel life <ArrowRight size={16} /></Link></div>
       </section>
       <section className="cuc-home__gallery-entry">
         <div><p className="cuc-home__eyebrow">Chapel gallery</p><h2>Keep the moments close.</h2><p>Browse photographs and videos from worship, fellowship, service, and the life of the chapel.</p></div>
@@ -376,9 +419,18 @@ function DemoHomePage() {
         <div className="cuc-home__wisdom-image"><img src="/chaplain-sermon.jpg" alt="The Chaplain preaching at Chrisland University Chapel" /></div>
         <div className="cuc-home__sermons-link"><p className="cuc-home__eyebrow">Sermons and media</p><h2>Wisdom for the journey.</h2><p>Watch messages and teaching shared by the Chaplain.</p><Link className="button button--primary" to="/sermons">Explore sermons <ArrowRight size={17} /></Link></div>
       </section>
+      <section className="cuc-home__attendance cuc-home__attendance--compact">
+        <div>
+          <p className="cuc-home__eyebrow">For students</p>
+          <h2>Check in and stay connected.</h2>
+          <p>Use ChapelFlow to scan the official usher QR code for attendance, then keep up with your chapel activity in your student account.</p>
+          {!loading && <Link className="button button--primary" to={user ? "/app/chapel-pass" : "/login"}>{user ? "Open attendance pass" : "Sign in to ChapelFlow"} <ArrowRight size={17} /></Link>}
+        </div>
+        <div className="cuc-home__attendance-art"><AttendanceProcessIllustration /></div>
+      </section>
       <section className="cuc-home__closing">
         <div className="cuc-home__closing-content">
-          <div className="cuc-home__closing-copy"><p className="cuc-home__eyebrow">Chrisland University Chapel</p><h2>Stay connected to everything happening at CUC.</h2><p>Join ChapelFlow and become part of a growing community of faith, purpose, and impact.</p>{!loading && <Link className="button button--primary" to={user ? "/app" : "/register"}>{user ? "Open your dashboard" : "Join the chapel community"} <ArrowRight size={18} /></Link>}</div>
+          <div className="cuc-home__closing-copy"><p className="cuc-home__eyebrow">Chrisland University Chapel</p><h2>Stay connected to everything happening at CUC.</h2><p>Join ChapelFlow and become part of a growing community of faith, purpose, and impact.</p><div className="cuc-home__closing-actions">{!loading && <Link className="button button--primary" to={user ? "/app" : "/register"}>{user ? "Open your dashboard" : "Join the chapel community"} <ArrowRight size={18} /></Link>}<Link className="button button--ghost" to="/contact">Contact the chapel</Link></div></div>
           <div className="cuc-home__closing-media"><video className="cuc-home__closing-video" autoPlay muted loop playsInline preload="metadata" aria-hidden="true" tabIndex={-1}><source src="/you-are-blessed.mp4" type="video/mp4" /></video></div>
         </div>
       </section>
@@ -456,11 +508,54 @@ const HOME_HERO_SLIDES = [
 
 function HomeHeroSlideshow() {
   const [activeIndex, setActiveIndex] = useState(0);
+  const [outgoingIndex, setOutgoingIndex] = useState<number | null>(null);
+  const [readyIndex, setReadyIndex] = useState<number | null>(null);
   const [paused, setPaused] = useState(false);
   const [hovered, setHovered] = useState(false);
   const [focused, setFocused] = useState(false);
   const [reducedMotion, setReducedMotion] = useState(false);
+  const activeIndexRef = useRef(0);
+  const pendingIndexRef = useRef<number | null>(null);
+  const requestRef = useRef(0);
+  const preloadRef = useRef<HTMLImageElement | null>(null);
+  const fadeTimerRef = useRef<number | null>(null);
   const shouldPause = paused || hovered || focused || reducedMotion;
+
+  const goTo = useCallback((index: number) => {
+    const target = (index + HOME_HERO_SLIDES.length) % HOME_HERO_SLIDES.length;
+    if (target === activeIndexRef.current || target === pendingIndexRef.current) return;
+    const slide = HOME_HERO_SLIDES[target];
+    if (!slide) return;
+    const request = ++requestRef.current;
+    pendingIndexRef.current = target;
+    if (preloadRef.current) preloadRef.current.onload = preloadRef.current.onerror = null;
+    const image = new Image();
+    preloadRef.current = image;
+    let settled = false;
+    const show = () => {
+      if (settled || request !== requestRef.current) return;
+      settled = true;
+      image.onload = image.onerror = null;
+      pendingIndexRef.current = null;
+      const previous = activeIndexRef.current;
+      activeIndexRef.current = target;
+      setOutgoingIndex(previous);
+      setReadyIndex(target);
+      setActiveIndex(target);
+      if (fadeTimerRef.current !== null) window.clearTimeout(fadeTimerRef.current);
+      fadeTimerRef.current = window.setTimeout(() => setOutgoingIndex(null), 900);
+    };
+    image.onload = show;
+    image.onerror = () => { if (request === requestRef.current) pendingIndexRef.current = null; };
+    image.src = slide.src;
+    if (image.complete && image.naturalWidth > 0) show();
+  }, []);
+
+  useEffect(() => () => {
+    requestRef.current += 1;
+    if (preloadRef.current) preloadRef.current.onload = preloadRef.current.onerror = null;
+    if (fadeTimerRef.current !== null) window.clearTimeout(fadeTimerRef.current);
+  }, []);
 
   useEffect(() => {
     const query = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -472,21 +567,26 @@ function HomeHeroSlideshow() {
 
   useEffect(() => {
     if (shouldPause) return;
-    const timer = window.setInterval(() => setActiveIndex((index) => (index + 1) % HOME_HERO_SLIDES.length), 5600);
+    const timer = window.setInterval(() => goTo(activeIndexRef.current + 1), 5600);
     return () => window.clearInterval(timer);
-  }, [shouldPause]);
+  }, [goTo, shouldPause]);
 
-  const goTo = (index: number) => setActiveIndex((index + HOME_HERO_SLIDES.length) % HOME_HERO_SLIDES.length);
   const visibleSlideIndices = Array.from(
     { length: Math.min(5, HOME_HERO_SLIDES.length) },
     (_, position) => (activeIndex + position - 2 + HOME_HERO_SLIDES.length) % HOME_HERO_SLIDES.length,
   );
+  const shownIndices = outgoingIndex !== null && outgoingIndex !== activeIndex
+    ? [outgoingIndex, activeIndex]
+    : [activeIndex];
 
   return (
     <figure className="cuc-home__hero-image" role="region" aria-roledescription="carousel" aria-label="Chrisland University Chapel photos" onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)} onFocus={() => setFocused(true)} onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setFocused(false); }}>
-      {HOME_HERO_SLIDES.map((slide, index) => (
-        <img key={slide.src} className={`cuc-home__hero-slide${index === activeIndex ? " is-active" : ""}`} src={index === activeIndex || index === (activeIndex + 1) % HOME_HERO_SLIDES.length ? slide.src : undefined} alt={index === activeIndex ? slide.alt : ""} aria-hidden={index !== activeIndex} fetchPriority={index === activeIndex ? "high" : "auto"} decoding="async" />
-      ))}
+      {shownIndices.map((index) => {
+        const slide = HOME_HERO_SLIDES[index];
+        if (!slide) return null;
+        const active = index === activeIndex;
+        return <img key={slide.src} className={`cuc-home__hero-slide${active ? ` is-active${readyIndex === index ? " is-ready" : ""}` : " is-outgoing"}`} src={slide.src} alt={active ? slide.alt : ""} aria-hidden={!active} fetchPriority={active ? "high" : "auto"} decoding="async" onLoad={() => { if (activeIndexRef.current === index) setReadyIndex(index); }} onError={() => { if (active) goTo(index + 1); }} />;
+      })}
       <div className="cuc-home__hero-controls" role="group" aria-label="Slideshow controls">
         <button type="button" aria-label="Previous image" onClick={() => goTo(activeIndex - 1)}><ChevronLeft size={16} /></button>
         <button type="button" aria-label={paused ? "Play slideshow" : "Pause slideshow"} aria-pressed={paused} onClick={() => setPaused((value) => !value)}>{paused ? <Play size={15} /> : <Pause size={15} />}</button>

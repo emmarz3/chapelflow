@@ -3,38 +3,27 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#4d277b" />
-    <link rel="icon" type="image/png" href="/chrisland-university-chapel.png" />
+    <meta name="theme-color" content="#4c1798" />
+    <link rel="icon" type="image/svg+xml" href="/chrisland-university-chapel-logo.svg" />
     <meta
       name="description"
       content="ChapelFlow — the digital chapel platform for Chrisland University Chapel, Abeokuta."
     />
-    <link rel="preload" as="image" href="/chapelflow-brand.jpg" />
-    <link rel="preload" as="image" href="/chrisland-university-chapel.png" />
     <style>
-      html.cf-intro-pending body { background: #fff; }
-      html.cf-intro-pending #root { visibility: hidden; }
+      html[data-intro-entry="true"],
+      html[data-intro-entry="true"] body { background: #fff; }
     </style>
     <script>
       (() => {
         try {
-          const privateEntry = ["/app", "/kiosk", "/usher"].some((prefix) =>
-            window.location.pathname.startsWith(prefix),
-          );
-          const shouldReplayHome = window.location.pathname === "/";
-          if (
-            !privateEntry &&
-            (shouldReplayHome || sessionStorage.getItem("chapelflow:intro-seen") !== "1")
-          ) {
-            document.documentElement.classList.add("cf-intro-pending");
-            window.setTimeout(
-              () => document.documentElement.classList.remove("cf-intro-pending"),
-              3000,
-            );
-          }
-        } catch {
-          document.documentElement.classList.remove("cf-intro-pending");
-        }
+          document.documentElement.dataset.theme = localStorage.getItem("chapelflow-theme") === "dark" ? "dark" : "light";
+        } catch { /* The default light theme remains available without storage. */ }
+        if (location.pathname !== "/") return;
+        let seen = false;
+        try { seen = sessionStorage.getItem("chapelflow:intro-seen") === "1"; }
+        catch { /* Storage can be unavailable; the intro still runs. */ }
+        if (seen) return;
+        document.documentElement.dataset.introEntry = "true";
       })();
     </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />

@@ -45,3 +45,55 @@ test("registration first step stays within a narrow mobile viewport", async ({
   await expect(page.getByRole("heading", { name: /create your chapelflow account/i })).toBeVisible();
   await expect(page.getByRole("button", { name: /continue/i })).toBeVisible();
 });
+
+test("service, contact, and protected routes open directly without transition overlays", async ({ page }) => {
+  for (const route of ["/service-times", "/contact", "/login"]) {
+    await page.goto(route, { waitUntil: "domcontentloaded" });
+    await expect(page.locator(".cf-intro, .route-motion-wave")).toHaveCount(0);
+    await expect(page.locator("main").first()).toBeVisible();
+  }
+  await page.goto("/app", { waitUntil: "domcontentloaded" });
+  await expect(page.locator(".cf-intro, .route-motion-wave")).toHaveCount(0);
+  await expect(page).toHaveURL(/\/login(?:\?|$)/);
+});
+
+test("signed-in member opens the dashboard without a public intro", async ({ page }) => {
+  await page.addInitScript(() => sessionStorage.setItem("chapelflow-demo-role", "member"));
+  await page.goto("/app", { waitUntil: "domcontentloaded" });
+  await expect(page).toHaveURL(/\/app(?:\/|$)/);
+  await expect(page.locator(".cf-intro, .route-motion-wave")).toHaveCount(0);
+});
+
+test("chapel story and university statements fit the mobile homepage", async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.goto("/", { waitUntil: "domcontentloaded" });
+  await expect(page.getByRole("heading", { name: "Our Role" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Belonging, Purpose & Growth" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Our Vision" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Our Mission" })).toBeVisible();
+  await expect(page.getByText("Rev. Canon Oluwajuwonlo Onasanya")).toBeVisible();
+  await expect(page.getByRole("link", { name: /see programs & upcoming events/i })).toHaveAttribute("href", "/events");
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(376);
+});
+
+test("saved dark theme keeps homepage and auth text readable", async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("chapelflow-theme", "dark"));
+  await page.goto("/login", { waitUntil: "domcontentloaded" });
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await expect(page.locator(".auth-heading h1")).toHaveCSS("color", "rgb(245, 241, 247)");
+  await expect(page.locator(".auth-card label").first()).toHaveCSS("color", "rgb(245, 241, 247)");
+  await expect(page.locator(".auth-card input").first()).toHaveCSS("background-color", "rgb(48, 41, 56)");
+
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.goto("/register", { waitUntil: "domcontentloaded" });
+  await expect(page.locator(".auth-heading h1")).toBeVisible();
+  await expect(page.locator(".auth-card label").first()).toBeVisible();
+  await expect(page.locator(".auth-heading h1")).toHaveCSS("color", "rgb(245, 241, 247)");
+  await expect(page.locator(".auth-card label").first()).toHaveCSS("color", "rgb(245, 241, 247)");
+  await expect.poll(() => page.locator(".auth-card form").evaluate((element) => Number(getComputedStyle(element).opacity))).toBeGreaterThan(0.99);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(376);
+
+  await page.goto("/", { waitUntil: "domcontentloaded" });
+  await expect(page.locator(".cuc-home__pillars h3").first()).toHaveCSS("color", "rgb(245, 241, 247)");
+  await expect(page.locator(".cuc-home__university h2")).toHaveCSS("color", "rgb(245, 241, 247)");
+});

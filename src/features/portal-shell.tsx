@@ -31,11 +31,10 @@ import {
   WifiOff,
   X,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, NavLink, Navigate, Outlet, useLocation } from "react-router-dom";
 import { Brand, Modal } from "../components/ui";
-import { usePortalMotion } from "../components/motion/motion-system";
 import { hasPermission, useAuth } from "./auth-context";
 import { isDemoMode } from "../lib/fixtures";
 import {
@@ -352,8 +351,6 @@ export function PortalShell() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
-  const sidebarRef = useRef<HTMLElement>(null);
-  const contentRef = useRef<HTMLElement>(null);
   const [theme, setTheme] = useState(
     () => localStorage.getItem("chapelflow-theme") || "light",
   );
@@ -404,7 +401,6 @@ export function PortalShell() {
         .filter((group) => group.items.length),
     [isStudent, user, studentCommunities.data],
   );
-  usePortalMotion(contentRef, sidebarRef, location.pathname);
   if (!user) return null;
   const accountMenuItem = getAccountMenuItem(user.role);
   const mobilePrimaryItem = isLimitedMember
@@ -424,7 +420,6 @@ export function PortalShell() {
         </div>
       )}
       <aside
-        ref={sidebarRef}
         className={`sidebar ${mobileOpen ? "sidebar--open" : ""}`}
       >
         <div className="sidebar__brand">
@@ -577,7 +572,7 @@ export function PortalShell() {
             <NotificationPanel onClose={() => setNotificationsOpen(false)} showCommunities={isStudent} />
           )}
         </header>
-        <main ref={contentRef} id="portal-content" className="portal-content">
+        <main id="portal-content" className="portal-content">
           <Outlet />
         </main>
         <nav
