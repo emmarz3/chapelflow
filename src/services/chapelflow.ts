@@ -524,10 +524,7 @@ export const communityService = {
               {
                 position:
                   slug === "music" ? "Head of Music" : "Fellowship Leader",
-                name:
-                  slug === "music"
-                    ? "Olaoti Mofiyinfoluwa"
-                    : "Dada Mofopefoluwa",
+                name: "Community leader",
               },
             ],
             pinnedAnnouncement: null,
@@ -948,11 +945,14 @@ export interface InstitutionalAccount {
   role:
     | "CHAPLAIN"
     | "STUDENT_CHAPLAIN"
+    | "ASSISTANT_STUDENT_CHAPLAIN"
+    | "HOSTEL_COORDINATOR"
     | "UNIT_HEAD"
     | "FELLOWSHIP_LEADER"
     | "ATTENDANCE_USHER";
   branch?: string | null;
   institutional_group?: string | null;
+  institutional_office?: string;
   is_active: boolean;
   password_change_required?: boolean;
 }

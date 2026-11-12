@@ -3,6 +3,8 @@ export type Role =
   | "chapel_admin"
   | "chaplain"
   | "student_chaplain"
+  | "assistant_student_chaplain"
+  | "hostel_coordinator"
   | "unit_leader"
   | "fellowship_leader"
   | "treasurer"
