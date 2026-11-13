@@ -1,7 +1,8 @@
 {
   "rewrites": [
-    { "source": "/api/:path*", "destination": "https://chapelflow-api-production.up.railway.app/api/:path*" },
-    { "source": "/(.*)", "destination": "/index.html" }
+    { "source": "/api", "destination": "https://chapelflow-api-production.up.railway.app/api/" },
+    { "source": "/api/:path(.*)", "destination": "https://chapelflow-api-production.up.railway.app/api/:path" },
+    { "source": "/((?!api(?:/|$)).*)", "destination": "/index.html" }
   ],
   "headers": [
     {
@@ -12,19 +13,19 @@
       ]
     },
     {
-      "source": "/(.*)\\.png",
+      "source": "/((?!api(?:/|$)).*)\\.png",
       "headers": [
         { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
       ]
     },
     {
-      "source": "/(.*)\\.jpg",
+      "source": "/((?!api(?:/|$)).*)\\.jpg",
       "headers": [
         { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
       ]
     },
     {
-      "source": "/(.*)\\.svg",
+      "source": "/((?!api(?:/|$)).*)\\.svg",
       "headers": [
         { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
       ]
