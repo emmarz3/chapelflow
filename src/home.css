@@ -342,3 +342,57 @@ button.hp-day:hover { background: var(--hp-tint); }
   .hpa-item > header { align-items: flex-start; flex-wrap: wrap; }
   .hpa-item__main { flex-basis: 100%; }
 }
+.cuc-fellowship { background: var(--cuc-paper, #faf9f6); color: var(--cuc-ink, #17263b); }
+.cuc-fellowship__hero { align-items: center; background: #17263b; display: flex; isolation: isolate; min-height: 360px; overflow: hidden; padding: clamp(48px, 8vw, 105px) max(7vw, calc((100vw - 1240px) / 2)); position: relative; }
+.cuc-fellowship__hero-image { background: linear-gradient(90deg, rgb(15 28 47 / .92), rgb(15 28 47 / .62)), url('/chapel-community.jpg') center 45% / cover; inset: 0; position: absolute; z-index: -1; }
+.cuc-fellowship__hero-copy { max-width: 720px; }
+.cuc-fellowship__hero-copy { margin: 0 auto; text-align: center; }
+.cuc-fellowship__hero-copy > p:last-child { margin-left: auto; margin-right: auto; }
+.cuc-fellowship__hero h1 { color: white; font-family: var(--font-display, inherit); font-size: clamp(48px, 7vw, 82px); letter-spacing: -.045em; line-height: .98; margin: 12px 0 18px; }
+.cuc-fellowship__hero-copy > p:last-child { color: rgb(255 255 255 / .82); font-size: clamp(17px, 2vw, 21px); line-height: 1.65; margin: 0; max-width: 560px; }
+.cuc-fellowship__section { margin: 0 auto; max-width: 1240px; padding: clamp(54px, 8vw, 100px) 28px; }
+.cuc-fellowship__intro { margin: 0 auto 46px; max-width: 700px; text-align: center; }
+.cuc-fellowship__intro h2 { font-family: var(--font-display, inherit); font-size: clamp(32px, 4vw, 48px); letter-spacing: -.035em; line-height: 1.12; margin: 10px 0 16px; }
+.cuc-fellowship__intro > p:last-child { color: var(--cuc-muted, #657084); font-size: 16px; line-height: 1.8; margin: 0; }
+.cuc-fellowship__grid { display: grid; gap: 22px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.cuc-fellowship__card { animation: cuc-fellowship-enter .55s both; animation-delay: calc(var(--fellowship-index, 0) * 55ms); background: var(--cuc-surface, #fff); border: 1px solid rgb(34 48 69 / .09); border-radius: 18px; box-shadow: 0 12px 35px rgb(23 38 59 / .06); overflow: hidden; }
+.cuc-fellowship__photo { align-items: center; aspect-ratio: 1.75; background: linear-gradient(135deg, #ece8df, #dce5e5); color: #536779; display: flex; font-size: 42px; font-weight: 700; justify-content: center; overflow: hidden; position: relative; }
+.cuc-fellowship__photo img { height: 100%; inset: 0; object-fit: cover; position: absolute; width: 100%; }
+.cuc-fellowship__card-copy { padding: 22px 23px 24px; }
+.cuc-fellowship__card h3 { font-size: 19px; letter-spacing: -.02em; line-height: 1.3; margin: 0; }
+.cuc-fellowship__tagline { color: var(--cuc-muted, #657084); font-size: 14px; margin: 8px 0 20px; }
+.cuc-fellowship__leader { border-top: 1px solid rgb(34 48 69 / .09); display: flex; flex-direction: column; font-size: 14px; font-weight: 650; gap: 4px; margin: 0; padding-top: 15px; }
+.cuc-fellowship__leader span { color: var(--cuc-muted, #657084); font-size: 11px; font-weight: 750; letter-spacing: .09em; text-transform: uppercase; }
+@keyframes cuc-fellowship-enter { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+@media (max-width: 850px) { .cuc-fellowship__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 560px) { .cuc-fellowship__hero { min-height: 310px; padding: 55px 25px; } .cuc-fellowship__section { padding: 54px 20px; } .cuc-fellowship__intro { margin-bottom: 32px; text-align: left; } .cuc-fellowship__grid { gap: 15px; grid-template-columns: 1fr; } .cuc-fellowship__photo { aspect-ratio: 1.9; } }
+@media (prefers-reduced-motion: reduce) { .cuc-fellowship__card { animation: none; } }
+.cuc-fellowship__grid { gap: 20px; grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.cuc-fellowship__card { align-items: center; border: 0; border-top: 4px solid #c49a3d; border-radius: 0 0 22px 22px; box-shadow: 0 12px 28px rgb(28 22 35 / .11); display: flex; flex-direction: column; padding: 30px 15px 23px; text-align: center; }
+.cuc-fellowship__photo { aspect-ratio: 1; background: linear-gradient(145deg, #391044, #252351); border: 4px solid #c49a3d; border-radius: 50%; color: #d6af51; flex: 0 0 112px; font-family: Georgia, serif; font-size: 32px; height: 112px; margin-bottom: 16px; width: 112px; }
+.cuc-fellowship__photo img { border-radius: 50%; }
+.cuc-fellowship__card-copy { align-items: center; display: flex; flex: 1; flex-direction: column; padding: 0; width: 100%; }
+.cuc-fellowship__card h3 { color: #391044; font-family: Georgia, 'Times New Roman', serif; font-size: 19px; font-weight: 500; line-height: 1.28; margin: 0; min-height: 49px; }
+.cuc-fellowship__tagline { color: #596276; font-size: 14px; line-height: 1.45; margin: 4px 0 19px; min-height: 40px; }
+.cuc-fellowship__leader { border: 0; color: #391044; font-size: 14px; line-height: 1.35; margin: auto 0 17px; padding: 0; }
+.cuc-fellowship__leader span { color: #a87923; font-size: 10px; letter-spacing: .12em; }
+.cuc-fellowship__profile-button { background: #391044; border: 0; border-radius: 999px; color: white; cursor: pointer; font: inherit; font-size: 14px; font-weight: 700; min-height: 42px; padding: 0 23px; transition: background .2s, transform .2s; }
+.cuc-fellowship__profile-button:hover { background: #542061; transform: translateY(-1px); }
+.cuc-fellowship__overlay { align-items: start; background: rgb(18 15 22 / .58); display: flex; inset: 0; justify-content: center; overflow: auto; padding: 28px 16px; position: fixed; z-index: 1000; }
+.cuc-fellowship__profile { background: #fff; border-radius: 22px; box-shadow: 0 22px 70px rgb(12 9 17 / .25); margin: auto; max-width: 680px; min-height: 80vh; padding: 34px 30px; position: relative; width: 100%; }
+.cuc-fellowship__close { align-items: center; background: #f1eee8; border: 0; border-radius: 50%; color: #391044; cursor: pointer; display: flex; height: 42px; justify-content: center; position: absolute; right: 15px; top: 15px; width: 42px; }
+.cuc-fellowship__profile > .cuc-home__eyebrow { color: #a87923; font-size: 13px; letter-spacing: .16em; margin: 0 55px 10px 0; text-transform: uppercase; }
+.cuc-fellowship__profile h2 { color: #391044; font-family: Georgia, 'Times New Roman', serif; font-size: clamp(29px, 5vw, 40px); font-weight: 500; line-height: 1.1; margin: 0 0 20px; }
+.cuc-fellowship__profile-portrait { background: linear-gradient(145deg, #391044, #252351); border: 4px solid #c49a3d; border-radius: 18px; color: #d6af51; display: grid; height: min(64vh, 540px); margin: 0 auto 12px; max-width: 410px; overflow: hidden; place-items: center; }
+.cuc-fellowship__profile-portrait img { height: 100%; object-fit: cover; width: 100%; }
+.cuc-fellowship__profile-portrait span { font: 72px Georgia, serif; }
+.cuc-fellowship__profile-role { color: #687187; font-size: 13px; font-weight: 700; letter-spacing: .13em; margin: 0 0 26px; text-align: center; text-transform: uppercase; }
+.cuc-fellowship__profile-schedule { color: #391044; font-weight: 700; margin: 0 0 24px; }
+.cuc-fellowship__profile-section { margin-top: 23px; }
+.cuc-fellowship__profile-section h3 { color: #391044; font-size: 13px; letter-spacing: .13em; margin: 0 0 10px; text-transform: uppercase; }
+.cuc-fellowship__profile-section a { align-items: center; background: #f1eee7; border-radius: 14px; color: #391044; display: flex; justify-content: space-between; margin-top: 9px; padding: 16px 18px; text-decoration: none; }
+.cuc-fellowship__profile-section a span { color: #a87923; font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+.cuc-fellowship__profile-section > p { color: #687187; line-height: 1.7; margin: 0; }
+@media (max-width: 1000px) { .cuc-fellowship__grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 650px) { .cuc-fellowship__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .cuc-fellowship__card { padding: 24px 12px 18px; } .cuc-fellowship__photo { flex-basis: 96px; height: 96px; width: 96px; } .cuc-fellowship__card h3 { font-size: 17px; } }
+@media (max-width: 420px) { .cuc-fellowship__grid { grid-template-columns: 1fr; } .cuc-fellowship__card { min-height: 0; } .cuc-fellowship__photo { flex-basis: 112px; height: 112px; width: 112px; } .cuc-fellowship__profile { border-radius: 16px; padding: 30px 20px; } .cuc-fellowship__profile-portrait { height: 52vh; } }
