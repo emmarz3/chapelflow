@@ -172,8 +172,29 @@ class IsPastoralAuthorized(BasePermission):
 class IsFinanceAuthorized(BasePermission):
     def has_permission(self, request, view):
         user = request.user
+        is_treasurer = is_assigned_treasurer(user)
         return bool(
             user and user.is_authenticated and user.is_active
-            and user.role in Roles.FINANCE_ACCESS_ROLES
+            and (user.role in Roles.FINANCE_ACCESS_ROLES or is_treasurer)
+            and (not is_treasurer or user.mfa_enabled)
             and user_has_completed_required_mfa(user)
         )
+
+
+def is_assigned_treasurer(user):
+    """Finance access is granted only to the account assigned to Treasurer."""
+    if (
+        not user or not user.is_authenticated
+        or user.role != Roles.UNIT_HEAD
+        or user.institutional_office != "TREASURER"
+        or not user.institutional_group_id
+    ):
+        return False
+    from apps.ministries.models import Group
+    return Group.objects.filter(
+        id=user.institutional_group_id,
+        name__iexact="Treasurer",
+        group_type="UNIT",
+        is_active=True,
+        branch_id=user.branch_id,
+    ).exists()

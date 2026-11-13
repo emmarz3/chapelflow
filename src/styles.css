@@ -991,7 +991,7 @@ button {
 
 .site-footer__main {
   display: grid;
-  grid-template-columns: 2.2fr 1.4fr 1.2fr 1.4fr;
+  grid-template-columns: 1.8fr 1.25fr 1.9fr 1.35fr;
   gap: 48px;
   max-width: 1280px;
   margin: 0 auto;
@@ -1127,6 +1127,20 @@ button {
   flex-shrink: 0;
   margin-top: 3px;
   opacity: 0.9;
+}
+
+.site-footer__contact p span,
+.site-footer__contact p a {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.site-footer__contact a {
+  display: inline;
+}
+
+.site-footer__contact a::before {
+  display: none;
 }
 
 .site-footer__social {
@@ -2719,6 +2733,112 @@ button {
   margin-left: auto;
   color: var(--text-muted);
   font-size: 11px;
+}
+.attendance-monthly-tools {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) minmax(150px, 220px);
+  gap: 18px 24px;
+  align-items: center;
+  margin: 0 0 18px;
+  padding: 19px 22px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: linear-gradient(115deg, var(--surface) 55%, var(--purple-50));
+}
+.attendance-monthly-tools__intro {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+.attendance-monthly-tools__intro img {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+  flex: 0 0 auto;
+}
+.attendance-monthly-tools__intro h2,
+.attendance-monthly-tools__intro p {
+  margin: 0;
+}
+.attendance-monthly-tools__intro h2 {
+  margin: 3px 0;
+  font-size: 18px;
+}
+.attendance-monthly-tools__intro p:last-child,
+.attendance-monthly-tools__actions > span {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+.attendance-absence-list {
+  grid-column: 1/-1;
+  min-width: 0;
+}
+.attendance-absence-list h3 {
+  margin: 0 0 8px;
+  font-size: 14px;
+}
+.attendance-absence-list__scroll {
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+}
+.attendance-absence-list table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 640px;
+}
+.attendance-absence-list th,
+.attendance-absence-list td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  font-size: 11px;
+}
+.attendance-absence-list th {
+  background: var(--surface-subtle);
+  color: var(--text-muted);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}
+.attendance-absence-list td small {
+  display: block;
+  margin-top: 3px;
+  color: var(--text-muted);
+}
+.attendance-monthly-tools .field {
+  margin: 0;
+}
+.attendance-monthly-tools .field input {
+  width: 100%;
+}
+.attendance-monthly-tools__actions {
+  grid-column: 1/-1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+.member-service-attendance {
+  margin-top: 22px;
+  padding-top: 17px;
+  border-top: 1px solid var(--border);
+}
+.member-service-attendance h3 {
+  margin: 0 0 8px;
+  font-size: 14px;
+}
+.member-service-attendance > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-top: 1px solid var(--border);
+  color: var(--text-soft);
+  font-size: 12px;
 }
 .table-panel {
   overflow: hidden;
@@ -4434,6 +4554,15 @@ button {
   .filter-bar {
     flex-wrap: wrap;
   }
+  .attendance-monthly-tools {
+    grid-template-columns: 1fr;
+    padding: 16px;
+  }
+  .attendance-monthly-tools__actions {
+    grid-column: auto;
+    align-items: stretch;
+    flex-direction: column;
+  }
   .search-field {
     min-width: 100%;
     max-width: none;
@@ -5659,4 +5788,79 @@ button {
 :root[data-theme="dark"] .auth-card textarea:focus {
   border-color: #bba6ff;
   box-shadow: 0 0 0 3px rgb(187 166 255 / .22);
+}
+
+/* Homepage chaplain biography dialog. */
+.cuc-home__profile-trigger {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  color: var(--cuc-purple);
+  cursor: pointer;
+  display: inline-flex;
+  font: 800 13px/1.4 "DM Sans", system-ui, sans-serif;
+  gap: 8px;
+  margin-top: 25px;
+  padding: 0;
+}
+
+.cuc-home__profile-trigger:focus-visible {
+  outline: 3px solid var(--cuc-purple);
+  outline-offset: 5px;
+}
+
+:root[data-theme="dark"] .cuc-home__profile-trigger { color: #5131b8; }
+:root[data-theme="dark"] .cuc-home__profile-trigger:focus-visible { outline-color: #5131b8; }
+
+.cuc-home__profile-modal {
+  color: var(--text);
+  max-height: min(860px, calc(100dvh - 32px));
+  width: min(920px, 100%);
+}
+
+.cuc-home__profile-modal .modal__header {
+  background: var(--surface-subtle);
+  padding: 28px 60px 24px 32px;
+}
+
+.cuc-home__profile-modal .modal__header h2 {
+  font: 500 clamp(32px, 4vw, 48px)/1 "Newsreader", Georgia, serif;
+  letter-spacing: -.045em;
+}
+
+.cuc-home__profile-modal .modal__header p {
+  color: #725400;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .13em;
+  margin: 0 0 8px;
+  text-transform: uppercase;
+}
+
+.cuc-home__profile-modal .modal__header {
+  display: flex;
+  flex-direction: column-reverse;
+}
+
+.cuc-home__profile-modal .modal__body { padding: 0; }
+.cuc-home__profile-layout { display: grid; grid-template-columns: minmax(220px, 280px) minmax(0, 1fr); }
+.cuc-home__profile-portrait { background: #061b31; color: #fff; }
+.cuc-home__profile-portrait img { display: block; height: auto; width: 100%; }
+.cuc-home__profile-portrait p { color: #e2e9f0; font: 500 17px/1.35 "Newsreader", Georgia, serif; margin: 0; padding: 24px; }
+.cuc-home__profile-copy { padding: 30px 34px 38px; }
+.cuc-home__profile-copy section + section { border-top: 1px solid var(--border); margin-top: 26px; padding-top: 23px; }
+.cuc-home__profile-copy h3 { color: var(--text); font: 500 25px/1.1 "Newsreader", Georgia, serif; margin: 0 0 12px; }
+.cuc-home__profile-copy p { color: var(--text-soft); font-size: 14px; line-height: 1.7; margin: 0; }
+.cuc-home__profile-copy p + p { margin-top: 13px; }
+:root[data-theme="dark"] .cuc-home__profile-modal .modal__header p { color: #efc56f; }
+
+@media (max-width: 700px) {
+  .modal-backdrop:has(.cuc-home__profile-modal) { padding: 10px; }
+  .cuc-home__profile-modal { max-height: calc(100dvh - 20px); }
+  .cuc-home__profile-modal .modal__header { padding: 24px 54px 20px 20px; }
+  .cuc-home__profile-layout { grid-template-columns: minmax(0, 1fr); }
+  .cuc-home__profile-portrait { align-items: center; display: flex; }
+  .cuc-home__profile-portrait img { height: 160px; object-fit: cover; object-position: center top; width: 130px; }
+  .cuc-home__profile-portrait p { font-size: 15px; padding: 18px; }
+  .cuc-home__profile-copy { padding: 26px 22px 32px; }
 }

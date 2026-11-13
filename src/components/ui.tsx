@@ -261,6 +261,7 @@ export function Modal({
   onClose,
   children,
   footer,
+  className,
 }: {
   open: boolean;
   title: string;
@@ -268,6 +269,7 @@ export function Modal({
   onClose: () => void;
   children: ReactNode;
   footer?: ReactNode;
+  className?: string;
 }) {
   const dialogRef = useRef<HTMLElement>(null);
   useEffect(() => {
@@ -320,7 +322,7 @@ export function Modal({
             role="dialog"
             aria-modal="true"
             aria-labelledby="dialog-title"
-            className="modal"
+            className={`modal${className ? ` ${className}` : ""}`}
             initial={{ opacity: 0, y: 18, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 10, scale: 0.98 }}

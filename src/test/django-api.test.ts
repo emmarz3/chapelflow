@@ -237,7 +237,7 @@ describe("Django API integration", () => {
       },
     });
     expect(fetch.mock.calls.map(([url]) => url)).toEqual([
-      "/api/v1/attendance/sessions/?branch=branch-1&page_size=100",
+      "/api/v1/attendance/sessions/?branch=branch-1&page=1&page_size=200",
       "/api/v1/members/?branch=branch-1&page_size=100",
       "/api/v1/attendance/records/?session=session-1&page_size=100",
     ]);
@@ -446,8 +446,8 @@ describe("Django API integration", () => {
       data: [{ id: "record-1", memberName: "Ada Test", identifier: "CU/26/001", method: "qr", status: "present" }],
     });
     expect(fetch.mock.calls.map(([url]) => url)).toEqual([
-      "/api/v1/attendance/records/?session=session-1&page_size=100",
-      "/api/v1/members/?branch=branch-1&page_size=100",
+      "/api/v1/attendance/records/?session=session-1&page=1&page_size=200",
+      "/api/v1/members/?branch=branch-1&page=1&page_size=200",
     ]);
   });
 

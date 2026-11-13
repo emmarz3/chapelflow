@@ -9,6 +9,7 @@ from django.db import IntegrityError, transaction
 from django.utils import timezone
 
 from apps.members.models import Member, MemberQRCode, is_student_community_member
+from common.constants.roles import Roles
 from common.permissions.scoping import user_can_access_branch
 from .models import (
     AttendanceCheckpoint, AttendanceMethod, AttendanceRecord, AttendanceScanAttempt,
@@ -69,6 +70,16 @@ def _record_scan_attempt(*, token: str, result: str, session=None, checkpoint=No
     )
 
 
+def _is_authorized_checkpoint_usher(user) -> bool:
+    if not user or not user.is_active:
+        return False
+    role = user.get_role_code()
+    if role in {Roles.ATTENDANCE_USHER, Roles.SUPER_ADMIN}:
+        return True
+    from apps.volunteers.services import is_active_usher
+    return is_active_usher(user)
+
+
 def student_scan_usher_token(*, token: str, user):
     """Record the logged-in student's scan of a live usher QR, never a personal QR."""
     member = Member.objects.select_related("branch").filter(user=user).first()
@@ -96,7 +107,7 @@ def student_scan_usher_token(*, token: str, user):
         _record_scan_attempt(token=token, result="invalid_checkpoint", student=member)
         raise AttendanceError("This attendance QR code is invalid.")
     session = checkpoint.session
-    if checkpoint.usher.get_role_code() != "ATTENDANCE_USHER" or not checkpoint.usher.is_active:
+    if not _is_authorized_checkpoint_usher(checkpoint.usher):
         _record_scan_attempt(token=token, result="usher_inactive", session=session, checkpoint=checkpoint, student=member)
         raise AttendanceError("This attendance checkpoint is unavailable.")
     if member.branch_id != session.branch_id:

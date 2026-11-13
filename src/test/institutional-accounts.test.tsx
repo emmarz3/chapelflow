@@ -80,12 +80,19 @@ describe("institutional account provisioning", () => {
     await user.type(screen.getByLabelText(/^Email/), `${String(role).toLowerCase()}@example.edu`);
     await user.type(screen.getByLabelText(/^Initial password/), "Safe-Initial-Password-483!");
     await user.selectOptions(screen.getByLabelText("Role"), String(role));
+    if (role === "FELLOWSHIP_LEADER") {
+      expect(screen.queryByLabelText("Leadership office")).not.toBeInTheDocument();
+    }
     if (groupId) await user.selectOptions(screen.getByLabelText(/^Unit or fellowship/), groupId);
     await user.click(screen.getByRole("button", { name: "Create securely" }));
 
     await waitFor(() => expect(institutionalAccountService.create).toHaveBeenCalled());
     expect(vi.mocked(institutionalAccountService.create).mock.calls[0]?.[0]).toMatchObject(
-      groupId ? { role, institutional_group: groupId } : { role },
+      {
+        role,
+        ...(groupId ? { institutional_group: groupId } : {}),
+        ...(role === "FELLOWSHIP_LEADER" ? { institutional_office: "FELLOWSHIP_LEADER" } : {}),
+      },
     );
   });
 
@@ -94,8 +101,8 @@ describe("institutional account provisioning", () => {
     renderPage();
     await user.click(await screen.findByRole("button", { name: "Create account" }));
 
-    const assignment = screen.getByLabelText(/^Unit or fellowship/);
     await user.selectOptions(screen.getByLabelText("Role"), "UNIT_HEAD");
+    const assignment = screen.getByLabelText(/^Unit or fellowship/);
     const units = [
       "Intercessory", "Treasurer", "Chapel Protocol", "Music", "Instrumentalist",
       "Ushering", "Sanctuary Keepers", "Media & ICT", "Social Media", "Library",
@@ -118,6 +125,19 @@ describe("institutional account provisioning", () => {
     }
     expect(within(assignment).getAllByRole("option")).toHaveLength(11);
     expect(assignment).toBeInTheDocument();
+  });
+
+  it("adds the standard Chapel groups from the account page", async () => {
+    const user = userEvent.setup();
+    vi.mocked(chapelGroupService.bootstrapChapelGroups).mockResolvedValue({
+      data: { created: [{ id: "new-group", name: "Treasurer" }], count: 1 },
+    });
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "Add chapel units & fellowships" }));
+
+    await waitFor(() => expect(chapelGroupService.bootstrapChapelGroups).toHaveBeenCalledOnce());
+    expect(chapelGroupService.list).toHaveBeenCalledWith({ accountAssignment: true });
   });
 
   it.each([

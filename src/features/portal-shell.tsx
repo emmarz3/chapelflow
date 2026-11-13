@@ -78,7 +78,7 @@ const navGroups: { label: string; items: NavItem[] }[] = [
         path: "/app/attendance",
         icon: <ClipboardCheck />,
         permission: "attendance:read",
-        roles: ["super_admin", "chapel_admin"],
+        roles: ["super_admin", "chapel_admin", "chaplain", "student_chaplain"],
       },
       {
         label: "My Chapel Pass",
@@ -758,11 +758,11 @@ function SearchModal({
               </span>
             </Link>
             {hasPermission(user, "media:write") ? (
-              <Link to="/app/media" onClick={onClose}>
+              <Link to={user?.role === "chaplain" ? "/app/media?content_type=SERMON" : "/app/media"} onClick={onClose}>
                 <Radio />
                 <span>
-                  <strong>Sermons and media</strong>
-                  <small>Manage published media</small>
+                  <strong>{user?.role === "chaplain" ? "Sermons" : "Gallery uploads"}</strong>
+                  <small>{user?.role === "chaplain" ? "Publish a sermon to the homepage" : "Publish chapel photos and videos"}</small>
                 </span>
               </Link>
             ) : (

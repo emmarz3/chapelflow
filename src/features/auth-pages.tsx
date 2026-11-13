@@ -21,7 +21,7 @@ import { useQuery } from "@tanstack/react-query";
 import { z } from "zod";
 import { Button, Field, LocalBrandImage } from "../components/ui";
 import { BRAND_ASSETS } from "../lib/brand-assets";
-import { PasswordStrength, defaultPasswordRules, eightCharacterPasswordRules, tenCharacterPasswordRules } from "../components/ui/password-strength";
+import { PasswordStrength, defaultPasswordRules, eightCharacterPasswordRules } from "../components/ui/password-strength";
 import { useAuthMotion, useReducedMotionPreference } from "../components/motion/motion-system";
 import { useCompletionAnimation } from "../components/motion/completion-animation";
 import { useAuth } from "./auth-context";
@@ -53,7 +53,7 @@ const adminSetupSchema = z
     first_name: z.string().trim().min(1, "Enter your first name."),
     last_name: z.string().trim().min(1, "Enter your last name."),
     email: z.string().email("Enter a valid email address."),
-    password: z.string().min(12, "Use at least 12 characters."),
+    password: z.string().min(8, "Use at least 8 characters."),
     confirm_password: z.string(),
   })
   .refine((values) => values.password === values.confirm_password, {
@@ -104,9 +104,9 @@ export function SuperAdminSetupPage() {
         <Field name="first_name" label="First name" required autoComplete="given-name" />
         <Field name="last_name" label="Last name" required autoComplete="family-name" />
         <Field name="email" label="Admin email" type="email" required autoComplete="email" />
-        <Field name="password" label="Password" type="password" value={password} onChange={(event) => setPassword(event.target.value)} required minLength={12} autoComplete="new-password" />
+        <Field name="password" label="Password" type="password" value={password} onChange={(event) => setPassword(event.target.value)} required minLength={8} autoComplete="new-password" />
         <PasswordStrength value={password} rules={defaultPasswordRules} />
-        <Field name="confirm_password" label="Confirm password" type="password" required minLength={12} autoComplete="new-password" />
+        <Field name="confirm_password" label="Confirm password" type="password" required minLength={8} autoComplete="new-password" />
         <div className="inline-alert">This setup page works only in local development and closes after the first Super Admin is created.</div>
         {error && <div className="form-error" role="alert">{error}</div>}
         <Button className="full-button" type="submit" loading={loading}>
@@ -610,16 +610,10 @@ export function RegisterPage() {
               <Field
                 name="email"
                 defaultValue={values.email}
-                label={
-                  memberType === "Student"
-                    ? "University email"
-                    : memberType === "Staff"
-                      ? "Work email"
-                      : "Email address"
-                }
+                label="Your email"
                 type="email"
                 autoComplete="email"
-                placeholder={memberType === "Guest" ? "name@example.com" : "name@example.edu.ng"}
+                placeholder="name@example.com"
                 required
               />
               <Field
@@ -629,11 +623,11 @@ export function RegisterPage() {
                 type="password"
                 onChange={(event) => setValues((current) => ({ ...current, password: event.target.value }))}
                 autoComplete="new-password"
-                hint="Use at least 10 characters. Avoid common passwords or personal details."
-                minLength={10}
+                hint="Use at least 8 characters. Avoid common passwords or personal details."
+                minLength={8}
                 required
               />
-              <PasswordStrength value={values.password || ""} rules={tenCharacterPasswordRules} className="password-strength--field" />
+              <PasswordStrength value={values.password || ""} rules={eightCharacterPasswordRules} className="password-strength--field" />
             </div>
           )}
           {step === 1 && (

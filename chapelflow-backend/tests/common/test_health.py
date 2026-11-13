@@ -53,6 +53,13 @@ class TestHealthEndpoints:
             },
         }
 
+    def test_readiness_requires_redis_when_enabled(self, api_client):
+        with override_settings(REDIS_URL=None, READINESS_REQUIRE_REDIS=True), \
+             patch("common.health._check_database", return_value=True):
+            response = api_client.get("/readiness/")
+        assert response.status_code == 503
+        assert response.data["checks"]["redis"] == "not configured"
+
     def test_readiness_returns_503_when_redis_is_down(self, api_client):
         with (
             override_settings(REDIS_URL="redis://configured.example.test/0"),

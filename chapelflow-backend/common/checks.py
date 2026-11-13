@@ -36,7 +36,7 @@ def check_allowed_hosts_not_default(app_configs, **kwargs):
     in place, since that list isn't empty. This catches the more
     specific "still the .env.example placeholder" case.
     """
-    if list(settings.ALLOWED_HOSTS) == DEV_DEFAULT_ALLOWED_HOSTS:
+    if set(settings.ALLOWED_HOSTS).issubset({*DEV_DEFAULT_ALLOWED_HOSTS, "healthcheck.railway.app"}):
         return [
             Warning(
                 "ALLOWED_HOSTS is still the development default "

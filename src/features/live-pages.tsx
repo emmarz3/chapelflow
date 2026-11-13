@@ -31,7 +31,7 @@ import {
   YAxis,
 } from "recharts";
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import {
   Badge,
   Button,
@@ -45,7 +45,8 @@ import {
   useToast,
 } from "../components/ui";
 import { ApiError } from "../lib/api";
-import { downloadCsv } from "../lib/export";
+import { downloadBrandedCsv, downloadCsv } from "../lib/export";
+import { BRAND_ASSETS } from "../lib/brand-assets";
 import {
   ATTENDANCE_QUEUE_EVENT,
   queueAttendanceCheckIn,
@@ -235,6 +236,10 @@ export function LiveMembersPage() {
   const [queryText, setQueryText] = useState("");
   const [status, setStatus] = useState("all");
   const [academicLevel, setAcademicLevel] = useState("all");
+  const [reportMonth, setReportMonth] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  });
   const [createOpen, setCreateOpen] = useState(false);
   const [selected, setSelected] = useState<Member | null>(null);
   const toast = useToast();
@@ -246,9 +251,16 @@ export function LiveMembersPage() {
     page: 1,
     pageSize: 50,
   };
+  const chapelLeadership = user?.role === "chaplain" || user?.role === "student_chaplain";
   const query = useQuery({
     queryKey: queryKeys.members(params),
     queryFn: () => memberService.list(params),
+    enabled: !chapelLeadership,
+  });
+  const monthlyReport = useQuery({
+    queryKey: ["attendance-monthly-report", user?.branchId, reportMonth],
+    queryFn: async () => (await attendanceService.monthlyReport(user!.branchId, reportMonth)).data,
+    enabled: Boolean(chapelLeadership && user?.branchId && hasPermission(user, "attendance:read")),
   });
   const create = useMutation({
     mutationFn: (payload: Partial<Member>) => memberService.create(payload),
@@ -266,7 +278,31 @@ export function LiveMembersPage() {
       void client.invalidateQueries({ queryKey: ["members"] });
     },
   });
-  const rows = query.data?.data ?? [];
+  const reportRows: Member[] = (monthlyReport.data?.students ?? []).map((student) => ({
+    id: student.id,
+    name: student.name,
+    identifier: student.identifier,
+    email: student.email,
+    programme: student.programme,
+    level: student.level,
+    department: student.department,
+    status: student.status === "ACTIVE" ? "active" : student.status === "PENDING" ? "pending" : "inactive",
+    attendanceRate: student.attendance_percentage,
+    lastSeen: student.last_seen,
+  }));
+  const filteredReportRows = reportRows.filter((member) => {
+    const needle = queryText.trim().toLowerCase();
+    return (!needle || [member.name, member.identifier, member.email, member.programme].some((value) => value.toLowerCase().includes(needle)))
+      && (status === "all" || member.status === status)
+      && (academicLevel === "all" || member.level === academicLevel);
+  });
+  const rows = chapelLeadership ? filteredReportRows : query.data?.data ?? [];
+  const directoryPending = chapelLeadership ? monthlyReport.isPending : query.isPending;
+  const directoryError = chapelLeadership ? monthlyReport.isError : query.isError;
+  const directoryErrorMessage = chapelLeadership ? monthlyReport.error : query.error;
+  const refetchDirectory = chapelLeadership ? monthlyReport.refetch : query.refetch;
+  const memberCount = chapelLeadership ? filteredReportRows.length : query.data?.total ?? 0;
+  const reportStudent = selected && monthlyReport.data?.students.find((student) => student.id === selected.id);
   const groupedRows = rows.reduce<Record<string, Member[]>>((groups, member) => {
     const level = member.level || "";
     const group = level || "UNASSIGNED";
@@ -320,6 +356,72 @@ export function LiveMembersPage() {
           </>
         }
       />
+      {chapelLeadership && (
+        <section className="attendance-monthly-tools" aria-label="Monthly attendance report">
+          <div className="attendance-monthly-tools__intro">
+            <img src={BRAND_ASSETS.institutionLogo} alt="Chrisland University Chapel logo" />
+            <div><p className="eyebrow">Chrisland University Chapel</p><h2>Monthly attendance</h2><p>Attendance by service and students who missed a Sunday service.</p></div>
+          </div>
+          <label className="field"><span>Report month</span><input type="month" value={reportMonth} onChange={(event) => { if (event.target.value) setReportMonth(event.target.value); }} /></label>
+          <div className="attendance-monthly-tools__actions">
+            <span>{monthlyReport.data?.services.length ?? 0} completed services · {monthlyReport.data?.sunday_absentees.length ?? 0} students missed a Sunday service</span>
+            <Button
+              variant="secondary"
+              icon={<Download />}
+              disabled={!monthlyReport.data?.sunday_absentees.length}
+              onClick={() => {
+                const report = monthlyReport.data;
+                if (!report) return;
+                const absentRows = report.sunday_absentees.flatMap((student) => student.missed_sunday_services.map((date) => ({
+                  name: student.name,
+                  student_id: student.identifier,
+                  academic_level: academicLevelLabel(student.level),
+                  programme: student.programme,
+                  email: student.email,
+                  phone: student.phone,
+                  missed_service_date: date,
+                  monthly_attendance: student.attendance_percentage == null ? "Not available" : `${student.attendance_percentage}%`,
+                })));
+                downloadBrandedCsv(
+                  `chrisland-chapel-sunday-absentees-${report.month}.csv`,
+                  `Sunday service absentees · ${report.month}`,
+                  `Generated ${new Date().toLocaleString("en-NG", { timeZone: "Africa/Lagos" })} · ${absentRows.length} missed-service records`,
+                  new URL(BRAND_ASSETS.institutionLogo, window.location.origin).href,
+                  [
+                    { key: "name", label: "Student name" },
+                    { key: "student_id", label: "Student ID" },
+                    { key: "academic_level", label: "Academic level" },
+                    { key: "programme", label: "Programme" },
+                    { key: "email", label: "Email" },
+                    { key: "phone", label: "Phone" },
+                    { key: "missed_service_date", label: "Missed Sunday service" },
+                    { key: "monthly_attendance", label: "Monthly attendance" },
+                  ],
+                  absentRows,
+                );
+              }}
+            >Download Sunday absentees CSV</Button>
+          </div>
+          {!!monthlyReport.data?.sunday_absentees.length && (
+            <div className="attendance-absence-list">
+              <h3>Students who missed a Sunday service</h3>
+              <div className="attendance-absence-list__scroll">
+                <table>
+                  <thead><tr><th>Student</th><th>Level</th><th>Missed service dates</th><th>Monthly attendance</th></tr></thead>
+                  <tbody>{monthlyReport.data.sunday_absentees.map((student) => (
+                    <tr key={student.id}>
+                      <td><strong>{student.name}</strong><small>{student.identifier}</small></td>
+                      <td>{academicLevelLabel(student.level)}</td>
+                      <td>{student.missed_sunday_services.map((date) => new Date(`${date}T12:00:00`).toLocaleDateString("en-NG", { day: "numeric", month: "short" })).join(", ")}</td>
+                      <td>{student.attendance_percentage == null ? "Not available" : `${student.attendance_percentage}%`}</td>
+                    </tr>
+                  ))}</tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </section>
+      )}
       <div className="filter-bar">
         <SearchField
           value={queryText}
@@ -353,14 +455,14 @@ export function LiveMembersPage() {
             <option value="inactive">Inactive</option>
           </select>
         </label>
-        <span>{query.data?.total ?? 0} members</span>
+        <span>{memberCount} members</span>
       </div>
-      {query.isPending ? (
+      {directoryPending ? (
         <LoadingState />
-      ) : query.isError ? (
+      ) : directoryError ? (
         <ErrorState
-          description={message(query.error)}
-          onRetry={() => void query.refetch()}
+          description={message(directoryErrorMessage)}
+          onRetry={() => void refetchDirectory()}
         />
       ) : (
         <section className="table-panel">
@@ -427,7 +529,7 @@ export function LiveMembersPage() {
                       ? "Not available"
                       : `${member.attendanceRate}%`}
                   </td>
-                  <td>{member.lastSeen || "No attendance"}</td>
+                  <td>{member.lastSeen ? new Date(member.lastSeen).toLocaleDateString("en-NG", { timeZone: "Africa/Lagos" }) : "No attendance"}</td>
                   <td>
                     <button
                       className="icon-button"
@@ -494,6 +596,16 @@ export function LiveMembersPage() {
             <strong>{selected?.status.replace("_", " ")}</strong>
           </div>
         </div>
+        {chapelLeadership && reportStudent && (
+          <section className="member-service-attendance">
+            <h3>Attendance by service · {reportMonth}</h3>
+            {!monthlyReport.data?.services.length ? <p>No completed services were recorded this month.</p> : monthlyReport.data.services.map((service) => {
+              const serviceStatus = reportStudent.service_attendance[service.id];
+              const attended = serviceStatus === "PRESENT" || serviceStatus === "LATE";
+              return <div key={service.id}><span>{new Date(`${service.date}T12:00:00`).toLocaleDateString("en-NG", { day: "numeric", month: "short" })} · {service.title}{service.is_sunday ? " (Sunday)" : ""}</span><Badge tone={attended ? "success" : serviceStatus === "EXCUSED" ? "neutral" : "warning"}>{serviceStatus ? serviceStatus.toLowerCase() : "absent"}</Badge></div>;
+            })}
+          </section>
+        )}
         {approve.isError && (
           <div className="form-error" role="alert">
             {message(approve.error)}
@@ -538,6 +650,125 @@ export function LiveMembersPage() {
   );
 }
 
+function isSundaySession(session: { startsAt: string }) {
+  const startsAt = new Date(session.startsAt);
+  return !Number.isNaN(startsAt.getTime()) &&
+    new Intl.DateTimeFormat("en", {
+      weekday: "long",
+      timeZone: "Africa/Lagos",
+    }).format(startsAt) === "Sunday";
+}
+
+function SundayAttendanceReport({ branchId }: { branchId: string }) {
+  const { user } = useAuth();
+  const [selectedSessionId, setSelectedSessionId] = useState("");
+  const sessions = useQuery({
+    queryKey: ["attendance-sunday-sessions", branchId],
+    queryFn: async () => (await attendanceService.sessions(branchId)).data,
+    enabled: Boolean(branchId && hasPermission(user, "attendance:read")),
+  });
+  const sundaySessions = (sessions.data ?? [])
+    .filter(isSundaySession)
+    .sort((left, right) => right.startsAt.localeCompare(left.startsAt));
+  const activeSessionId = sundaySessions.some((session) => session.id === selectedSessionId)
+    ? selectedSessionId
+    : sundaySessions[0]?.id ?? "";
+  const records = useQuery({
+    queryKey: ["attendance-sunday-records", activeSessionId],
+    queryFn: async () =>
+      (await attendanceService.records(activeSessionId, branchId)).data,
+    enabled: Boolean(activeSessionId && branchId),
+  });
+  const presentByLevel = new Map<string, Map<string, AttendanceRecord>>();
+  for (const record of records.data ?? []) {
+    if (record.isVisitor || (record.status !== "present" && record.status !== "late")) continue;
+    const level = record.level || "UNASSIGNED";
+    const students = presentByLevel.get(level) ?? new Map<string, AttendanceRecord>();
+    students.set(record.identifier || record.memberName, record);
+    presentByLevel.set(level, students);
+  }
+  const levelOrder = [...academicLevels, "UNASSIGNED"];
+  const groups = [...presentByLevel.entries()].sort(
+    ([left], [right]) => levelOrder.indexOf(left as (typeof levelOrder)[number]) - levelOrder.indexOf(right as (typeof levelOrder)[number]),
+  );
+  const totalPresent = groups.reduce((sum, [, students]) => sum + students.size, 0);
+
+  return (
+    <section className="table-panel attendance-sunday-report">
+      <header className="panel-heading">
+        <div>
+          <p className="eyebrow">Attendance report</p>
+          <h2>Sunday attendance by level</h2>
+          <p>See the students recorded present or late for each Sunday service.</p>
+        </div>
+        <label className="field">
+          <span>Sunday service</span>
+          <select
+            aria-label="Sunday attendance service"
+            value={activeSessionId}
+            onChange={(event) => setSelectedSessionId(event.target.value)}
+            disabled={!sundaySessions.length}
+          >
+            {sundaySessions.map((session) => (
+              <option key={session.id} value={session.id}>
+                {new Date(session.startsAt).toLocaleDateString("en-NG", {
+                  weekday: "long",
+                  day: "numeric",
+                  month: "long",
+                  year: "numeric",
+                  timeZone: "Africa/Lagos",
+                })} · {session.title}
+              </option>
+            ))}
+          </select>
+        </label>
+      </header>
+      {sessions.isPending ? (
+        <LoadingState label="Loading Sunday attendance sessions" />
+      ) : sessions.isError ? (
+        <ErrorState description={message(sessions.error)} onRetry={() => void sessions.refetch()} />
+      ) : !sundaySessions.length ? (
+        <EmptyState icon={<CalendarDays />} title="No Sunday sessions found" description="Sunday attendance totals will appear after a Sunday service session has been recorded." />
+      ) : records.isPending ? (
+        <LoadingState label="Loading Sunday attendance" />
+      ) : records.isError ? (
+        <ErrorState description={message(records.error)} onRetry={() => void records.refetch()} />
+      ) : (
+        <>
+          <div className="attendance-livebar">
+            <div><strong>{totalPresent}</strong><small>Total students present</small></div>
+            <div><strong>{groups.length}</strong><small>Academic levels represented</small></div>
+          </div>
+          {totalPresent > 0 && <table>
+            <caption className="sr-only">Students attending the selected Sunday service, grouped by academic level</caption>
+            <thead><tr><th>Student</th><th>Level</th><th>Check-in time</th></tr></thead>
+            <tbody>
+              {groups.flatMap(([level, students]) => [
+                <tr key={`sunday-level-${level}`} className="table-group-heading">
+                  <th colSpan={3} scope="rowgroup">
+                    {level === "UNASSIGNED" ? "No academic level" : academicLevelLabel(level)}
+                    <small> · {students.size} {students.size === 1 ? "student" : "students"}</small>
+                  </th>
+                </tr>,
+                ...[...students.values()]
+                  .sort((left, right) => left.memberName.localeCompare(right.memberName))
+                  .map((record) => (
+                    <tr key={record.id}>
+                      <td><strong>{record.memberName}</strong></td>
+                      <td>{level === "UNASSIGNED" ? "No academic level" : academicLevelLabel(level)}</td>
+                      <td>{record.time || "—"}</td>
+                    </tr>
+                  )),
+              ])}
+            </tbody>
+          </table>}
+          {!totalPresent && <EmptyState icon={<ClipboardCheck />} title="No student attendance recorded" description="This Sunday service has no present or late student records yet." />}
+        </>
+      )}
+    </section>
+  );
+}
+
 export function LiveAttendancePage() {
   const { user } = useAuth();
   const branchId = user?.branchId ?? "";
@@ -562,7 +793,7 @@ export function LiveAttendancePage() {
   const scheduled = useQuery({
     queryKey: ["attendance-sessions", branchId],
     queryFn: async () => (await attendanceService.sessions(branchId)).data,
-    enabled: canManage && Boolean(branchId),
+    enabled: hasPermission(user, "attendance:read") && Boolean(branchId),
   });
   const currentSessionId = query.data?.session?.id || "";
   const sessionRecords = useQuery({
@@ -681,6 +912,7 @@ export function LiveAttendancePage() {
           description="Create attendance windows for this branch. Sessions open when created; their time window determines when they are current."
           actions={canManage && <Button icon={<Plus />} onClick={() => setSessionOpen(true)}>Create session</Button>}
         />
+        <SundayAttendanceReport branchId={branchId} />
         <section className="table-panel">
           <header className="panel-heading"><div><h2>Attendance sessions</h2><p>Students use their attendance pass; ushers use the checkpoint scanner.</p></div></header>
           {scheduled.isPending ? <LoadingState label="Loading attendance sessions" /> : scheduled.isError ? (
@@ -763,6 +995,7 @@ export function LiveAttendancePage() {
           </>
         }
       />
+      <SundayAttendanceReport branchId={branchId} />
       {isDjangoBackend && user?.role === "attendance_usher" && <UsherCheckpointQr compact expectedSessionId={session.id} />}
       <div className="attendance-livebar">
         <div>
@@ -1394,10 +1627,10 @@ const moduleMeta: Record<
     icon: <ListFilter />,
   },
   media: {
-    eyebrow: "Sermons and media",
-    title: "Media library",
-    description: "Accessible audio, video, documents, and livestream content.",
-    action: "Add media",
+    eyebrow: "Chapel gallery",
+    title: "Gallery and media",
+    description: "Upload chapel photos and videos. Sermons are published separately by the Chaplain.",
+    action: "Upload to gallery",
     icon: <FileText />,
   },
   cms: {
@@ -1444,6 +1677,10 @@ function LiveModuleOperationsPage({
 }) {
   const { user } = useAuth();
   const meta = moduleMeta[module];
+  const [searchParams] = useSearchParams();
+  const chaplain = user?.role === "chaplain";
+  const urlContentType = searchParams.get("content_type") || "";
+  const safeUrlContentType = chaplain || !["SERMON", "SERMON_SERIES"].includes(urlContentType) ? urlContentType : "";
   const writePermissions: Partial<Record<OperationsModule, Permission>> = {
     workers: "workers:write",
     finance: "finance:write",
@@ -1462,6 +1699,8 @@ function LiveModuleOperationsPage({
     (module === "cms" && hasPermission(user, "cms:write")) ||
     (module === "media" && hasPermission(user, "media:write"));
   const [search, setSearch] = useState("");
+  const [contentTypeFilter, setContentTypeFilter] = useState(safeUrlContentType);
+  const [selectedContentType, setSelectedContentType] = useState(safeUrlContentType || "GALLERY");
   const [open, setOpen] = useState(false);
   const [confirm, setConfirm] = useState(false);
   const [pendingPayload, setPendingPayload] = useState<Record<
@@ -1469,12 +1708,10 @@ function LiveModuleOperationsPage({
     unknown
   > | null>(null);
   const [selected, setSelected] = useState<ListRow | null>(null);
-  const canReviewContent =
-    user?.role === "super_admin" ||
-    user?.role === "chaplain" ||
-    (module === "media" &&
-      hasPermission(user, "media:write") &&
-      GALLERY_PUBLISH_TYPES.has(selected?.contentType || ""));
+  const selectedGalleryContent = module === "media" && GALLERY_PUBLISH_TYPES.has(selected?.contentType || "");
+  const canReviewContent = module === "media"
+    ? chaplain && !selectedGalleryContent
+    : user?.role === "super_admin" || chaplain;
   const [rejecting, setRejecting] = useState<ListRow | null>(null);
   const [rejectionReason, setRejectionReason] = useState("");
   const [uploadError, setUploadError] = useState("");
@@ -1482,15 +1719,25 @@ function LiveModuleOperationsPage({
   const [statusFilter, setStatusFilter] = useState("");
   const toast = useToast();
   const client = useQueryClient();
+  useEffect(() => {
+    setContentTypeFilter(safeUrlContentType);
+    setSelectedContentType(safeUrlContentType || "GALLERY");
+  }, [safeUrlContentType]);
   const params = {
     search,
     status: statusFilter || undefined,
+    content_type: module === "media" ? contentTypeFilter || undefined : undefined,
     page: 1,
     pageSize: 40,
   };
   const query = useQuery({
     queryKey: queryKeys.operations(module, params),
     queryFn: () => operationsService.list(module, params),
+  });
+  const galleryAlbums = useQuery({
+    queryKey: ["media-gallery-albums"],
+    queryFn: () => operationsService.list("media", { content_type: "GALLERY", page: 1, pageSize: 200 }),
+    enabled: module === "media" && canCreate,
   });
   const groupScopedCommunicator =
     user?.role === "unit_leader" || user?.role === "fellowship_leader";
@@ -1511,10 +1758,11 @@ function LiveModuleOperationsPage({
   const create = useMutation({
     mutationFn: (payload: Record<string, unknown>) =>
       operationsService.create(module, payload),
-    onSuccess: () => {
+    onSuccess: (_result, payload) => {
       setOpen(false);
       setConfirm(false);
-      toast(`${meta.action} completed.`);
+      const type = String(payload.content_type || "");
+      toast(type === "SERMON" || type === "SERMON_SERIES" ? "Sermon published." : GALLERY_PUBLISH_TYPES.has(type) ? "Gallery content published." : `${meta.action} completed.`);
       void client.invalidateQueries({ queryKey: [module] });
     },
   });
@@ -1574,9 +1822,51 @@ function LiveModuleOperationsPage({
     if (module === "media") {
       const mediaFile = form.get("media_file");
       const coverImageFile = form.get("cover_image_file");
+      const galleryFiles = form.getAll("gallery_files").filter(
+        (file): file is File => file instanceof File && Boolean(file.name),
+      );
       delete payload.media_file;
       delete payload.cover_image_file;
+      delete payload.gallery_files;
       const contentType = String(payload.content_type || "");
+      if (contentType === "GALLERY" && galleryFiles.length) {
+        setUploading(true);
+        try {
+          const uploadedFiles: { file: File; url: string }[] = [];
+          for (const file of galleryFiles) {
+            const upload = await uploadService.upload(file, "MEDIA_CONTENT");
+            uploadedFiles.push({ file, url: upload.data.file_url });
+          }
+          const firstImage = uploadedFiles.find(({ file }) => file.type.startsWith("image/"));
+          const album = await operationsService.create("media", {
+            ...payload,
+            cover_image_url: firstImage?.url || "",
+            content_type: "GALLERY",
+          });
+          for (const { file, url } of uploadedFiles) {
+            const type = file.type.startsWith("video/") ? "GALLERY_VIDEO" : "GALLERY_IMAGE";
+            const title = file.name.replace(/\.[^.]+$/, "");
+            await operationsService.create("media", {
+              title,
+              slug: `${album.data.id.slice(0, 8)}-${title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 100)}`,
+              summary: String(payload.summary || "").trim(),
+              details: String(payload.detail || payload.summary || "").trim(),
+              content_type: type,
+              media_url: url,
+              parent: album.data.id,
+              ...(payload.publish_at ? { publish_at: payload.publish_at } : {}),
+            });
+          }
+          setOpen(false);
+          toast("Gallery album and media published.");
+          void client.invalidateQueries({ queryKey: [module] });
+        } catch (error) {
+          setUploadError(message(error));
+        } finally {
+          setUploading(false);
+        }
+        return;
+      }
       const requiresUploadedMedia = ["SERMON", "MEDIA", "GALLERY_IMAGE", "GALLERY_VIDEO"].includes(contentType);
       if (requiresUploadedMedia && !(mediaFile instanceof File && mediaFile.name)) {
         setUploadError("Choose the image, video, audio, or document to publish.");
@@ -1618,9 +1908,9 @@ function LiveModuleOperationsPage({
   return (
     <>
       <PageHeader
-        eyebrow={meta.eyebrow}
-        title={meta.title}
-        description={meta.description}
+        eyebrow={module === "media" && contentTypeFilter === "SERMON" ? "Chaplain sermons" : meta.eyebrow}
+        title={module === "media" && contentTypeFilter === "SERMON" ? "Sermons" : meta.title}
+        description={module === "media" && contentTypeFilter === "SERMON" ? "Publish sermons directly to the chapel homepage and public sermon library." : meta.description}
         actions={
           module === "audit" ? (
             <Button
@@ -1636,8 +1926,12 @@ function LiveModuleOperationsPage({
               {meta.action}
             </Button>
           ) : canCreate ? (
-            <Button icon={<Plus />} onClick={() => setOpen(true)}>
-              {meta.action}
+            <Button icon={<Plus />} onClick={() => {
+              if (module === "media") setSelectedContentType(contentTypeFilter || "GALLERY");
+              setUploadError("");
+              setOpen(true);
+            }}>
+              {module === "media" && contentTypeFilter === "SERMON" ? "Post a sermon" : meta.action}
             </Button>
           ) : undefined
         }
@@ -1661,6 +1955,20 @@ function LiveModuleOperationsPage({
             {module === "assets" && <option value="LOW_STOCK">Low stock</option>}
           </select>
         </label>
+        {module === "media" && (
+          <label>
+            <Filter />
+            <select aria-label="Filter gallery and media" value={contentTypeFilter} onChange={(event) => setContentTypeFilter(event.target.value)}>
+              <option value="">All gallery and media</option>
+              <option value="GALLERY">Gallery albums</option>
+              <option value="GALLERY_IMAGE">Gallery photos</option>
+              <option value="GALLERY_VIDEO">Gallery videos</option>
+              <option value="MEDIA">Other media resources</option>
+              <option value="LIVESTREAM">Livestreams</option>
+              {chaplain && <><option value="SERMON">Sermons</option><option value="SERMON_SERIES">Sermon series</option></>}
+            </select>
+          </label>
+        )}
       </div>
       {query.isPending ? (
         <LoadingState />
@@ -1722,8 +2030,12 @@ function LiveModuleOperationsPage({
       <Modal
         open={open}
         onClose={() => setOpen(false)}
-        title={meta.action}
-        description="Required fields and authorization are validated again by the backend."
+        title={module === "media" && selectedContentType === "SERMON" ? "Post a sermon" : meta.action}
+        description={module === "media"
+          ? selectedContentType === "SERMON"
+            ? "Publish a sermon with its recording. It will appear on the chapel homepage and sermon page."
+            : "Create a gallery album and add several photos or videos in one upload. Published gallery content appears immediately."
+          : "Required fields and authorization are validated again by the backend."}
         footer={
           <>
             <Button variant="ghost" onClick={() => setOpen(false)}>
@@ -1857,7 +2169,7 @@ function LiveModuleOperationsPage({
                 <>
                   <label className="field">
                     <span>Content type</span>
-                    <select name="content_type" required>
+                    <select name="content_type" required value={module === "media" ? selectedContentType : undefined} onChange={(event) => module === "media" && setSelectedContentType(event.target.value)}>
                       {module === "cms" ? (
                         <>
                           <option value="PAGE">Website page</option>
@@ -1865,8 +2177,7 @@ function LiveModuleOperationsPage({
                         </>
                       ) : (
                         <>
-                          <option value="SERMON">Sermon</option>
-                          <option value="SERMON_SERIES">Sermon series</option>
+                          {chaplain && <><option value="SERMON">Sermon</option><option value="SERMON_SERIES">Sermon series</option></>}
                           <option value="GALLERY">Gallery album</option>
                           <option value="GALLERY_IMAGE">Gallery image</option>
                           <option value="GALLERY_VIDEO">Gallery video</option>
@@ -1877,12 +2188,14 @@ function LiveModuleOperationsPage({
                     </select>
                   </label>
                   <Field name="slug" label="Public URL slug" placeholder="sunday-message" />
-                  <Field className="field--full" name="summary" label="Public summary" required />
-                  <Field name="author_name" label="Speaker or author" />
+                  <Field className="field--full" name="summary" label="Public summary" required={module !== "media" || selectedContentType === "SERMON"} />
+                  {(module !== "media" || selectedContentType === "SERMON" || selectedContentType === "SERMON_SERIES") && <Field name="author_name" label="Speaker" required={selectedContentType === "SERMON"} defaultValue={selectedContentType === "SERMON" ? user?.name || "" : ""} />}
                   <Field name="publish_at" label="Schedule publication" type="datetime-local" />
-                  {module === "media" ? <>
-                    <label className="field field--full"><span>Cover image from device (optional)</span><input name="cover_image_file" type="file" accept="image/jpeg,image/png,image/webp,image/gif" /></label>
-                    <label className="field field--full"><span>Media from device</span><input name="media_file" type="file" accept="image/*,video/*,audio/*,application/pdf" /><small>Images, videos, audio, and PDFs can be up to 100 MB.</small></label>
+                  {module === "media" ? selectedContentType === "GALLERY" ? <>
+                    <label className="field field--full"><span>Photos and videos</span><input name="gallery_files" type="file" accept="image/*,video/*" multiple /><small>Select multiple files at once. Files publish inside this album as soon as upload finishes; each file can be up to 100 MB.</small></label>
+                  </> : <>
+                    <label className="field field--full"><span>{selectedContentType === "SERMON" ? "Sermon recording" : "Cover image from device (optional)"}</span><input name="cover_image_file" type="file" accept="image/jpeg,image/png,image/webp,image/gif" /></label>
+                    <label className="field field--full"><span>{selectedContentType === "SERMON" ? "Audio or video recording" : "Media from device"}</span><input name="media_file" type="file" accept="image/*,video/*,audio/*,application/pdf" /><small>Images, videos, audio, and PDFs can be up to 100 MB.</small></label>
                     <Field className="field--full" name="stream_url" label="Livestream URL" type="url" />
                   </> : <>
                     <Field className="field--full" name="cover_image_url" label="Cover image URL" type="url" />
@@ -1892,13 +2205,12 @@ function LiveModuleOperationsPage({
                     <input name="downloadable" type="checkbox" />
                     <span>Allow this resource to be downloaded from the public library</span>
                   </label>
-                  {module === "media" && rows.some((row) => row.contentType === "GALLERY") && (
+                  {module === "media" && ["GALLERY_IMAGE", "GALLERY_VIDEO"].includes(selectedContentType) && (
                     <label className="field field--full">
                       <span>Gallery album</span>
-                      <select name="parent">
-                        <option value="">Not gallery media</option>
-                        {rows
-                          .filter((row) => row.contentType === "GALLERY")
+                      <select name="parent" required={selectedContentType === "GALLERY_IMAGE" || selectedContentType === "GALLERY_VIDEO"}>
+                        <option value="">{galleryAlbums.data?.data.length ? "Select an album" : "Create an album first"}</option>
+                        {(galleryAlbums.data?.data ?? [])
                           .map((row) => <option key={row.id} value={row.id}>{row.primary}</option>)}
                       </select>
                     </label>
@@ -1907,7 +2219,7 @@ function LiveModuleOperationsPage({
               )}
               <label className="field field--full">
                 <span>{module === "cms" || module === "media" ? "Body or notes" : "Details"}</span>
-                <textarea name="detail" required />
+                <textarea name="detail" required={module !== "media" || selectedContentType === "SERMON"} />
               </label>
             </>
           )}
@@ -1971,7 +2283,7 @@ function LiveModuleOperationsPage({
               ["workers", "communication", "assets", "cms", "media"].includes(
                 module,
               ) &&
-              !((module === "cms" || module === "media") && selected.status === "IN_REVIEW" && !canReviewContent) &&
+              !((module === "cms" || module === "media") && selected.status === "IN_REVIEW" && !selectedGalleryContent && !canReviewContent) &&
               !((module === "cms" || module === "media") && selected.status === "SCHEDULED" && Boolean(selected.publishAt && new Date(selected.publishAt) > new Date())) && (
                 <>
                   {(module === "cms" || module === "media") &&

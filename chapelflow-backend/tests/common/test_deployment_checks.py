@@ -22,6 +22,11 @@ class TestDeploymentChecks:
         assert len(findings) == 1
         assert findings[0].id == "chapelflow.W001"
 
+    def test_railway_probe_host_does_not_hide_missing_public_host(self):
+        with override_settings(ALLOWED_HOSTS=["localhost", "127.0.0.1", "healthcheck.railway.app"]):
+            findings = check_allowed_hosts_not_default(None)
+        assert [finding.id for finding in findings] == ["chapelflow.W001"]
+
     def test_allowed_hosts_customized_is_clean(self):
         with override_settings(ALLOWED_HOSTS=["chapelflow.example.edu"]):
             findings = check_allowed_hosts_not_default(None)

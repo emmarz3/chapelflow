@@ -9,6 +9,7 @@ import {
   Home,
   Gauge,
   MapPin,
+  Phone,
   Menu,
   Info,
   Pause,
@@ -32,7 +33,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import { useQuery } from "@tanstack/react-query";
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "./auth-context";
-import { Button, PageHeader, SectionLink } from "../components/ui";
+import { Button, Modal, PageHeader, SectionLink } from "../components/ui";
 import {
   COOKIE_CONSENT_EVENT,
   isSafeExternalUrl,
@@ -190,18 +191,20 @@ function SiteFooter() {
         </div>
 
         <div className="site-footer__contact">
-          <h3>Connect</h3>
+          <h3>Contact</h3>
           <p>
             <MapPin size={16} aria-hidden="true" />
             <span>
-              Chrisland University Chapel
-              <br />
-              Abeokuta Campus, Ogun State
+              Chrisland University, Km 5, Ajebo Road, Owode, near Federal Medical Centre, Abeokuta, Ogun State, Nigeria.
             </span>
           </p>
           <p>
             <Mail size={16} aria-hidden="true" />
-            <a href="mailto:chapel@chrislanduniversity.edu.ng">chapel@chrislanduniversity.edu.ng</a>
+            <a href="mailto:chapel@chrislanduniversity.edu">chapel@chrislanduniversity.edu</a>
+          </p>
+          <p>
+            <Phone size={16} aria-hidden="true" />
+            <a href="tel:+2348036063523">+2348036063523</a>
           </p>
         </div>
 
@@ -314,11 +317,19 @@ function localDateKey(date: Date) {
 
 function DemoHomePage() {
   const { user, loading } = useAuth();
+  const [profileOpen, setProfileOpen] = useState(false);
   const eventsQuery = useQuery({
     queryKey: ["public-home-events"],
     queryFn: async () => (await publicService.events({ page: 1, pageSize: 50 })).data,
     refetchInterval: 60_000,
   });
+  const sermonsQuery = useQuery({
+    queryKey: ["homepage-public-sermons"],
+    queryFn: async () => (await publicService.content("sermons")).data,
+    enabled: !isDemoMode,
+    refetchInterval: 60_000,
+  });
+  const latestSermon = sermonsQuery.data?.sections[0];
   const today = localDateKey(new Date());
   const upcomingEvents = (eventsQuery.data ?? [])
     .filter((event) => event.visibility === "public" && event.date >= today)
@@ -376,9 +387,19 @@ function DemoHomePage() {
             <p>Sharing the core values of Chrisland University Chapel means more than preaching or organising programmes; it is about living out the message of Christ daily and encouraging others to do the same. Through the commitment to raising godly morals and instilling spiritual values, the Chapel remains a beacon of hope and a catalyst for change in the lives of students, shaping them into leaders who fear God, serve humanity, and transform the world.</p>
             <footer><cite>Rev. Canon Oluwajuwonlo Onasanya</cite><span>University Chaplain</span></footer>
           </blockquote>
-          <Link to="/leadership">Read profile <ArrowRight size={17} /></Link>
+          <button className="cuc-home__profile-trigger" type="button" onClick={() => setProfileOpen(true)}>Read profile <ArrowRight size={17} aria-hidden="true" /></button>
         </div>
       </section>
+      <Modal open={profileOpen} onClose={() => setProfileOpen(false)} title="Rev. Canon Oluwajuwonlo Onasanya" description="University Chaplain" className="cuc-home__profile-modal">
+        <div className="cuc-home__profile-layout">
+          <div className="cuc-home__profile-portrait"><img src="/chaplain.jpg" alt="Rev. Canon Oluwajuwonlo Onasanya" /><p>University Chaplain<br />Chrisland University Chapel</p></div>
+          <div className="cuc-home__profile-copy">
+            <section aria-labelledby="cuc-profile-ministry"><h3 id="cuc-profile-ministry">Ministry &amp; leadership</h3><p>Rev. Canon Oluwajuwonlo Onasanya is an Anglican priest, university administrator, public health specialist, and lecturer with years of experience in higher education, pastoral ministry, health promotion, and community development. He is actively involved in Christian ministry, hosting conferences, growth meetings, and spiritual care programmes.</p><p>He currently serves as the University Chaplain at Chrisland University, Abeokuta, where he leads an interdenominational Christian community focused on raising godly morals and instilling spiritual values. He provides strategic leadership in student development, counselling, ethical formation, and chaplaincy services.</p></section>
+            <section aria-labelledby="cuc-profile-education"><h3 id="cuc-profile-education">Education &amp; teaching</h3><p>Rev. Canon Onasanya holds a Bachelor of Science in Microbiology from Bowen University, a Master of Public Health in Health Promotion and Education from Babcock University, and a Master of Divinity from Crowther Graduate Theological Seminary.</p><p>He lectures at various higher institutions of learning, is a researcher, and is a passionate advocate for holistic wellbeing. His interests span public health promotion, leadership development, faith-based interventions, and student mentorship.</p></section>
+            <section aria-labelledby="cuc-profile-public-health"><h3 id="cuc-profile-public-health">Public health &amp; service</h3><p>Beyond his ministerial calling, he is a public speaker and public health practitioner specialising in health promotion and education. He is committed to integrating academic excellence, public health practice, and transformational leadership to foster healthier communities and ethically grounded institutions.</p></section>
+          </div>
+        </div>
+      </Modal>
       <section className="cuc-home__growth" aria-labelledby="cuc-home-growth-title">
         <div className="cuc-home__growth-inner">
           <div><p className="cuc-home__eyebrow">Life at the chapel</p><h2 id="cuc-home-growth-title">Belonging, Purpose <em>&amp;</em> Growth</h2></div>
@@ -416,8 +437,8 @@ function DemoHomePage() {
         <Link className="button button--secondary" to="/gallery">Open the gallery <ArrowRight size={17} /></Link>
       </section>
       <section className="cuc-home__wisdom">
-        <div className="cuc-home__wisdom-image"><img src="/chaplain-sermon.jpg" alt="The Chaplain preaching at Chrisland University Chapel" /></div>
-        <div className="cuc-home__sermons-link"><p className="cuc-home__eyebrow">Sermons and media</p><h2>Wisdom for the journey.</h2><p>Watch messages and teaching shared by the Chaplain.</p><Link className="button button--primary" to="/sermons">Explore sermons <ArrowRight size={17} /></Link></div>
+        <div className="cuc-home__wisdom-image"><img src={latestSermon?.imageUrl || "/chaplain-sermon.jpg"} alt={latestSermon?.imageAlt || "The Chaplain preaching at Chrisland University Chapel"} /></div>
+        <div className="cuc-home__sermons-link"><p className="cuc-home__eyebrow">Latest sermon</p><h2>{latestSermon?.heading || "Wisdom for the journey."}</h2><p>{latestSermon?.body || "Watch messages and teaching shared by the Chaplain."}</p><Link className="button button--primary" to={latestSermon?.action?.href || "/sermons"}>{latestSermon ? "Listen to latest sermon" : "Explore sermons"} <ArrowRight size={17} /></Link></div>
       </section>
       <section className="cuc-home__attendance cuc-home__attendance--compact">
         <div>

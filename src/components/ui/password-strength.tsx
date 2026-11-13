@@ -35,7 +35,7 @@ export type PasswordStrengthState = {
 };
 
 export const defaultPasswordRules: readonly PasswordRule[] = [
-  { id: "length", label: "12 characters or more", test: (v) => v.length >= 12 },
+  { id: "length", label: "8 characters or more", test: (v) => v.length >= 8 },
   { id: "case", label: "Upper and lower case", test: (v) => /[a-z]/.test(v) && /[A-Z]/.test(v) },
   { id: "digit", label: "A number", test: (v) => /\d/.test(v) },
   { id: "symbol", label: "A symbol", test: (v) => SYMBOL.test(v) },
@@ -47,7 +47,6 @@ export const passwordRulesForMinimumLength = (minimum: number): readonly Passwor
 ];
 
 export const eightCharacterPasswordRules = passwordRulesForMinimumLength(8);
-export const tenCharacterPasswordRules = passwordRulesForMinimumLength(10);
 
 const defaultLabels = ["Empty", "Weak", "Fair", "Good", "Strong"] as const;
 

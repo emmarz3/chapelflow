@@ -6,6 +6,8 @@ from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 from django.utils import timezone
 from django.db import models
+from datetime import date
+from uuid import UUID
 
 from apps.members.models import Member, MemberQRCode, is_student_community_member
 from common.constants.roles import PermissionCodes, Roles
@@ -30,6 +32,7 @@ class AttendanceSessionViewSet(BranchScopedQuerysetMixin, StandardModelViewSet):
     filterset_fields = ["branch", "is_open", "event_schedule"]
     permission_action_map = {
         "list": PermissionCodes.ATTENDANCE_VIEW, "retrieve": PermissionCodes.ATTENDANCE_VIEW,
+        "monthly_report": PermissionCodes.ATTENDANCE_VIEW,
         "create": PermissionCodes.ATTENDANCE_CREATE, "update": PermissionCodes.ATTENDANCE_CREATE,
         "partial_update": PermissionCodes.ATTENDANCE_CREATE, "destroy": PermissionCodes.ATTENDANCE_CREATE,
         "close": PermissionCodes.ATTENDANCE_CREATE,
@@ -39,6 +42,97 @@ class AttendanceSessionViewSet(BranchScopedQuerysetMixin, StandardModelViewSet):
 
     def get_base_queryset(self):
         return AttendanceSession.objects.select_related("branch", "event_schedule")
+
+    @action(detail=False, methods=["get"], url_path="monthly-report")
+    def monthly_report(self, request):
+        """Return scoped student attendance and Sunday no-shows for one month."""
+        from common.constants.roles import Roles
+        if request.user.get_role_code() not in {
+            Roles.SUPER_ADMIN, Roles.CHAPEL_ADMIN, Roles.CHAPLAIN, Roles.STUDENT_CHAPLAIN,
+        }:
+            return error_response("This attendance report is restricted to Chapel leadership.", status=403)
+        month_value = request.query_params.get("month", "")
+        branch_id = request.query_params.get("branch", "")
+        try:
+            year, month = (int(part) for part in month_value.split("-", 1))
+            period_start = date(year, month, 1)
+            period_end = date(year + (month == 12), 1 if month == 12 else month + 1, 1)
+        except (TypeError, ValueError):
+            return error_response("month must use YYYY-MM format.", status=400)
+        if not branch_id:
+            return error_response("branch is required.", status=400)
+        try:
+            branch_id = UUID(branch_id)
+        except (TypeError, ValueError):
+            return error_response("branch must be a valid chapel branch ID.", status=400)
+        if not user_can_access_branch(request.user, branch_id):
+            return error_response("Attendance report not found.", status=404)
+
+        sessions = list(self.filter_queryset(self.get_queryset()).filter(
+            branch_id=branch_id, is_open=False,
+        ))
+        period_sessions = []
+        sunday_sessions = []
+        for session in sessions:
+            service_time = session.window_opens_at or session.opened_at
+            service_date = timezone.localtime(service_time).date()
+            if period_start <= service_date < period_end:
+                period_sessions.append((session, service_date))
+                if service_date.weekday() == 6:
+                    sunday_sessions.append((session, service_date))
+
+        from apps.members.models import CommunityClassification, Member, MembershipStatus
+        students = list(Member.objects.filter(
+            branch_id=branch_id,
+            membership_status__in=[MembershipStatus.ACTIVE, MembershipStatus.PENDING],
+        ).filter(models.Q(community=CommunityClassification.STUDENT) | models.Q(community__isnull=True) | models.Q(community=""))
+          .select_related("department", "user").order_by("academic_level", "last_name", "first_name"))
+        session_ids = [session.id for session, _ in period_sessions]
+        attendance = AttendanceRecord.objects.filter(
+            session_id__in=session_ids,
+            member_id__in=[student.id for student in students],
+        ).values_list("session_id", "member_id", "status", "checked_in_at")
+        by_student = {}
+        for session_id, member_id, status, checked_in_at in attendance:
+            by_student.setdefault(str(member_id), {})[str(session_id)] = {
+                "status": status,
+                "checked_in_at": checked_in_at,
+            }
+
+        services = [{
+            "id": str(session.id),
+            "date": service_date.isoformat(),
+            "title": session.label or (session.event_schedule.event.title if session.event_schedule_id else "Chapel service"),
+            "is_sunday": service_date.weekday() == 6,
+        } for session, service_date in period_sessions]
+        student_rows = []
+        for student in students:
+            records = by_student.get(str(student.id), {})
+            attended = sum(1 for service in period_sessions if records.get(str(service[0].id), {}).get("status") in {"PRESENT", "LATE"})
+            excused = sum(1 for service in period_sessions if records.get(str(service[0].id), {}).get("status") == "EXCUSED")
+            denominator = max(0, len(period_sessions) - excused)
+            missed_sundays = [service[1].isoformat() for service in sunday_sessions
+                              if records.get(str(service[0].id), {}).get("status") not in {"PRESENT", "LATE", "EXCUSED"}]
+            checked_in = [record["checked_in_at"] for record in records.values() if record["status"] in {"PRESENT", "LATE"} and record["checked_in_at"]]
+            student_rows.append({
+                "id": str(student.id), "name": student.full_name,
+                "identifier": student.user.matric_no if student.user_id else "",
+                "email": student.email, "phone": student.phone_number,
+                "programme": student.department.name if student.department_id else "",
+                "department": student.department.name if student.department_id else "",
+                "level": student.academic_level or "", "status": student.membership_status,
+                "attendance_percentage": round(attended * 100 / denominator) if denominator else None,
+                "attended_services": attended, "total_services": denominator,
+                "last_seen": max(checked_in).isoformat() if checked_in else "",
+                "missed_sunday_services": missed_sundays,
+                "service_attendance": {service_id: data["status"] for service_id, data in records.items()},
+            })
+        return success_response({
+            "month": month_value, "branch_id": branch_id,
+            "services": services,
+            "students": student_rows,
+            "sunday_absentees": [student for student in student_rows if student["missed_sunday_services"]],
+        })
 
     def destroy(self, request, *args, **kwargs):
         session = self.get_object()

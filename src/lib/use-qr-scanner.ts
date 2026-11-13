@@ -34,7 +34,7 @@ export function useQrScanner(onScan: (text: string) => void, scanning: boolean) 
       if (cancelled || !videoRef.current) return;
       try {
         const reader = new BrowserQRCodeReader();
-        controlsRef.current = await reader.decodeFromConstraints(
+        const controls = await reader.decodeFromConstraints(
           { video: { facingMode: { ideal: "environment" } }, audio: false },
           videoRef.current,
           (result) => {
@@ -44,6 +44,8 @@ export function useQrScanner(onScan: (text: string) => void, scanning: boolean) 
             onScan(text);
           },
         );
+        if (cancelled) controls.stop();
+        else controlsRef.current = controls;
       } catch {
         if (!cancelled) {
           setPermissionError(

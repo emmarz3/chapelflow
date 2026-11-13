@@ -61,6 +61,13 @@ def test_member_cannot_start_or_stop_attendance(api_client, make_user, branch_a)
 def test_super_admin_creates_chapel_institutional_accounts(api_client, make_user, branch_a, role, group_type):
     from apps.accounts.models import User
     from apps.ministries.models import Group
+    from apps.organizations.models import Branch
+
+    chapel_branch = Branch.objects.create(
+        organization=branch_a.organization,
+        name="Chrisland University Chapel",
+        branch_type="CHAPEL",
+    )
 
     api_client.force_authenticate(user=make_user(email="admin@provision.test", role="SUPER_ADMIN"))
     payload = {
@@ -68,12 +75,12 @@ def test_super_admin_creates_chapel_institutional_accounts(api_client, make_user
         "role": role, "password": "Temporary-Account-483!", "password_change_required": True,
     }
     if group_type:
-        group = Group.objects.create(branch=branch_a, name="Chapel group", group_type=group_type)
+        group = Group.objects.create(branch=chapel_branch, name="Chapel group", group_type=group_type)
         payload["institutional_group"] = str(group.id)
     response = api_client.post("/api/v1/auth/institutional-accounts/", payload, format="json")
     assert response.status_code == 201, response.data
     account = User.objects.get(email=payload["email"])
-    assert account.branch_id == branch_a.id
+    assert account.branch_id == chapel_branch.id
     assert account.role == role
     assert account.check_password(payload["password"])
     assert account.password_change_required

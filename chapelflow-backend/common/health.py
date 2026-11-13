@@ -116,7 +116,8 @@ class ReadinessView(APIView):
         else:
             checks.update(redis="not configured", celery_broker="not configured")
         all_ok = all(
-            value is True or value == "not configured" for value in checks.values()
+            value is True or (value == "not configured" and not getattr(settings, "READINESS_REQUIRE_REDIS", False))
+            for value in checks.values()
         )
         if not all_ok:
             logger.warning("Readiness check failed: %s", checks)

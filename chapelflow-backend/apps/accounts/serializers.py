@@ -19,6 +19,7 @@ class UserPublicSerializer(serializers.ModelSerializer):
     inventory_access = serializers.SerializerMethodField()
     media_access = serializers.SerializerMethodField()
     community = serializers.SerializerMethodField()
+    institutional_group_name = serializers.CharField(source="institutional_group.name", read_only=True, default="")
 
     def get_effective_permissions(self, user):
         """Return the server-evaluated grants used by the web client manifest."""
@@ -38,7 +39,8 @@ class UserPublicSerializer(serializers.ModelSerializer):
         return user_has_media_management_access(user)
 
     def get_mfa_required(self, user):
-        return user_requires_mfa(user) and not user.mfa_enabled
+        from common.permissions.rbac import is_assigned_treasurer
+        return (user_requires_mfa(user) or is_assigned_treasurer(user)) and not user.mfa_enabled
 
     def get_community(self, user):
         # Blank legacy member records predate account classification and keep
@@ -54,7 +56,8 @@ class UserPublicSerializer(serializers.ModelSerializer):
             "id", "email", "matric_no", "first_name", "last_name",
             "full_name", "phone_number", "role", "branch", "mfa_enabled", "mfa_required",
             "is_active", "password_change_required", "date_joined", "effective_permissions",
-            "inventory_access", "media_access", "community",
+            "inventory_access", "media_access", "community", "institutional_office",
+            "institutional_group_name",
         ]
         read_only_fields = fields
 
@@ -115,11 +118,8 @@ class InstitutionalAccountSerializer(serializers.ModelSerializer):
         if self.instance is None and not attrs.get("password"):
             raise serializers.ValidationError({"password": ["An initial password is required."]})
         if self.instance is None and not attrs.get("branch"):
-            from apps.organizations.models import Branch
-            attrs["branch"] = (
-                Branch.objects.filter(name__iexact="Chrisland University Chapel", is_active=True).first()
-                or Branch.objects.filter(branch_type="CHAPEL", is_active=True).order_by("name").first()
-            )
+            from apps.organizations.services import get_chrisland_chapel_branch
+            attrs["branch"] = get_chrisland_chapel_branch()
             if not attrs["branch"]:
                 raise serializers.ValidationError({"branch": ["Chrisland University Chapel is not configured yet."]})
         role = attrs.get("role", self.instance.role if self.instance else "")
@@ -345,11 +345,8 @@ class RegisterSerializer(serializers.Serializer):
             attrs.pop("matric_no", None)
             attrs["academic_level"] = ""
         if not attrs.get("branch"):
-            from apps.organizations.models import Branch
-            attrs["branch"] = (
-                Branch.objects.filter(name__iexact="Chrisland University Chapel", is_active=True).first()
-                or Branch.objects.filter(branch_type="CHAPEL", is_active=True).order_by("name").first()
-            )
+            from apps.organizations.services import get_chrisland_chapel_branch
+            attrs["branch"] = get_chrisland_chapel_branch()
             if not attrs["branch"]:
                 raise serializers.ValidationError({"branch": ["Chrisland University Chapel is not configured yet."]})
         return attrs

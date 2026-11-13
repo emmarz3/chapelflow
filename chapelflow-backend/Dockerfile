@@ -16,7 +16,7 @@ COPY . .
 COPY start.sh /app/start.sh
 COPY start-celery.sh /app/start-celery.sh
 COPY release.sh /app/release.sh
-RUN chmod +x /app/start.sh /app/start-celery.sh /app/release.sh
+RUN chmod +x /app/start.sh /app/start-celery.sh /app/release.sh /app/start-railway.sh /app/release-railway.sh
 RUN python manage.py collectstatic --noinput
 
 

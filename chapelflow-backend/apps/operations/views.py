@@ -75,6 +75,7 @@ GALLERY_PUBLISH_TYPES = {
     ContentType.GALLERY, ContentType.GALLERY_IMAGE, ContentType.GALLERY_VIDEO,
     ContentType.MEDIA,
 }
+SERMON_CONTENT_TYPES = {ContentType.SERMON, ContentType.SERMON_SERIES}
 
 
 def _require_content_access(user):
@@ -91,6 +92,8 @@ def _require_media_access(user):
 
 def _require_entry_content_access(user, entry):
     if entry.content_type in MEDIA_CONTENT_TYPES:
+        if entry.content_type in SERMON_CONTENT_TYPES and _role(user) != Roles.CHAPLAIN:
+            raise PermissionDenied("Only the Chaplain can manage sermons and sermon series.")
         _require_media_access(user)
         return
     _require_content_access(user)
@@ -788,14 +791,28 @@ class ContentCollectionView(APIView):
                 payload.pop(optional_field, None)
         if payload["content_type"] not in self.allowed_types:
             raise ValidationError({"content_type": "Select a valid content type."})
+        if payload["content_type"] in SERMON_CONTENT_TYPES and _role(request.user) != Roles.CHAPLAIN:
+            raise PermissionDenied("Only the Chaplain can publish sermons and sermon series.")
         serializer = ContentEntrySerializer(data=payload)
         serializer.is_valid(raise_exception=True)
         parent = serializer.validated_data.get("parent")
         branch = _branch_for_create(request.user)
         if parent and parent.branch_id != branch.id:
             raise ValidationError({"parent": "Parent content must belong to the same branch."})
+        content_type = serializer.validated_data["content_type"]
+        direct_publish = (
+            content_type in GALLERY_PUBLISH_TYPES and user_has_media_management_access(request.user)
+        ) or (content_type in SERMON_CONTENT_TYPES and _role(request.user) == Roles.CHAPLAIN)
         with transaction.atomic():
             entry = serializer.save(branch=branch, created_by=request.user)
+            if direct_publish:
+                now = timezone.now()
+                if entry.publish_at and entry.publish_at > now:
+                    entry.status = ContentStatus.SCHEDULED
+                else:
+                    entry.status = ContentStatus.PUBLISHED
+                    entry.published_at = now
+                entry.save(update_fields=["status", "published_at", "updated_at"])
             _create_content_revision(entry, request.user)
         write_audit_log(
             AuditAction.CREATE, "operations.content", entry.id,
@@ -812,6 +829,8 @@ class MediaCollectionView(ContentCollectionView):
         _require_media_access(user)
 
     def restrict_queryset(self, queryset, user):
+        if _role(user) != Roles.CHAPLAIN:
+            queryset = queryset.exclude(content_type__in=SERMON_CONTENT_TYPES)
         return queryset
 
 
@@ -862,17 +881,17 @@ class ContentWorkflowView(APIView):
             _require_entry_content_access(request.user, entry)
             previous = entry.status
             if action == "submit":
+                if entry.content_type in GALLERY_PUBLISH_TYPES:
+                    raise ValidationError({"status": "Gallery media publishes directly and does not enter review."})
                 if entry.status not in {ContentStatus.DRAFT, ContentStatus.REJECTED}:
                     raise ValidationError({"status": "Only a draft or rejected item can be submitted."})
                 entry.status = ContentStatus.IN_REVIEW
                 entry.submitted_at = now
                 entry.rejection_reason = ""
             elif action in {"approve", "reject"}:
-                can_review_gallery = (
-                    entry.content_type in GALLERY_PUBLISH_TYPES
-                    and user_has_media_management_access(request.user)
-                )
-                if _role(request.user) not in self.reviewer_roles and not can_review_gallery:
+                if entry.content_type in GALLERY_PUBLISH_TYPES:
+                    raise PermissionDenied("Gallery media publishes directly and cannot be reviewed.")
+                if _role(request.user) not in self.reviewer_roles:
                     raise PermissionDenied("You do not have permission to review this public content.")
                 if entry.status != ContentStatus.IN_REVIEW:
                     raise ValidationError({"status": "Only content in review can be approved or rejected."})

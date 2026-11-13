@@ -98,6 +98,12 @@ class UsherQrAttendanceTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn("token", response.data["data"])
 
+        record, created = student_scan_usher_token(
+            token=response.data["data"]["token"], user=self.student_user,
+        )
+        self.assertTrue(created)
+        self.assertEqual(record.checked_in_by_id, self.student_user.id)
+
     def test_rostered_usher_cannot_fetch_token_outside_shift_window(self):
         now = timezone.now()
         for starts_at, ends_at in (
@@ -165,6 +171,11 @@ class UsherQrAttendanceTests(TestCase):
         response = client.get("/api/v1/attendance/checkpoint/token/")
 
         self.assertEqual(response.status_code, 200)
+        record, created = student_scan_usher_token(
+            token=response.data["data"]["token"], user=self.student_user,
+        )
+        self.assertTrue(created)
+        self.assertEqual(record.checked_in_by_id, self.student_user.id)
 
     def test_member_without_usher_assignment_gets_forbidden(self):
         client = APIClient()
@@ -188,6 +199,11 @@ class UsherQrAttendanceTests(TestCase):
         response = client.get("/api/v1/attendance/checkpoint/token/")
 
         self.assertEqual(response.status_code, 200)
+        record, created = student_scan_usher_token(
+            token=response.data["data"]["token"], user=self.student_user,
+        )
+        self.assertTrue(created)
+        self.assertEqual(record.checked_in_by_id, admin.id)
 
     def test_modified_token_is_rejected(self):
         token = issue_checkpoint_token(self.checkpoint)["token"] + "tampered"

@@ -194,8 +194,16 @@ class FinanceDashboardView(APIView):
         user = request.user
         
         # Authorization check
-        if user.role not in Roles.FINANCE_ACCESS_ROLES and user.role not in Roles.GLOBAL_SCOPE_ROLES:
+        from common.permissions.rbac import is_assigned_treasurer
+        is_treasurer = is_assigned_treasurer(user)
+        if (
+            user.role not in Roles.FINANCE_ACCESS_ROLES
+            and user.role not in Roles.GLOBAL_SCOPE_ROLES
+            and not is_treasurer
+        ):
             return error_response("Not authorized for the finance dashboard.", status=403)
+        if is_treasurer and not user.mfa_enabled:
+            return error_response("Multi-factor authentication is required for Treasurer finance access.", status=403)
         
         # Get date range
         try:

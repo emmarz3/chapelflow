@@ -47,7 +47,11 @@ function role(value: unknown): Role {
 }
 
 function user(value: Row): User {
-  const mappedRole = role(value.role);
+  const isTreasurerAssignment =
+    str(value.role).toUpperCase() === "UNIT_HEAD" &&
+    str(value.institutional_office).toUpperCase() === "TREASURER" &&
+    str(value.institutional_group_name).trim().toLowerCase() === "treasurer";
+  const mappedRole = isTreasurerAssignment ? "treasurer" : role(value.role);
   const communityValue = str(value.community).toUpperCase();
   const community = communityValue === "STAFF"
     ? "staff"
@@ -92,6 +96,7 @@ function user(value: Row): User {
     : Array.from(new Set(["dashboard:view" as Permission, ...grants.flatMap((grant) => grantMap[grant] ?? [])]));
   const permissions = Array.from(new Set([
     ...basePermissions,
+    ...(isTreasurerAssignment ? ["finance:read" as Permission, "finance:write" as Permission] : []),
     ...(value.inventory_access === true ? ["assets:read" as Permission, "assets:write" as Permission] : []),
     ...(value.media_access === true ? ["media:write" as Permission] : []),
   ]));
@@ -312,6 +317,20 @@ export async function djangoRequest(
   const body = typeof init.body === "string" ? row(JSON.parse(init.body)) : {};
   const call = async (target: string, options = init) =>
     (await request(target, options)) as Envelope;
+  const callAllPages = async (path: string) => {
+    const results: Row[] = [];
+    let page = 1;
+    while (true) {
+      const separator = path.includes("?") ? "&" : "?";
+      const response = await call(`${path}${separator}page=${page}&page_size=200`);
+      results.push(...list(response.data));
+      const pagination = response.pagination;
+      const pageCount = Number(pagination?.num_pages);
+      if (!pagination?.next || (pageCount > 0 && page >= pageCount)) break;
+      page += 1;
+    }
+    return results;
+  };
   const query = new URLSearchParams(url.search);
   if (query.has("pageSize")) {
     query.set("page_size", query.get("pageSize")!);
@@ -658,8 +677,8 @@ export async function djangoRequest(
       json("POST", { token: body.token, session_id: body.sessionId }),
     );
   const attendanceSessions = async (branchId: string) => {
-    const response = await call(`/attendance/sessions/?branch=${encodeURIComponent(branchId)}&page_size=100`);
-    return list(response.data).map((session) => {
+    const response = await callAllPages(`/attendance/sessions/?branch=${encodeURIComponent(branchId)}`);
+    return response.map((session) => {
       const opensAt = str(session.window_opens_at || session.opened_at);
       const closesAt = session.window_closes_at ? str(session.window_closes_at) : null;
       const startsInFuture = Boolean(opensAt && new Date(opensAt).getTime() > Date.now());
@@ -716,6 +735,8 @@ export async function djangoRequest(
         id: str(record.id),
         memberName: person?.name || (record.visitor ? "Visitor" : "Member"),
         identifier: person?.identifier || str(record.member || record.visitor),
+        level: person?.level || null,
+        isVisitor: Boolean(record.visitor),
         time: record.checked_in_at ? new Date(str(record.checked_in_at)).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "",
         method: method === "QR_CODE" ? "qr" : method === "KIOSK" ? "kiosk" : "manual",
         status: str(record.status).toLowerCase(),
@@ -772,21 +793,31 @@ export async function djangoRequest(
     const sessionId = query.get("session") || "";
     const branchId = query.get("branch") || "";
     if (!sessionId || !branchId) unsupported("A session and chapel branch are required to load attendance records.");
-    const recordsResponse = await call(`/attendance/records/?session=${encodeURIComponent(sessionId)}&page_size=100`);
-    const membersResponse = await call(`/members/?branch=${encodeURIComponent(branchId)}&page_size=100`);
-    const members = new Map(list(membersResponse.data).map((item) => [str(item.id), member(item)]));
-    return { data: list(recordsResponse.data).map((record) => {
+    const [records, memberRows] = await Promise.all([
+      callAllPages(`/attendance/records/?session=${encodeURIComponent(sessionId)}`),
+      callAllPages(`/members/?branch=${encodeURIComponent(branchId)}`),
+    ]);
+    const members = new Map(memberRows.map((item) => [str(item.id), member(item)]));
+    return { data: records.map((record) => {
       const person = members.get(str(record.member));
       const method = str(record.method).toUpperCase();
       return {
         id: str(record.id),
         memberName: person?.name || (record.visitor ? "Visitor" : "Member"),
         identifier: person?.identifier || str(record.visitor || record.member),
+        level: person?.level || null,
+        isVisitor: Boolean(record.visitor),
         time: record.checked_in_at ? new Date(str(record.checked_in_at)).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "",
         method: method === "QR_CODE" ? "qr" : method === "KIOSK" ? "kiosk" : "manual",
         status: str(record.status).toLowerCase(),
       };
     }) };
+  }
+  if (route === "/attendance/monthly-report" && method === "GET") {
+    const branchId = query.get("branch") || "";
+    const month = query.get("month") || "";
+    if (!branchId || !month) unsupported("A chapel branch and reporting month are required.");
+    return call(`/attendance/sessions/monthly-report/?branch=${encodeURIComponent(branchId)}&month=${encodeURIComponent(month)}`);
   }
   if (route === "/attendance/sync-record" && method === "POST") {
     const branchId = str(body.branchId);

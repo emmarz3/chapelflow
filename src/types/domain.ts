@@ -96,6 +96,8 @@ export interface AttendanceRecord {
   id: string;
   memberName: string;
   identifier: string;
+  level?: string | null;
+  isVisitor?: boolean;
   time: string;
   method: "qr" | "manual" | "kiosk";
   status: "present" | "late" | "absent" | "excused" | "duplicate";

@@ -46,14 +46,16 @@ export function StudentAttendancePassPage() {
       });
       void history.refetch();
     },
-    onError: (error) =>
+    onError: (error) => {
+      setScanning(false);
       setMessage({
         tone: "danger",
         text:
           error instanceof Error
             ? error.message
             : "Attendance could not be recorded.",
-      }),
+      });
+    },
   });
   const pendingScan = useRef(false);
   pendingScan.current = scan.isPending;

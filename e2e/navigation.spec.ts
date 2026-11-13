@@ -97,3 +97,34 @@ test("saved dark theme keeps homepage and auth text readable", async ({ page }) 
   await expect(page.locator(".cuc-home__pillars h3").first()).toHaveCSS("color", "rgb(245, 241, 247)");
   await expect(page.locator(".cuc-home__university h2")).toHaveCSS("color", "rgb(245, 241, 247)");
 });
+
+test("chaplain profile opens as an accessible dialog on desktop and mobile", async ({ page }) => {
+  await page.goto("/", { waitUntil: "domcontentloaded" });
+  const trigger = page.getByRole("button", { name: "Read profile" });
+  await trigger.focus();
+  await trigger.press("Enter");
+  const dialog = page.getByRole("dialog", { name: "Rev. Canon Oluwajuwonlo Onasanya" });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole("heading", { name: "Ministry & leadership" })).toBeVisible();
+  await expect(dialog.getByRole("heading", { name: "Education & teaching" })).toBeVisible();
+  await expect(dialog.getByRole("heading", { name: "Public health & service" })).toBeVisible();
+  await expect.poll(() => dialog.locator("img").evaluate((image: HTMLImageElement) => image.naturalWidth)).toBeGreaterThan(0);
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
+  await expect(trigger).toBeFocused();
+
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.evaluate(() => localStorage.setItem("chapelflow-theme", "dark"));
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await expect(page.getByRole("button", { name: "Read profile" })).toHaveCSS("color", "rgb(81, 49, 184)");
+  await page.getByRole("button", { name: "Read profile" }).click();
+  await expect(dialog).toBeVisible();
+  const box = await dialog.boundingBox();
+  expect(box).toBeTruthy();
+  expect(box!.x).toBeGreaterThanOrEqual(0);
+  expect(box!.x + box!.width).toBeLessThanOrEqual(376);
+  await dialog.getByRole("heading", { name: "Public health & service" }).scrollIntoViewIfNeeded();
+  await expect(dialog.getByRole("heading", { name: "Public health & service" })).toBeVisible();
+  await dialog.getByRole("button", { name: "Close dialog" }).click();
+  await expect(dialog).toHaveCount(0);
+});

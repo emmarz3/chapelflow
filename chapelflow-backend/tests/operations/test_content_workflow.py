@@ -3,7 +3,7 @@ from datetime import timedelta
 import pytest
 from django.utils import timezone
 
-from apps.operations.models import ContentEntry, ContentRevision, ContentStatus
+from apps.operations.models import ContentEntry, ContentRevision, ContentStatus, ContentType
 from apps.operations.tasks import publish_scheduled_content
 
 
@@ -13,6 +13,11 @@ pytestmark = pytest.mark.django_db
 @pytest.fixture
 def media_author(make_user, branch_a):
     return make_user(role="STUDENT_CHAPLAIN", branch=branch_a, email="media-author@test.com")
+
+
+@pytest.fixture
+def cms_author(make_user, branch_a):
+    return make_user(role="CHAPEL_ADMIN", branch=branch_a, email="cms-author@test.com")
 
 
 def _create_draft(api_client, user, **overrides):
@@ -30,16 +35,28 @@ def _create_draft(api_client, user, **overrides):
     return api_client.post("/api/v1/operations/media/", payload, format="json")
 
 
+def _create_page(api_client, user, **overrides):
+    api_client.force_authenticate(user)
+    payload = {
+        "title": "Chapel welcome",
+        "slug": "chapel-welcome",
+        "content_type": ContentType.PAGE,
+        "details": "Welcome to the chapel.",
+        **overrides,
+    }
+    return api_client.post("/api/v1/operations/cms/", payload, format="json")
+
+
 def test_content_requires_review_before_publication(
-    api_client, media_author, super_admin, branch_a
+    api_client, cms_author, super_admin, branch_a
 ):
-    created = _create_draft(api_client, media_author)
+    created = _create_page(api_client, cms_author, slug="steady-faith")
     assert created.status_code == 201, created.data
     content_id = created.data["data"]["id"]
     api_client.force_authenticate(user=None)
-    assert api_client.get("/api/v1/public/sermons/steady-faith/").status_code == 404
+    assert api_client.get("/api/v1/public/content/steady-faith/").status_code == 404
 
-    api_client.force_authenticate(media_author)
+    api_client.force_authenticate(cms_author)
     assert api_client.post(f"/api/v1/operations/cms/{content_id}/submit/", {}).status_code == 200
     assert api_client.post(f"/api/v1/operations/cms/{content_id}/approve/", {}).status_code == 403
 
@@ -52,19 +69,18 @@ def test_content_requires_review_before_publication(
     assert api_client.post(f"/api/v1/operations/cms/{content_id}/publish/", {}).status_code == 200
 
     api_client.force_authenticate(user=None)
-    public = api_client.get("/api/v1/public/sermons/steady-faith/")
+    public = api_client.get("/api/v1/public/content/steady-faith/")
     assert public.status_code == 200
-    assert public.data["data"]["title"] == "Steady faith"
-    assert public.data["data"]["sections"][0]["action"]["href"].endswith("steady-faith.mp3")
+    assert public.data["data"]["title"] == "Chapel welcome"
     assert ContentRevision.objects.filter(content_id=content_id).count() == 4
 
 
 def test_scheduled_content_is_not_public_until_worker_releases_it(
-    api_client, media_author, super_admin, branch_a
+    api_client, cms_author, super_admin, branch_a
 ):
     publish_at = timezone.now() + timedelta(hours=1)
-    created = _create_draft(
-        api_client, media_author, slug="scheduled-message", publish_at=publish_at.isoformat()
+    created = _create_page(
+        api_client, cms_author, slug="scheduled-message", publish_at=publish_at.isoformat()
     )
     content_id = created.data["data"]["id"]
     api_client.post(f"/api/v1/operations/cms/{content_id}/submit/", {})
@@ -75,16 +91,16 @@ def test_scheduled_content_is_not_public_until_worker_releases_it(
     assert approved.data["data"]["status"] == "SCHEDULED"
 
     api_client.force_authenticate(user=None)
-    assert api_client.get("/api/v1/public/sermons/scheduled-message/").status_code == 404
+    assert api_client.get("/api/v1/public/content/scheduled-message/").status_code == 404
     ContentEntry.objects.filter(pk=content_id).update(publish_at=timezone.now() - timedelta(seconds=1))
     assert publish_scheduled_content() == {"published": 1}
-    assert api_client.get("/api/v1/public/sermons/scheduled-message/").status_code == 200
+    assert api_client.get("/api/v1/public/content/scheduled-message/").status_code == 200
 
 
 def test_rejection_requires_reason_and_preserves_revisions(
-    api_client, media_author, super_admin, branch_a
+    api_client, cms_author, super_admin, branch_a
 ):
-    created = _create_draft(api_client, media_author, slug="review-me")
+    created = _create_page(api_client, cms_author, slug="review-me")
     content_id = created.data["data"]["id"]
     api_client.post(f"/api/v1/operations/cms/{content_id}/submit/", {})
     super_admin.branch = branch_a
@@ -102,8 +118,9 @@ def test_rejection_requires_reason_and_preserves_revisions(
     assert list(entry.revisions.values_list("version", flat=True)) == [3, 2, 1]
 
 
-def test_media_content_validates_required_fields(api_client, media_author, chapel_admin_a):
-    api_client.force_authenticate(media_author)
+def test_media_content_validates_required_fields(api_client, make_user, media_author, chapel_admin_a):
+    chaplain = make_user(role="CHAPLAIN", branch=media_author.branch, email="chaplain@test.com")
+    api_client.force_authenticate(chaplain)
     invalid = api_client.post(
         "/api/v1/operations/media/",
         {"title": "No recording", "content_type": "SERMON", "details": "Notes only"},
@@ -159,14 +176,21 @@ def test_published_gallery_exposes_only_published_images(
     assert image.status_code == 201, image.data
     image_id = image.data["data"]["id"]
 
-    for content_id in (album_id, image_id):
-        assert api_client.post(f"/api/v1/operations/cms/{content_id}/submit/", {}).status_code == 200
+    assert album.data["data"]["status"] == ContentStatus.PUBLISHED
+    assert image.data["data"]["status"] == ContentStatus.PUBLISHED
+
+    ContentEntry.objects.create(
+        branch=media_author.branch,
+        parent_id=album_id,
+        content_type=ContentType.GALLERY_IMAGE,
+        title="Unpublished draft",
+        slug="unpublished-draft",
+        details="This image is still a draft.",
+        media_url="https://media.example.edu/unpublished.jpg",
+        created_by=media_author,
+    )
     super_admin.branch = branch_a
     super_admin.save(update_fields=["branch"])
-    api_client.force_authenticate(super_admin)
-    for content_id in (album_id, image_id):
-        assert api_client.post(f"/api/v1/operations/cms/{content_id}/approve/", {}).status_code == 200
-        assert api_client.post(f"/api/v1/operations/cms/{content_id}/publish/", {}).status_code == 200
 
     api_client.force_authenticate(user=None)
     public = api_client.get("/api/v1/public/gallery/welcome-service/")

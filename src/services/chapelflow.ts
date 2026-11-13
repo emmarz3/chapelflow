@@ -72,6 +72,18 @@ export interface DashboardPayload {
   }[];
   attendanceTrend: { week: string; attendance: number }[];
 }
+export interface AttendanceMonthlyReport {
+  month: string;
+  branch_id: string;
+  services: { id: string; date: string; title: string; is_sunday: boolean }[];
+  students: {
+    id: string; name: string; identifier: string; email: string; phone: string;
+    programme: string; department: string; level: string; status: string; attendance_percentage: number | null;
+    attended_services: number; total_services: number; last_seen: string;
+    missed_sunday_services: string[]; service_attendance: Record<string, string>;
+  }[];
+  sunday_absentees: AttendanceMonthlyReport["students"];
+}
 export interface RoleWorkspacePayload {
   role: string;
   branch_id: string | null;
@@ -792,6 +804,10 @@ export const memberService = {
     ),
 };
 export const attendanceService = {
+  monthlyReport: (branchId: string, month: string) =>
+    api.get<{ data: AttendanceMonthlyReport }>(
+      `/attendance/monthly-report?branch=${encodeURIComponent(branchId)}&month=${encodeURIComponent(month)}`,
+    ),
   current: (branchId: string) =>
     api.get<{ data: AttendancePayload }>(`/attendance/sessions/current?branch=${encodeURIComponent(branchId)}`),
   createSession: (payload: Record<string, unknown>) =>
@@ -920,7 +936,7 @@ export const institutionalAccountService = {
 };
 
 export const chapelGroupService = {
-  list: () =>
+  list: (options?: { accountAssignment?: boolean }) =>
     api.get<{
       data: Array<{
         id: string;
@@ -928,7 +944,7 @@ export const chapelGroupService = {
         group_type: string;
         is_active: boolean;
       }>;
-    }>("/chapel-groups"),
+    }>(`/chapel-groups${options?.accountAssignment ? "?scope=institutional-assignment" : ""}`),
   bootstrapChapelGroups: () =>
     api.post<{ data: { created: Array<{ id: string; name: string }>; count: number } }>(
       "/chapel-groups/bootstrap-groups",

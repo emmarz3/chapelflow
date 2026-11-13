@@ -76,6 +76,7 @@ export function InstitutionalAccountsPage() {
   const client = useQueryClient();
   const toast = useToast();
   const [open, setOpen] = useState(false);
+  const [preparingGroup, setPreparingGroup] = useState(false);
   const [selectedRole, setSelectedRole] = useState<InstitutionalRole>("CHAPLAIN");
   const [selectedGroup, setSelectedGroup] = useState("");
   const [selectedOffice, setSelectedOffice] = useState("CHAPLAIN");
@@ -87,7 +88,7 @@ export function InstitutionalAccountsPage() {
   });
   const groups = useQuery({
     queryKey: ["chapel-groups", "institutional-accounts"],
-    queryFn: async () => (await chapelGroupService.list()).data,
+    queryFn: async () => (await chapelGroupService.list({ accountAssignment: true })).data,
   });
   const selectedOfficeDetails = offices.find((office) => office.code === selectedOffice);
   const fixedUnit = selectedOfficeDetails?.unit;
@@ -132,14 +133,36 @@ export function InstitutionalAccountsPage() {
     setTemporaryPassword("");
     reset.reset();
   }
-  function submit(event: FormEvent<HTMLFormElement>) {
+  async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
     const role = String(data.get("role")) as InstitutionalRole;
     const requestedGroupType = roleGroupType(role);
-    if (requestedGroupType && !resolvedGroup) {
-      toast("Select or add the required Chapel Unit or Fellowship first.");
-      return;
+    const office = role === "FELLOWSHIP_LEADER"
+      ? "FELLOWSHIP_LEADER"
+      : String(data.get("institutional_office") || selectedOffice);
+    let groupId = resolvedGroup;
+    if (requestedGroupType && !groupId) {
+      setPreparingGroup(true);
+      try {
+        await chapelGroupService.bootstrapChapelGroups();
+        const availableGroups = (await chapelGroupService.list({ accountAssignment: true })).data;
+        groupId = availableGroups.find((group) =>
+          group.is_active &&
+          group.group_type === requestedGroupType &&
+          (fixedUnit ? group.name === fixedUnit : group.id === selectedGroup),
+        )?.id ?? "";
+        void client.invalidateQueries({ queryKey: ["chapel-groups"] });
+      } catch (error) {
+        toast(error instanceof Error ? error.message : "Could not prepare the required Chapel group.", "error");
+        return;
+      } finally {
+        setPreparingGroup(false);
+      }
+      if (!groupId) {
+        toast("The required active Chapel Unit or Fellowship could not be found. Check the Chapel group catalog and try again.", "error");
+        return;
+      }
     }
     create.mutate({
       first_name: String(data.get("first_name")),
@@ -147,9 +170,9 @@ export function InstitutionalAccountsPage() {
       email: String(data.get("email")),
       password: String(data.get("password")),
       role,
-      institutional_office: selectedOffice,
+      institutional_office: office,
       password_change_required: true,
-      ...(requestedGroupType ? { institutional_group: resolvedGroup } : {}),
+      ...(requestedGroupType ? { institutional_group: groupId } : {}),
     });
   }
   if (accounts.isPending)
@@ -218,12 +241,12 @@ export function InstitutionalAccountsPage() {
             <input
               name="password"
               type="password"
-              minLength={12}
+              minLength={8}
               required
               aria-invalid={Boolean(validationMessage(create.error, "password"))}
               aria-describedby="institutional-password-note institutional-password-error"
             />
-            <small id="institutional-password-note">Use at least 12 characters and avoid common passwords.</small>
+            <small id="institutional-password-note">Use at least 8 characters and avoid common passwords.</small>
             {validationMessage(create.error, "password") && (
               <small id="institutional-password-error" className="field__error" role="alert">
                 {validationMessage(create.error, "password")}
@@ -256,7 +279,7 @@ export function InstitutionalAccountsPage() {
               </small>
             )}
           </label>
-          <label className="field">
+          {selectedRole !== "FELLOWSHIP_LEADER" && <label className="field">
             <span>Leadership office</span>
             <select
               name="institutional_office"
@@ -281,8 +304,8 @@ export function InstitutionalAccountsPage() {
               </small>
             )}
             <small>Choose the exact leadership position from the Chapel register.</small>
-          </label>
-          <label className="field">
+          </label>}
+          {groupType && <label className="field">
             <span>Unit or fellowship</span>
             <select
               name="institutional_group"
@@ -321,9 +344,9 @@ export function InstitutionalAccountsPage() {
                 {validationMessage(create.error, "institutional_group")}
               </small>
             )}
-          </label>
+          </label>}
           <div>
-            <Button type="submit" loading={create.isPending}>
+            <Button type="submit" loading={create.isPending || preparingGroup}>
               Create securely
             </Button>
             {create.isError && (

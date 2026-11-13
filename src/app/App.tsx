@@ -319,8 +319,8 @@ export function App() {
                 <Route
                   element={
                     <ProtectedRoute
-                      permission="attendance:write"
-                      roles={["super_admin", "chapel_admin"]}
+                      permission="attendance:read"
+                      roles={["super_admin", "chapel_admin", "chaplain", "student_chaplain"]}
                     />
                   }
                 >

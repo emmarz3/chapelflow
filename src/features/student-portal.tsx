@@ -252,8 +252,8 @@ export function StudentProfilePage() {
     const form = new FormData(event.currentTarget);
     const current = String(form.get("current") || "");
     const password = String(form.get("password") || "");
-    if (!current || password.length < 12) {
-      setNotice("Enter your current password and a new password with at least 12 characters.");
+    if (!current || password.length < 8) {
+      setNotice("Enter your current password and a new password with at least 8 characters.");
       return;
     }
     setSaving(true);
