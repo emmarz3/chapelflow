@@ -133,7 +133,7 @@ describe("authentication recovery flows", () => {
     );
 
     await user.type(
-      screen.getByLabelText(/university email/i),
+      screen.getByLabelText(/your email/i),
       "student@example.edu.ng",
     );
     await user.type(screen.getByLabelText(/create password/i), "password-1");
