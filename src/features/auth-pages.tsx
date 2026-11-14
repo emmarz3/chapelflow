@@ -383,8 +383,9 @@ function MfaEnrollment() {
     setError("");
     try {
       if (!(await renewSessionForMfaEnrollment())) {
-        showError(new ApiError({ code: "SESSION_EXPIRED", message: "Session expired.", status: 401 }), "Could not renew your sign-in.");
-        return;
+        // Another tab may have already rotated the refresh cookie while this
+        // access cookie remains valid. Check the current login before failing.
+        await api.get("/auth/me");
       }
       setSetup(
         (
