@@ -1,12 +1,47 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 vi.mock("../lib/backend", () => ({ isDjangoBackend: true }));
 import { apiRequest } from "../lib/api";
+import { communityService, studentContentService } from "../services/chapelflow";
 
 const response = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { "Content-Type": "application/json" } });
 afterEach(() => vi.unstubAllGlobals());
 
 describe("Django API integration", () => {
+  it("loads student fellowship and unit choices through the Django adapter and submits a join request", async () => {
+    const groups = [{ id: "group-1", name: "Music", type: "UNIT", description: "Chapel music" }];
+    const fetch = vi.fn()
+      .mockResolvedValueOnce(response({ data: { groups, memberships: [], current_fellowship: null, requests: [] } }))
+      .mockResolvedValueOnce(response({ data: { id: "request-1", status: "PENDING" } }, 201));
+    vi.stubGlobal("fetch", fetch);
+
+    await expect(studentContentService.joinRequests()).resolves.toMatchObject({ data: { groups } });
+    await expect(studentContentService.requestJoin("group-1", "I would like to join")).resolves.toMatchObject({ data: { status: "PENDING" } });
+    expect(fetch.mock.calls.map(([url]) => url)).toEqual([
+      "/api/v1/group-join-requests/me/",
+      "/api/v1/group-join-requests/me/",
+    ]);
+    expect(JSON.parse(fetch.mock.calls[1]![1].body)).toEqual({ group: "group-1", message: "I would like to join" });
+  });
+
+  it("loads joined communities and group chat through the Django adapter", async () => {
+    const communities = [{ id: "group-1", slug: "group-1", name: "Music", type: "unit" }];
+    const fetch = vi.fn()
+      .mockResolvedValueOnce(response({ data: communities }))
+      .mockResolvedValueOnce(response({ data: { ...communities[0], access: { canPost: true, canManage: false } } }))
+      .mockResolvedValueOnce(response({ data: [{ id: "message-1", body: "Welcome" }] }));
+    vi.stubGlobal("fetch", fetch);
+
+    await expect(communityService.mine()).resolves.toMatchObject({ data: communities });
+    await expect(communityService.get("group-1")).resolves.toMatchObject({ data: { name: "Music" } });
+    await expect(communityService.messages("group-1")).resolves.toMatchObject({ data: [{ body: "Welcome" }] });
+    expect(fetch.mock.calls.map(([url]) => url)).toEqual([
+      "/api/v1/community-memberships/",
+      "/api/v1/community-memberships/group-1/",
+      "/api/v1/community-memberships/group-1/messages/",
+    ]);
+  });
+
   it("loads every admin attendance page so older live sessions stay stoppable", async () => {
     const fetch = vi.fn()
       .mockResolvedValueOnce(response({
