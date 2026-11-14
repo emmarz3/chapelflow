@@ -687,7 +687,7 @@ const fellowships = [
   { name: "EXCELLENT Campus Fellowship", leader: "Adewale Phillip", initials: "AP", image: "/fellowships/281637.jpg", phone: "07086438585", whatsapp: "2347086438585" },
   { name: "TRUTH Campus Fellowship", leader: "Fayemi Ajibola", initials: "FA", image: "/fellowships/aj.jpg", phone: "09136832621", whatsapp: "2349136832621" },
   { name: "LOVE Campus Fellowship", leader: "Dada Mofopefoluwa", initials: "DM", image: "/fellowships/fope.jpg", phone: "08025838409", whatsapp: "2348025838409" },
-  { name: "FAVOUR Campus Fellowship", leader: "Ojekunle Daniel", initials: "OD", phone: "08067475491", whatsapp: "2348067475491" },
+  { name: "FAVOUR Campus Fellowship", leader: "Ojekunle Daniel", initials: "OD", image: "/fellowships/favour.jpg", phone: "08067475491", whatsapp: "2348067475491" },
   { name: "INTEGRITY Campus Fellowship", leader: "Balogun Temitope", initials: "BT", image: "/fellowships/integrity.jpg" },
   { name: "RIGHTEOUSNESS Campus Fellowship", leader: "Sharon Adebayo", initials: "SA", image: "/fellowships/righteousness.jpg" },
   { name: "OUTSTANDING Campus Fellowship", leader: "Avwunudiogba Divine", initials: "AD", image: "/fellowships/outstanding.jpg" },
@@ -759,20 +759,20 @@ export function FellowshipPage() {
   );
 }
 
-const chapelUnits = [
-  { name: "Choir", description: "Leads the congregation in praise and worship through song.", leaders: ["Olaoti Fiyinfoluwa", "Agu Mary Irene"] },
-  { name: "Instrumentalists", description: "The band that backs worship with music and keeps the sound lively.", leaders: ["Instrumentalists Leader"] },
-  { name: "Ushering", description: "The first smiling faces at the door: welcoming and seating everyone.", leaders: ["Ushering Leader", "Ushering Assistant"] },
-  { name: "Media & Technical", description: "Handles sound, projection, photography and recording.", leaders: ["Media", "Media & Technical Assistant"] },
-  { name: "Prayer", description: "Keeps the chapel covered in prayer every day.", leaders: ["Prayer Leader"] },
-  { name: "Evangelism", description: "Takes the gospel to hostels, classrooms and the community.", leaders: ["Evangelism Leader"] },
-  { name: "Welfare", description: "Cares for students who are sick, in need or going through hard times.", leaders: ["Welfare Leader"] },
-  { name: "Protocol", description: "Looks after guests, ministers and the order of events.", leaders: ["Protocol Leader"] },
-  { name: "Drama", description: "Tells the gospel story through stage and creative arts.", leaders: ["Drama Leader"] },
-  { name: "Decoration & Sanitation", description: "Keeps the chapel clean, beautiful and ready for worship.", leaders: ["Decoration & Sanitation Leader"] },
-  { name: "Sunday School", description: "Teaches the Word in a simple, practical way for every student.", leaders: ["Sunday School Leader"] },
-  { name: "Counselling", description: "Offers a listening ear and godly guidance to students.", leaders: ["Counselling Leader"] },
-] as const;
+const chapelUnits: { name: string; description: string; leaders: { role: string; name: string; phone?: string; image?: string }[] }[] = [
+  { name: "Choir", description: "Leads the congregation in praise and worship through song.", leaders: [{ role: "Choir Leader", name: "Olaoti Fiyinfoluwa", phone: "+234 810 612 5345", image: "/units/choir-leader.jpg" }, { role: "Assistant Choir Leader", name: "Agu Mary" }] },
+  { name: "Instrumentalist", description: "Supports chapel worship with live instrumental music.", leaders: [{ role: "Head of Instrumentalists", name: "Edafe George", image: "/units/instrumentalist-leader.jpg" }] },
+  { name: "Ushering", description: "Welcomes and seats worshippers and helps services run smoothly.", leaders: [{ role: "Head Usher", name: "Munachi Okeke", phone: "+234 701 224 6260", image: "/units/ushering-leader.jpg" }, { role: "Assistant Head Usher", name: "Obehioye Samuel", phone: "08125637947" }] },
+  { name: "Sanctuary", description: "Cares for the chapel sanctuary and prepares it for worship.", leaders: [{ role: "Head of Sanctuary", name: "Egbeyemi Iwalola", phone: "09020145551", image: "/units/sanctuary-leader.jpg" }, { role: "Assistant Head of Sanctuary", name: "Ogunrinde Ayobami" }] },
+  { name: "Media / ICT", description: "Supports chapel communication and information technology.", leaders: [{ role: "Media Head", name: "Oluwayinka Godslove", phone: "08118367510", image: "/units/media-ict-leader.jpg" }] },
+  { name: "Social Media", description: "Shares chapel news and updates across social platforms.", leaders: [{ role: "Social Media Head", name: "Adebayo Ephraim", phone: "+234 810 846 1463", image: "/units/social-media-leader.jpg" }] },
+  { name: "Sound and Technical", description: "Manages sound and technical support for chapel services.", leaders: [{ role: "Unit Leader", name: "Akintunde Jesuntundun", phone: "+234 701 202 2321", image: "/units/sound-technical-leader.jpg" }] },
+  { name: "Drama", description: "Shares the gospel through drama and creative arts.", leaders: [{ role: "Drama Head", name: "Okoli Chinemerem", phone: "08126939022", image: "/units/drama-leader.jpg" }] },
+  { name: "Protocol", description: "Looks after guests, ministers, and the order of chapel events.", leaders: [{ role: "Protocol Head", name: "Abodunde Temidayo", phone: "08103641486", image: "/units/protocol-leader.jpg" }] },
+  { name: "Library", description: "Supports learning and study through the chapel library.", leaders: [{ role: "Head of Library", name: "Ajiboye Isaac", phone: "07063369259", image: "/units/library-leader.jpg" }] },
+  { name: "Intercessory", description: "Serves the chapel through prayer and intercession.", leaders: [{ role: "Intercessory Head", name: "Avwunudiogba Destiny", phone: "08180246337", image: "/units/intercessory-leader.jpg" }] },
+  { name: "Treasury", description: "Supports the careful stewardship of chapel funds.", leaders: [{ role: "Treasurer", name: "Olutanwa Esther", phone: "+234 816 128 7478", image: "/units/treasurer.jpg" }] },
+];
 
 export function UnitsPage() {
   const [selected, setSelected] = useState<(typeof chapelUnits)[number] | null>(null);
@@ -786,9 +786,9 @@ export function UnitsPage() {
     <div className="cuc-units">
       <section className="cuc-units__hero"><div><p className="cuc-home__eyebrow">Serve with your gifts</p><h1>Church Units</h1><p>Meet the teams and leaders who help our chapel run, worship, and care for the community.</p></div></section>
       <section className="cuc-units__section"><header className="cuc-units__intro"><p className="cuc-home__eyebrow">Find your place to serve</p><h2>Twelve units. One chapel family.</h2><p>Explore each unit and view its leadership profile.</p></header>
-        <div className="cuc-units__grid">{chapelUnits.map((unit, index) => <article className="cuc-units__card" key={unit.name} style={{ "--unit-index": index } as React.CSSProperties}><div className="cuc-units__icon" aria-hidden="true"><Users size={24} /></div><div className="cuc-units__copy"><h3>{unit.name}</h3><p>{unit.description}</p><ul>{unit.leaders.map((leader, i) => <li key={leader}><span>{i === 0 ? "Unit Leader" : "Assistant Leader"}</span>{leader}</li>)}</ul><button className="cuc-units__profile-button" type="button" onClick={() => setSelected(unit)}>View Profile</button></div></article>)}</div>
+        <div className="cuc-units__grid">{chapelUnits.map((unit, index) => <article className="cuc-units__card" key={unit.name} style={{ "--unit-index": index } as React.CSSProperties}><div className="cuc-units__icon" aria-hidden="true">{unit.leaders.find((leader) => leader.image)?.image ? <img src={unit.leaders.find((leader) => leader.image)?.image} alt="" loading="lazy" /> : <Users size={24} />}</div><div className="cuc-units__copy"><h3>{unit.name}</h3><p>{unit.description}</p><ul>{unit.leaders.map((leader) => <li key={leader.role}><span>{leader.role}</span>{leader.name}</li>)}</ul><button className="cuc-units__profile-button" type="button" onClick={() => setSelected(unit)}>View Profile</button></div></article>)}</div>
       </section>
-      {selected && <div className="cuc-units__overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) setSelected(null); }}><section className="cuc-units__profile" role="dialog" aria-modal="true" aria-labelledby="unit-profile-title"><button className="cuc-units__close" type="button" aria-label="Close profile" onClick={() => setSelected(null)}><X size={20} /></button><p className="cuc-home__eyebrow">Church unit</p><h2 id="unit-profile-title">{selected.name}</h2><p>{selected.description}</p><h3>Leadership</h3>{selected.leaders.map((leader, i) => <article className="cuc-units__leader" key={leader}><span>{i === 0 ? "Unit Leader" : "Assistant Leader"}</span><strong>{leader}</strong><p>Photo and phone number are not available yet.</p></article>)}</section></div>}
+      {selected && <div className="cuc-units__overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) setSelected(null); }}><section className="cuc-units__profile" role="dialog" aria-modal="true" aria-labelledby="unit-profile-title"><button className="cuc-units__close" type="button" aria-label="Close profile" onClick={() => setSelected(null)}><X size={20} /></button><p className="cuc-home__eyebrow">Church unit</p><h2 id="unit-profile-title">{selected.name}</h2><p>{selected.description}</p><h3>Leadership</h3>{selected.leaders.map((leader) => <article className="cuc-units__leader" key={leader.role}>{leader.image && <img className="cuc-units__leader-portrait" src={leader.image} alt={leader.name} />}<span>{leader.role}</span><strong>{leader.name}</strong>{leader.phone ? <a href={`tel:${leader.phone.replace(/\s/g, "")}`}>{leader.phone}</a> : <p>Phone number not provided.</p>}</article>)}</section></div>}
     </div>
   );
 }

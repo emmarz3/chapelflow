@@ -406,7 +406,8 @@ button.hp-day:hover { background: var(--hp-tint); }
 .cuc-units__intro > p:last-child,.cuc-units__card-copy > p,.cuc-units__profile > p { color:var(--cuc-muted,#657084); line-height:1.7; }
 .cuc-units__grid { display:grid; gap:20px; grid-template-columns:repeat(3,minmax(0,1fr)); }
 .cuc-units__card { background:var(--cuc-surface,#fff); border-top:4px solid #c49a3d; border-radius:0 0 20px 20px; box-shadow:0 12px 28px rgb(28 22 35 / .11); display:flex; gap:18px; padding:25px; }
-.cuc-units__icon { align-items:center; background:#f2eaf3; border-radius:50%; color:#391044; display:flex; flex:0 0 48px; height:48px; justify-content:center; }
+.cuc-units__icon { align-items:center; background:#f2eaf3; border-radius:50%; color:#391044; display:flex; flex:0 0 48px; height:48px; justify-content:center; overflow:hidden; }
+.cuc-units__icon img { height:100%; object-fit:cover; width:100%; }
 .cuc-units__copy { display:flex; flex:1; flex-direction:column; min-width:0; }
 .cuc-units__card h3 { color:#391044; font-family:Georgia,serif; font-size:20px; margin:0; }
 .cuc-units__copy > p { font-size:14px; line-height:1.55; margin:9px 0 14px; }
@@ -420,6 +421,8 @@ button.hp-day:hover { background: var(--hp-tint); }
 .cuc-units__profile h3 { color:#391044; font-size:13px; letter-spacing:.12em; margin-top:26px; text-transform:uppercase; }
 .cuc-units__leader { border-top:1px solid #eee9e2; display:grid; gap:6px; padding:15px 0; }
 .cuc-units__leader strong { color:#391044; }
+.cuc-units__leader-portrait { border-radius:14px; height:min(52vh,420px); margin-bottom:12px; object-fit:cover; object-position:center 28%; width:min(100%,320px); }
+.cuc-units__leader a { color:#391044; font-size:14px; text-decoration:none; }
 .cuc-units__leader p { color:#687187; font-size:13px; margin:0; }
 .cuc-units__close { align-items:center; background:#f1eee8; border:0; border-radius:50%; color:#391044; cursor:pointer; display:flex; height:42px; justify-content:center; position:absolute; right:15px; top:15px; width:42px; }
 @media(max-width:850px) { .cuc-units__grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
