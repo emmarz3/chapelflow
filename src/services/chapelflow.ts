@@ -523,7 +523,7 @@ export const communityService = {
   mine: () =>
     isDemoMode
       ? Promise.resolve({ data: demoCommunities })
-      : api.get<{ data: CommunitySummary[] }>("/community-memberships/"),
+      : api.get<{ data: CommunitySummary[] }>("/communities"),
   get: (slug: string) =>
     isDemoMode
       ? Promise.resolve({
@@ -544,57 +544,57 @@ export const communityService = {
           } as CommunityDetail,
         })
       : api.get<{ data: CommunityDetail }>(
-          `/community-memberships/${encodeURIComponent(slug)}/`,
+          `/communities/${encodeURIComponent(slug)}`,
         ),
   messages: (slug: string, search = "") =>
     isDemoMode
       ? Promise.resolve({ data: [] as CommunityMessage[] })
       : api.get<{ data: CommunityMessage[] }>(
-          `/community-memberships/${encodeURIComponent(slug)}/messages/${queryString({ search })}`,
+          `/communities/${encodeURIComponent(slug)}/messages${queryString({ search })}`,
         ),
   sendMessage: (slug: string, body: string, replyToId?: string) =>
     api.post<{ data: CommunityMessage }>(
-      `/community-memberships/${encodeURIComponent(slug)}/messages/`,
+      `/communities/${encodeURIComponent(slug)}/messages`,
       { body, reply_to_id: replyToId },
     ),
   announcements: (slug: string) =>
     api.get<{ data: CommunityAnnouncement[] }>(
-      `/community-memberships/${encodeURIComponent(slug)}/announcements/`,
+      `/communities/${encodeURIComponent(slug)}/announcements`,
     ),
   createAnnouncement: (slug: string, payload: Record<string, unknown>) =>
     api.post<{ data: { id: string } }>(
-      `/community-memberships/${encodeURIComponent(slug)}/announcements/`,
+      `/communities/${encodeURIComponent(slug)}/announcements`,
       payload,
     ),
   events: (slug: string) =>
     api.get<{ data: CommunityEvent[] }>(
-      `/community-memberships/${encodeURIComponent(slug)}/meetings/`,
+      `/communities/${encodeURIComponent(slug)}/events`,
     ),
   createEvent: (slug: string, payload: Record<string, unknown>) =>
     api.post<{ data: { id: string } }>(
-      `/community-memberships/${encodeURIComponent(slug)}/meetings/`,
+      `/communities/${encodeURIComponent(slug)}/events`,
       payload,
     ),
   resources: (slug: string) =>
     api.get<{ data: CommunityResource[] }>(
-      `/community-memberships/${encodeURIComponent(slug)}/resources/`,
+      `/communities/${encodeURIComponent(slug)}/resources`,
     ),
   addResource: (slug: string, payload: { title: string; url: string; description?: string }) =>
     api.post<{ data: CommunityResource }>(
-      `/community-memberships/${encodeURIComponent(slug)}/resources/`, payload,
+      `/communities/${encodeURIComponent(slug)}/resources`, payload,
     ),
   members: (slug: string, status?: string) =>
     api.get<{ data: CommunityMember[] }>(
-      `/community-memberships/${encodeURIComponent(slug)}/members/${queryString({ status })}`,
+      `/communities/${encodeURIComponent(slug)}/members${queryString({ status })}`,
     ),
   updateMembership: (slug: string, membershipId: string, status: string) =>
     api.patch<{ data: { id: string; status: string } }>(
-      `/community-memberships/${encodeURIComponent(slug)}/members/${encodeURIComponent(membershipId)}/`,
+      `/communities/${encodeURIComponent(slug)}/members/${encodeURIComponent(membershipId)}`,
       { status },
     ),
   leadership: () =>
     api.get<{ data: LeadershipDirectoryEntry[] }>(
-      "/community-memberships/leadership-directory/",
+      "/communities/leadership/directory",
     ),
   streamUrl: (slug: string) =>
     `${API_BASE_URL}/communities/${encodeURIComponent(slug)}/stream`,
@@ -1070,8 +1070,8 @@ export const studentContentService = {
     memberships: { id: string; name: string; type: "FELLOWSHIP" | "UNIT" }[];
     current_fellowship: { id: string; name: string } | null;
     requests: { id: string; group_id: string; group: string; type: "FELLOWSHIP" | "UNIT"; status: "PENDING" | "APPROVED" | "REJECTED"; message: string; requested_at: string }[];
-  } }>("/group-join-requests/me/"),
-  requestJoin: (group: string, message: string) => api.post<{ data: { id: string; status: string } }>("/group-join-requests/me/", { group, message }),
+  } }>("/student/join-requests"),
+  requestJoin: (group: string, message: string) => api.post<{ data: { id: string; status: string } }>("/student/join-requests", { group, message }),
 };
 
 const modulePaths: Record<OperationsModule, string> = {
