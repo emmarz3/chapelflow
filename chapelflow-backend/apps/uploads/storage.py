@@ -132,6 +132,9 @@ class CloudinaryStorageService(StorageService):
 
 
 class S3StorageService(StorageService):
+    def owns_media_url(self, file_url: str) -> bool:
+        return file_url.startswith(self._object_url("media_content/"))
+
     def _client(self):
         import boto3
         from botocore.config import Config
