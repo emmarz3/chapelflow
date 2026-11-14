@@ -2,6 +2,7 @@ from datetime import timedelta
 from pathlib import Path
 import re
 from urllib.parse import unquote, urlparse
+from uuid import UUID
 
 from django.conf import settings
 from django.core.exceptions import ValidationError as DjangoValidationError
@@ -17,6 +18,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 
 from apps.uploads.models import Upload, UploadCategory
+from apps.organizations.models import Branch
 from apps.uploads.storage import S3StorageService, generate_storage_filename, get_storage_service
 from apps.uploads.validators import validate_social_media, validate_upload
 from common.constants.roles import Roles
@@ -36,8 +38,22 @@ from .models import (
 from .serializers import SocialCommentSerializer, SocialPostSerializer
 
 
-def _branch(user):
+def _branch(user, requested_id=None):
+    if _role(user) == Roles.SUPER_ADMIN and requested_id:
+        try:
+            branch_id = UUID(str(requested_id))
+        except (TypeError, ValueError, AttributeError) as exc:
+            raise ValidationError({"branch": "Choose an active chapel branch."}) from exc
+        branch = Branch.objects.filter(pk=branch_id, is_active=True).first()
+        if not branch:
+            raise ValidationError({"branch": "Choose an active chapel branch."})
+        return branch
     if not user.branch_id:
+        if _role(user) == Roles.SUPER_ADMIN:
+            branches = list(Branch.objects.filter(is_active=True)[:2])
+            if len(branches) == 1:
+                return branches[0]
+            raise ValidationError({"branch": "Select a chapel branch before posting to The Upper Room."})
         raise ValidationError({"account": "Your account must be linked to a chapel branch before using The Upper Room."})
     return user.branch
 
@@ -51,10 +67,12 @@ def _can_moderate(user):
 
 
 def _posts_for(user):
-    branch = _branch(user)
+    posts = SocialPost.objects.filter(status=SocialPostStatus.PUBLISHED)
+    if _role(user) != Roles.SUPER_ADMIN:
+        posts = posts.filter(branch=_branch(user))
     return (
-        visible(SocialPost.objects.filter(branch=branch, status=SocialPostStatus.PUBLISHED), TargetKind.POST)
-        .select_related("author")
+        visible(posts, TargetKind.POST)
+        .select_related("author", "branch")
         .prefetch_related("media__upload")
         .annotate(
             like_count=Count("likes", distinct=True),
@@ -169,10 +187,12 @@ class SocialPostCollectionView(APIView):
             "page": page,
             "page_size": page_size,
             "has_more": has_more,
+            "branches": list(Branch.objects.filter(is_active=True).order_by("name").values("id", "name"))
+            if _role(request.user) == Roles.SUPER_ADMIN else [],
         })
 
     def post(self, request):
-        branch = _branch(request.user)
+        branch = _branch(request.user, request.data.get("branch"))
         caption = str(request.data.get("caption", "")).strip()
         files = request.FILES.getlist("files")
         if not caption and not files:
@@ -238,9 +258,7 @@ class SocialPostDetailView(APIView):
     permission_classes = [IsAuthenticated]
 
     def delete(self, request, pk):
-        post = SocialPost.objects.filter(pk=pk, branch=_branch(request.user), status=SocialPostStatus.PUBLISHED).first()
-        if not post:
-            raise ValidationError({"post": "This post is unavailable in your chapel feed."})
+        post = _post_or_404(request.user, pk)
         if post.author_id != request.user.id and not _can_moderate(request.user):
             raise PermissionDenied("You can remove only your own posts.")
         post.status = SocialPostStatus.REMOVED

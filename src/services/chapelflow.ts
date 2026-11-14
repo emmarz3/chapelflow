@@ -406,6 +406,7 @@ export interface UpperRoomPost {
   createdAt: string;
   updatedAt: string;
   authorName: string;
+  branchName: string;
   media: UpperRoomMedia[];
   likeCount: number;
   commentCount: number;
@@ -430,10 +431,11 @@ export const uploadService = {
 };
 
 export const upperRoomService = {
-  feed: (page = 1) => api.get<{ data: { items: UpperRoomPost[]; page: number; hasMore: boolean } }>(`/social/posts${queryString({ page, pageSize: 15 })}`),
-  createPost: (caption: string, files: File[]) => {
+  feed: (page = 1) => api.get<{ data: { items: UpperRoomPost[]; page: number; hasMore: boolean; branches: { id: string; name: string }[] } }>(`/social/posts${queryString({ page, pageSize: 15 })}`),
+  createPost: (caption: string, files: File[], branchId?: string) => {
     const body = new FormData();
     body.set("caption", caption);
+    if (branchId) body.set("branch", branchId);
     files.forEach((file) => body.append("files", file));
     return api.postForm<{ data: UpperRoomPost }>("/social/posts", body);
   },

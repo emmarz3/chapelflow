@@ -35,6 +35,7 @@ class SocialPostMediaSerializer(serializers.ModelSerializer):
 
 class SocialPostSerializer(serializers.ModelSerializer):
     author_name = serializers.SerializerMethodField()
+    branch_name = serializers.CharField(source="branch.name", read_only=True)
     media = SocialPostMediaSerializer(many=True, read_only=True)
     like_count = serializers.IntegerField(read_only=True)
     comment_count = serializers.IntegerField(read_only=True)
@@ -43,7 +44,7 @@ class SocialPostSerializer(serializers.ModelSerializer):
     class Meta:
         model = SocialPost
         fields = [
-            "id", "caption", "status", "created_at", "updated_at", "author_name",
+            "id", "caption", "status", "created_at", "updated_at", "author_name", "branch_name",
             "media", "like_count", "comment_count", "is_liked",
         ]
 

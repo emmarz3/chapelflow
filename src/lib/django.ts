@@ -145,6 +145,7 @@ function upperRoomPost(value: Row) {
     createdAt: str(value.created_at),
     updatedAt: str(value.updated_at),
     authorName: str(value.author_name),
+    branchName: str(value.branch_name),
     media: list(value.media).map((media) => ({
       id: str(media.id),
       url: str(media.url),
@@ -436,6 +437,7 @@ export async function djangoRequest(
         items: list(feed.items).map(upperRoomPost),
         page: Number(feed.page || 1),
         hasMore: Boolean(feed.has_more),
+        branches: list(feed.branches).map((branch) => ({ id: str(branch.id), name: str(branch.name) })),
       },
     };
   }

@@ -3,6 +3,44 @@ import pytest
 
 @pytest.mark.django_db
 class TestUpperRoom:
+    def test_branchless_super_admin_can_view_post_and_moderate_across_branches(
+        self, api_client, make_user, super_admin, branch_a, branch_b,
+    ):
+        from apps.social.models import SocialPost, SocialPostStatus
+
+        author = make_user(email="branch-author@chapelflow.test", branch=branch_a)
+        first = SocialPost.objects.create(branch=branch_a, author=author, caption="First chapel")
+        second = SocialPost.objects.create(branch=branch_b, author=author, caption="Second chapel")
+        assert super_admin.branch_id is None
+        api_client.force_authenticate(user=super_admin)
+
+        feed = api_client.get("/api/v1/social/posts/")
+        assert feed.status_code == 200
+        assert {post["id"] for post in feed.data["data"]["items"]} == {str(first.id), str(second.id)}
+        assert {branch["id"] for branch in feed.data["data"]["branches"]} == {branch_a.id, branch_b.id}
+        assert {post["branch_name"] for post in feed.data["data"]["items"]} == {branch_a.name, branch_b.name}
+
+        missing_branch = api_client.post("/api/v1/social/posts/", {"caption": "Admin update"}, format="multipart")
+        assert missing_branch.status_code == 400
+        invalid_branch = api_client.post("/api/v1/social/posts/", {"branch": "invalid", "caption": "Admin update"}, format="multipart")
+        assert invalid_branch.status_code == 400
+        posted = api_client.post("/api/v1/social/posts/", {"branch": str(branch_b.id), "caption": "Admin update"}, format="multipart")
+        assert posted.status_code == 201
+        assert SocialPost.objects.get(pk=posted.data["data"]["id"]).branch_id == branch_b.id
+        assert api_client.post(f"/api/v1/social/posts/{first.id}/like/").status_code == 200
+        assert api_client.delete(f"/api/v1/social/posts/{second.id}/").status_code == 200
+        second.refresh_from_db()
+        assert second.status == SocialPostStatus.REMOVED
+
+    def test_member_cannot_override_branch_when_posting(self, api_client, make_user, branch_a, branch_b):
+        from apps.social.models import SocialPost
+
+        member = make_user(email="branch-member@chapelflow.test", branch=branch_a)
+        api_client.force_authenticate(user=member)
+        posted = api_client.post("/api/v1/social/posts/", {"branch": str(branch_b.id), "caption": "My update"}, format="multipart")
+        assert posted.status_code == 201
+        assert SocialPost.objects.get(pk=posted.data["data"]["id"]).branch_id == branch_a.id
+
     def test_railway_bucket_video_upload_and_playback_redirect(
         self, api_client, make_user, branch_a, settings, monkeypatch,
     ):
