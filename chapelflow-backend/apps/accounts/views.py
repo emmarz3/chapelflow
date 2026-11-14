@@ -539,7 +539,7 @@ class AdminAccountPasswordResetView(APIView):
 
     def post(self, request, pk):
         account = User.objects.exclude(role=Roles.SUPER_ADMIN).filter(pk=pk, deleted_at__isnull=True).first()
-        if not account:
+        if not account or account.get_role_code() == Roles.SUPER_ADMIN:
             return error_response("Account not found or cannot be reset here.", status=404)
         return _issue_temporary_password(request, account)
 
@@ -578,9 +578,10 @@ class InstitutionalAccountDetailView(APIView):
     permission_classes = [IsSuperAdmin]
 
     def _account(self, pk):
-        return User.objects.exclude(role=Roles.SUPER_ADMIN).filter(deleted_at__isnull=True,
+        account = User.objects.exclude(role=Roles.SUPER_ADMIN).filter(deleted_at__isnull=True,
             pk=pk, role__in=INSTITUTIONAL_ROLES,
         ).first()
+        return account if account and account.get_role_code() != Roles.SUPER_ADMIN else None
 
     def get(self, request, pk):
         account = self._account(pk)
