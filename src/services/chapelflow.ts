@@ -935,6 +935,30 @@ export const institutionalAccountService = {
     }>(
       `/institutional-accounts/${encodeURIComponent(id)}/password-reset`,
     ),
+  remove: (id: string) =>
+    api.delete<void>(`/institutional-accounts/${encodeURIComponent(id)}`),
+};
+
+export interface AdminAccountSummary {
+  id: string;
+  name: string;
+  email: string;
+  matric_no: string;
+  role: string;
+  branch_name: string;
+  is_active: boolean;
+  deleted_at: string | null;
+  date_joined: string;
+  can_reset: boolean;
+}
+
+export const adminAccountService = {
+  list: (page = 1, search = "") => api.get<{ data: { items: AdminAccountSummary[]; page: number; page_size: number; count: number } }>(
+    `/admin/accounts${queryString({ page, search })}`,
+  ),
+  resetPassword: (id: string) => api.post<{ data: { temporary_password: string; password_change_required: boolean } }>(
+    `/admin/accounts/${encodeURIComponent(id)}/password-reset`,
+  ),
 };
 
 export const chapelGroupService = {

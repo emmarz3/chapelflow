@@ -914,6 +914,10 @@ export async function djangoRequest(
     return call("/auth/institutional-accounts/");
   if (route === "/institutional-accounts" && method === "POST")
     return call("/auth/institutional-accounts/", json("POST", body));
+  if (route === "/admin/accounts" && method === "GET")
+    return call(`/auth/admin/accounts/${suffix}`);
+  if (/^\/admin\/accounts\/[^/]+\/password-reset$/.test(route) && method === "POST")
+    return call(`/auth${route}/`, json("POST", {}));
   if (route === "/chapel-groups" && method === "GET")
     return call(`/groups-catalog/${suffix}`);
   if (route === "/chapel-groups/bootstrap-groups" && method === "POST")
@@ -952,6 +956,8 @@ export async function djangoRequest(
   }
   if (/^\/institutional-accounts\/[^/]+$/.test(route) && method === "PATCH")
     return call(`/auth${route}/`, json("PATCH", body));
+  if (/^\/institutional-accounts\/[^/]+$/.test(route) && method === "DELETE")
+    return call(`/auth${route}/`, { method: "DELETE" });
   if (
     /^\/institutional-accounts\/[^/]+\/password-reset$/.test(route) &&
     method === "POST"
