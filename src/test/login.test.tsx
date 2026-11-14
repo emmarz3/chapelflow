@@ -183,6 +183,46 @@ describe("login", () => {
     expect(fetchMock.mock.calls.some(([input]) => String(input).endsWith("/auth/mfa/enroll/"))).toBe(false);
   });
 
+  it("submits the authenticator code after the asynchronous session check", async () => {
+    let signedIn = false;
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      void init;
+      const url = String(input);
+      if (url.endsWith("/auth/me/")) return Promise.resolve(signedIn
+        ? jsonResponse({ data: { role: "SUPER_ADMIN", mfa_required: true } })
+        : jsonResponse({ detail: "Unauthenticated." }, 401));
+      if (url.endsWith("/auth/login/")) {
+        signedIn = true;
+        return Promise.resolve(jsonResponse({ data: { user: {
+          id: "admin-1", role: "SUPER_ADMIN", mfa_required: true,
+        } } }));
+      }
+      if (url.endsWith("/auth/refresh/")) return Promise.resolve(jsonResponse({ data: { csrf_token: "test-csrf" } }));
+      if (url.endsWith("/auth/mfa/enroll/")) return Promise.resolve(jsonResponse({ data: { secret: "TESTSECRET", qr_code_base64: null } }));
+      if (url.endsWith("/auth/mfa/confirm/")) return Promise.resolve(jsonResponse({ message: "Invalid code." }, 400));
+      return Promise.resolve(jsonResponse({ data: {} }));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <MemoryRouter initialEntries={["/login"]}>
+          <AuthProvider><Routes><Route path="/login" element={<LoginPage />} /></Routes></AuthProvider>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    await user.type(screen.getByLabelText(/email, matric number/i), "admin@example.edu.ng");
+    await user.type(screen.getByLabelText(/^password/i), "StrongPass123!");
+    await user.click(screen.getByRole("button", { name: /sign in/i }));
+    await user.click(await screen.findByRole("button", { name: /set up authenticator/i }));
+    await user.type(await screen.findByLabelText(/six-digit code/i), "123456");
+    await user.click(screen.getByRole("button", { name: /verify and continue/i }));
+    await waitFor(() => expect(fetchMock.mock.calls.some(([input]) => String(input).endsWith("/auth/mfa/confirm/"))).toBe(true));
+    const request = fetchMock.mock.calls.find(([input]) => String(input).endsWith("/auth/mfa/confirm/"))![1] as RequestInit;
+    expect(JSON.parse(String(request.body))).toEqual({ otp: "123456" });
+    expect(await screen.findByRole("alert")).toHaveTextContent(/invalid code/i);
+  });
+
   it("redirects an already signed-in Super Admin to MFA setup before protected pages", async () => {
     vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL) => Promise.resolve(
       String(input).endsWith("/auth/me/")

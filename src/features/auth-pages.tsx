@@ -402,13 +402,12 @@ function MfaEnrollment() {
   }
   async function confirm(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const otp = String(new FormData(event.currentTarget).get("otp") || "");
     setLoading(true);
     setError("");
     try {
       await api.get("/auth/me");
-      await api.post("/auth/mfa/confirm", {
-        otp: String(new FormData(event.currentTarget).get("otp")),
-      });
+      await api.post("/auth/mfa/confirm", { otp });
       window.location.assign("/app");
     } catch (caught) {
       showError(caught, "Could not verify the code.");
