@@ -9,7 +9,10 @@ class TestUpperRoom:
         from django.core.files.uploadedfile import SimpleUploadedFile
         from apps.uploads.storage import S3StorageService
 
-        settings.UPPER_ROOM_STORAGE_PROVIDER = "s3"
+        settings.UPPER_ROOM_STORAGE_PROVIDER = "auto"
+        settings.CLOUDINARY_CLOUD_NAME = ""
+        settings.CLOUDINARY_API_KEY = ""
+        settings.CLOUDINARY_API_SECRET = ""
         settings.AWS_S3_ENDPOINT_URL = "https://t3.storageapi.dev"
         settings.AWS_S3_ADDRESSING_STYLE = "virtual"
         settings.AWS_STORAGE_BUCKET_NAME = "chapelflow-media-test"
@@ -74,19 +77,21 @@ class TestUpperRoom:
         api_client.delete(f"/api/v1/social/posts/{media.post_id}/")
         assert api_client.get(path).status_code == 404
 
+    @pytest.mark.parametrize("provider", ["cloudinary", "auto"])
     @pytest.mark.parametrize("filename,content,content_type", [
         ("worship.png", b"\x89PNG\r\n\x1a\n" + b"image content", "image/png"),
         ("worship.mp4", b"\x00\x00\x00\x18ftypmp42" + b"video content", "video/mp4"),
     ])
     def test_media_post_passes_django_credentials_and_binary_stream_to_cloudinary(
         self, api_client, make_user, branch_a, settings, monkeypatch,
-        filename, content, content_type,
+        filename, content, content_type, provider,
     ):
         import cloudinary.uploader
         from django.core.files.uploadedfile import SimpleUploadedFile
         from apps.social.models import SocialPostMedia
 
-        settings.STORAGE_PROVIDER = "cloudinary"
+        settings.STORAGE_PROVIDER = "local"
+        settings.UPPER_ROOM_STORAGE_PROVIDER = provider
         settings.CLOUDINARY_CLOUD_NAME = "test-cloud"
         settings.CLOUDINARY_API_KEY = "test-key"
         settings.CLOUDINARY_API_SECRET = "test-secret"
@@ -108,6 +113,7 @@ class TestUpperRoom:
 
         assert response.status_code == 201
         assert SocialPostMedia.objects.get().upload.file_url == url
+        assert response.data["data"]["media"][0]["url"] == url
         feed = api_client.get("/api/v1/social/posts/")
         assert feed.status_code == 200
         assert feed.data["data"]["items"][0]["caption"] == "Sunday worship"

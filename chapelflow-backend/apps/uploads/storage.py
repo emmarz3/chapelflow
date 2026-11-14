@@ -264,8 +264,8 @@ class SupabaseStorageService(StorageService):
             response.raise_for_status()
 
 
-def get_storage_service() -> StorageService:
-    provider = getattr(settings, "STORAGE_PROVIDER", "local")
+def get_storage_service(provider: str | None = None) -> StorageService:
+    provider = provider or getattr(settings, "STORAGE_PROVIDER", "local")
     return {
         "local": LocalStorageService,
         "cloudinary": CloudinaryStorageService,

@@ -203,7 +203,14 @@ class SocialPostCollectionView(APIView):
                 raise ValidationError({"files": exc.messages}) from exc
             media.append((file_obj, media_type))
 
-        storage = S3StorageService() if getattr(settings, "UPPER_ROOM_STORAGE_PROVIDER", "") == "s3" else get_storage_service()
+        provider = getattr(settings, "UPPER_ROOM_STORAGE_PROVIDER", "")
+        if provider == "auto":
+            provider = "cloudinary" if all((
+                settings.CLOUDINARY_CLOUD_NAME,
+                settings.CLOUDINARY_API_KEY,
+                settings.CLOUDINARY_API_SECRET,
+            )) else "s3"
+        storage = get_storage_service(provider or None)
         with transaction.atomic():
             post = SocialPost.objects.create(branch=branch, author=request.user, caption=caption)
             for position, (file_obj, media_type) in enumerate(media):
