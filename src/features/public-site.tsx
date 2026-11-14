@@ -687,6 +687,9 @@ const fellowships = [
   { name: "TRUTH Campus Fellowship", leader: "Fayemi Ajibola", initials: "FA", image: "/fellowships/aj.jpg", phone: "09136832621", whatsapp: "2349136832621" },
   { name: "LOVE Campus Fellowship", leader: "Dada Mofopefoluwa", initials: "DM", image: "/fellowships/fope.jpg", phone: "08025838409", whatsapp: "2348025838409" },
   { name: "FAVOUR Campus Fellowship", leader: "Ojekunle Daniel", initials: "OD", phone: "08067475491", whatsapp: "2348067475491" },
+  { name: "INTEGRITY Campus Fellowship", leader: "Balogun Temitope", initials: "BT", image: "/fellowships/integrity.jpg" },
+  { name: "RIGHTEOUSNESS Campus Fellowship", leader: "Sharon Adebayo", initials: "SA", image: "/fellowships/righteousness.jpg" },
+  { name: "OUTSTANDING Campus Fellowship", leader: "Avwunudiogba Divine", initials: "AD", image: "/fellowships/outstanding.jpg" },
 ];
 
 export function FellowshipPage() {
