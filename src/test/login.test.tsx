@@ -120,6 +120,62 @@ describe("login", () => {
     expect(await screen.findByRole("heading", { name: "Member dashboard" })).toBeInTheDocument();
   });
 
+  it("shows authenticator enrollment instead of opening the Super Admin dashboard", async () => {
+    vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith("/auth/me/"))
+        return Promise.resolve(jsonResponse({ detail: "Unauthenticated." }, 401));
+      if (url.endsWith("/auth/login/"))
+        return Promise.resolve(jsonResponse({ data: { user: {
+          id: "admin-1", email: "admin@example.edu.ng", role: "SUPER_ADMIN",
+          mfa_required: true, effective_permissions: ["*"],
+        } } }));
+      return Promise.resolve(jsonResponse({ data: {} }));
+    }));
+    const user = userEvent.setup();
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <MemoryRouter initialEntries={["/login"]}>
+          <AuthProvider>
+            <Routes>
+              <Route path="/login" element={<LoginPage />} />
+              <Route path="/app/admin/dashboard" element={<h1>Admin dashboard</h1>} />
+            </Routes>
+          </AuthProvider>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    await user.type(screen.getByLabelText(/email, matric number/i), "admin@example.edu.ng");
+    await user.type(screen.getByLabelText(/^password/i), "StrongPass123!");
+    await user.click(screen.getByRole("button", { name: /sign in/i }));
+    expect(await screen.findByRole("heading", { name: "Protect your account" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Admin dashboard" })).not.toBeInTheDocument();
+  });
+
+  it("redirects an already signed-in Super Admin to MFA setup before protected pages", async () => {
+    vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL) => Promise.resolve(
+      String(input).endsWith("/auth/me/")
+        ? jsonResponse({ data: { id: "admin-1", email: "admin@example.edu.ng", role: "SUPER_ADMIN", mfa_required: true, effective_permissions: ["*"] } })
+        : jsonResponse({ data: {} }),
+    )));
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <MemoryRouter initialEntries={["/app/admin/dashboard"]}>
+          <AuthProvider>
+            <Routes>
+              <Route path="/login" element={<LoginPage />} />
+              <Route element={<ProtectedRoute />}>
+                <Route path="/app/admin/dashboard" element={<h1>Admin dashboard</h1>} />
+              </Route>
+            </Routes>
+          </AuthProvider>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    expect(await screen.findByRole("heading", { name: "Protect your account" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Admin dashboard" })).not.toBeInTheDocument();
+  });
+
   it("redirects to sign in immediately while server sign-out is pending", async () => {
     let finishLogout!: (response: Response) => void;
     const pendingLogout = new Promise<Response>((resolve) => {

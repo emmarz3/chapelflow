@@ -229,7 +229,13 @@ export function LoginPage() {
         role,
         String(form.get("otp") || ""),
       );
-      navigate(getAuthenticatedHomePath(authenticated, returnTo), { replace: true });
+      if (authenticated.mfaRequired) return;
+      navigate(
+        authenticated.passwordChangeRequired
+          ? "/change-password-required"
+          : getAuthenticatedHomePath(authenticated, returnTo),
+        { replace: true },
+      );
     } catch (caught) {
       setCompleting(false);
       setError(

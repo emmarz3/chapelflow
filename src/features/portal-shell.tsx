@@ -339,6 +339,8 @@ export function ProtectedRoute({
   if (!user) return <Navigate to="/login" replace />;
   if (user.passwordChangeRequired)
     return <Navigate to="/change-password-required" replace />;
+  if (user.mfaRequired)
+    return <Navigate to="/login" replace />;
   if (roles && !roles.includes(user.role))
     return <Navigate to="/access-denied" replace />;
   if (!hasPermission(user, permission))
