@@ -51,6 +51,7 @@ import { LivePublicDetailPage, LivePublicPage } from "./live-public";
 const publicNav = [
   ["About", "/about"],
   ["Fellowship", "/fellowship"],
+  ["Units", "/units"],
   ["Events", "/events"],
   ["Sermons", "/sermons"],
   ["Gallery", "/gallery"],
@@ -754,6 +755,40 @@ export function FellowshipPage() {
           </section>
         </div>
       )}
+    </div>
+  );
+}
+
+const chapelUnits = [
+  { name: "Choir", description: "Leads the congregation in praise and worship through song.", leaders: ["Olaoti Fiyinfoluwa", "Agu Mary Irene"] },
+  { name: "Instrumentalists", description: "The band that backs worship with music and keeps the sound lively.", leaders: ["Instrumentalists Leader"] },
+  { name: "Ushering", description: "The first smiling faces at the door: welcoming and seating everyone.", leaders: ["Ushering Leader", "Ushering Assistant"] },
+  { name: "Media & Technical", description: "Handles sound, projection, photography and recording.", leaders: ["Media", "Media & Technical Assistant"] },
+  { name: "Prayer", description: "Keeps the chapel covered in prayer every day.", leaders: ["Prayer Leader"] },
+  { name: "Evangelism", description: "Takes the gospel to hostels, classrooms and the community.", leaders: ["Evangelism Leader"] },
+  { name: "Welfare", description: "Cares for students who are sick, in need or going through hard times.", leaders: ["Welfare Leader"] },
+  { name: "Protocol", description: "Looks after guests, ministers and the order of events.", leaders: ["Protocol Leader"] },
+  { name: "Drama", description: "Tells the gospel story through stage and creative arts.", leaders: ["Drama Leader"] },
+  { name: "Decoration & Sanitation", description: "Keeps the chapel clean, beautiful and ready for worship.", leaders: ["Decoration & Sanitation Leader"] },
+  { name: "Sunday School", description: "Teaches the Word in a simple, practical way for every student.", leaders: ["Sunday School Leader"] },
+  { name: "Counselling", description: "Offers a listening ear and godly guidance to students.", leaders: ["Counselling Leader"] },
+] as const;
+
+export function UnitsPage() {
+  const [selected, setSelected] = useState<(typeof chapelUnits)[number] | null>(null);
+  useEffect(() => {
+    if (!selected) return;
+    const close = (event: KeyboardEvent) => { if (event.key === "Escape") setSelected(null); };
+    window.addEventListener("keydown", close);
+    return () => window.removeEventListener("keydown", close);
+  }, [selected]);
+  return (
+    <div className="cuc-units">
+      <section className="cuc-units__hero"><div><p className="cuc-home__eyebrow">Serve with your gifts</p><h1>Church Units</h1><p>Meet the teams and leaders who help our chapel run, worship, and care for the community.</p></div></section>
+      <section className="cuc-units__section"><header className="cuc-units__intro"><p className="cuc-home__eyebrow">Find your place to serve</p><h2>Twelve units. One chapel family.</h2><p>Explore each unit and view its leadership profile.</p></header>
+        <div className="cuc-units__grid">{chapelUnits.map((unit, index) => <article className="cuc-units__card" key={unit.name} style={{ "--unit-index": index } as React.CSSProperties}><div className="cuc-units__icon" aria-hidden="true"><Users size={24} /></div><div className="cuc-units__copy"><h3>{unit.name}</h3><p>{unit.description}</p><ul>{unit.leaders.map((leader, i) => <li key={leader}><span>{i === 0 ? "Unit Leader" : "Assistant Leader"}</span>{leader}</li>)}</ul><button className="cuc-units__profile-button" type="button" onClick={() => setSelected(unit)}>View Profile</button></div></article>)}</div>
+      </section>
+      {selected && <div className="cuc-units__overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) setSelected(null); }}><section className="cuc-units__profile" role="dialog" aria-modal="true" aria-labelledby="unit-profile-title"><button className="cuc-units__close" type="button" aria-label="Close profile" onClick={() => setSelected(null)}><X size={20} /></button><p className="cuc-home__eyebrow">Church unit</p><h2 id="unit-profile-title">{selected.name}</h2><p>{selected.description}</p><h3>Leadership</h3>{selected.leaders.map((leader, i) => <article className="cuc-units__leader" key={leader}><span>{i === 0 ? "Unit Leader" : "Assistant Leader"}</span><strong>{leader}</strong><p>Photo and phone number are not available yet.</p></article>)}</section></div>}
     </div>
   );
 }

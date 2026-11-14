@@ -47,6 +47,7 @@ import {
 import {
   AboutPage,
   FellowshipPage,
+  UnitsPage,
   CookieConsent,
   HomePage,
   LegalPage,
@@ -159,6 +160,7 @@ export function App() {
                 element={<AboutPage />}
               />
               <Route path="/fellowship" element={<FellowshipPage />} />
+              <Route path="/units" element={<UnitsPage />} />
               <Route
                 path="/mission"
                 element={<PublicInfoPage page="mission" />}
