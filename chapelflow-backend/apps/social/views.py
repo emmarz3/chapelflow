@@ -8,7 +8,7 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import IntegrityError, transaction
 from django.db.models import Count, Exists, OuterRef, Q
 from django.db.models import Subquery
-from django.http import FileResponse, HttpResponse, StreamingHttpResponse
+from django.http import FileResponse, HttpResponse, HttpResponseRedirect, StreamingHttpResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework.exceptions import PermissionDenied, ValidationError
@@ -17,7 +17,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 
 from apps.uploads.models import Upload, UploadCategory
-from apps.uploads.storage import generate_storage_filename, get_storage_service
+from apps.uploads.storage import S3StorageService, generate_storage_filename, get_storage_service
 from apps.uploads.validators import validate_social_media, validate_upload
 from common.constants.roles import Roles
 from common.utils.responses import success_response
@@ -98,6 +98,16 @@ class SocialMediaView(APIView):
             Upload, pk=pk, category=UploadCategory.SOCIAL_POST,
             upper_room_media__post__in=_posts_for(request.user),
         )
+        if settings.AWS_S3_ENDPOINT_URL and upload.file_url.startswith(
+            f"{urlparse(settings.AWS_S3_ENDPOINT_URL).scheme}://{settings.AWS_STORAGE_BUCKET_NAME}."
+            f"{urlparse(settings.AWS_S3_ENDPOINT_URL).netloc}/upper-room/"
+        ):
+            download_url = S3StorageService().get_download_url(upload.file_url, expires_in=900)
+            if not download_url:
+                return HttpResponse(status=404)
+            response = HttpResponseRedirect(download_url)
+            response["Cache-Control"] = "private, no-store"
+            return response
         media_prefix = f"{settings.MEDIA_URL.rstrip('/')}/upper-room/"
         url_path = unquote(urlparse(upload.file_url).path)
         if not url_path.startswith(media_prefix):
@@ -193,7 +203,7 @@ class SocialPostCollectionView(APIView):
                 raise ValidationError({"files": exc.messages}) from exc
             media.append((file_obj, media_type))
 
-        storage = get_storage_service()
+        storage = S3StorageService() if getattr(settings, "UPPER_ROOM_STORAGE_PROVIDER", "") == "s3" else get_storage_service()
         with transaction.atomic():
             post = SocialPost.objects.create(branch=branch, author=request.user, caption=caption)
             for position, (file_obj, media_type) in enumerate(media):

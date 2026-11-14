@@ -285,6 +285,9 @@ AWS_SECRET_ACCESS_KEY = env("AWS_SECRET_ACCESS_KEY", default="")
 AWS_USE_IAM_ROLE = env.bool("AWS_USE_IAM_ROLE", default=False)
 AWS_STORAGE_BUCKET_NAME = env("AWS_STORAGE_BUCKET_NAME", default="")
 AWS_S3_REGION_NAME = env("AWS_S3_REGION_NAME", default="")
+AWS_S3_ENDPOINT_URL = env("AWS_S3_ENDPOINT_URL", default="")
+AWS_S3_ADDRESSING_STYLE = env("AWS_S3_ADDRESSING_STYLE", default="auto")
+UPPER_ROOM_STORAGE_PROVIDER = env("UPPER_ROOM_STORAGE_PROVIDER", default="")
 
 # Supabase — service_role key only, never the anon/publishable key (bypasses RLS,
 # so this must stay server-side). Create the bucket in the Supabase dashboard first.

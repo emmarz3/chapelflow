@@ -3,6 +3,43 @@ import pytest
 
 @pytest.mark.django_db
 class TestUpperRoom:
+    def test_railway_bucket_video_upload_and_playback_redirect(
+        self, api_client, make_user, branch_a, settings, monkeypatch,
+    ):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from apps.uploads.storage import S3StorageService
+
+        settings.UPPER_ROOM_STORAGE_PROVIDER = "s3"
+        settings.AWS_S3_ENDPOINT_URL = "https://t3.storageapi.dev"
+        settings.AWS_S3_ADDRESSING_STYLE = "virtual"
+        settings.AWS_STORAGE_BUCKET_NAME = "chapelflow-media-test"
+        settings.AWS_S3_REGION_NAME = "auto"
+        data = b"\x00\x00\x00\x18ftypmp42" + b"video bytes"
+
+        class BucketClient:
+            def upload_fileobj(self, fileobj, bucket, key, ExtraArgs):
+                assert fileobj.read() == data
+                assert bucket == "chapelflow-media-test"
+                assert key.startswith("upper-room/")
+                assert ExtraArgs["ContentType"] == "video/mp4"
+
+            def generate_presigned_url(self, operation, Params, ExpiresIn):
+                assert operation == "get_object"
+                assert Params["Key"].startswith("upper-room/")
+                return "https://chapelflow-media-test.t3.storageapi.dev/signed-video"
+
+        monkeypatch.setattr(S3StorageService, "_client", lambda self: BucketClient())
+        api_client.force_authenticate(user=make_user(email="bucket-video@chapelflow.test", branch=branch_a))
+        posted = api_client.post("/api/v1/social/posts/", {
+            "files": SimpleUploadedFile("worship.mp4", data, "video/mp4"),
+        }, format="multipart")
+        assert posted.status_code == 201
+        path = posted.data["data"]["media"][0]["url"]
+        assert path.startswith("/api/v1/social/media/")
+        playback = api_client.get(path)
+        assert playback.status_code == 302
+        assert playback["Location"] == "https://chapelflow-media-test.t3.storageapi.dev/signed-video"
+
     def test_local_video_streams_from_feed_with_range_and_branch_access(
         self, api_client, make_user, branch_a, branch_b, settings, tmp_path,
     ):

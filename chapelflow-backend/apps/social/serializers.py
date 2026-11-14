@@ -25,6 +25,11 @@ class SocialPostMediaSerializer(serializers.ModelSerializer):
         url = media.upload.file_url
         if urlparse(url).path.startswith(f"{settings.MEDIA_URL.rstrip('/')}/upper-room/"):
             return reverse("social-media", kwargs={"pk": media.upload_id})
+        if settings.AWS_S3_ENDPOINT_URL and url.startswith(
+            f"{urlparse(settings.AWS_S3_ENDPOINT_URL).scheme}://{settings.AWS_STORAGE_BUCKET_NAME}."
+            f"{urlparse(settings.AWS_S3_ENDPOINT_URL).netloc}/upper-room/"
+        ):
+            return reverse("social-media", kwargs={"pk": media.upload_id})
         return url
 
 
