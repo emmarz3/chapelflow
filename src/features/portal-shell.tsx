@@ -162,6 +162,13 @@ const navGroups: { label: string; items: NavItem[] }[] = [
         permission: "media:write",
       },
       {
+        label: "Sermons",
+        path: "/app/media?content_type=SERMON",
+        icon: <Radio />,
+        permission: "media:write",
+        roles: ["super_admin", "chaplain"],
+      },
+      {
         label: "Finance",
         path: "/app/finance",
         icon: <Coins />,

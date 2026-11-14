@@ -144,6 +144,21 @@ def test_media_content_validates_required_fields(api_client, make_user, media_au
     assert page.status_code == 201, page.data
 
 
+def test_super_admin_can_publish_and_list_sermons_without_assigned_branch(api_client, super_admin, organization):
+    from apps.organizations.models import Branch
+
+    branch = Branch.objects.create(
+        organization=organization, name="Chrisland University Chapel", branch_type="CHAPEL"
+    )
+    created = _create_draft(api_client, super_admin)
+    assert created.status_code == 201, created.data
+    assert created.data["data"]["status"] == "PUBLISHED"
+    assert ContentEntry.objects.get(pk=created.data["data"]["id"]).branch == branch
+    listed = api_client.get("/api/v1/operations/media/?content_type=SERMON")
+    assert listed.status_code == 200, listed.data
+    assert any(row["id"] == created.data["data"]["id"] for row in listed.data["data"])
+
+
 def test_published_gallery_exposes_only_published_images(
     api_client, media_author, super_admin, branch_a
 ):
