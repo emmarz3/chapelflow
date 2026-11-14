@@ -108,6 +108,12 @@ function refreshSession() {
   return refreshRequest;
 }
 
+// Renew before showing an authenticator QR code: scanning can outlast the
+// short-lived access cookie, and a broken refresh must be caught before setup.
+export async function renewSessionForMfaEnrollment() {
+  return refreshSession();
+}
+
 export async function apiRequest<T>(
   path: string,
   init: RequestInit = {},

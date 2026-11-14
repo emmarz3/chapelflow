@@ -152,6 +152,37 @@ describe("login", () => {
     expect(screen.queryByRole("heading", { name: "Admin dashboard" })).not.toBeInTheDocument();
   });
 
+  it("explains how to recover when the MFA setup session cannot renew", async () => {
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith("/auth/me/"))
+        return Promise.resolve(jsonResponse({ detail: "Unauthenticated." }, 401));
+      if (url.endsWith("/auth/login/"))
+        return Promise.resolve(jsonResponse({ data: { user: {
+          id: "admin-1", email: "admin@example.edu.ng", role: "SUPER_ADMIN", mfa_required: true,
+        } } }));
+      if (url.endsWith("/auth/refresh/"))
+        return Promise.resolve(jsonResponse({ message: "Invalid or expired refresh token." }, 401));
+      return Promise.resolve(jsonResponse({ data: {} }));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <MemoryRouter initialEntries={["/login"]}>
+          <AuthProvider><Routes><Route path="/login" element={<LoginPage />} /></Routes></AuthProvider>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    await user.type(screen.getByLabelText(/email, matric number/i), "admin@example.edu.ng");
+    await user.type(screen.getByLabelText(/^password/i), "StrongPass123!");
+    await user.click(screen.getByRole("button", { name: /sign in/i }));
+    await user.click(await screen.findByRole("button", { name: /set up authenticator/i }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(/sign-in expired/i);
+    expect(screen.getByRole("button", { name: /sign in again/i })).toBeInTheDocument();
+    expect(fetchMock.mock.calls.some(([input]) => String(input).endsWith("/auth/mfa/enroll/"))).toBe(false);
+  });
+
   it("redirects an already signed-in Super Admin to MFA setup before protected pages", async () => {
     vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL) => Promise.resolve(
       String(input).endsWith("/auth/me/")

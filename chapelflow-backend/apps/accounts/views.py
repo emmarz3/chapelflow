@@ -254,10 +254,9 @@ class MFAEnrollView(APIView):
     user can start enrollment, not just roles in MFA_ENFORCED_ROLES —
     someone not yet required to use MFA is still allowed to opt in early.
 
-    Re-enrolling (calling this again) issues a brand new secret and resets
-    `confirmed` to False — the old secret stops working immediately, so a
-    lost/compromised authenticator app can always be replaced by starting
-    over, rather than needing a separate "reset MFA" endpoint.
+    Reopening an unconfirmed enrollment returns its existing secret so a
+    session expiry does not invalidate the authenticator the user just added.
+    Re-enrolling a confirmed device rotates the secret and resets confirmation.
     """
     permission_classes = [IsAuthenticated]
 
@@ -266,10 +265,13 @@ class MFAEnrollView(APIView):
 
         from .models import MFADevice
 
-        secret = pyotp.random_base32()
-        device, _ = MFADevice.objects.update_or_create(
-            user=request.user, defaults={"secret": secret, "confirmed": False},
+        device, created = MFADevice.objects.get_or_create(
+            user=request.user, defaults={"secret": pyotp.random_base32(), "confirmed": False},
         )
+        if not created and device.confirmed:
+            device.secret = pyotp.random_base32()
+            device.confirmed = False
+            device.save(update_fields=["secret", "confirmed"])
 
         issuer = "ChapelFlow CUC"
         account_name = request.user.email or request.user.matric_no or str(request.user.id)
