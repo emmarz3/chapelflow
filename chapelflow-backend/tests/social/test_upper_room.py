@@ -3,6 +3,40 @@ import pytest
 
 @pytest.mark.django_db
 class TestUpperRoom:
+    def test_local_video_streams_from_feed_with_range_and_branch_access(
+        self, api_client, make_user, branch_a, branch_b, settings, tmp_path,
+    ):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from apps.social.models import SocialPostMedia
+
+        settings.STORAGE_PROVIDER = "local"
+        settings.MEDIA_ROOT = tmp_path
+        settings.PUBLIC_BACKEND_URL = "https://chapelflow-api.example"
+        video = b"\x00\x00\x00\x18ftypmp42" + b"playable video bytes"
+        author = make_user(email="video-author@chapelflow.test", branch=branch_a)
+        api_client.force_authenticate(user=author)
+        posted = api_client.post("/api/v1/social/posts/", {
+            "caption": "Worship video",
+            "files": SimpleUploadedFile("worship.mp4", video, "video/mp4"),
+        }, format="multipart")
+        assert posted.status_code == 201
+        media = SocialPostMedia.objects.get()
+        path = posted.data["data"]["media"][0]["url"]
+        assert path == f"/api/v1/social/media/{media.upload_id}/"
+
+        streamed = api_client.get(path, HTTP_RANGE="bytes=0-11")
+        assert streamed.status_code == 206
+        assert streamed["Content-Type"] == "video/mp4"
+        assert streamed["Content-Range"] == f"bytes 0-11/{len(video)}"
+        assert b"".join(streamed.streaming_content) == video[:12]
+
+        api_client.force_authenticate(user=make_user(email="video-outsider@chapelflow.test", branch=branch_b))
+        assert api_client.get(path).status_code == 404
+
+        api_client.force_authenticate(user=author)
+        api_client.delete(f"/api/v1/social/posts/{media.post_id}/")
+        assert api_client.get(path).status_code == 404
+
     @pytest.mark.parametrize("filename,content,content_type", [
         ("worship.png", b"\x89PNG\r\n\x1a\n" + b"image content", "image/png"),
         ("worship.mp4", b"\x00\x00\x00\x18ftypmp42" + b"video content", "video/mp4"),

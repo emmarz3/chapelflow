@@ -1,3 +1,7 @@
+from urllib.parse import urlparse
+
+from django.conf import settings
+from django.urls import reverse
 from rest_framework import serializers
 
 from .models import SocialComment, SocialPost, SocialPostMedia
@@ -11,11 +15,17 @@ def display_name(user):
 
 
 class SocialPostMediaSerializer(serializers.ModelSerializer):
-    url = serializers.URLField(source="upload.file_url", read_only=True)
+    url = serializers.SerializerMethodField()
 
     class Meta:
         model = SocialPostMedia
         fields = ["id", "url", "media_type", "position"]
+
+    def get_url(self, media):
+        url = media.upload.file_url
+        if urlparse(url).path.startswith(f"{settings.MEDIA_URL.rstrip('/')}/upper-room/"):
+            return reverse("social-media", kwargs={"pk": media.upload_id})
+        return url
 
 
 class SocialPostSerializer(serializers.ModelSerializer):

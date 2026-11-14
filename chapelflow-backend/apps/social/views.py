@@ -1,10 +1,15 @@
 from datetime import timedelta
+from pathlib import Path
+import re
+from urllib.parse import unquote, urlparse
 
 from django.conf import settings
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import IntegrityError, transaction
 from django.db.models import Count, Exists, OuterRef, Q
 from django.db.models import Subquery
+from django.http import FileResponse, HttpResponse, StreamingHttpResponse
+from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.parsers import FormParser, MultiPartParser
@@ -73,6 +78,63 @@ def _post_or_404(user, pk):
     return post
 
 
+def _file_chunks(path, start, length):
+    with path.open("rb") as media_file:
+        media_file.seek(start)
+        while length:
+            chunk = media_file.read(min(length, 512 * 1024))
+            if not chunk:
+                break
+            length -= len(chunk)
+            yield chunk
+
+
+class SocialMediaView(APIView):
+    """Deliver local Upper Room media to authenticated branch members."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk):
+        upload = get_object_or_404(
+            Upload, pk=pk, category=UploadCategory.SOCIAL_POST,
+            upper_room_media__post__in=_posts_for(request.user),
+        )
+        media_prefix = f"{settings.MEDIA_URL.rstrip('/')}/upper-room/"
+        url_path = unquote(urlparse(upload.file_url).path)
+        if not url_path.startswith(media_prefix):
+            return HttpResponse(status=404)
+        relative_path = url_path.removeprefix(settings.MEDIA_URL.rstrip('/') + "/")
+        root = Path(settings.MEDIA_ROOT).resolve()
+        file_path = (root / relative_path).resolve()
+        if not file_path.is_relative_to(root) or not file_path.is_file():
+            return HttpResponse(status=404)
+
+        size = file_path.stat().st_size
+        content_type = upload.content_type if upload.content_type.startswith(("video/", "image/")) else "application/octet-stream"
+        range_header = request.headers.get("Range", "")
+        if range_header:
+            match = re.fullmatch(r"bytes=(\d*)-(\d*)", range_header)
+            if not match or not any(match.groups()):
+                response = HttpResponse(status=416)
+                response["Content-Range"] = f"bytes */{size}"
+                return response
+            start_text, end_text = match.groups()
+            start = int(start_text) if start_text else max(size - int(end_text), 0)
+            end = min(int(end_text), size - 1) if start_text and end_text else size - 1
+            if start >= size or start > end:
+                response = HttpResponse(status=416)
+                response["Content-Range"] = f"bytes */{size}"
+                return response
+            response = StreamingHttpResponse(_file_chunks(file_path, start, end - start + 1), status=206, content_type=content_type)
+            response["Content-Range"] = f"bytes {start}-{end}/{size}"
+            response["Content-Length"] = end - start + 1
+        else:
+            response = FileResponse(file_path.open("rb"), content_type=content_type)
+        response["Accept-Ranges"] = "bytes"
+        response["Cache-Control"] = "private, no-store"
+        response["Content-Disposition"] = "inline"
+        return response
+
+
 class SocialPostCollectionView(APIView):
     permission_classes = [IsAuthenticated]
     parser_classes = [MultiPartParser, FormParser]
@@ -135,8 +197,9 @@ class SocialPostCollectionView(APIView):
         with transaction.atomic():
             post = SocialPost.objects.create(branch=branch, author=request.user, caption=caption)
             for position, (file_obj, media_type) in enumerate(media):
-                file_url = storage.upload_bytes(
-                    file_obj.read(),
+                file_obj.seek(0)
+                file_url = storage.upload_fileobj(
+                    file_obj,
                     generate_storage_filename(file_obj.name, prefix="upper-room"),
                     content_type=file_obj.content_type,
                 )
