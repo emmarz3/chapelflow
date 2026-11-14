@@ -1,4 +1,4 @@
-import type { EventSummary, Member, Permission, Role, User } from "../types/domain";
+import type { CommunitySummary, EventSummary, Member, Permission, Role, User } from "../types/domain";
 import { buildDemoUser } from "./permissions";
 
 type Row = Record<string, unknown>;
@@ -16,6 +16,19 @@ const row = (value: unknown): Row =>
 const str = (value: unknown) => (value == null ? "" : String(value));
 const list = (value: unknown): Row[] =>
   Array.isArray(value) ? value.map(row) : [];
+const adminCommunity = (value: Row): CommunitySummary => ({
+  id: str(value.id),
+  slug: str(value.id),
+  name: str(value.name),
+  type: str(value.group_type) === "UNIT" ? "unit" : "campus_fellowship",
+  description: str(value.description),
+  status: value.is_active === false ? "inactive" : "active",
+  requires_approval: true,
+  members_can_post: true,
+  chat_enabled: true,
+  member_count: Number(value.member_count || 0),
+  pending_count: Number(value.pending_count || 0),
+});
 const json = (method: string, body: unknown): RequestInit => ({
   method,
   body: JSON.stringify(body),
@@ -903,6 +916,38 @@ export async function djangoRequest(
     return call(`/groups-catalog/${suffix}`);
   if (route === "/chapel-groups/bootstrap-groups" && method === "POST")
     return call("/groups-catalog/bootstrap-chapel-groups/", json("POST", {}));
+  if (route === "/admin/communities" && method === "GET") {
+    const groups = await callAllPages("/groups-catalog/?scope=institutional-assignment");
+    return { data: groups
+      .filter((group) => ["UNIT", "FELLOWSHIP"].includes(str(group.group_type)))
+      .map(adminCommunity) };
+  }
+  if (route === "/admin/communities" && method === "POST") {
+    const type = str(body.type);
+    if (!["unit", "campus_fellowship"].includes(type))
+      throw new Error("Create a Chapel Unit or Campus Fellowship with this form.");
+    const branches = await callAllPages("/branches/?search=Chrisland%20University%20Chapel&is_active=true");
+    const branch = branches.find((item) => str(item.name).toLowerCase() === "chrisland university chapel");
+    if (!branch) throw new Error("The active Chrisland University Chapel branch was not found.");
+    const response = await call("/groups-catalog/", json("POST", {
+      branch: branch.id,
+      name: body.name,
+      group_type: type === "unit" ? "UNIT" : "FELLOWSHIP",
+      description: body.description || "",
+      is_active: true,
+    }));
+    return { data: adminCommunity(row(response.data)) };
+  }
+  const adminCommunityUpdate = route.match(/^\/admin\/communities\/([^/]+)$/);
+  if (adminCommunityUpdate && method === "PATCH") {
+    if (!["active", "inactive"].includes(str(body.status)))
+      throw new Error("Choose an active or inactive community status.");
+    const response = await call(
+      `/groups-catalog/${encodeURIComponent(adminCommunityUpdate[1]!)}/`,
+      json("PATCH", { is_active: body.status === "active" }),
+    );
+    return { data: adminCommunity(row(response.data)) };
+  }
   if (/^\/institutional-accounts\/[^/]+$/.test(route) && method === "PATCH")
     return call(`/auth${route}/`, json("PATCH", body));
   if (
