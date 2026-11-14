@@ -132,6 +132,9 @@ class CloudinaryStorageService(StorageService):
 
 
 class S3StorageService(StorageService):
+    def owns_media_url(self, file_url: str) -> bool:
+        return file_url.startswith(self._object_url("media_content/"))
+
     def _client(self):
         import boto3
         from botocore.config import Config
@@ -145,8 +148,19 @@ class S3StorageService(StorageService):
             "s3",
             **credentials,
             region_name=settings.AWS_S3_REGION_NAME,
-            config=Config(connect_timeout=5, read_timeout=60, retries={"max_attempts": 3, "mode": "standard"}),
+            endpoint_url=settings.AWS_S3_ENDPOINT_URL or None,
+            config=Config(connect_timeout=5, read_timeout=60, retries={"max_attempts": 3, "mode": "standard"},
+                          s3={"addressing_style": settings.AWS_S3_ADDRESSING_STYLE}),
         )
+
+    def _object_url(self, filename):
+        endpoint = settings.AWS_S3_ENDPOINT_URL
+        if endpoint:
+            parsed = urlparse(endpoint)
+            if settings.AWS_S3_ADDRESSING_STYLE == "virtual":
+                return f"{parsed.scheme}://{settings.AWS_STORAGE_BUCKET_NAME}.{parsed.netloc}/{filename}"
+            return f"{endpoint.rstrip('/')}/{settings.AWS_STORAGE_BUCKET_NAME}/{filename}"
+        return f"https://{settings.AWS_STORAGE_BUCKET_NAME}.s3.{settings.AWS_S3_REGION_NAME}.amazonaws.com/{filename}"
 
     def upload_bytes(self, content: bytes, filename: str, content_type: str = "") -> str:
         client = self._client()
@@ -154,27 +168,42 @@ class S3StorageService(StorageService):
         client.put_object(
             Bucket=settings.AWS_STORAGE_BUCKET_NAME, Key=filename, Body=content, ContentType=content_type,
         )
-        return f"https://{settings.AWS_STORAGE_BUCKET_NAME}.s3.{settings.AWS_S3_REGION_NAME}.amazonaws.com/{filename}"
+        return self._object_url(filename)
 
     def upload_fileobj(self, fileobj, filename: str, content_type: str = "", *, private: bool = False) -> str:
         client = self._client()
         content_type = content_type or mimetypes.guess_type(filename)[0] or "application/octet-stream"
         client.upload_fileobj(fileobj, settings.AWS_STORAGE_BUCKET_NAME, filename, ExtraArgs={"ContentType": content_type})
-        return f"https://{settings.AWS_STORAGE_BUCKET_NAME}.s3.{settings.AWS_S3_REGION_NAME}.amazonaws.com/{filename}"
+        return self._object_url(filename)
 
     def get_download_url(self, file_url: str, *, expires_in: int = 300) -> str:
         parsed = urlparse(file_url)
-        expected_host = f"{settings.AWS_STORAGE_BUCKET_NAME}.s3.{settings.AWS_S3_REGION_NAME}.amazonaws.com"
-        if parsed.hostname != expected_host:
-            return ""
+        if settings.AWS_S3_ENDPOINT_URL:
+            endpoint = urlparse(settings.AWS_S3_ENDPOINT_URL)
+            if settings.AWS_S3_ADDRESSING_STYLE == "virtual":
+                if parsed.hostname != f"{settings.AWS_STORAGE_BUCKET_NAME}.{endpoint.hostname}":
+                    return ""
+                key = parsed.path.lstrip("/")
+            else:
+                if parsed.hostname != endpoint.hostname or not parsed.path.startswith(f"/{settings.AWS_STORAGE_BUCKET_NAME}/"):
+                    return ""
+                key = parsed.path.removeprefix(f"/{settings.AWS_STORAGE_BUCKET_NAME}/")
+        else:
+            expected_host = f"{settings.AWS_STORAGE_BUCKET_NAME}.s3.{settings.AWS_S3_REGION_NAME}.amazonaws.com"
+            if parsed.hostname != expected_host:
+                return ""
+            key = parsed.path.lstrip("/")
         return self._client().generate_presigned_url(
             "get_object",
-            Params={"Bucket": settings.AWS_STORAGE_BUCKET_NAME, "Key": parsed.path.lstrip("/")},
+            Params={"Bucket": settings.AWS_STORAGE_BUCKET_NAME, "Key": key},
             ExpiresIn=max(60, min(expires_in, 900)),
         )
 
     def delete(self, file_url: str) -> None:
-        key = file_url.split(".amazonaws.com/", 1)[-1]
+        parsed = urlparse(file_url)
+        key = parsed.path.lstrip("/")
+        if settings.AWS_S3_ENDPOINT_URL and settings.AWS_S3_ADDRESSING_STYLE != "virtual":
+            key = key.removeprefix(f"{settings.AWS_STORAGE_BUCKET_NAME}/")
         self._client().delete_object(Bucket=settings.AWS_STORAGE_BUCKET_NAME, Key=key)
 
 
@@ -238,8 +267,8 @@ class SupabaseStorageService(StorageService):
             response.raise_for_status()
 
 
-def get_storage_service() -> StorageService:
-    provider = getattr(settings, "STORAGE_PROVIDER", "local")
+def get_storage_service(provider: str | None = None) -> StorageService:
+    provider = provider or getattr(settings, "STORAGE_PROVIDER", "local")
     return {
         "local": LocalStorageService,
         "cloudinary": CloudinaryStorageService,

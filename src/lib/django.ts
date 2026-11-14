@@ -145,6 +145,7 @@ function upperRoomPost(value: Row) {
     createdAt: str(value.created_at),
     updatedAt: str(value.updated_at),
     authorName: str(value.author_name),
+    branchName: str(value.branch_name),
     media: list(value.media).map((media) => ({
       id: str(media.id),
       url: str(media.url),
@@ -436,6 +437,7 @@ export async function djangoRequest(
         items: list(feed.items).map(upperRoomPost),
         page: Number(feed.page || 1),
         hasMore: Boolean(feed.has_more),
+        branches: list(feed.branches).map((branch) => ({ id: str(branch.id), name: str(branch.name) })),
       },
     };
   }
@@ -912,6 +914,10 @@ export async function djangoRequest(
     return call("/auth/institutional-accounts/");
   if (route === "/institutional-accounts" && method === "POST")
     return call("/auth/institutional-accounts/", json("POST", body));
+  if (route === "/admin/accounts" && method === "GET")
+    return call(`/auth/admin/accounts/${suffix}`);
+  if (/^\/admin\/accounts\/[^/]+\/password-reset$/.test(route) && method === "POST")
+    return call(`/auth${route}/`, json("POST", {}));
   if (route === "/chapel-groups" && method === "GET")
     return call(`/groups-catalog/${suffix}`);
   if (route === "/chapel-groups/bootstrap-groups" && method === "POST")
@@ -950,6 +956,8 @@ export async function djangoRequest(
   }
   if (/^\/institutional-accounts\/[^/]+$/.test(route) && method === "PATCH")
     return call(`/auth${route}/`, json("PATCH", body));
+  if (/^\/institutional-accounts\/[^/]+$/.test(route) && method === "DELETE")
+    return call(`/auth${route}/`, { method: "DELETE" });
   if (
     /^\/institutional-accounts\/[^/]+\/password-reset$/.test(route) &&
     method === "POST"

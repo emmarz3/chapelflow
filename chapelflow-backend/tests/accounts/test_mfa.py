@@ -37,6 +37,15 @@ class TestMFAEnrollment:
         device = MFADevice.objects.get(user=user)
         assert device.confirmed is False
 
+    def test_pending_enrollment_keeps_secret_when_session_is_reopened(self, api_client, branch_a):
+        from apps.accounts.models import User
+
+        user = User.objects.create_user(email="mfa-reopen@test.com", password="Pass12345!", role="CHAPEL_ADMIN", branch=branch_a)
+        api_client.force_authenticate(user=user)
+        first = api_client.post("/api/v1/auth/mfa/enroll/").data["data"]["secret"]
+        second = api_client.post("/api/v1/auth/mfa/enroll/").data["data"]["secret"]
+        assert first == second
+
 
 @pytest.mark.django_db
 class TestMFAConfirmation:

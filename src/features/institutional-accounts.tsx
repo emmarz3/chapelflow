@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { KeyRound, Plus, UserRoundCheck } from "lucide-react";
+import { KeyRound, Plus, Trash2, UserRoundCheck } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import {
   Badge,
@@ -11,6 +11,7 @@ import {
   useToast,
 } from "../components/ui";
 import {
+  adminAccountService,
   chapelGroupService,
   institutionalAccountService,
 } from "../services/chapelflow";
@@ -80,8 +81,12 @@ export function InstitutionalAccountsPage() {
   const [selectedRole, setSelectedRole] = useState<InstitutionalRole>("CHAPLAIN");
   const [selectedGroup, setSelectedGroup] = useState("");
   const [selectedOffice, setSelectedOffice] = useState("CHAPLAIN");
-  const [resetAccount, setResetAccount] = useState<{ id: string; name: string } | null>(null);
+  const [resetAccount, setResetAccount] = useState<{ id: string; name: string; scope: "institutional" | "all" } | null>(null);
+  const [deleteAccount, setDeleteAccount] = useState<{ id: string; name: string } | null>(null);
   const [temporaryPassword, setTemporaryPassword] = useState("");
+  const [searchDraft, setSearchDraft] = useState("");
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
   const accounts = useQuery({
     queryKey: ["institutional-accounts"],
     queryFn: async () => (await institutionalAccountService.list()).data,
@@ -89,6 +94,10 @@ export function InstitutionalAccountsPage() {
   const groups = useQuery({
     queryKey: ["chapel-groups", "institutional-accounts"],
     queryFn: async () => (await chapelGroupService.list({ accountAssignment: true })).data,
+  });
+  const directory = useQuery({
+    queryKey: ["admin-account-directory", page, search],
+    queryFn: async () => (await adminAccountService.list(page, search)).data,
   });
   const selectedOfficeDetails = offices.find((office) => office.code === selectedOffice);
   const fixedUnit = selectedOfficeDetails?.unit;
@@ -99,7 +108,10 @@ export function InstitutionalAccountsPage() {
       )?.id ?? "")
     : selectedGroup;
   const refresh = () =>
-    void client.invalidateQueries({ queryKey: ["institutional-accounts"] });
+    void Promise.all([
+      client.invalidateQueries({ queryKey: ["institutional-accounts"] }),
+      client.invalidateQueries({ queryKey: ["admin-account-directory"] }),
+    ]);
   const create = useMutation({
     mutationFn: institutionalAccountService.create,
     onSuccess: () => {
@@ -121,9 +133,18 @@ export function InstitutionalAccountsPage() {
     onSuccess: refresh,
   });
   const reset = useMutation({
-    mutationFn: institutionalAccountService.resetPassword,
+    mutationFn: ({ id, scope }: { id: string; scope: "institutional" | "all" }) =>
+      scope === "all" ? adminAccountService.resetPassword(id) : institutionalAccountService.resetPassword(id),
     onSuccess: (response) => {
       setTemporaryPassword(response.data.temporary_password);
+      refresh();
+    },
+  });
+  const remove = useMutation({
+    mutationFn: institutionalAccountService.remove,
+    onSuccess: () => {
+      setDeleteAccount(null);
+      toast("Institutional account removed and access revoked.");
       refresh();
     },
   });
@@ -426,17 +447,57 @@ export function InstitutionalAccountsPage() {
                       setResetAccount({
                         id: account.id,
                         name: `${account.first_name} ${account.last_name}`,
+                        scope: "institutional",
                       })
                     }
                   >
                     Reset password
                   </Button>
+                  <Button variant="ghost" icon={<Trash2 />} onClick={() => setDeleteAccount({
+                    id: account.id,
+                    name: `${account.first_name} ${account.last_name}`,
+                  })}>Delete account</Button>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
       </section>
+      <section className="table-panel">
+        <header>
+          <div className="panel-heading"><div><h2>All accounts</h2><p>View every account. Passwords cannot be viewed; issue a one-time temporary password when access needs to be restored.</p></div></div>
+          <form className="button-row" onSubmit={(event) => { event.preventDefault(); setPage(1); setSearch(searchDraft.trim()); }}>
+            <input aria-label="Search all accounts" value={searchDraft} onChange={(event) => setSearchDraft(event.target.value)} placeholder="Name, email, or matric number" />
+            <Button type="submit" variant="secondary">Search</Button>
+          </form>
+        </header>
+        {directory.isPending ? <LoadingState label="Loading all accounts" /> : directory.isError ?
+          <ErrorState description={directory.error.message} onRetry={() => void directory.refetch()} /> : <>
+            <table>
+              <thead><tr><th>Account</th><th>Role</th><th>Branch</th><th>Status</th><th>Action</th></tr></thead>
+              <tbody>{directory.data.items.map((account) => <tr key={account.id}>
+                <td><strong>{account.name || account.email || account.matric_no || "Unnamed account"}</strong><small>{account.email || account.matric_no}</small></td>
+                <td>{account.role || "Member"}</td>
+                <td>{account.branch_name || "Global"}</td>
+                <td><Badge tone={account.deleted_at || !account.is_active ? "danger" : "success"}>{account.deleted_at ? "Removed" : account.is_active ? "Active" : "Suspended"}</Badge></td>
+                <td>{account.can_reset && <Button variant="ghost" icon={<KeyRound />} onClick={() => setResetAccount({ id: account.id, name: account.name || account.email || account.matric_no, scope: "all" })}>Reset password</Button>}</td>
+              </tr>)}</tbody>
+            </table>
+            {directory.data.items.length === 0 && <p>No matching accounts.</p>}
+            <div className="button-row">
+              <Button variant="secondary" disabled={page <= 1} onClick={() => setPage((current) => current - 1)}>Previous</Button>
+              <span>Page {page} · {directory.data.count} accounts</span>
+              <Button variant="secondary" disabled={page * directory.data.page_size >= directory.data.count} onClick={() => setPage((current) => current + 1)}>Next</Button>
+            </div>
+          </>}
+      </section>
+      <Modal open={Boolean(deleteAccount)} onClose={() => { if (!remove.isPending) { setDeleteAccount(null); remove.reset(); } }} title="Delete institutional account" description={`Remove ${deleteAccount?.name || "this account"} from institutional accounts? Their sign-in access will be revoked. Historical records will remain.`} footer={<>
+        <Button variant="ghost" onClick={() => setDeleteAccount(null)} disabled={remove.isPending}>Cancel</Button>
+        <Button loading={remove.isPending} onClick={() => deleteAccount && remove.mutate(deleteAccount.id)}>Delete account</Button>
+      </>}>
+        <p>This account will no longer appear in the institutional account list. This action cannot be undone from the dashboard.</p>
+        {remove.isError && <p className="form-error" role="alert">{remove.error.message}</p>}
+      </Modal>
       <Modal
         open={Boolean(resetAccount)}
         onClose={closeReset}
@@ -462,7 +523,7 @@ export function InstitutionalAccountsPage() {
               <Button variant="ghost" onClick={closeReset}>Cancel</Button>
               <Button
                 loading={reset.isPending}
-                onClick={() => resetAccount && reset.mutate(resetAccount.id)}
+                onClick={() => resetAccount && reset.mutate({ id: resetAccount.id, scope: resetAccount.scope })}
               >
                 Issue temporary password
               </Button>

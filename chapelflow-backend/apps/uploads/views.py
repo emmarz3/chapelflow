@@ -1,7 +1,10 @@
 from django.conf import settings
 from django.core.exceptions import ValidationError
+from django.db.models import Q
+from django.http import HttpResponseRedirect
+from django.shortcuts import get_object_or_404
 from rest_framework.parsers import FormParser, MultiPartParser
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.views import APIView
 
 from common.permissions.scoping import BranchScopedQuerysetMixin
@@ -10,9 +13,30 @@ from common.utils.responses import error_response, success_response
 from common.viewsets import StandardReadOnlyModelViewSet
 
 from .models import Upload, UploadCategory
-from .serializers import UploadSerializer
-from .storage import generate_storage_filename, get_storage_service
+from .serializers import UploadSerializer, public_media_url
+from .storage import S3StorageService, generate_storage_filename, get_storage_service
 from .validators import validate_upload
+from apps.operations.models import ContentEntry, ContentStatus
+
+
+class PublicMediaView(APIView):
+    """Give published gallery content a stable URL backed by a private bucket."""
+    permission_classes = [AllowAny]
+    authentication_classes = []
+
+    def get(self, request, pk):
+        upload = get_object_or_404(Upload, pk=pk, category=UploadCategory.MEDIA_CONTENT)
+        url = public_media_url(upload)
+        if not ContentEntry.objects.filter(status=ContentStatus.PUBLISHED).filter(
+            Q(media_url=url) | Q(cover_image_url=url)
+        ).exists():
+            return error_response("This media is not published.", status=404)
+        download_url = S3StorageService().get_download_url(upload.file_url, expires_in=900)
+        if not download_url:
+            return error_response("This media is unavailable.", status=404)
+        response = HttpResponseRedirect(download_url)
+        response["Cache-Control"] = "public, max-age=60"
+        return response
 
 
 class UploadView(APIView):
@@ -42,7 +66,8 @@ class UploadView(APIView):
             return error_response(str(exc), status=400)
         storage = get_storage_service()
         filename = generate_storage_filename(file_obj.name, prefix=category.lower())
-        file_url = storage.upload_bytes(file_obj.read(), filename, content_type=file_obj.content_type)
+        file_obj.seek(0)
+        file_url = storage.upload_fileobj(file_obj, filename, content_type=file_obj.content_type)
 
         upload = Upload.objects.create(
             branch=request.user.branch,

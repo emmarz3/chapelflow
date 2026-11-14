@@ -26,7 +26,7 @@ import { useAuthMotion, useReducedMotionPreference } from "../components/motion/
 import { useCompletionAnimation } from "../components/motion/completion-animation";
 import { useAuth } from "./auth-context";
 import type { Role } from "../types/domain";
-import { ApiError, api } from "../lib/api";
+import { ApiError, api, renewSessionForMfaEnrollment } from "../lib/api";
 import { isDjangoBackend } from "../lib/backend";
 import { isDemoMode } from "../lib/fixtures";
 import { getAuthenticatedHomePath } from "../lib/permissions";
@@ -229,7 +229,13 @@ export function LoginPage() {
         role,
         String(form.get("otp") || ""),
       );
-      navigate(getAuthenticatedHomePath(authenticated, returnTo), { replace: true });
+      if (authenticated.mfaRequired) return;
+      navigate(
+        authenticated.passwordChangeRequired
+          ? "/change-password-required"
+          : getAuthenticatedHomePath(authenticated, returnTo),
+        { replace: true },
+      );
     } catch (caught) {
       setCompleting(false);
       setError(
@@ -362,11 +368,25 @@ function MfaEnrollment() {
     qr_code_base64: string | null;
   } | null>(null);
   const [error, setError] = useState("");
+  const [sessionExpired, setSessionExpired] = useState(false);
   const [loading, setLoading] = useState(false);
+  function showError(caught: unknown, fallback: string) {
+    if (caught instanceof ApiError && caught.status === 401) {
+      setSessionExpired(true);
+      setError("Your sign-in expired. Sign in again, then reopen authenticator setup. The account already added to your authenticator app will still work.");
+    } else {
+      setError(caught instanceof Error ? caught.message : fallback);
+    }
+  }
   async function start() {
     setLoading(true);
     setError("");
     try {
+      if (!(await renewSessionForMfaEnrollment())) {
+        // Another tab may have already rotated the refresh cookie while this
+        // access cookie remains valid. Check the current login before failing.
+        await api.get("/auth/me");
+      }
       setSetup(
         (
           await api.post<{
@@ -375,28 +395,22 @@ function MfaEnrollment() {
         ).data,
       );
     } catch (caught) {
-      setError(
-        caught instanceof Error
-          ? caught.message
-          : "Could not start authenticator setup.",
-      );
+      showError(caught, "Could not start authenticator setup.");
     } finally {
       setLoading(false);
     }
   }
   async function confirm(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const otp = String(new FormData(event.currentTarget).get("otp") || "");
     setLoading(true);
     setError("");
     try {
-      await api.post("/auth/mfa/confirm", {
-        otp: String(new FormData(event.currentTarget).get("otp")),
-      });
+      await api.get("/auth/me");
+      await api.post("/auth/mfa/confirm", { otp });
       window.location.assign("/app");
     } catch (caught) {
-      setError(
-        caught instanceof Error ? caught.message : "Could not verify the code.",
-      );
+      showError(caught, "Could not verify the code.");
     } finally {
       setLoading(false);
     }
@@ -447,6 +461,11 @@ function MfaEnrollment() {
         <p className="form-error" role="alert">
           {error}
         </p>
+      )}
+      {sessionExpired && (
+        <Button onClick={() => void logout().catch(() => {})}>
+          Sign in again
+        </Button>
       )}
       <Button variant="ghost" onClick={() => void logout()}>
         Sign out

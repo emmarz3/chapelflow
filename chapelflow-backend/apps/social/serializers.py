@@ -1,3 +1,7 @@
+from urllib.parse import urlparse
+
+from django.conf import settings
+from django.urls import reverse
 from rest_framework import serializers
 
 from .models import SocialComment, SocialPost, SocialPostMedia
@@ -11,15 +15,27 @@ def display_name(user):
 
 
 class SocialPostMediaSerializer(serializers.ModelSerializer):
-    url = serializers.URLField(source="upload.file_url", read_only=True)
+    url = serializers.SerializerMethodField()
 
     class Meta:
         model = SocialPostMedia
         fields = ["id", "url", "media_type", "position"]
 
+    def get_url(self, media):
+        url = media.upload.file_url
+        if urlparse(url).path.startswith(f"{settings.MEDIA_URL.rstrip('/')}/upper-room/"):
+            return reverse("social-media", kwargs={"pk": media.upload_id})
+        if settings.AWS_S3_ENDPOINT_URL and url.startswith(
+            f"{urlparse(settings.AWS_S3_ENDPOINT_URL).scheme}://{settings.AWS_STORAGE_BUCKET_NAME}."
+            f"{urlparse(settings.AWS_S3_ENDPOINT_URL).netloc}/upper-room/"
+        ):
+            return reverse("social-media", kwargs={"pk": media.upload_id})
+        return url
+
 
 class SocialPostSerializer(serializers.ModelSerializer):
     author_name = serializers.SerializerMethodField()
+    branch_name = serializers.CharField(source="branch.name", read_only=True)
     media = SocialPostMediaSerializer(many=True, read_only=True)
     like_count = serializers.IntegerField(read_only=True)
     comment_count = serializers.IntegerField(read_only=True)
@@ -28,7 +44,7 @@ class SocialPostSerializer(serializers.ModelSerializer):
     class Meta:
         model = SocialPost
         fields = [
-            "id", "caption", "status", "created_at", "updated_at", "author_name",
+            "id", "caption", "status", "created_at", "updated_at", "author_name", "branch_name",
             "media", "like_count", "comment_count", "is_liked",
         ]
 

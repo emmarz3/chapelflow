@@ -343,7 +343,8 @@ export function AdminOperationsPage() {
               <table>
                 <thead>
                   <tr>
-                    <th>Record</th>
+                    <th>Student</th>
+                    <th>Matric number</th>
                     <th>Status</th>
                     <th>Checked in</th>
                     <th />
@@ -352,7 +353,8 @@ export function AdminOperationsPage() {
                 <tbody>
                   {records.data?.map((record) => (
                     <tr key={record.id}>
-                      <td>{record.member || "Visitor"}</td>
+                      <td>{record.member_name || (record.member ? "Student" : "Visitor")}</td>
+                      <td>{record.matric_no || "—"}</td>
                       <td>
                         <Badge tone="success">{record.status}</Badge>
                       </td>
@@ -396,6 +398,8 @@ export function AdminOperationsPage() {
               <table>
                 <thead>
                   <tr>
+                    <th>Student</th>
+                    <th>Matric number</th>
                     <th>Result</th>
                     <th>When</th>
                   </tr>
@@ -403,6 +407,8 @@ export function AdminOperationsPage() {
                 <tbody>
                   {attempts.data?.map((attempt) => (
                     <tr key={attempt.id}>
+                      <td>{attempt.student_name || (attempt.student ? "Student" : "—")}</td>
+                      <td>{attempt.matric_no || "—"}</td>
                       <td>
                         <Badge
                           tone={

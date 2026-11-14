@@ -52,6 +52,7 @@ export function UpperRoomPage() {
   const client = useQueryClient();
   const [caption, setCaption] = useState("");
   const [files, setFiles] = useState<File[]>([]);
+  const [selectedBranch, setSelectedBranch] = useState("");
   const [showIntro, setShowIntro] = useState(true);
   const reduceMotion = useReducedMotion();
   const feed = useQuery({ queryKey: ["upper-room", 1], queryFn: async () => (await upperRoomService.feed()).data });
@@ -60,7 +61,7 @@ export function UpperRoomPage() {
     return () => window.clearTimeout(timer);
   }, [reduceMotion]);
   const publish = useMutation({
-    mutationFn: () => upperRoomService.createPost(caption.trim(), files),
+    mutationFn: () => upperRoomService.createPost(caption.trim(), files, selectedBranch || undefined),
     onSuccess: () => {
       setCaption("");
       setFiles([]);
@@ -72,6 +73,10 @@ export function UpperRoomPage() {
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (user?.role === "super_admin" && !selectedBranch) {
+      toast("Select a chapel branch before sharing.", "error");
+      return;
+    }
     if (!caption.trim() && !files.length) {
       toast("Add a caption, photo, or video before sharing.", "error");
       return;
@@ -103,6 +108,12 @@ export function UpperRoomPage() {
           <section className="upper-room__composer panel" aria-label="Create an Upper Room post">
             <div className="upper-room__avatar" aria-hidden="true">{initials(user?.name || "")}</div>
             <form onSubmit={submit}>
+              {user?.role === "super_admin" && <label className="upper-room__branch-picker">Post to chapel branch
+                <select value={selectedBranch} onChange={(event) => setSelectedBranch(event.target.value)} required>
+                  <option value="">Select a branch</option>
+                  {(feed.data?.branches ?? []).map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
+                </select>
+              </label>}
               <label className="sr-only" htmlFor="upper-room-caption">Share with The Upper Room</label>
               <textarea id="upper-room-caption" value={caption} onChange={(event) => setCaption(event.target.value)} maxLength={1000} rows={3} placeholder="Share a thought, a praise report, or a moment from chapel…" />
               {files.length > 0 && <div className="upper-room__files">{files.map((file, index) => <span key={`${file.name}-${index}`}><Video aria-hidden="true" /> {file.name}<button type="button" aria-label={`Remove ${file.name}`} onClick={() => setFiles((items) => items.filter((_, itemIndex) => itemIndex !== index))}><X /></button></span>)}</div>}
@@ -146,7 +157,7 @@ function PostCard({ post }: { post: UpperRoomPost }) {
   const isOwnPost = post.authorName === user?.name;
   const canModerate = ["super_admin", "chapel_admin", "chaplain", "student_chaplain"].includes(user?.role ?? "");
   return <article className="upper-room-post panel">
-    <header><div className="upper-room__avatar" aria-hidden="true">{initials(post.authorName)}</div><div><strong>{post.authorName}</strong><small>{relativeTime(post.createdAt)} · The Upper Room</small></div>{(isOwnPost || canModerate) && <button className="icon-button" type="button" aria-label="Remove post" disabled={remove.isPending} onClick={() => { if (window.confirm("Remove this post from The Upper Room?")) remove.mutate(); }}><Trash2 /></button>}</header>
+    <header><div className="upper-room__avatar" aria-hidden="true">{initials(post.authorName)}</div><div><strong>{post.authorName}</strong><small>{relativeTime(post.createdAt)} · {post.branchName || "The Upper Room"}</small></div>{(isOwnPost || canModerate) && <button className="icon-button" type="button" aria-label="Remove post" disabled={remove.isPending} onClick={() => { if (window.confirm("Remove this post from The Upper Room?")) remove.mutate(); }}><Trash2 /></button>}</header>
     {post.caption && <p className="upper-room-post__caption">{post.caption}</p>}
     {post.media.length > 0 && <div className={`upper-room-post__media upper-room-post__media--${Math.min(post.media.length, 4)}`}>{post.media.map((media) => media.mediaType === "VIDEO" ? <video key={media.id} controls preload="metadata"><source src={media.url} /></video> : <img key={media.id} src={media.url} alt="Shared Upper Room post" loading="lazy" />)}</div>}
     <div className="upper-room-post__counts"><span>{post.likeCount ? `${post.likeCount} ${post.likeCount === 1 ? "like" : "likes"}` : "Be the first to like this"}</span><button type="button" onClick={() => setShowComments((open) => !open)}>{post.commentCount ? `${post.commentCount} ${post.commentCount === 1 ? "comment" : "comments"}` : "Comment"}</button></div>

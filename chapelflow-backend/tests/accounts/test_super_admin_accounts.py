@@ -157,6 +157,68 @@ class SuperAdminAccountTests(TestCase):
         account.refresh_from_db()
         self.assertTrue(account.check_password("Original-password-123!"))
 
+    def test_account_directory_lists_all_roles_without_password_material(self):
+        student = User.objects.create_user(
+            email="student@example.edu", password="Student-password-123!", role="MEMBER", branch=self.branch,
+        )
+        client = APIClient()
+        client.force_authenticate(self.admin)
+
+        response = client.get("/api/v1/auth/admin/accounts/?search=student")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["data"]["count"], 1)
+        account = response.data["data"]["items"][0]
+        self.assertEqual(account["id"], str(student.id))
+        self.assertEqual(account["role"], "MEMBER")
+        self.assertNotIn("password", account)
+        self.assertNotIn(student.password, str(response.data))
+
+        client.force_authenticate(student)
+        self.assertEqual(client.get("/api/v1/auth/admin/accounts/").status_code, 403)
+
+    def test_admin_can_reset_student_password_but_cannot_reset_super_admin(self):
+        student = User.objects.create_user(
+            email="student2@example.edu", password="Original-password-123!", role="MEMBER", branch=self.branch,
+        )
+        client = APIClient()
+        client.force_authenticate(self.admin)
+        self.assertEqual(client.post(f"/api/v1/auth/admin/accounts/{self.admin.id}/password-reset/").status_code, 404)
+        response = client.post(f"/api/v1/auth/admin/accounts/{student.id}/password-reset/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Cache-Control"], "no-store")
+        student.refresh_from_db()
+        self.assertTrue(student.check_password(response.data["data"]["temporary_password"]))
+        self.assertTrue(student.password_change_required)
+
+    def test_delete_institutional_account_revokes_access_and_preserves_history(self):
+        from apps.social.models import SocialPost
+
+        leader = User.objects.create_user(
+            email="leader-to-remove@example.edu", password="Original-password-123!",
+            role="UNIT_HEAD", branch=self.branch,
+        )
+        post = SocialPost.objects.create(branch=self.branch, author=leader, caption="Prior ministry update")
+        client = APIClient()
+        client.force_authenticate(self.admin)
+        response = client.delete(f"/api/v1/auth/institutional-accounts/{leader.id}/")
+        self.assertEqual(response.status_code, 200)
+        leader.refresh_from_db()
+        self.assertFalse(leader.is_active)
+        self.assertIsNotNone(leader.deleted_at)
+        self.assertFalse(leader.has_usable_password())
+        self.assertEqual(SocialPost.objects.get(pk=post.pk).author_id, leader.id)
+        listed = client.get("/api/v1/auth/institutional-accounts/")
+        self.assertNotIn(str(leader.id), str(listed.data))
+        self.assertEqual(client.delete(f"/api/v1/auth/institutional-accounts/{leader.id}/").status_code, 404)
+        self.assertEqual(client.post(f"/api/v1/auth/admin/accounts/{leader.id}/password-reset/").status_code, 404)
+
+        student = User.objects.create_user(
+            email="student-not-institutional@example.edu", password="Student-password-123!",
+            role="MEMBER", branch=self.branch,
+        )
+        self.assertEqual(client.delete(f"/api/v1/auth/institutional-accounts/{student.id}/").status_code, 404)
+        self.assertEqual(client.delete(f"/api/v1/auth/institutional-accounts/{self.admin.id}/").status_code, 404)
+
     def test_public_password_reset_request_directs_user_to_super_admin(self):
         client = APIClient()
 

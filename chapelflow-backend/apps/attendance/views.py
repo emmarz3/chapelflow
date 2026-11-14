@@ -298,9 +298,12 @@ class AttendanceScanAttemptViewSet(BranchScopedQuerysetMixin, StandardReadOnlyMo
     branch_field_lookup = "session__branch"
 
     class ScanAttemptSerializer(serializers.ModelSerializer):
+        student_name = serializers.CharField(source="student.full_name", read_only=True, allow_null=True)
+        matric_no = serializers.CharField(source="student.user.matric_no", read_only=True, allow_null=True)
+
         class Meta:
             model = AttendanceScanAttempt
-            fields = ["id", "session", "checkpoint", "student", "result", "created_at"]
+            fields = ["id", "session", "checkpoint", "student", "student_name", "matric_no", "result", "created_at"]
             read_only_fields = fields
 
     serializer_class = ScanAttemptSerializer
