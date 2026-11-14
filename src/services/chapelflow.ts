@@ -1023,6 +1023,8 @@ export interface AdminAuditLog {
 export interface AdminAttendanceRecord {
   id: string;
   member: string | null;
+  member_name?: string | null;
+  matric_no?: string | null;
   status: string;
   checked_in_at: string;
 }
@@ -1058,6 +1060,9 @@ export const adminAttendanceService = {
         result: string;
         created_at: string;
         session: string | null;
+        student: string | null;
+        student_name: string | null;
+        matric_no: string | null;
       }>;
     }>("/admin/attendance/scan-attempts"),
 };

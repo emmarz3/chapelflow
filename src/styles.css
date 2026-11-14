@@ -3599,6 +3599,18 @@ button {
   justify-content: flex-end;
   gap: 8px;
 }
+.attendance-success {
+  width: min(420px, 100%);
+  padding: 30px;
+  text-align: center;
+}
+.attendance-success > svg {
+  width: 46px;
+  height: 46px;
+  color: #198754;
+}
+.attendance-success h2 { margin: 14px 0 8px; }
+.attendance-success p { color: var(--text-muted); margin: 0 0 22px; }
 .toast-region {
   position: fixed;
   z-index: 300;
