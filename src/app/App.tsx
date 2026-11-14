@@ -54,6 +54,7 @@ import {
   PublicDetailPage,
   PublicInfoPage,
   PublicLayout,
+  StudentLeadersPage,
 } from "../features/public-site";
 import {
   ErrorBoundary,
@@ -159,6 +160,7 @@ export function App() {
                 element={<AboutPage />}
               />
               <Route path="/fellowship" element={<FellowshipPage />} />
+              <Route path="/student-leaders" element={<StudentLeadersPage />} />
               <Route
                 path="/mission"
                 element={<PublicInfoPage page="mission" />}

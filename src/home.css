@@ -343,6 +343,28 @@ button.hp-day:hover { background: var(--hp-tint); }
   .hpa-item__main { flex-basis: 100%; }
 }
 .cuc-fellowship { background: var(--cuc-paper, #faf9f6); color: var(--cuc-ink, #17263b); }
+.student-leaders-page { background: var(--cuc-paper, #faf9f6); color: var(--cuc-ink, #17263b); }
+.student-leaders-page__banner { background: linear-gradient(150deg, #101d31, #213755); color: #fff; padding: clamp(78px, 10vw, 132px) 24px clamp(60px, 8vw, 94px); text-align: center; }
+.student-leaders-page__banner .cuc-home__eyebrow { color: #efbf4f; margin: 0 0 13px; }
+.student-leaders-page__banner h1 { color: #fff; font: 600 clamp(46px, 7vw, 78px)/1 "Newsreader", Georgia, serif; letter-spacing: -.04em; margin: 0 0 16px; }
+.student-leaders-page__banner > p:last-child { color: rgb(255 255 255 / .82); font-size: clamp(16px, 2vw, 19px); margin: 0 auto; max-width: 620px; }
+.student-leaders-page__content { margin: 0 auto; max-width: 1320px; padding: clamp(50px, 7vw, 88px) 28px; }
+.student-leaders-page__intro { margin: 0 auto 44px; max-width: 720px; text-align: center; }
+.student-leaders-page__intro .cuc-home__eyebrow { margin: 0 0 10px; }
+.student-leaders-page__intro h2 { font: 500 clamp(31px, 4vw, 46px)/1.1 "Newsreader", Georgia, serif; letter-spacing: -.03em; margin: 0 0 12px; }
+.student-leaders-page__intro > p:last-child { color: #667487; font-size: 15px; line-height: 1.7; margin: 0; }
+.student-leaders-page__grid { display: grid; gap: 24px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 250px), 1fr)); }
+.student-leader-card { animation: student-leader-enter .6s cubic-bezier(.22,.8,.24,1) both; animation-delay: calc(var(--leader-index, 0) * 60ms); background: #fff; border: 1px solid rgb(23 38 59 / .08); border-radius: 18px; box-shadow: 0 12px 35px rgb(23 38 59 / .07); overflow: hidden; transition: box-shadow .25s ease, transform .25s ease; }
+.student-leader-card:hover { box-shadow: 0 20px 44px rgb(20 35 75 / .16); transform: translateY(-5px); }
+.student-leader-card__photo { aspect-ratio: 4 / 5; background: linear-gradient(145deg, #1d2e48, #513c71); overflow: hidden; }
+.student-leader-card__photo img { display: block; height: 100%; object-fit: cover; object-position: center 24%; transition: transform .55s cubic-bezier(.22,.8,.24,1); width: 100%; }
+.student-leader-card:hover .student-leader-card__photo img { transform: scale(1.035); }
+.student-leader-card__body { border-top: 4px solid #efbf4f; min-height: 168px; padding: 21px 22px 24px; text-align: center; }
+.student-leader-card__role { color: #986c0c; font-size: 11px; font-weight: 800; letter-spacing: .1em; line-height: 1.45; margin: 0 0 8px; text-transform: uppercase; }
+.student-leader-card h3 { color: #17263b; font: 600 23px/1.2 "Newsreader", Georgia, serif; margin: 0 0 12px; }
+.student-leader-card__duty { color: #657084; font-size: 13px; line-height: 1.65; margin: 0; text-align: left; }
+@keyframes student-leader-enter { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .student-leader-card { animation: none; transition: none; } .student-leader-card__photo img { transition: none; } }
 .cuc-fellowship__hero { align-items: center; background: #17263b; display: flex; isolation: isolate; min-height: 360px; overflow: hidden; padding: clamp(48px, 8vw, 105px) max(7vw, calc((100vw - 1240px) / 2)); position: relative; }
 .cuc-fellowship__hero-image { background: linear-gradient(90deg, rgb(15 28 47 / .92), rgb(15 28 47 / .62)), url('/chapel-community.jpg') center 45% / cover; inset: 0; position: absolute; z-index: -1; }
 .cuc-fellowship__hero-copy { max-width: 720px; }

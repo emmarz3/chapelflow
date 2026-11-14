@@ -801,6 +801,24 @@ button {
   gap: 7px;
   align-items: center;
 }
+.public-programmes { display: grid; gap: 28px; }
+.public-programmes__heading { max-width: 620px; }
+.public-programmes__heading h2 { font: 500 clamp(30px, 4vw, 42px)/1.05 "Newsreader", Georgia, serif; margin: 8px 0; }
+.public-programmes__heading > p:last-child, .public-programmes__note { color: var(--text-soft); }
+.public-programmes__grid { display: grid; gap: 18px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); }
+.public-programme-card { background: var(--surface); border: 1px solid var(--border); display: flex; flex-direction: column; min-height: 260px; padding: 24px; }
+.public-programme-card--featured { background: linear-gradient(145deg, #24113f, #3b176b 68%, #5d2784); border-color: #d9a42b; color: #fff; }
+.public-programme-card__date { align-items: center; color: var(--purple-700); display: flex; font-size: 12px; font-weight: 700; gap: 8px; margin-bottom: 22px; }
+.public-programme-card--featured .public-programme-card__date { color: #ffdf84; }
+.public-programme-card .event-type { margin: 0 0 8px; }
+.public-programme-card h3 { font: 500 24px/1.08 "Newsreader", Georgia, serif; margin: 0 0 12px; }
+.public-programme-card__detail { color: var(--text-soft); font-size: 13px; line-height: 1.5; margin: 0 0 16px; }
+.public-programme-card--featured .public-programme-card__detail { color: #f5e9ff; }
+.public-programme-card__meta { align-items: flex-start; color: var(--text-soft); display: flex; font-size: 12px; gap: 8px; line-height: 1.5; margin: auto 0 8px; }
+.public-programme-card__meta + .public-programme-card__meta { margin-top: 0; }
+.public-programme-card__meta svg { flex: 0 0 auto; height: 15px; margin-top: 1px; width: 15px; }
+.public-programme-card--featured .public-programme-card__meta { color: #f6edff; }
+.public-programme-card--featured .event-type { color: #ffdf84; }
 .sermon-feature {
   display: grid;
   grid-template-columns: 1.1fr 0.9fr;
@@ -4678,6 +4696,12 @@ button {
 .public-shell--home .public-footer { background: var(--cuc-navy); }
 .public-theme-toggle { display: grid; flex: 0 0 auto; height: 40px; margin-left: auto; place-items: center; width: 40px; }
 /* Live homepage calendar, attendance visual, video, and public mobile navigation. */
+.cuc-home__daily-verse { background: #f3ede0; border-block: 1px solid #e7dcc3; padding: clamp(28px, 5vw, 56px) 24px; }
+.cuc-home__daily-verse-inner { margin: 0 auto; max-width: 920px; }
+.cuc-home__daily-verse-heading { align-items: center; display: flex; flex-wrap: wrap; gap: 12px 20px; justify-content: space-between; }
+.cuc-home__daily-verse-heading .cuc-home__eyebrow { color: #654a13; margin: 0; }
+.cuc-home__daily-verse blockquote { color: #211632; font: 500 clamp(24px, 4vw, 38px)/1.25 "Newsreader", Georgia, serif; margin: 24px 0 16px; }
+.cuc-home__daily-verse-reference { color: #5637d7; font-size: 14px; font-weight: 800; margin: 0; }
 .cuc-home__gathering-track { flex: 1; min-width: 0; overflow: hidden; }
 .cuc-home__gathering-track strong { animation: cuc-event-arrive 420ms ease both; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 @keyframes cuc-event-arrive { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
@@ -4691,9 +4715,9 @@ button {
 .cuc-home__calendar-weekday { color: #7d8995; font-size: 10px; font-weight: 800; }
 .cuc-home__calendar-grid button { background: transparent; border: 0; border-radius: 50%; color: #243850; cursor: pointer; font: inherit; max-width: 46px; width: 100%; }
 .cuc-home__calendar-grid button:hover { background: #f1edf9; }
-.cuc-home__calendar-grid button.is-selected { background: var(--cuc-purple); color: #fff; }
-.cuc-home__calendar-grid button i { background: var(--cuc-gold); border-radius: 50%; bottom: 6px; height: 5px; position: absolute; width: 5px; }
-.cuc-home__calendar-grid button.is-selected i { background: #fff; }
+.cuc-home__calendar-grid button.has-event { background: var(--cuc-gold); color: #13263d; font-weight: 700; }
+.cuc-home__calendar-grid button.has-event:hover { filter: brightness(.94); }
+.cuc-home__calendar-grid button.is-selected { outline: 2px solid var(--cuc-purple); outline-offset: 2px; }
 .cuc-home__calendar-agenda { background: #f7f5f0; border-left: 1px solid #e5e0d7; display: flex; flex-direction: column; gap: 13px; min-height: 300px; padding: clamp(20px, 4vw, 40px); }
 .cuc-home__calendar-agenda > p { color: #6f7d8e; font-size: 11px; font-weight: 800; letter-spacing: .08em; margin: 0; text-transform: uppercase; }
 .cuc-home__calendar-agenda > span { color: #6d7d8f; font-size: 13px; line-height: 1.5; }
@@ -5055,6 +5079,7 @@ button {
 :root[data-theme="dark"] .cuc-home__calendar { background: #211c25; border-color: #403746; }
 :root[data-theme="dark"] .cuc-home__calendar-main header button { background: #332b39; color: #f1ebf5; }
 :root[data-theme="dark"] .cuc-home__calendar-grid button { color: #f1ebf5; }
+:root[data-theme="dark"] .cuc-home__calendar-grid button.has-event { color: #13263d; }
 :root[data-theme="dark"] .cuc-home__calendar-agenda { background: #241e28; border-color: #403746; }
 :root[data-theme="dark"] .cuc-home__calendar-agenda > p,
 :root[data-theme="dark"] .cuc-home__calendar-agenda > span,

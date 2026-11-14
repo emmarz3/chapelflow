@@ -10,8 +10,17 @@ import {
   SearchField,
 } from "../components/ui";
 import { publicService } from "../services/chapelflow";
+import { CHAPEL_PROGRAMMES } from "../lib/chapel-programmes";
+import { CalendarDays, Clock3, MapPin } from "lucide-react";
+import type { EventSummary } from "../types/domain";
+import { useTodayDateKey } from "../lib/use-today-date";
 
 export function LivePublicPage({ slug }: { slug: string }) {
+  if (slug === "events") return <LivePublicEventsPage />;
+  return <LivePublicContentPage slug={slug} />;
+}
+
+function LivePublicContentPage({ slug }: { slug: string }) {
   const [search, setSearch] = useState("");
   const query = useQuery({
     queryKey: ["public-content", slug, search],
@@ -88,6 +97,50 @@ export function LivePublicPage({ slug }: { slug: string }) {
           />
         )}
       </div>
+    </div>
+  );
+}
+
+function LivePublicEventsPage() {
+  const today = useTodayDateKey();
+  const query = useQuery({
+    queryKey: ["public-events", 1, 50],
+    queryFn: async () => (await publicService.events({ page: 1, pageSize: 50 })).data,
+    refetchInterval: 60_000,
+  });
+  const publishedEvents: EventSummary[] = (query.data ?? []).filter((event) => event.date >= today);
+  const eventDates = new Set(publishedEvents.map((event) => `${event.title}|${event.date}`));
+  const programmes = CHAPEL_PROGRAMMES
+    .filter((event) => (event.date ?? event.sortDate ?? "") >= today)
+    .filter((event) => !event.date || !eventDates.has(`${event.title}|${event.date}`));
+  return (
+    <div className="content-page">
+      <PageHeader eyebrow="Chrisland University Chapel" title="Events and programmes" description="Gather with us for worship, fellowship, and special chapel programmes." />
+      <section className="public-programmes section" aria-labelledby="public-programmes-title">
+        <div className="public-programmes__heading"><p className="event-type">UPCOMING PROGRAMMES</p><h2 id="public-programmes-title">Save the dates</h2><p>Programme details will be updated as they are confirmed.</p></div>
+        {query.isError && <p className="public-programmes__note">Some published event details may be temporarily unavailable. The chapel schedule below is still available.</p>}
+        <div className="public-programmes__grid">
+          {programmes.map((event) => (
+            <article className={event.id.startsWith("commanding-excellence") ? "public-programme-card public-programme-card--featured" : "public-programme-card"} key={event.id}>
+              <div className="public-programme-card__date"><CalendarDays aria-hidden="true" /><time dateTime={event.date ?? undefined}>{event.displayDate ?? new Intl.DateTimeFormat("en", { weekday: "short", month: "short", day: "numeric", year: "numeric" }).format(new Date(`${event.date}T12:00:00`))}</time></div>
+              <p className="event-type">{event.id.startsWith("commanding-excellence") ? "3 SUNDAYS OF COMMANDING EXCELLENCE" : "CHAPEL PROGRAMME"}</p>
+              <h3>{event.title}</h3>
+              {event.detail && <p className="public-programme-card__detail">{event.detail}</p>}
+              <p className="public-programme-card__meta"><Clock3 aria-hidden="true" />{event.id.startsWith("commanding-excellence") ? "Weekly · 8:00 AM and 10:30 AM" : event.id.startsWith("retreat-") ? event.detail : "Time to be announced"}</p>
+              <p className="public-programme-card__meta"><MapPin aria-hidden="true" />{event.venue}</p>
+            </article>
+          ))}
+          {publishedEvents.map((event) => (
+            <article className="public-programme-card" key={`published-${event.id}`}>
+              <div className="public-programme-card__date"><CalendarDays aria-hidden="true" /><time dateTime={event.date}>{new Intl.DateTimeFormat("en", { weekday: "short", month: "short", day: "numeric", year: "numeric" }).format(new Date(`${event.date}T12:00:00`))}</time></div>
+              <p className="event-type">CHAPEL PROGRAMME</p><h3>{event.title}</h3>
+              <p className="public-programme-card__meta"><Clock3 aria-hidden="true" />{event.time || "Time to be announced"}</p>
+              <p className="public-programme-card__meta"><MapPin aria-hidden="true" />{event.venue}</p>
+            </article>
+          ))}
+          {!programmes.length && !publishedEvents.length && <p className="public-programmes__note">No upcoming chapel events are currently scheduled.</p>}
+        </div>
+      </section>
     </div>
   );
 }
