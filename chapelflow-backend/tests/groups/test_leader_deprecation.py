@@ -10,6 +10,26 @@ class TestGroupLeaderDeprecation:
     the deprecated `leader` field.
     """
 
+    def test_catalog_counts_only_active_members_and_pending_requests(self, branch_a, chapel_admin_a, api_client, seed_member_permissions):
+        from apps.groups.models import GroupJoinRequest, GroupMembership, JoinRequestStatus
+        from apps.members.models import Member
+        from apps.ministries.models import Group, GroupType
+
+        group = Group.objects.create(branch=branch_a, name="Community counts", group_type=GroupType.UNIT)
+        active = Member.objects.create(branch=branch_a, first_name="Active", last_name="Member")
+        former = Member.objects.create(branch=branch_a, first_name="Former", last_name="Member")
+        waiting = Member.objects.create(branch=branch_a, first_name="Waiting", last_name="Member")
+        GroupMembership.objects.create(group=group, member=active, is_active=True)
+        GroupMembership.objects.create(group=group, member=former, is_active=False)
+        GroupJoinRequest.objects.create(group=group, member=waiting)
+        GroupJoinRequest.objects.create(group=group, member=former, status=JoinRequestStatus.REJECTED)
+
+        api_client.force_authenticate(user=chapel_admin_a)
+        response = api_client.get(f"/api/v1/groups-catalog/{group.id}/")
+        assert response.status_code == 200
+        assert response.data["data"]["member_count"] == 1
+        assert response.data["data"]["pending_count"] == 1
+
     def test_leader_field_still_present_but_leaders_list_is_the_real_source(self, branch_a, chapel_admin_a, api_client, seed_member_permissions):
         from apps.groups.models import GroupMembership, GroupRole
         from apps.members.models import Member

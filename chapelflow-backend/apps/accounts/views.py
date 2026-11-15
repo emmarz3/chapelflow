@@ -1,6 +1,8 @@
 from django.contrib.auth import get_user_model
 from django.conf import settings
 from django.db import transaction
+from django.db.models import Q
+from django.utils import timezone
 import secrets
 from http.cookies import Morsel
 from django.contrib.auth.tokens import default_token_generator
@@ -42,6 +44,10 @@ from .services import (
 )
 
 User = get_user_model()
+INSTITUTIONAL_ROLES = (
+    "CHAPLAIN", "STUDENT_CHAPLAIN", "ASSISTANT_STUDENT_CHAPLAIN",
+    "UNIT_HEAD", "FELLOWSHIP_LEADER", "HOSTEL_COORDINATOR", "ATTENDANCE_USHER",
+)
 
 
 ACCESS_COOKIE = "chapelflow_access"
@@ -258,10 +264,9 @@ class MFAEnrollView(APIView):
     user can start enrollment, not just roles in MFA_ENFORCED_ROLES —
     someone not yet required to use MFA is still allowed to opt in early.
 
-    Re-enrolling (calling this again) issues a brand new secret and resets
-    `confirmed` to False — the old secret stops working immediately, so a
-    lost/compromised authenticator app can always be replaced by starting
-    over, rather than needing a separate "reset MFA" endpoint.
+    Reopening an unconfirmed enrollment returns its existing secret so a
+    session expiry does not invalidate the authenticator the user just added.
+    Re-enrolling a confirmed device rotates the secret and resets confirmation.
     """
     permission_classes = [IsAuthenticated]
 
@@ -270,10 +275,13 @@ class MFAEnrollView(APIView):
 
         from .models import MFADevice
 
-        secret = pyotp.random_base32()
-        device, _ = MFADevice.objects.update_or_create(
-            user=request.user, defaults={"secret": secret, "confirmed": False},
+        device, created = MFADevice.objects.get_or_create(
+            user=request.user, defaults={"secret": pyotp.random_base32(), "confirmed": False},
         )
+        if not created and device.confirmed:
+            device.secret = pyotp.random_base32()
+            device.confirmed = False
+            device.save(update_fields=["secret", "confirmed"])
 
         issuer = "ChapelFlow CUC"
         account_name = request.user.email or request.user.matric_no or str(request.user.id)
@@ -490,13 +498,63 @@ class MeView(APIView):
         return success_response(UserPublicSerializer(request.user).data)
 
 
+class AdminAccountDirectoryView(APIView):
+    """Paginated account inventory; credentials and password hashes never leave the server."""
+    permission_classes = [IsSuperAdmin]
+
+    def get(self, request):
+        try:
+            page = max(1, int(request.query_params.get("page", "1")))
+        except ValueError:
+            return error_response("Enter a valid page number.", status=400)
+        page_size = 25
+        accounts = User.objects.select_related("branch", "role_obj").order_by("-date_joined", "-id")
+        search = request.query_params.get("search", "").strip()[:150]
+        if search:
+            accounts = accounts.filter(
+                Q(email__icontains=search) | Q(matric_no__icontains=search)
+                | Q(first_name__icontains=search) | Q(last_name__icontains=search)
+            )
+        count = accounts.count()
+        accounts = accounts[(page - 1) * page_size:page * page_size]
+        response = success_response({
+            "items": [{
+                "id": str(account.id),
+                "name": f"{account.first_name} {account.last_name}".strip(),
+                "email": account.email or "",
+                "matric_no": account.matric_no or "",
+                "role": account.get_role_code(),
+                "branch_name": account.branch.name if account.branch else "",
+                "is_active": account.is_active,
+                "deleted_at": account.deleted_at,
+                "date_joined": account.date_joined,
+                "can_reset": account.get_role_code() != Roles.SUPER_ADMIN and account.deleted_at is None,
+            } for account in accounts],
+            "page": page,
+            "page_size": page_size,
+            "count": count,
+        })
+        response["Cache-Control"] = "no-store"
+        return response
+
+
+class AdminAccountPasswordResetView(APIView):
+    permission_classes = [IsSuperAdmin]
+
+    def post(self, request, pk):
+        account = User.objects.exclude(role=Roles.SUPER_ADMIN).filter(pk=pk, deleted_at__isnull=True).first()
+        if not account or account.get_role_code() == Roles.SUPER_ADMIN:
+            return error_response("Account not found or cannot be reset here.", status=404)
+        return _issue_temporary_password(request, account)
+
+
 class InstitutionalAccountListCreateView(APIView):
     """Super-admin control plane for chapel staff accounts, never public users."""
     permission_classes = [IsSuperAdmin]
 
     def get(self, request):
-        accounts = User.objects.exclude(role=Roles.SUPER_ADMIN).filter(
-            role__in=["CHAPLAIN", "STUDENT_CHAPLAIN", "ASSISTANT_STUDENT_CHAPLAIN", "UNIT_HEAD", "FELLOWSHIP_LEADER", "HOSTEL_COORDINATOR", "ATTENDANCE_USHER"]
+        accounts = User.objects.exclude(role=Roles.SUPER_ADMIN).filter(deleted_at__isnull=True,
+            role__in=INSTITUTIONAL_ROLES
         ).select_related("branch", "institutional_group", "created_by").order_by("last_name", "first_name")
         query = request.query_params.get("search")
         if query:
@@ -524,9 +582,10 @@ class InstitutionalAccountDetailView(APIView):
     permission_classes = [IsSuperAdmin]
 
     def _account(self, pk):
-        return User.objects.exclude(role=Roles.SUPER_ADMIN).filter(
-            pk=pk, role__in=["CHAPLAIN", "STUDENT_CHAPLAIN", "ASSISTANT_STUDENT_CHAPLAIN", "UNIT_HEAD", "FELLOWSHIP_LEADER", "HOSTEL_COORDINATOR", "ATTENDANCE_USHER"],
+        account = User.objects.exclude(role=Roles.SUPER_ADMIN).filter(deleted_at__isnull=True,
+            pk=pk, role__in=INSTITUTIONAL_ROLES,
         ).first()
+        return account if account and account.get_role_code() != Roles.SUPER_ADMIN else None
 
     def get(self, request, pk):
         account = self._account(pk)
@@ -548,45 +607,62 @@ class InstitutionalAccountDetailView(APIView):
                         metadata={"institutional_account": True})
         return success_response(InstitutionalAccountSerializer(account).data, message="Institutional account updated.")
 
+    def delete(self, request, pk):
+        account = self._account(pk)
+        if not account:
+            return error_response("Institutional account not found.", status=404)
+        with transaction.atomic():
+            account.is_active = False
+            account.deleted_at = timezone.now()
+            account.set_unusable_password()
+            account.save(update_fields=["is_active", "deleted_at", "password"])
+            revoke_all_sessions(account)
+            from apps.audit.models import AuditAction
+            from apps.audit.services import write_audit_log
+            write_audit_log(AuditAction.DELETE, "accounts.User", account.id, user=request.user,
+                            metadata={"institutional_account": True, "access_revoked": True})
+        return success_response(message="Institutional account removed. Historical records are retained.")
+
 
 class InstitutionalAccountPasswordResetView(APIView):
     permission_classes = [IsSuperAdmin]
 
     def post(self, request, pk):
-        account = User.objects.exclude(role=Roles.SUPER_ADMIN).filter(pk=pk).first()
+        account = User.objects.filter(pk=pk, role__in=INSTITUTIONAL_ROLES, deleted_at__isnull=True).first()
         if not account:
             return error_response("Institutional account not found.", status=404)
+        return _issue_temporary_password(request, account)
 
-        # Existing passwords are intentionally irretrievable. Issue a strong,
-        # single-display temporary credential and force the account holder to
-        # replace it after signing in. Never put the credential in an audit log.
-        uppercase = "ABCDEFGHJKLMNPQRSTUVWXYZ"
-        lowercase = "abcdefghijkmnopqrstuvwxyz"
-        digits = "23456789"
-        symbols = "!@#$%"
-        alphabet = uppercase + lowercase + digits + symbols
-        characters = [
-            secrets.choice(uppercase),
-            secrets.choice(lowercase),
-            secrets.choice(digits),
-            secrets.choice(symbols),
-            *(secrets.choice(alphabet) for _ in range(14)),
-        ]
-        secrets.SystemRandom().shuffle(characters)
-        temporary_password = "".join(characters)
-        with transaction.atomic():
-            account.set_password(temporary_password)
-            account.password_change_required = True
-            account.save(update_fields=["password", "password_change_required"])
-            revoke_all_sessions(account)
+
+def _issue_temporary_password(request, account):
+    # Existing passwords are irretrievable. Return the replacement once, never log it.
+    uppercase = "ABCDEFGHJKLMNPQRSTUVWXYZ"
+    lowercase = "abcdefghijkmnopqrstuvwxyz"
+    digits = "23456789"
+    symbols = "!@#$%"
+    alphabet = uppercase + lowercase + digits + symbols
+    characters = [
+        secrets.choice(uppercase), secrets.choice(lowercase),
+        secrets.choice(digits), secrets.choice(symbols),
+        *(secrets.choice(alphabet) for _ in range(14)),
+    ]
+    secrets.SystemRandom().shuffle(characters)
+    temporary_password = "".join(characters)
+    with transaction.atomic():
+        account.set_password(temporary_password)
+        account.password_change_required = True
+        account.save(update_fields=["password", "password_change_required"])
+        revoke_all_sessions(account)
         from apps.audit.models import AuditAction
         from apps.audit.services import write_audit_log
         write_audit_log(AuditAction.PASSWORD_CHANGE, "accounts.User", account.id, user=request.user,
                         metadata={"initiated_by_admin": True, "temporary_password_issued": True})
-        return success_response(
-            {"temporary_password": temporary_password, "password_change_required": True},
-            message="Temporary password issued. It will not be shown again.",
-        )
+    response = success_response(
+        {"temporary_password": temporary_password, "password_change_required": True},
+        message="Temporary password issued. It will not be shown again.",
+    )
+    response["Cache-Control"] = "no-store"
+    return response
 
 
 class ChangePasswordView(APIView):

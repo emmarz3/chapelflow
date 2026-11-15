@@ -47,7 +47,7 @@ def _inventory_users(branch):
     return chaplain, student_chaplain, protocol_leader, other_leader
 
 
-def test_inventory_is_restricted_to_chaplain_student_chaplain_and_protocol_leader(
+def test_inventory_allows_super_admin_chaplain_student_chaplain_and_protocol_leader(
     api_client, branch_a, chapel_admin_a, super_admin
 ):
     chaplain, student_chaplain, protocol_leader, other_leader = _inventory_users(branch_a)
@@ -55,15 +55,26 @@ def test_inventory_is_restricted_to_chaplain_student_chaplain_and_protocol_leade
     api_client.force_authenticate(chapel_admin_a)
     assert api_client.get("/api/v1/operations/assets/").status_code == 403
 
-    api_client.force_authenticate(super_admin)
-    assert api_client.get("/api/v1/operations/assets/").status_code == 403
-
     api_client.force_authenticate(other_leader)
     assert api_client.get("/api/v1/operations/assets/").status_code == 403
 
-    for user in (chaplain, student_chaplain, protocol_leader):
+    for user in (super_admin, chaplain, student_chaplain, protocol_leader):
         api_client.force_authenticate(user)
         assert api_client.get("/api/v1/operations/assets/").status_code == 200
+
+
+def test_unassigned_super_admin_can_create_inventory_in_canonical_chapel(api_client, super_admin, organization):
+    from apps.operations.models import Asset
+    from apps.organizations.models import Branch
+
+    branch = Branch.objects.create(
+        organization=organization, name="Chrisland University Chapel", branch_type="CHAPEL"
+    )
+    api_client.force_authenticate(super_admin)
+    created = api_client.post("/api/v1/operations/assets/", {"title": "Chapel microphone"}, format="json")
+    assert created.status_code == 201, created.data
+    assert created.data["data"]["primary"] == "Chapel microphone"
+    assert Asset.objects.filter(branch=branch, name="Chapel microphone").exists()
 
 
 def test_protocol_inventory_tracks_stock_custody_maintenance_and_history(api_client, branch_a):

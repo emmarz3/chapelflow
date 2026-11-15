@@ -1,12 +1,87 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 vi.mock("../lib/backend", () => ({ isDjangoBackend: true }));
 import { apiRequest } from "../lib/api";
+import { communityAdminService, communityService, studentContentService } from "../services/chapelflow";
 
 const response = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { "Content-Type": "application/json" } });
 afterEach(() => vi.unstubAllGlobals());
 
 describe("Django API integration", () => {
+  it("loads student fellowship and unit choices through the Django adapter and submits a join request", async () => {
+    const groups = [{ id: "group-1", name: "Music", type: "UNIT", description: "Chapel music" }];
+    const fetch = vi.fn()
+      .mockResolvedValueOnce(response({ data: { groups, memberships: [], current_fellowship: null, requests: [] } }))
+      .mockResolvedValueOnce(response({ data: { id: "request-1", status: "PENDING" } }, 201));
+    vi.stubGlobal("fetch", fetch);
+
+    await expect(studentContentService.joinRequests()).resolves.toMatchObject({ data: { groups } });
+    await expect(studentContentService.requestJoin("group-1", "I would like to join")).resolves.toMatchObject({ data: { status: "PENDING" } });
+    expect(fetch.mock.calls.map(([url]) => url)).toEqual([
+      "/api/v1/group-join-requests/me/",
+      "/api/v1/group-join-requests/me/",
+    ]);
+    expect(JSON.parse(fetch.mock.calls[1]![1].body)).toEqual({ group: "group-1", message: "I would like to join" });
+  });
+
+  it("loads joined communities and group chat through the Django adapter", async () => {
+    const communities = [{ id: "group-1", slug: "group-1", name: "Music", type: "unit" }];
+    const fetch = vi.fn()
+      .mockResolvedValueOnce(response({ data: communities }))
+      .mockResolvedValueOnce(response({ data: { ...communities[0], access: { canPost: true, canManage: false } } }))
+      .mockResolvedValueOnce(response({ data: [{ id: "message-1", body: "Welcome" }] }));
+    vi.stubGlobal("fetch", fetch);
+
+    await expect(communityService.mine()).resolves.toMatchObject({ data: communities });
+    await expect(communityService.get("group-1")).resolves.toMatchObject({ data: { name: "Music" } });
+    await expect(communityService.messages("group-1")).resolves.toMatchObject({ data: [{ body: "Welcome" }] });
+    expect(fetch.mock.calls.map(([url]) => url)).toEqual([
+      "/api/v1/community-memberships/",
+      "/api/v1/community-memberships/group-1/",
+      "/api/v1/community-memberships/group-1/messages/",
+    ]);
+  });
+
+  it("loads every Chapel Unit and Fellowship for Super Admin with live membership counts", async () => {
+    const fetch = vi.fn()
+      .mockResolvedValueOnce(response({
+        data: [{ id: "unit-1", name: "Music", group_type: "UNIT", is_active: true, member_count: 8, pending_count: 2 }],
+        pagination: { current_page: 1, page_size: 200, num_pages: 2, next: "page-2" },
+      }))
+      .mockResolvedValueOnce(response({
+        data: [{ id: "fellowship-1", name: "Love", group_type: "FELLOWSHIP", is_active: false, member_count: 3, pending_count: 1 }],
+        pagination: { current_page: 2, page_size: 200, num_pages: 2, next: null },
+      }));
+    vi.stubGlobal("fetch", fetch);
+
+    await expect(communityAdminService.list()).resolves.toMatchObject({ data: [
+      { id: "unit-1", type: "unit", status: "active", member_count: 8, pending_count: 2 },
+      { id: "fellowship-1", type: "campus_fellowship", status: "inactive", member_count: 3, pending_count: 1 },
+    ] });
+    expect(fetch.mock.calls.map(([url]) => url)).toEqual([
+      "/api/v1/groups-catalog/?scope=institutional-assignment&page=1&page_size=200",
+      "/api/v1/groups-catalog/?scope=institutional-assignment&page=2&page_size=200",
+    ]);
+  });
+
+  it("creates a Chapel group in the canonical branch and toggles its active status", async () => {
+    const fetch = vi.fn()
+      .mockResolvedValueOnce(response({ data: [{ id: "branch-1", name: "Chrisland University Chapel", is_active: true }] }))
+      .mockResolvedValueOnce(response({ data: { id: "unit-2", name: "Prayer", group_type: "UNIT", is_active: true } }, 201))
+      .mockResolvedValueOnce(response({ data: { id: "unit-2", name: "Prayer", group_type: "UNIT", is_active: false } }));
+    vi.stubGlobal("fetch", fetch);
+
+    await expect(communityAdminService.create({ name: "Prayer", type: "unit", description: "Intercession" })).resolves.toMatchObject({ data: { type: "unit" } });
+    await expect(communityAdminService.update("unit-2", { status: "inactive" })).resolves.toMatchObject({ data: { status: "inactive" } });
+    expect(fetch.mock.calls.map(([url]) => url)).toEqual([
+      "/api/v1/branches/?search=Chrisland%20University%20Chapel&is_active=true&page=1&page_size=200",
+      "/api/v1/groups-catalog/",
+      "/api/v1/groups-catalog/unit-2/",
+    ]);
+    expect(JSON.parse(fetch.mock.calls[1]![1].body)).toMatchObject({ branch: "branch-1", group_type: "UNIT", name: "Prayer" });
+    expect(JSON.parse(fetch.mock.calls[2]![1].body)).toEqual({ is_active: false });
+  });
+
   it("loads every admin attendance page so older live sessions stay stoppable", async () => {
     const fetch = vi.fn()
       .mockResolvedValueOnce(response({

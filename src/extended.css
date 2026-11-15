@@ -89,6 +89,8 @@
   padding: 15px;
 }
 .upper-room__composer form { flex: 1; min-width: 0; }
+.upper-room__branch-picker { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; font-size: 13px; font-weight: 600; }
+.upper-room__branch-picker select { max-width: 280px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); }
 .upper-room__avatar {
   align-items: center;
   background: linear-gradient(145deg, var(--purple-700), var(--gold-500));

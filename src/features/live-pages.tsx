@@ -1678,7 +1678,7 @@ function LiveModuleOperationsPage({
   const { user } = useAuth();
   const meta = moduleMeta[module];
   const [searchParams] = useSearchParams();
-  const chaplain = user?.role === "chaplain";
+  const chaplain = user?.role === "chaplain" || user?.role === "super_admin";
   const urlContentType = searchParams.get("content_type") || "";
   const safeUrlContentType = chaplain || !["SERMON", "SERMON_SERIES"].includes(urlContentType) ? urlContentType : "";
   const writePermissions: Partial<Record<OperationsModule, Permission>> = {
@@ -1908,7 +1908,7 @@ function LiveModuleOperationsPage({
   return (
     <>
       <PageHeader
-        eyebrow={module === "media" && contentTypeFilter === "SERMON" ? "Chaplain sermons" : meta.eyebrow}
+        eyebrow={module === "media" && contentTypeFilter === "SERMON" ? "Chapel sermons" : meta.eyebrow}
         title={module === "media" && contentTypeFilter === "SERMON" ? "Sermons" : meta.title}
         description={module === "media" && contentTypeFilter === "SERMON" ? "Publish sermons directly to the chapel homepage and public sermon library." : meta.description}
         actions={

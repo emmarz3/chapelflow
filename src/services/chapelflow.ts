@@ -406,6 +406,7 @@ export interface UpperRoomPost {
   createdAt: string;
   updatedAt: string;
   authorName: string;
+  branchName: string;
   media: UpperRoomMedia[];
   likeCount: number;
   commentCount: number;
@@ -430,10 +431,11 @@ export const uploadService = {
 };
 
 export const upperRoomService = {
-  feed: (page = 1) => api.get<{ data: { items: UpperRoomPost[]; page: number; hasMore: boolean } }>(`/social/posts${queryString({ page, pageSize: 15 })}`),
-  createPost: (caption: string, files: File[]) => {
+  feed: (page = 1) => api.get<{ data: { items: UpperRoomPost[]; page: number; hasMore: boolean; branches: { id: string; name: string }[] } }>(`/social/posts${queryString({ page, pageSize: 15 })}`),
+  createPost: (caption: string, files: File[], branchId?: string) => {
     const body = new FormData();
     body.set("caption", caption);
+    if (branchId) body.set("branch", branchId);
     files.forEach((file) => body.append("files", file));
     return api.postForm<{ data: UpperRoomPost }>("/social/posts", body);
   },
@@ -523,7 +525,7 @@ export const communityService = {
   mine: () =>
     isDemoMode
       ? Promise.resolve({ data: demoCommunities })
-      : api.get<{ data: CommunitySummary[] }>("/community-memberships/"),
+      : api.get<{ data: CommunitySummary[] }>("/communities"),
   get: (slug: string) =>
     isDemoMode
       ? Promise.resolve({
@@ -544,57 +546,57 @@ export const communityService = {
           } as CommunityDetail,
         })
       : api.get<{ data: CommunityDetail }>(
-          `/community-memberships/${encodeURIComponent(slug)}/`,
+          `/communities/${encodeURIComponent(slug)}`,
         ),
   messages: (slug: string, search = "") =>
     isDemoMode
       ? Promise.resolve({ data: [] as CommunityMessage[] })
       : api.get<{ data: CommunityMessage[] }>(
-          `/community-memberships/${encodeURIComponent(slug)}/messages/${queryString({ search })}`,
+          `/communities/${encodeURIComponent(slug)}/messages${queryString({ search })}`,
         ),
   sendMessage: (slug: string, body: string, replyToId?: string) =>
     api.post<{ data: CommunityMessage }>(
-      `/community-memberships/${encodeURIComponent(slug)}/messages/`,
+      `/communities/${encodeURIComponent(slug)}/messages`,
       { body, reply_to_id: replyToId },
     ),
   announcements: (slug: string) =>
     api.get<{ data: CommunityAnnouncement[] }>(
-      `/community-memberships/${encodeURIComponent(slug)}/announcements/`,
+      `/communities/${encodeURIComponent(slug)}/announcements`,
     ),
   createAnnouncement: (slug: string, payload: Record<string, unknown>) =>
     api.post<{ data: { id: string } }>(
-      `/community-memberships/${encodeURIComponent(slug)}/announcements/`,
+      `/communities/${encodeURIComponent(slug)}/announcements`,
       payload,
     ),
   events: (slug: string) =>
     api.get<{ data: CommunityEvent[] }>(
-      `/community-memberships/${encodeURIComponent(slug)}/meetings/`,
+      `/communities/${encodeURIComponent(slug)}/events`,
     ),
   createEvent: (slug: string, payload: Record<string, unknown>) =>
     api.post<{ data: { id: string } }>(
-      `/community-memberships/${encodeURIComponent(slug)}/meetings/`,
+      `/communities/${encodeURIComponent(slug)}/events`,
       payload,
     ),
   resources: (slug: string) =>
     api.get<{ data: CommunityResource[] }>(
-      `/community-memberships/${encodeURIComponent(slug)}/resources/`,
+      `/communities/${encodeURIComponent(slug)}/resources`,
     ),
   addResource: (slug: string, payload: { title: string; url: string; description?: string }) =>
     api.post<{ data: CommunityResource }>(
-      `/community-memberships/${encodeURIComponent(slug)}/resources/`, payload,
+      `/communities/${encodeURIComponent(slug)}/resources`, payload,
     ),
   members: (slug: string, status?: string) =>
     api.get<{ data: CommunityMember[] }>(
-      `/community-memberships/${encodeURIComponent(slug)}/members/${queryString({ status })}`,
+      `/communities/${encodeURIComponent(slug)}/members${queryString({ status })}`,
     ),
   updateMembership: (slug: string, membershipId: string, status: string) =>
     api.patch<{ data: { id: string; status: string } }>(
-      `/community-memberships/${encodeURIComponent(slug)}/members/${encodeURIComponent(membershipId)}/`,
+      `/communities/${encodeURIComponent(slug)}/members/${encodeURIComponent(membershipId)}`,
       { status },
     ),
   leadership: () =>
     api.get<{ data: LeadershipDirectoryEntry[] }>(
-      "/community-memberships/leadership-directory/",
+      "/communities/leadership/directory",
     ),
   streamUrl: (slug: string) =>
     `${API_BASE_URL}/communities/${encodeURIComponent(slug)}/stream`,
@@ -933,6 +935,30 @@ export const institutionalAccountService = {
     }>(
       `/institutional-accounts/${encodeURIComponent(id)}/password-reset`,
     ),
+  remove: (id: string) =>
+    api.delete<void>(`/institutional-accounts/${encodeURIComponent(id)}`),
+};
+
+export interface AdminAccountSummary {
+  id: string;
+  name: string;
+  email: string;
+  matric_no: string;
+  role: string;
+  branch_name: string;
+  is_active: boolean;
+  deleted_at: string | null;
+  date_joined: string;
+  can_reset: boolean;
+}
+
+export const adminAccountService = {
+  list: (page = 1, search = "") => api.get<{ data: { items: AdminAccountSummary[]; page: number; page_size: number; count: number } }>(
+    `/admin/accounts${queryString({ page, search })}`,
+  ),
+  resetPassword: (id: string) => api.post<{ data: { temporary_password: string; password_change_required: boolean } }>(
+    `/admin/accounts/${encodeURIComponent(id)}/password-reset`,
+  ),
 };
 
 export const chapelGroupService = {
@@ -997,6 +1023,8 @@ export interface AdminAuditLog {
 export interface AdminAttendanceRecord {
   id: string;
   member: string | null;
+  member_name?: string | null;
+  matric_no?: string | null;
   status: string;
   checked_in_at: string;
 }
@@ -1032,6 +1060,9 @@ export const adminAttendanceService = {
         result: string;
         created_at: string;
         session: string | null;
+        student: string | null;
+        student_name: string | null;
+        matric_no: string | null;
       }>;
     }>("/admin/attendance/scan-attempts"),
 };
@@ -1070,8 +1101,8 @@ export const studentContentService = {
     memberships: { id: string; name: string; type: "FELLOWSHIP" | "UNIT" }[];
     current_fellowship: { id: string; name: string } | null;
     requests: { id: string; group_id: string; group: string; type: "FELLOWSHIP" | "UNIT"; status: "PENDING" | "APPROVED" | "REJECTED"; message: string; requested_at: string }[];
-  } }>("/group-join-requests/me/"),
-  requestJoin: (group: string, message: string) => api.post<{ data: { id: string; status: string } }>("/group-join-requests/me/", { group, message }),
+  } }>("/student/join-requests"),
+  requestJoin: (group: string, message: string) => api.post<{ data: { id: string; status: string } }>("/student/join-requests", { group, message }),
 };
 
 const modulePaths: Record<OperationsModule, string> = {

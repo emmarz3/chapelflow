@@ -44,6 +44,9 @@ import {
 } from "../lib/cookie-consent";
 import { usePublicMotion } from "../components/motion/motion-system";
 import { isDemoMode } from "../lib/fixtures";
+import { CHAPEL_PROGRAMMES } from "../lib/chapel-programmes";
+import { useTodayDateKey } from "../lib/use-today-date";
+import { KJV_DAILY_VERSES } from "../lib/daily-verses";
 import { homepageService, publicService } from "../services/chapelflow";
 import type { EventSummary } from "../types/domain";
 import { LivePublicDetailPage, LivePublicPage } from "./live-public";
@@ -51,6 +54,8 @@ import { LivePublicDetailPage, LivePublicPage } from "./live-public";
 const publicNav = [
   ["About", "/about"],
   ["Fellowship", "/fellowship"],
+  ["Units", "/units"],
+  ["Student Leaders", "/student-leaders"],
   ["Events", "/events"],
   ["Sermons", "/sermons"],
   ["Gallery", "/gallery"],
@@ -335,13 +340,10 @@ export function HomePage() {
   return <DemoHomePage />;
 }
 
-function localDateKey(date: Date) {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-}
-
 function DemoHomePage() {
   const { user, loading } = useAuth();
   const [profileOpen, setProfileOpen] = useState(false);
+  const today = useTodayDateKey();
   const eventsQuery = useQuery({
     queryKey: ["public-home-events"],
     queryFn: async () => (await publicService.events({ page: 1, pageSize: 50 })).data,
@@ -354,7 +356,6 @@ function DemoHomePage() {
     refetchInterval: 60_000,
   });
   const latestSermon = sermonsQuery.data?.sections[0];
-  const today = localDateKey(new Date());
   const upcomingEvents = (eventsQuery.data ?? [])
     .filter((event) => event.visibility === "public" && event.date >= today)
     .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`));
@@ -372,6 +373,7 @@ function DemoHomePage() {
         </div>
         <HomeHeroSlideshow />
       </section>
+      <DailyVerseOfTheDay />
       <section className="cuc-home__worship" aria-labelledby="cuc-home-worship-title">
         <div>
           <p className="cuc-home__eyebrow">Worship with us</p>
@@ -506,19 +508,25 @@ function NextGathering({ events, loading, failed }: { events: EventSummary[]; lo
 
 function HomepageCalendar({ events, loading, failed }: { events: EventSummary[]; loading: boolean; failed: boolean }) {
   const [month, setMonth] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1));
-  const [selectedDate, setSelectedDate] = useState(() => localDateKey(new Date()));
+  const today = useTodayDateKey();
+  const [selectedDate, setSelectedDate] = useState(today);
   const year = month.getFullYear();
   const monthIndex = month.getMonth();
   const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
   const firstWeekday = new Date(year, monthIndex, 1).getDay();
-  const monthEvents = events.filter((event) => event.date.startsWith(`${year}-${String(monthIndex + 1).padStart(2, "0")}-`));
-  const dayEvents = events.filter((event) => event.date === selectedDate);
+  const monthPrefix = `${year}-${String(monthIndex + 1).padStart(2, "0")}-`;
+  const upcomingProgrammes = CHAPEL_PROGRAMMES.filter((event) => (event.date ?? event.sortDate ?? "") >= today);
+  const monthEvents = [...events.filter((event) => event.date.startsWith(monthPrefix)), ...upcomingProgrammes.filter((event) => event.date?.startsWith(monthPrefix))];
+  const dayEvents = [
+    ...events.filter((event) => event.date === selectedDate).map((event) => ({ id: event.id, title: event.title, date: event.date, time: typeof event.time === "string" ? event.time : "", venue: event.venue, detail: "", published: true })),
+    ...upcomingProgrammes.filter((event) => event.date === selectedDate).map((event) => ({ ...event, date: event.date ?? "", time: "", published: false })),
+  ];
   const moveMonth = (offset: number) => {
     const nextMonth = new Date(year, monthIndex + offset, 1);
     setMonth(nextMonth);
     setSelectedDate(`${nextMonth.getFullYear()}-${String(nextMonth.getMonth() + 1).padStart(2, "0")}-01`);
   };
-  return <div className="cuc-home__calendar"><div className="cuc-home__calendar-main"><header><button type="button" aria-label="Previous month" onClick={() => moveMonth(-1)}><ChevronLeft /></button><h3>{new Intl.DateTimeFormat("en", { month: "long", year: "numeric" }).format(month)}</h3><button type="button" aria-label="Next month" onClick={() => moveMonth(1)}><ChevronRight /></button></header><div className="cuc-home__calendar-grid" role="group" aria-label="Upcoming programmes calendar">{["S", "M", "T", "W", "T", "F", "S"].map((day, index) => <span className="cuc-home__calendar-weekday" key={`${day}-${index}`} aria-hidden="true">{day}</span>)}{Array.from({ length: firstWeekday }, (_, index) => <span key={`blank-${index}`} />)}{Array.from({ length: daysInMonth }, (_, index) => { const day = index + 1; const date = `${year}-${String(monthIndex + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`; const hasEvent = monthEvents.some((event) => event.date === date); return <button type="button" key={date} className={date === selectedDate ? "is-selected" : undefined} aria-label={`${new Intl.DateTimeFormat("en", { month: "long" }).format(month)} ${day}${hasEvent ? ", event scheduled" : ""}`} aria-pressed={date === selectedDate} onClick={() => setSelectedDate(date)}>{day}{hasEvent && <i aria-hidden="true" />}</button>; })}</div></div><aside className="cuc-home__calendar-agenda"><p>{new Intl.DateTimeFormat("en", { weekday: "long", month: "long", day: "numeric" }).format(new Date(`${selectedDate}T12:00:00`))}</p>{loading ? <span>Loading published events…</span> : failed ? <span>Events are temporarily unavailable.</span> : dayEvents.length ? dayEvents.map((event) => <Link key={event.id} to={`/events/${encodeURIComponent(event.id)}`}><strong>{event.title}</strong><span>{formatHomepageEventDate(event.date, event.time).split(" · ")[1]}</span><small>{event.venue}</small></Link>) : <span>No events scheduled for this date.</span>}<Link className="cuc-home__calendar-all" to="/events">Browse all events <ArrowRight size={15} /></Link></aside></div>;
+  return <div className="cuc-home__calendar"><div className="cuc-home__calendar-main"><header><button type="button" aria-label="Previous month" onClick={() => moveMonth(-1)}><ChevronLeft /></button><h3>{new Intl.DateTimeFormat("en", { month: "long", year: "numeric" }).format(month)}</h3><button type="button" aria-label="Next month" onClick={() => moveMonth(1)}><ChevronRight /></button></header><div className="cuc-home__calendar-grid" role="group" aria-label="Upcoming programmes calendar">{["S", "M", "T", "W", "T", "F", "S"].map((day, index) => <span className="cuc-home__calendar-weekday" key={`${day}-${index}`} aria-hidden="true">{day}</span>)}{Array.from({ length: firstWeekday }, (_, index) => <span key={`blank-${index}`} />)}{Array.from({ length: daysInMonth }, (_, index) => { const day = index + 1; const date = `${year}-${String(monthIndex + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`; const hasEvent = monthEvents.some((event) => event.date === date); return <button type="button" key={date} className={[date === selectedDate && "is-selected", hasEvent && "has-event"].filter(Boolean).join(" ") || undefined} aria-label={`${new Intl.DateTimeFormat("en", { month: "long" }).format(month)} ${day}${hasEvent ? ", event scheduled" : ""}`} aria-pressed={date === selectedDate} onClick={() => setSelectedDate(date)}>{day}</button>; })}</div></div><aside className="cuc-home__calendar-agenda"><p>{new Intl.DateTimeFormat("en", { weekday: "long", month: "long", day: "numeric" }).format(new Date(`${selectedDate}T12:00:00`))}</p>{dayEvents.length ? dayEvents.map((event) => <Link key={event.id} to={event.published ? `/events/${encodeURIComponent(event.id)}` : "/events"}><strong>{event.title}</strong>{event.time && <span>{formatHomepageEventDate(event.date, event.time).split(" · ")[1]}</span>}{event.detail && <span>{event.detail}</span>}<small>{event.venue}</small></Link>) : loading ? <span>Loading published events…</span> : failed ? <span>Events are temporarily unavailable.</span> : <span>No events scheduled for this date.</span>}<Link className="cuc-home__calendar-all" to="/events">Browse all events <ArrowRight size={15} /></Link></aside></div>;
 }
 
 function AttendanceProcessIllustration() {
@@ -550,6 +558,32 @@ const HOME_HERO_SLIDES = [
   { src: "/chapel-home-22.jpg", alt: "A student worshipping during a chapel gathering" },
   { src: "/chapel-home-23.jpg", alt: "Students worshipping together at Chrisland University Chapel" },
 ];
+
+const VERSE_DAY_MS = 24 * 60 * 60 * 1000;
+const VERSE_ROTATION_START = new Date("2026-11-13T00:00:00+01:00").getTime();
+
+function DailyVerseOfTheDay() {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const elapsedDays = Math.max(0, Math.floor((Date.now() - VERSE_ROTATION_START) / VERSE_DAY_MS));
+    const nextChange = VERSE_ROTATION_START + (elapsedDays + 1) * VERSE_DAY_MS;
+    const timer = window.setTimeout(() => setNow(Date.now()), Math.max(0, nextChange - Date.now()));
+    return () => window.clearTimeout(timer);
+  }, [now]);
+  const elapsedDays = Math.max(0, Math.floor((now - VERSE_ROTATION_START) / VERSE_DAY_MS));
+  const verse = KJV_DAILY_VERSES[elapsedDays % KJV_DAILY_VERSES.length]!;
+  return (
+    <section className="cuc-home__daily-verse" aria-labelledby="cuc-home-daily-verse-title">
+      <div className="cuc-home__daily-verse-inner">
+        <div className="cuc-home__daily-verse-heading">
+          <p className="cuc-home__eyebrow" id="cuc-home-daily-verse-title">Verse of the day · King James Version</p>
+        </div>
+        <blockquote>“{verse.text}”</blockquote>
+        <p className="cuc-home__daily-verse-reference">{verse.reference}</p>
+      </div>
+    </section>
+  );
+}
 
 function HomeHeroSlideshow() {
   const [activeIndex, setActiveIndex] = useState(0);
@@ -709,7 +743,10 @@ const fellowships = [
   { name: "EXCELLENT Campus Fellowship", leader: "Adewale Phillip", initials: "AP", image: "/fellowships/281637.jpg", phone: "07086438585", whatsapp: "2347086438585" },
   { name: "TRUTH Campus Fellowship", leader: "Fayemi Ajibola", initials: "FA", image: "/fellowships/aj.jpg", phone: "09136832621", whatsapp: "2349136832621" },
   { name: "LOVE Campus Fellowship", leader: "Dada Mofopefoluwa", initials: "DM", image: "/fellowships/fope.jpg", phone: "08025838409", whatsapp: "2348025838409" },
-  { name: "FAVOUR Campus Fellowship", leader: "Ojekunle Daniel", initials: "OD", phone: "08067475491", whatsapp: "2348067475491" },
+  { name: "FAVOUR Campus Fellowship", leader: "Ojekunle Daniel", initials: "OD", image: "/fellowships/favour.jpg", phone: "08067475491", whatsapp: "2348067475491" },
+  { name: "INTEGRITY Campus Fellowship", leader: "Balogun Temitope", initials: "BT", image: "/fellowships/integrity.jpg" },
+  { name: "RIGHTEOUSNESS Campus Fellowship", leader: "Sharon Adebayo", initials: "SA", image: "/fellowships/righteousness.jpg" },
+  { name: "OUTSTANDING Campus Fellowship", leader: "Avwunudiogba Divine", initials: "AD", image: "/fellowships/outstanding.jpg" },
 ];
 
 export function FellowshipPage() {
@@ -774,6 +811,98 @@ export function FellowshipPage() {
           </section>
         </div>
       )}
+    </div>
+  );
+}
+
+const chapelUnits: { name: string; description: string; leaders: { role: string; name: string; phone?: string; image?: string }[] }[] = [
+  { name: "Choir", description: "Leads the congregation in praise and worship through song.", leaders: [{ role: "Choir Leader", name: "Olaoti Fiyinfoluwa", phone: "+234 810 612 5345", image: "/units/choir-leader.jpg" }, { role: "Assistant Choir Leader", name: "Agu Mary" }] },
+  { name: "Instrumentalist", description: "Supports chapel worship with live instrumental music.", leaders: [{ role: "Head of Instrumentalists", name: "Edafe George", image: "/units/instrumentalist-leader.jpg" }] },
+  { name: "Ushering", description: "Welcomes and seats worshippers and helps services run smoothly.", leaders: [{ role: "Head Usher", name: "Munachi Okeke", phone: "+234 701 224 6260", image: "/units/ushering-leader.jpg" }, { role: "Assistant Head Usher", name: "Obehioye Samuel", phone: "08125637947" }] },
+  { name: "Sanctuary", description: "Cares for the chapel sanctuary and prepares it for worship.", leaders: [{ role: "Head of Sanctuary", name: "Egbeyemi Iwalola", phone: "09020145551", image: "/units/sanctuary-leader.jpg" }, { role: "Assistant Head of Sanctuary", name: "Ogunrinde Ayobami" }] },
+  { name: "Media / ICT", description: "Supports chapel communication and information technology.", leaders: [{ role: "Media Head", name: "Oluwayinka Godslove", phone: "08118367510", image: "/units/media-ict-leader.jpg" }] },
+  { name: "Social Media", description: "Shares chapel news and updates across social platforms.", leaders: [{ role: "Social Media Head", name: "Adebayo Ephraim", phone: "+234 810 846 1463", image: "/units/social-media-leader.jpg" }] },
+  { name: "Sound and Technical", description: "Manages sound and technical support for chapel services.", leaders: [{ role: "Unit Leader", name: "Akintunde Jesuntundun", phone: "+234 701 202 2321", image: "/units/sound-technical-leader.jpg" }] },
+  { name: "Drama", description: "Shares the gospel through drama and creative arts.", leaders: [{ role: "Drama Head", name: "Okoli Chinemerem", phone: "08126939022", image: "/units/drama-leader.jpg" }] },
+  { name: "Protocol", description: "Looks after guests, ministers, and the order of chapel events.", leaders: [{ role: "Protocol Head", name: "Abodunde Temidayo", phone: "08103641486", image: "/units/protocol-leader.jpg" }] },
+  { name: "Library", description: "Supports learning and study through the chapel library.", leaders: [{ role: "Head of Library", name: "Ajiboye Isaac", phone: "07063369259", image: "/units/library-leader.jpg" }] },
+  { name: "Intercessory", description: "Serves the chapel through prayer and intercession.", leaders: [{ role: "Intercessory Head", name: "Avwunudiogba Destiny", phone: "08180246337", image: "/units/intercessory-leader.jpg" }] },
+  { name: "Treasury", description: "Supports the careful stewardship of chapel funds.", leaders: [{ role: "Treasurer", name: "Olutanwa Esther", phone: "+234 816 128 7478", image: "/units/treasurer.jpg" }] },
+];
+
+export function UnitsPage() {
+  const [selected, setSelected] = useState<(typeof chapelUnits)[number] | null>(null);
+  useEffect(() => {
+    if (!selected) return;
+    const close = (event: KeyboardEvent) => { if (event.key === "Escape") setSelected(null); };
+    window.addEventListener("keydown", close);
+    return () => window.removeEventListener("keydown", close);
+  }, [selected]);
+  return (
+    <div className="cuc-units">
+      <section className="cuc-units__hero"><div><p className="cuc-home__eyebrow">Serve with your gifts</p><h1>Church Units</h1><p>Meet the teams and leaders who help our chapel run, worship, and care for the community.</p></div></section>
+      <section className="cuc-units__section"><header className="cuc-units__intro"><p className="cuc-home__eyebrow">Find your place to serve</p><h2>Twelve units. One chapel family.</h2><p>Explore each unit and view its leadership profile.</p></header>
+        <div className="cuc-units__grid">{chapelUnits.map((unit, index) => <article className="cuc-units__card" key={unit.name} style={{ "--unit-index": index } as React.CSSProperties}><div className="cuc-units__icon" aria-hidden="true">{unit.leaders.find((leader) => leader.image)?.image ? <img src={unit.leaders.find((leader) => leader.image)?.image} alt="" loading="lazy" /> : <Users size={24} />}</div><div className="cuc-units__copy"><h3>{unit.name}</h3><p>{unit.description}</p><ul>{unit.leaders.map((leader) => <li key={leader.role}><span>{leader.role}</span>{leader.name}</li>)}</ul><button className="cuc-units__profile-button" type="button" onClick={() => setSelected(unit)}>View Profile</button></div></article>)}</div>
+      </section>
+      {selected && <div className="cuc-units__overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) setSelected(null); }}><section className="cuc-units__profile" role="dialog" aria-modal="true" aria-labelledby="unit-profile-title"><button className="cuc-units__close" type="button" aria-label="Close profile" onClick={() => setSelected(null)}><X size={20} /></button><p className="cuc-home__eyebrow">Church unit</p><h2 id="unit-profile-title">{selected.name}</h2><p>{selected.description}</p><h3>Leadership</h3>{selected.leaders.map((leader) => <article className="cuc-units__leader" key={leader.role}>{leader.image && <img className="cuc-units__leader-portrait" src={leader.image} alt={leader.name} />}<span>{leader.role}</span><strong>{leader.name}</strong>{leader.phone ? <a href={`tel:${leader.phone.replace(/\s/g, "")}`}>{leader.phone}</a> : <p>Phone number not provided.</p>}</article>)}</section></div>}
+    </div>
+  );
+}
+
+const studentLeaders = [
+  {
+    name: "Akintobi Oluwabori",
+    role: "CUC Student Chaplain",
+    photo: "/student-leaders/akintobi-oluwa.jpg",
+    duty: "Akintobi Oluwabori Favor serves as the Student Chaplain, providing spiritual leadership and overall coordination for the student chapel community. He oversees fellowship activities, supports chapel units, and helps student leaders carry out their responsibilities. He also serves as a bridge between the Chaplain and student leadership, helping communicate and implement the chapel’s vision.",
+  },
+  {
+    name: "Aderonmu Adeola",
+    role: "Assistant Student Chaplain · Annex Hostel",
+    photo: "/student-leaders/aderonmu-adeola.jpg",
+    duty: "",
+  },
+  {
+    name: "Ajayi Elizabeth",
+    role: "",
+    photo: "/student-leaders/ajayi-elizabeth.jpg",
+    duty: "",
+  },
+  {
+    name: "Olarewanju Christopher",
+    role: "",
+    photo: "/student-leaders/olarewanju-christopher.jpg",
+    duty: "",
+  },
+];
+
+export function StudentLeadersPage() {
+  return (
+    <div className="student-leaders-page">
+      <section className="student-leaders-page__banner">
+        <p className="cuc-home__eyebrow">Serving the chapel community</p>
+        <h1>Student Leaders</h1>
+        <p>Meet the students who serve and lead the Chrisland University Chapel community.</p>
+      </section>
+      <section className="student-leaders-page__content" aria-labelledby="student-leaders-intro">
+        <div className="student-leaders-page__intro">
+          <p className="cuc-home__eyebrow">Faith in action</p>
+          <h2 id="student-leaders-intro">Students serving with purpose.</h2>
+          <p>These students give their time and gifts to serve CUC and the chapel family.</p>
+        </div>
+        <div className="student-leaders-page__grid">
+          {studentLeaders.map((leader, index) => (
+            <article className="student-leader-card" key={leader.name} style={{ "--leader-index": index } as React.CSSProperties}>
+              <div className="student-leader-card__photo"><img src={leader.photo} alt={leader.name} loading={index > 1 ? "lazy" : "eager"} /></div>
+              <div className="student-leader-card__body">
+                {leader.role && <p className="student-leader-card__role">{leader.role}</p>}
+                <h3>{leader.name}</h3>
+                {leader.duty && <p className="student-leader-card__duty">{leader.duty}</p>}
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
     </div>
   );
 }
@@ -1012,6 +1141,7 @@ const pageCopy: Record<
 };
 
 export function PublicContentPage({ page }: { page: keyof typeof pageCopy }) {
+  if (page === "events") return <LivePublicPage slug={page} />;
   if (!isDemoMode) return <LivePublicPage slug={page} />;
   const copy = pageCopy[page]!;
   return (

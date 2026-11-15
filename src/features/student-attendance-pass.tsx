@@ -89,6 +89,16 @@ export function StudentAttendancePassPage() {
         description="Attendance is recorded only when you scan a live QR shown by an authorized usher."
       />
       <section className="chapel-pass">
+        {message?.tone === "success" && (
+          <div className="modal-backdrop" role="presentation">
+            <section className="modal attendance-success" role="alertdialog" aria-modal="true" aria-labelledby="attendance-success-title">
+              <CheckCircle2 aria-hidden="true" />
+              <h2 id="attendance-success-title">Attendance successfully recorded</h2>
+              <p>{message.text}</p>
+              <Button onClick={() => setMessage(null)}>Done</Button>
+            </section>
+          </div>
+        )}
         <header>
           <div className="chapel-pass__mark">
             <QrCode aria-hidden="true" />

@@ -43,10 +43,13 @@ class AttendanceSessionSerializer(ScopedFKValidationMixin, serializers.ModelSeri
 
 
 class AttendanceRecordSerializer(ScopedFKValidationMixin, serializers.ModelSerializer):
+    member_name = serializers.CharField(source="member.full_name", read_only=True, allow_null=True)
+    matric_no = serializers.CharField(source="member.user.matric_no", read_only=True, allow_null=True)
+
     class Meta:
         model = AttendanceRecord
         fields = [
-            "id", "session", "member", "visitor", "method", "status", "device",
+            "id", "session", "member", "member_name", "matric_no", "visitor", "method", "status", "device",
             "checked_in_by", "checkpoint", "checked_in_at", "checked_out_at", "synced_at", 
             "client_record_id", "created_at",
         ]

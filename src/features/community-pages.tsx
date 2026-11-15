@@ -902,12 +902,8 @@ export function CommunityAdminPage() {
     const data = new FormData(event.currentTarget);
     create.mutate({
       name: data.get("name"),
-      slug: data.get("slug"),
       type: data.get("type"),
       description: data.get("description"),
-      requiresApproval: data.get("requiresApproval") === "on",
-      membersCanPost: data.get("membersCanPost") === "on",
-      chatEnabled: data.get("chatEnabled") === "on",
     });
   }
   const rows =
@@ -919,7 +915,7 @@ export function CommunityAdminPage() {
       <PageHeader
         eyebrow="Super administration"
         title="Community management"
-        description="Manage reusable unit and fellowship workspaces, membership rules, and communication settings."
+        description="Manage Chapel Units and Campus Fellowships."
         actions={
           <Button icon={<Plus />} onClick={() => setOpen(true)}>
             Create community
@@ -979,7 +975,6 @@ export function CommunityAdminPage() {
               <option value="all">All types</option>
               <option value="unit">Units</option>
               <option value="campus_fellowship">Campus fellowships</option>
-              <option value="hostel_fellowship">Hostel fellowships</option>
             </select>
           </div>
         </header>
@@ -988,7 +983,13 @@ export function CommunityAdminPage() {
         ) : query.isError ? (
           <ErrorState description={errorMessage(query.error)} />
         ) : (
-          <table>
+          <>
+            {updateStatus.isError && (
+              <div className="form-error" role="alert">
+                {errorMessage(updateStatus.error)}
+              </div>
+            )}
+            <table>
             <thead>
               <tr>
                 <th>Community</th>
@@ -1046,7 +1047,8 @@ export function CommunityAdminPage() {
                 </tr>
               ))}
             </tbody>
-          </table>
+            </table>
+          </>
         )}
       </section>
       <Modal
@@ -1056,39 +1058,17 @@ export function CommunityAdminPage() {
         description="This creates one reusable private workspace and conversation channel."
       >
         <form className="modal-form" onSubmit={submit}>
-          <div className="form-grid">
-            <Field name="name" label="Community name" required />
-            <Field
-              name="slug"
-              label="URL slug"
-              pattern="[a-z0-9]+(?:-[a-z0-9]+)*"
-              required
-            />
-          </div>
+          <Field name="name" label="Community name" required />
           <label className="field">
             <span>Type</span>
             <select name="type">
               <option value="unit">Chapel unit</option>
               <option value="campus_fellowship">Campus fellowship</option>
-              <option value="hostel_fellowship">Hostel fellowship</option>
-              <option value="other">Other</option>
             </select>
           </label>
           <label className="field">
             <span>Description</span>
             <textarea name="description" rows={4} />
-          </label>
-          <label className="check-label">
-            <input name="requiresApproval" type="checkbox" defaultChecked />{" "}
-            Membership requires approval
-          </label>
-          <label className="check-label">
-            <input name="membersCanPost" type="checkbox" defaultChecked />{" "}
-            Members can post in chat
-          </label>
-          <label className="check-label">
-            <input name="chatEnabled" type="checkbox" defaultChecked /> Chat
-            enabled
           </label>
           {create.isError && (
             <div className="form-error">{errorMessage(create.error)}</div>

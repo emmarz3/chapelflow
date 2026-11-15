@@ -18,12 +18,12 @@ export function PwaPrompt() {
         <strong>
           {needRefresh
             ? "A ChapelFlow update is ready"
-            : "ChapelFlow is ready offline"}
+            : "Pages saved for offline use"}
         </strong>
         <p>
           {needRefresh
             ? "Refresh when convenient to use the latest version."
-            : "Previously visited pages can now open without a connection."}
+            : "Previously visited pages can open without internet. Live features still need a connection."}
         </p>
       </div>
       {needRefresh && (

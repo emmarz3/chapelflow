@@ -343,6 +343,28 @@ button.hp-day:hover { background: var(--hp-tint); }
   .hpa-item__main { flex-basis: 100%; }
 }
 .cuc-fellowship { background: var(--cuc-paper, #faf9f6); color: var(--cuc-ink, #17263b); }
+.student-leaders-page { background: var(--cuc-paper, #faf9f6); color: var(--cuc-ink, #17263b); }
+.student-leaders-page__banner { background: linear-gradient(150deg, #101d31, #213755); color: #fff; padding: clamp(78px, 10vw, 132px) 24px clamp(60px, 8vw, 94px); text-align: center; }
+.student-leaders-page__banner .cuc-home__eyebrow { color: #efbf4f; margin: 0 0 13px; }
+.student-leaders-page__banner h1 { color: #fff; font: 600 clamp(46px, 7vw, 78px)/1 "Newsreader", Georgia, serif; letter-spacing: -.04em; margin: 0 0 16px; }
+.student-leaders-page__banner > p:last-child { color: rgb(255 255 255 / .82); font-size: clamp(16px, 2vw, 19px); margin: 0 auto; max-width: 620px; }
+.student-leaders-page__content { margin: 0 auto; max-width: 1320px; padding: clamp(50px, 7vw, 88px) 28px; }
+.student-leaders-page__intro { margin: 0 auto 44px; max-width: 720px; text-align: center; }
+.student-leaders-page__intro .cuc-home__eyebrow { margin: 0 0 10px; }
+.student-leaders-page__intro h2 { font: 500 clamp(31px, 4vw, 46px)/1.1 "Newsreader", Georgia, serif; letter-spacing: -.03em; margin: 0 0 12px; }
+.student-leaders-page__intro > p:last-child { color: #667487; font-size: 15px; line-height: 1.7; margin: 0; }
+.student-leaders-page__grid { display: grid; gap: 24px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 250px), 1fr)); }
+.student-leader-card { animation: student-leader-enter .6s cubic-bezier(.22,.8,.24,1) both; animation-delay: calc(var(--leader-index, 0) * 60ms); background: #fff; border: 1px solid rgb(23 38 59 / .08); border-radius: 18px; box-shadow: 0 12px 35px rgb(23 38 59 / .07); overflow: hidden; transition: box-shadow .25s ease, transform .25s ease; }
+.student-leader-card:hover { box-shadow: 0 20px 44px rgb(20 35 75 / .16); transform: translateY(-5px); }
+.student-leader-card__photo { aspect-ratio: 4 / 5; background: linear-gradient(145deg, #1d2e48, #513c71); overflow: hidden; }
+.student-leader-card__photo img { display: block; height: 100%; object-fit: cover; object-position: center 24%; transition: transform .55s cubic-bezier(.22,.8,.24,1); width: 100%; }
+.student-leader-card:hover .student-leader-card__photo img { transform: scale(1.035); }
+.student-leader-card__body { border-top: 4px solid #efbf4f; min-height: 168px; padding: 21px 22px 24px; text-align: center; }
+.student-leader-card__role { color: #986c0c; font-size: 11px; font-weight: 800; letter-spacing: .1em; line-height: 1.45; margin: 0 0 8px; text-transform: uppercase; }
+.student-leader-card h3 { color: #17263b; font: 600 23px/1.2 "Newsreader", Georgia, serif; margin: 0 0 12px; }
+.student-leader-card__duty { color: #657084; font-size: 13px; line-height: 1.65; margin: 0; text-align: left; }
+@keyframes student-leader-enter { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .student-leader-card { animation: none; transition: none; } .student-leader-card__photo img { transition: none; } }
 .cuc-fellowship__hero { align-items: center; background: #17263b; display: flex; isolation: isolate; min-height: 360px; overflow: hidden; padding: clamp(48px, 8vw, 105px) max(7vw, calc((100vw - 1240px) / 2)); position: relative; }
 .cuc-fellowship__hero-image { background: linear-gradient(90deg, rgb(15 28 47 / .92), rgb(15 28 47 / .62)), url('/chapel-community.jpg') center 45% / cover; inset: 0; position: absolute; z-index: -1; }
 .cuc-fellowship__hero-copy { max-width: 720px; }
@@ -396,3 +418,34 @@ button.hp-day:hover { background: var(--hp-tint); }
 @media (max-width: 1000px) { .cuc-fellowship__grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @media (max-width: 650px) { .cuc-fellowship__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .cuc-fellowship__card { padding: 24px 12px 18px; } .cuc-fellowship__photo { flex-basis: 96px; height: 96px; width: 96px; } .cuc-fellowship__card h3 { font-size: 17px; } }
 @media (max-width: 420px) { .cuc-fellowship__grid { grid-template-columns: 1fr; } .cuc-fellowship__card { min-height: 0; } .cuc-fellowship__photo { flex-basis: 112px; height: 112px; width: 112px; } .cuc-fellowship__profile { border-radius: 16px; padding: 30px 20px; } .cuc-fellowship__profile-portrait { height: 52vh; } }
+.cuc-units__hero { align-items:center; background:linear-gradient(120deg,#21122d,#40204d 58%,#79562d); display:flex; justify-content:center; min-height:360px; padding:clamp(48px,8vw,100px) 24px; text-align:center; }
+.cuc-units__hero h1 { color:#fff; font-family:var(--font-display,inherit); font-size:clamp(48px,7vw,82px); letter-spacing:-.045em; line-height:.98; margin:12px 0 18px; }
+.cuc-units__hero > div { max-width:720px; }
+.cuc-units__hero > div > p:last-child { color:rgb(255 255 255 / .82); font-size:clamp(17px,2vw,21px); line-height:1.65; }
+.cuc-units__section { margin:0 auto; max-width:1240px; padding:clamp(54px,8vw,100px) 28px; }
+.cuc-units__intro { margin:0 auto 46px; max-width:700px; text-align:center; }
+.cuc-units__intro h2 { font-family:var(--font-display,inherit); font-size:clamp(32px,4vw,48px); margin:10px 0 16px; }
+.cuc-units__intro > p:last-child,.cuc-units__card-copy > p,.cuc-units__profile > p { color:var(--cuc-muted,#657084); line-height:1.7; }
+.cuc-units__grid { display:grid; gap:20px; grid-template-columns:repeat(3,minmax(0,1fr)); }
+.cuc-units__card { background:var(--cuc-surface,#fff); border-top:4px solid #c49a3d; border-radius:0 0 20px 20px; box-shadow:0 12px 28px rgb(28 22 35 / .11); display:flex; gap:18px; padding:25px; }
+.cuc-units__icon { align-items:center; background:#f2eaf3; border-radius:50%; color:#391044; display:flex; flex:0 0 48px; height:48px; justify-content:center; overflow:hidden; }
+.cuc-units__icon img { height:100%; object-fit:cover; width:100%; }
+.cuc-units__copy { display:flex; flex:1; flex-direction:column; min-width:0; }
+.cuc-units__card h3 { color:#391044; font-family:Georgia,serif; font-size:20px; margin:0; }
+.cuc-units__copy > p { font-size:14px; line-height:1.55; margin:9px 0 14px; }
+.cuc-units__card ul { border-top:1px solid rgb(34 48 69 / .1); list-style:none; margin:0 0 18px; padding:12px 0 0; }
+.cuc-units__card li { display:flex; flex-direction:column; font-size:14px; gap:3px; margin-top:8px; }
+.cuc-units__card li span,.cuc-units__leader span { color:#a87923; font-size:10px; font-weight:750; letter-spacing:.1em; text-transform:uppercase; }
+.cuc-units__profile-button { align-self:flex-start; background:#391044; border:0; border-radius:999px; color:#fff; cursor:pointer; font:inherit; font-size:14px; font-weight:700; margin-top:auto; min-height:42px; padding:0 23px; }
+.cuc-units__overlay { align-items:start; background:rgb(18 15 22 / .58); display:flex; inset:0; justify-content:center; overflow:auto; padding:28px 16px; position:fixed; z-index:1000; }
+.cuc-units__profile { background:#fff; border-radius:22px; box-shadow:0 22px 70px rgb(12 9 17 / .25); margin:auto; max-width:680px; padding:34px 30px; position:relative; width:100%; }
+.cuc-units__profile h2 { color:#391044; font-family:Georgia,serif; font-size:clamp(30px,5vw,42px); margin:0 50px 12px 0; }
+.cuc-units__profile h3 { color:#391044; font-size:13px; letter-spacing:.12em; margin-top:26px; text-transform:uppercase; }
+.cuc-units__leader { border-top:1px solid #eee9e2; display:grid; gap:6px; padding:15px 0; }
+.cuc-units__leader strong { color:#391044; }
+.cuc-units__leader-portrait { border-radius:14px; height:min(52vh,420px); margin-bottom:12px; object-fit:cover; object-position:center 28%; width:min(100%,320px); }
+.cuc-units__leader a { color:#391044; font-size:14px; text-decoration:none; }
+.cuc-units__leader p { color:#687187; font-size:13px; margin:0; }
+.cuc-units__close { align-items:center; background:#f1eee8; border:0; border-radius:50%; color:#391044; cursor:pointer; display:flex; height:42px; justify-content:center; position:absolute; right:15px; top:15px; width:42px; }
+@media(max-width:850px) { .cuc-units__grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media(max-width:560px) { .cuc-units__hero { min-height:310px; padding:55px 25px; } .cuc-units__section { padding:54px 20px; } .cuc-units__intro { text-align:left; } .cuc-units__grid { grid-template-columns:1fr; } }

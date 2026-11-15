@@ -11,7 +11,8 @@ class GroupLeaderSerializer(serializers.Serializer):
 
 
 class GroupSerializer(serializers.ModelSerializer):
-    member_count = serializers.IntegerField(source="memberships.count", read_only=True)
+    member_count = serializers.SerializerMethodField()
+    pending_count = serializers.SerializerMethodField()
 
     # The real, multi-leader-capable leadership listing (Phase 0
     # remediation) — built purely from active GroupMembership rows, never
@@ -23,7 +24,7 @@ class GroupSerializer(serializers.ModelSerializer):
         model = Group
         fields = [
             "id", "branch", "parent", "name", "group_type", "description",
-            "leader", "leaders", "is_active", "member_count", "created_at", "updated_at",
+            "leader", "leaders", "is_active", "member_count", "pending_count", "created_at", "updated_at",
         ]
         read_only_fields = ["id", "created_at", "updated_at", "leaders"]
         extra_kwargs = {
@@ -90,3 +91,9 @@ class GroupSerializer(serializers.ModelSerializer):
             ],
             many=True,
         ).data
+
+    def get_member_count(self, obj):
+        return obj.memberships.filter(is_active=True).count()
+
+    def get_pending_count(self, obj):
+        return obj.join_requests.filter(status="PENDING").count()

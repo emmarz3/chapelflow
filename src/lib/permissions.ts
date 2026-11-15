@@ -17,6 +17,8 @@ const rolePermissions: Record<Role, Permission[]> = {
     "workers:read",
     "workers:write",
     "workers:acknowledge",
+    "assets:read",
+    "assets:write",
     "media:write",
     "cms:write",
     "analytics:read",

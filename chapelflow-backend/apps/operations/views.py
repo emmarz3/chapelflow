@@ -64,6 +64,11 @@ def _require_permission(user, code, *, admin_only=False):
 def _branch_for_create(user):
     if user.branch_id:
         return user.branch
+    if _role(user) == Roles.SUPER_ADMIN:
+        from apps.organizations.services import get_chrisland_chapel_branch
+        branch = get_chrisland_chapel_branch()
+        if branch is not None:
+            return branch
     raise ValidationError({"branch": "Assign this account to a branch before creating records."})
 
 
@@ -92,8 +97,8 @@ def _require_media_access(user):
 
 def _require_entry_content_access(user, entry):
     if entry.content_type in MEDIA_CONTENT_TYPES:
-        if entry.content_type in SERMON_CONTENT_TYPES and _role(user) != Roles.CHAPLAIN:
-            raise PermissionDenied("Only the Chaplain can manage sermons and sermon series.")
+        if entry.content_type in SERMON_CONTENT_TYPES and _role(user) not in {Roles.SUPER_ADMIN, Roles.CHAPLAIN}:
+            raise PermissionDenied("Only the Super Admin or Chaplain can manage sermons and sermon series.")
         _require_media_access(user)
         return
     _require_content_access(user)
@@ -104,7 +109,7 @@ def _require_inventory_access(user):
         raise PermissionDenied("Complete required MFA before managing inventory.")
     if not user_has_inventory_access(user):
         raise PermissionDenied(
-            "Inventory is restricted to the Chaplain, Student Chaplain, and Chapel Protocol Unit Leader."
+            "Inventory is restricted to the Super Admin, Chaplain, Student Chaplain, and Chapel Protocol Unit Leader."
         )
 
 
@@ -693,7 +698,7 @@ class BranchOperationsView(APIView):
 
     def post(self, request):
         self._authorize(request.user)
-        organization = request.user.branch.organization if request.user.branch_id else None
+        organization = _branch_for_create(request.user).organization
         if organization is None:
             raise ValidationError({"organization": "Assign the Super Admin to an organization before creating branches."})
         name = str(request.data.get("title", "")).strip()
@@ -791,8 +796,8 @@ class ContentCollectionView(APIView):
                 payload.pop(optional_field, None)
         if payload["content_type"] not in self.allowed_types:
             raise ValidationError({"content_type": "Select a valid content type."})
-        if payload["content_type"] in SERMON_CONTENT_TYPES and _role(request.user) != Roles.CHAPLAIN:
-            raise PermissionDenied("Only the Chaplain can publish sermons and sermon series.")
+        if payload["content_type"] in SERMON_CONTENT_TYPES and _role(request.user) not in {Roles.SUPER_ADMIN, Roles.CHAPLAIN}:
+            raise PermissionDenied("Only the Super Admin or Chaplain can publish sermons and sermon series.")
         serializer = ContentEntrySerializer(data=payload)
         serializer.is_valid(raise_exception=True)
         parent = serializer.validated_data.get("parent")
@@ -802,7 +807,7 @@ class ContentCollectionView(APIView):
         content_type = serializer.validated_data["content_type"]
         direct_publish = (
             content_type in GALLERY_PUBLISH_TYPES and user_has_media_management_access(request.user)
-        ) or (content_type in SERMON_CONTENT_TYPES and _role(request.user) == Roles.CHAPLAIN)
+        ) or (content_type in SERMON_CONTENT_TYPES and _role(request.user) in {Roles.SUPER_ADMIN, Roles.CHAPLAIN})
         with transaction.atomic():
             entry = serializer.save(branch=branch, created_by=request.user)
             if direct_publish:
@@ -829,7 +834,7 @@ class MediaCollectionView(ContentCollectionView):
         _require_media_access(user)
 
     def restrict_queryset(self, queryset, user):
-        if _role(user) != Roles.CHAPLAIN:
+        if _role(user) not in {Roles.SUPER_ADMIN, Roles.CHAPLAIN}:
             queryset = queryset.exclude(content_type__in=SERMON_CONTENT_TYPES)
         return queryset
 

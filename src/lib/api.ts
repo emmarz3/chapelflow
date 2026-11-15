@@ -108,6 +108,12 @@ function refreshSession() {
   return refreshRequest;
 }
 
+// Renew before showing an authenticator QR code: scanning can outlast the
+// short-lived access cookie, and a broken refresh must be caught before setup.
+export async function renewSessionForMfaEnrollment() {
+  return refreshSession();
+}
+
 export async function apiRequest<T>(
   path: string,
   init: RequestInit = {},
@@ -128,7 +134,8 @@ export async function apiRequest<T>(
 
 async function rawRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
   const controller = new AbortController();
-  const timeout = window.setTimeout(() => controller.abort(), 60_000);
+  const timeout = window.setTimeout(() => controller.abort(),
+    ["/social/posts/", "/uploads/upload/"].includes(path) && init.body instanceof FormData ? 115_000 : 60_000);
   try {
     const signal = init.signal
       ? AbortSignal.any([init.signal, controller.signal])

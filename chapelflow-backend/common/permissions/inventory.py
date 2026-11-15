@@ -11,11 +11,11 @@ PROTOCOL_UNIT_NAMES = {
 
 
 def user_has_inventory_access(user) -> bool:
-    """Allow only Chaplain, Student Chaplain, and the Chapel Protocol Unit Head."""
+    """Allow Super Admin, pastoral oversight, and the Chapel Protocol Unit Head."""
     if not getattr(user, "is_authenticated", False):
         return False
     role = user.get_role_code() if hasattr(user, "get_role_code") else user.role
-    if role in {Roles.CHAPLAIN, Roles.STUDENT_CHAPLAIN}:
+    if role in {Roles.SUPER_ADMIN, Roles.CHAPLAIN, Roles.STUDENT_CHAPLAIN}:
         return True
     group = getattr(user, "institutional_group", None)
     return bool(

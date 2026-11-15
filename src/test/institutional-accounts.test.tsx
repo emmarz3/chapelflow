@@ -4,9 +4,10 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { InstitutionalAccountsPage } from "../features/institutional-accounts";
 import { ApiError } from "../lib/api";
-import { chapelGroupService, institutionalAccountService } from "../services/chapelflow";
+import { adminAccountService, chapelGroupService, institutionalAccountService } from "../services/chapelflow";
 
 vi.mock("../services/chapelflow", () => ({
+  adminAccountService: { list: vi.fn(), resetPassword: vi.fn() },
   chapelGroupService: {
     list: vi.fn(),
     bootstrapChapelGroups: vi.fn(),
@@ -16,6 +17,7 @@ vi.mock("../services/chapelflow", () => ({
     create: vi.fn(),
     update: vi.fn(),
     resetPassword: vi.fn(),
+    remove: vi.fn(),
   },
 }));
 
@@ -31,6 +33,7 @@ function renderPage() {
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(institutionalAccountService.list).mockResolvedValue({ data: [] });
+  vi.mocked(adminAccountService.list).mockResolvedValue({ data: { items: [], page: 1, page_size: 25, count: 0 } });
   vi.mocked(chapelGroupService.list).mockResolvedValue({
     data: [
       ...[
@@ -65,6 +68,39 @@ beforeEach(() => {
 });
 
 describe("institutional account provisioning", () => {
+  it("lists student accounts and issues a one-time password from the directory", async () => {
+    const user = userEvent.setup();
+    vi.mocked(adminAccountService.list).mockResolvedValue({ data: {
+      items: [{ id: "student-1", name: "Ada Student", email: "ada@example.edu", matric_no: "",
+        role: "MEMBER", branch_name: "Chrisland University Chapel", is_active: true,
+        deleted_at: null, date_joined: "2026-01-01T00:00:00Z", can_reset: true }],
+      page: 1, page_size: 25, count: 1,
+    } });
+    vi.mocked(adminAccountService.resetPassword).mockResolvedValue({ data: {
+      temporary_password: "One-time-Safe-987!", password_change_required: true,
+    } });
+    renderPage();
+    expect(await screen.findByText("Ada Student")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Reset password" }));
+    await user.click(screen.getByRole("button", { name: "Issue temporary password" }));
+    expect(await screen.findByText("One-time-Safe-987!")).toBeInTheDocument();
+    expect(adminAccountService.resetPassword).toHaveBeenCalledWith("student-1");
+  });
+
+  it("confirms institutional account removal before sending the request", async () => {
+    const user = userEvent.setup();
+    vi.mocked(institutionalAccountService.list).mockResolvedValue({ data: [{
+      id: "leader-1", first_name: "Grace", last_name: "Leader", email: "grace@example.edu",
+      role: "CHAPLAIN", is_active: true,
+    }] });
+    vi.mocked(institutionalAccountService.remove).mockResolvedValue(undefined);
+    renderPage();
+    await user.click(await screen.findByRole("button", { name: "Delete account" }));
+    expect(institutionalAccountService.remove).not.toHaveBeenCalled();
+    await user.click(screen.getAllByRole("button", { name: "Delete account" })[1]!);
+    await waitFor(() => expect(vi.mocked(institutionalAccountService.remove).mock.calls[0]?.[0]).toBe("leader-1"));
+  });
+
   it.each([
     ["CHAPLAIN", undefined],
     ["STUDENT_CHAPLAIN", undefined],
