@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Navigate, Route, Routes } from "react-router-dom";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { AuthProvider, useAuth } from "../features/auth-context";
 import { LoginPage } from "../features/auth-pages";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -23,6 +23,8 @@ const jsonResponse = (body: unknown, status = 200) =>
     headers: { "Content-Type": "application/json" },
   });
 
+afterEach(() => vi.unstubAllGlobals());
+
 function AuthenticatedDashboard() {
   const { loading, user } = useAuth();
   if (loading) return <p>Opening dashboard</p>;
@@ -35,6 +37,31 @@ function DashboardSignOut() {
 }
 
 describe("login", () => {
+  it("routes an authenticated treasurer to authenticator enrollment", async () => {
+    vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL) => {
+      if (String(input).endsWith("/auth/me/")) return Promise.resolve(jsonResponse({ data: {
+        id: "treasurer-1", email: "treasurer@example.edu", first_name: "Tara", last_name: "Test",
+        role: "UNIT_HEAD", institutional_office: "TREASURER", mfa_required: true, effective_permissions: [],
+      } }));
+      return Promise.resolve(jsonResponse({ data: {} }));
+    }));
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <MemoryRouter initialEntries={["/app"]}>
+          <AuthProvider>
+            <Routes>
+              <Route element={<ProtectedRoute />}><Route path="/app" element={<h1>Finance dashboard</h1>} /></Route>
+              <Route path="/login" element={<LoginPage />} />
+            </Routes>
+          </AuthProvider>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    expect(await screen.findByRole("heading", { name: "Protect your account" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Set up authenticator" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Finance dashboard" })).not.toBeInTheDocument();
+  });
+
   it("shows secure validation without identifying an account", async () => {
     const user = userEvent.setup();
     render(

@@ -196,9 +196,9 @@ export function LoginPage() {
       navigate(authenticatedHomePath, { replace: true });
     }
   }, [user, completing, authenticatedHomePath, navigate]);
-  if (user?.mfaRequired) return <MfaEnrollment />;
   if (user?.passwordChangeRequired)
     return <Navigate to="/change-password-required" replace />;
+  if (user?.mfaRequired) return <MfaEnrollment />;
   if (user && !completing)
     return (
       <Navigate
@@ -229,7 +229,13 @@ export function LoginPage() {
         role,
         String(form.get("otp") || ""),
       );
-      navigate(getAuthenticatedHomePath(authenticated, returnTo), { replace: true });
+      if (authenticated.passwordChangeRequired) {
+        navigate("/change-password-required", { replace: true });
+      } else if (authenticated.mfaRequired) {
+        setCompleting(false);
+      } else {
+        navigate(getAuthenticatedHomePath(authenticated, returnTo), { replace: true });
+      }
     } catch (caught) {
       setCompleting(false);
       setError(
@@ -405,8 +411,9 @@ function MfaEnrollment() {
     <div className="auth-card">
       <h1>Protect your account</h1>
       <p>
-        Your role requires an authenticator before you can access chapel
-        records.
+        Your role requires two-step verification before you can access chapel records.
+        Install an authenticator app, such as Google Authenticator or Microsoft Authenticator,
+        and add your ChapelFlow account below.
       </p>
       {!setup ? (
         <Button onClick={() => void start()} loading={loading}>
@@ -416,7 +423,7 @@ function MfaEnrollment() {
         <form onSubmit={confirm}>
           <p>
             Scan this code in your authenticator app, or enter the setup key
-            manually.
+            manually. Then enter the current six-digit code from the app.
           </p>
           {setup.qr_code_base64 && (
             <img

@@ -224,6 +224,10 @@ class LoginView(APIView):
 
         user = serializer.validated_data["user"]
 
+        if user.mfa_enabled and not _verify_otp(user, serializer.validated_data.get("otp", "")):
+            record_login(user, request, successful=False, failure_reason="invalid_otp")
+            return error_response("Enter a valid authenticator code to sign in.", {"otp": ["The code is missing or invalid."]}, status=400)
+
         record_login(user, request, successful=True)
         tokens = serializer.create_tokens(user)
         response = success_response(

@@ -113,20 +113,43 @@ export function PublicLayout() {
       {open && (
         <div className="mobile-menu" id="public-mobile-menu" role="dialog" aria-modal="true" aria-label="Site navigation">
           <button
-            className="icon-button"
+            className="icon-button mobile-menu__close"
             type="button"
             aria-label="Close navigation"
             onClick={() => setOpen(false)}
           >
             <X />
           </button>
-          <PublicWordmark />
-          {publicNav.map(([label, path]) => (
-            <Link onClick={() => setOpen(false)} key={path} to={path}>
-              {label}
-            </Link>
-          ))}
-          {!loading && (user ? <Link className="mobile-menu__account" onClick={() => setOpen(false)} to="/app" aria-label={`Open ${user.name}'s dashboard`}><span className="public-nav__avatar" aria-hidden="true">{getInitials(user.name)}</span><span>Dashboard</span></Link> : <><Link onClick={() => setOpen(false)} to="/login">Sign in</Link><Link onClick={() => setOpen(false)} className="button button--primary" to="/register">Create account <ArrowRight size={16} /></Link></>)}
+          <div className="mobile-menu__brand">
+            <PublicWordmark />
+          </div>
+          <nav className="mobile-menu__links" aria-label="Primary">
+            {publicNav.map(([label, path]) => (
+              <Link onClick={() => setOpen(false)} key={path} to={path}>
+                {label}
+              </Link>
+            ))}
+          </nav>
+          {!loading && (
+            <div className="mobile-menu__auth">
+              {user ? (
+                <Link className="mobile-menu__account" onClick={() => setOpen(false)} to="/app" aria-label={`Open ${user.name}'s dashboard`}>
+                  <span className="public-nav__avatar" aria-hidden="true">{getInitials(user.name)}</span>
+                  <span>Dashboard</span>
+                </Link>
+              ) : (
+                <>
+                  <p className="mobile-menu__auth-prompt">New to ChapelFlow?</p>
+                  <Link onClick={() => setOpen(false)} className="button button--primary mobile-menu__create" to="/register">
+                    Create account <ArrowRight size={16} />
+                  </Link>
+                  <Link onClick={() => setOpen(false)} className="mobile-menu__signin" to="/login">
+                    Already have an account? Sign in
+                  </Link>
+                </>
+              )}
+            </div>
+          )}
         </div>
       )}
       <main id="main-content" ref={mainRef}>

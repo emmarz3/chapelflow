@@ -3,6 +3,34 @@ from django.test import override_settings
 
 
 @pytest.mark.django_db
+def test_treasurer_enrollment_and_subsequent_login_require_authenticator_code(api_client, branch_a):
+    import pyotp
+    from apps.accounts.models import User
+    from apps.ministries.models import Group
+
+    group = Group.objects.create(branch=branch_a, name="Treasurer", group_type="UNIT")
+    user = User.objects.create_user(
+        email="treasurer-mfa@test.com", password="StrongPass123!", role="UNIT_HEAD",
+        branch=branch_a, institutional_office="TREASURER", institutional_group=group,
+    )
+    credentials = {"email": user.email, "password": "StrongPass123!"}
+    login = api_client.post("/api/v1/auth/login/", credentials, format="json")
+    assert login.status_code == 200
+    assert login.data["data"]["user"]["mfa_required"] is True
+    api_client.defaults["HTTP_X_CHAPELFLOW_CSRF"] = login.data["data"]["csrf_token"]
+
+    secret = api_client.post("/api/v1/auth/mfa/enroll/").data["data"]["secret"]
+    assert api_client.post("/api/v1/auth/mfa/confirm/", {"otp": pyotp.TOTP(secret).now()}).status_code == 200
+    api_client.cookies.clear()
+
+    assert api_client.post("/api/v1/auth/login/", credentials, format="json").status_code == 400
+    assert api_client.post("/api/v1/auth/login/", {**credentials, "otp": "abcdef"}, format="json").status_code == 400
+    valid = api_client.post("/api/v1/auth/login/", {**credentials, "otp": pyotp.TOTP(secret).now()}, format="json")
+    assert valid.status_code == 200
+    assert valid.data["data"]["user"]["mfa_required"] is False
+
+
+@pytest.mark.django_db
 class TestMFAEnrollment:
     def test_enroll_returns_secret_and_provisioning_uri(self, api_client, branch_a):
         from apps.accounts.models import User
