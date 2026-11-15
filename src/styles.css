@@ -2224,8 +2224,8 @@ button {
   border-top: 1px solid var(--border);
 }
 .portal-content {
+  width: 100%;
   padding: 30px clamp(18px, 3vw, 42px) 70px;
-  max-width: 1600px;
   margin: 0 auto;
   min-width: 0;
   overflow-x: clip;

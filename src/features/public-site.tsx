@@ -822,6 +822,10 @@ export function UnitsPage() {
         <div className="cuc-units__grid">{chapelUnits.map((unit, index) => <article className="cuc-units__card" key={unit.name} style={{ "--unit-index": index } as React.CSSProperties}><div className="cuc-units__icon" aria-hidden="true">{unit.leaders.find((leader) => leader.image)?.image ? <img src={unit.leaders.find((leader) => leader.image)?.image} alt="" loading="lazy" /> : <Users size={24} />}</div><div className="cuc-units__copy"><h3>{unit.name}</h3><p>{unit.description}</p><ul>{unit.leaders.map((leader) => <li key={leader.role}><span>{leader.role}</span>{leader.name}</li>)}</ul><button className="cuc-units__profile-button" type="button" onClick={() => setSelected(unit)}>View Profile</button></div></article>)}</div>
       </section>
       {selected && <div className="cuc-units__overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) setSelected(null); }}><section className="cuc-units__profile" role="dialog" aria-modal="true" aria-labelledby="unit-profile-title"><button className="cuc-units__close" type="button" aria-label="Close profile" onClick={() => setSelected(null)}><X size={20} /></button><p className="cuc-home__eyebrow">Church unit</p><h2 id="unit-profile-title">{selected.name}</h2><p>{selected.description}</p><h3>Leadership</h3>{selected.leaders.map((leader) => <article className="cuc-units__leader" key={leader.role}>{leader.image && <img className="cuc-units__leader-portrait" src={leader.image} alt={leader.name} />}<span>{leader.role}</span><strong>{leader.name}</strong>{leader.phone ? <a href={`tel:${leader.phone.replace(/\s/g, "")}`}>{leader.phone}</a> : <p>Phone number not provided.</p>}</article>)}</section></div>}
+    </div>
+  );
+}
+
 const studentLeaders = [
   {
     name: "Akintobi Oluwabori",
@@ -837,15 +841,15 @@ const studentLeaders = [
   },
   {
     name: "Ajayi Elizabeth",
-    role: "Fellowship Coordinator · Female Hostel",
+    role: "",
     photo: "/student-leaders/ajayi-elizabeth.jpg",
-    duty: "Keeps fellowship records and meeting minutes, handles correspondence, and circulates announcements.",
+    duty: "",
   },
   {
     name: "Olarewanju Christopher",
-    role: "Fellowship Coordinator · Male Hostel",
+    role: "",
     photo: "/student-leaders/olarewanju-christopher.jpg",
-    duty: "Keeps the chapel’s student accounts, collects offerings and dues, and reports on spending.",
+    duty: "",
   },
 ];
 
@@ -868,7 +872,7 @@ export function StudentLeadersPage() {
             <article className="student-leader-card" key={leader.name} style={{ "--leader-index": index } as React.CSSProperties}>
               <div className="student-leader-card__photo"><img src={leader.photo} alt={leader.name} loading={index > 1 ? "lazy" : "eager"} /></div>
               <div className="student-leader-card__body">
-                <p className="student-leader-card__role">{leader.role}</p>
+                {leader.role && <p className="student-leader-card__role">{leader.role}</p>}
                 <h3>{leader.name}</h3>
                 {leader.duty && <p className="student-leader-card__duty">{leader.duty}</p>}
               </div>
