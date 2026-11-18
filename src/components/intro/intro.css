@@ -1,0 +1,99 @@
+.cf-intro {
+  position: fixed;
+  z-index: 10000;
+  inset: 0;
+  overflow: hidden;
+  background: #fff;
+  color: #080b2d;
+  isolation: isolate;
+}
+
+body.cf-intro-active {
+  overflow: hidden;
+}
+
+.cf-intro__brand-scene,
+.cf-intro__chapel-scene {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  visibility: hidden;
+  opacity: 0;
+}
+
+.cf-intro__brand-lockup {
+  display: grid;
+  justify-items: center;
+  gap: 7px;
+  padding: 24px;
+}
+
+.cf-intro__mark {
+  width: clamp(172px, 18vw, 252px);
+  overflow: visible;
+  filter: drop-shadow(0 18px 28px rgb(76 23 152 / 0.15));
+  transform-origin: center;
+}
+
+.cf-intro__mark-fill {
+  transform-origin: center;
+}
+
+.cf-intro__wordmark {
+  margin: 0;
+  font: 600 clamp(48px, 6vw, 82px)/1 "DM Sans", system-ui, sans-serif;
+  letter-spacing: -0.055em;
+  white-space: nowrap;
+}
+
+.cf-intro__wordmark strong {
+  color: #5c22b4;
+  font-weight: 600;
+}
+
+.cf-intro__chapel-logo {
+  display: block;
+  width: min(76vw, 520px);
+  height: auto;
+  max-height: 52vh;
+  object-fit: contain;
+}
+
+.cf-intro__wipe {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  background: #4c1798;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.cf-intro__skip {
+  position: absolute;
+  z-index: 3;
+  top: max(20px, env(safe-area-inset-top));
+  right: max(22px, env(safe-area-inset-right));
+  padding: 9px 14px;
+  border: 1px solid #4c1798;
+  border-radius: 999px;
+  background: #fff;
+  color: #4c1798;
+  font: 600 12px/1.2 "DM Sans", system-ui, sans-serif;
+  cursor: pointer;
+}
+
+.cf-intro__skip:focus-visible {
+  outline: 3px solid #4c1798;
+  outline-offset: 4px;
+}
+
+@media (max-width: 600px) {
+  .cf-intro__mark { width: min(53vw, 210px); }
+  .cf-intro__wordmark { font-size: clamp(43px, 14vw, 60px); }
+  .cf-intro__chapel-logo { width: min(92vw, 470px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cf-intro__mark { filter: none; }
+}

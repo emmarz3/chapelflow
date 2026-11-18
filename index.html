@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#4c1798" />
+    <link rel="icon" type="image/svg+xml" href="/chrisland-university-chapel-logo.svg" />
+    <meta
+      name="description"
+      content="ChapelFlow — the digital chapel platform for Chrisland University Chapel, Abeokuta."
+    />
+    <style>
+      html[data-intro-entry="true"],
+      html[data-intro-entry="true"] body { background: #fff; }
+    </style>
+    <script>
+      (() => {
+        try {
+          document.documentElement.dataset.theme = localStorage.getItem("chapelflow-theme") === "dark" ? "dark" : "light";
+        } catch { /* The default light theme remains available without storage. */ }
+        if (location.pathname !== "/") return;
+        let seen = false;
+        try { seen = sessionStorage.getItem("chapelflow:intro-seen") === "1"; }
+        catch { /* Storage can be unavailable; the intro still runs. */ }
+        if (seen) return;
+        document.documentElement.dataset.introEntry = "true";
+      })();
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Newsreader:opsz,wght@6..72,500;6..72,600&display=swap"
+      rel="stylesheet"
+    />
+    <title>ChapelFlow | Chrisland University Chapel</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
