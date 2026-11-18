@@ -1,0 +1,330 @@
+from datetime import timedelta
+from pathlib import Path
+import re
+from urllib.parse import unquote, urlparse
+from uuid import UUID
+
+from django.conf import settings
+from django.core.exceptions import ValidationError as DjangoValidationError
+from django.db import IntegrityError, transaction
+from django.db.models import Count, Exists, OuterRef, Q
+from django.db.models import Subquery
+from django.http import FileResponse, HttpResponse, HttpResponseRedirect, StreamingHttpResponse
+from django.shortcuts import get_object_or_404
+from django.utils import timezone
+from rest_framework.exceptions import PermissionDenied, ValidationError
+from rest_framework.parsers import FormParser, MultiPartParser
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.views import APIView
+
+from apps.uploads.models import Upload, UploadCategory
+from apps.organizations.models import Branch
+from apps.uploads.storage import S3StorageService, generate_storage_filename, get_storage_service
+from apps.uploads.validators import validate_social_media, validate_upload
+from common.constants.roles import Roles
+from common.utils.responses import success_response
+from apps.moderation.models import ModerationRestriction, TargetKind
+from apps.moderation.services import visible
+
+from .models import (
+    SocialComment,
+    SocialCommentStatus,
+    SocialMediaType,
+    SocialPost,
+    SocialPostMedia,
+    SocialPostStatus,
+    SocialReaction,
+)
+from .serializers import SocialCommentSerializer, SocialPostSerializer
+
+
+def _branch(user, requested_id=None):
+    if _role(user) == Roles.SUPER_ADMIN and requested_id:
+        try:
+            branch_id = UUID(str(requested_id))
+        except (TypeError, ValueError, AttributeError) as exc:
+            raise ValidationError({"branch": "Choose an active chapel branch."}) from exc
+        branch = Branch.objects.filter(pk=branch_id, is_active=True).first()
+        if not branch:
+            raise ValidationError({"branch": "Choose an active chapel branch."})
+        return branch
+    if not user.branch_id:
+        if _role(user) == Roles.SUPER_ADMIN:
+            branches = list(Branch.objects.filter(is_active=True)[:2])
+            if len(branches) == 1:
+                return branches[0]
+            raise ValidationError({"branch": "Select a chapel branch before posting to The Upper Room."})
+        raise ValidationError({"account": "Your account must be linked to a chapel branch before using The Upper Room."})
+    return user.branch
+
+
+def _role(user):
+    return user.get_role_code() if hasattr(user, "get_role_code") else user.role
+
+
+def _can_moderate(user):
+    return _role(user) in {Roles.SUPER_ADMIN, Roles.CHAPEL_ADMIN, Roles.CHAPLAIN, Roles.STUDENT_CHAPLAIN}
+
+
+def _posts_for(user):
+    posts = SocialPost.objects.filter(status=SocialPostStatus.PUBLISHED)
+    if _role(user) != Roles.SUPER_ADMIN:
+        posts = posts.filter(branch=_branch(user))
+    return (
+        visible(posts, TargetKind.POST)
+        .select_related("author", "branch")
+        .prefetch_related("media__upload")
+        .annotate(
+            like_count=Count("likes", distinct=True),
+            comment_count=Count(
+                "comments",
+                filter=Q(comments__status=SocialCommentStatus.PUBLISHED) & ~Q(
+                    comments__id__in=Subquery(ModerationRestriction.objects.filter(target_kind=TargetKind.COMMENT).values("target_id"))
+                ),
+                distinct=True,
+            ),
+            is_liked=Exists(SocialReaction.objects.filter(post_id=OuterRef("pk"), user=user)),
+        )
+        .order_by("-created_at")
+    )
+
+
+def _post_or_404(user, pk):
+    post = _posts_for(user).filter(pk=pk).first()
+    if not post:
+        raise ValidationError({"post": "This post is unavailable in your chapel feed."})
+    return post
+
+
+def _file_chunks(path, start, length):
+    with path.open("rb") as media_file:
+        media_file.seek(start)
+        while length:
+            chunk = media_file.read(min(length, 512 * 1024))
+            if not chunk:
+                break
+            length -= len(chunk)
+            yield chunk
+
+
+class SocialMediaView(APIView):
+    """Deliver local Upper Room media to authenticated branch members."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk):
+        upload = get_object_or_404(
+            Upload, pk=pk, category=UploadCategory.SOCIAL_POST,
+            upper_room_media__post__in=_posts_for(request.user),
+        )
+        if settings.AWS_S3_ENDPOINT_URL and upload.file_url.startswith(
+            f"{urlparse(settings.AWS_S3_ENDPOINT_URL).scheme}://{settings.AWS_STORAGE_BUCKET_NAME}."
+            f"{urlparse(settings.AWS_S3_ENDPOINT_URL).netloc}/upper-room/"
+        ):
+            download_url = S3StorageService().get_download_url(upload.file_url, expires_in=900)
+            if not download_url:
+                return HttpResponse(status=404)
+            response = HttpResponseRedirect(download_url)
+            response["Cache-Control"] = "private, no-store"
+            return response
+        media_prefix = f"{settings.MEDIA_URL.rstrip('/')}/upper-room/"
+        url_path = unquote(urlparse(upload.file_url).path)
+        if not url_path.startswith(media_prefix):
+            return HttpResponse(status=404)
+        relative_path = url_path.removeprefix(settings.MEDIA_URL.rstrip('/') + "/")
+        root = Path(settings.MEDIA_ROOT).resolve()
+        file_path = (root / relative_path).resolve()
+        if not file_path.is_relative_to(root) or not file_path.is_file():
+            return HttpResponse(status=404)
+
+        size = file_path.stat().st_size
+        content_type = upload.content_type if upload.content_type.startswith(("video/", "image/")) else "application/octet-stream"
+        range_header = request.headers.get("Range", "")
+        if range_header:
+            match = re.fullmatch(r"bytes=(\d*)-(\d*)", range_header)
+            if not match or not any(match.groups()):
+                response = HttpResponse(status=416)
+                response["Content-Range"] = f"bytes */{size}"
+                return response
+            start_text, end_text = match.groups()
+            start = int(start_text) if start_text else max(size - int(end_text), 0)
+            end = min(int(end_text), size - 1) if start_text and end_text else size - 1
+            if start >= size or start > end:
+                response = HttpResponse(status=416)
+                response["Content-Range"] = f"bytes */{size}"
+                return response
+            response = StreamingHttpResponse(_file_chunks(file_path, start, end - start + 1), status=206, content_type=content_type)
+            response["Content-Range"] = f"bytes {start}-{end}/{size}"
+            response["Content-Length"] = end - start + 1
+        else:
+            response = FileResponse(file_path.open("rb"), content_type=content_type)
+        response["Accept-Ranges"] = "bytes"
+        response["Cache-Control"] = "private, no-store"
+        response["Content-Disposition"] = "inline"
+        return response
+
+
+class SocialPostCollectionView(APIView):
+    permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def get_throttles(self):
+        if self.request.method == "POST":
+            self.throttle_scope = "community_post"
+        return super().get_throttles()
+
+    def get(self, request):
+        try:
+            page = max(1, int(request.query_params.get("page", "1")))
+        except ValueError as exc:
+            raise ValidationError({"page": "Enter a valid page number."}) from exc
+        page_size = min(30, max(1, int(request.query_params.get("page_size", "15"))))
+        queryset = _posts_for(request.user)
+        start = (page - 1) * page_size
+        posts = list(queryset[start : start + page_size + 1])
+        has_more = len(posts) > page_size
+        return success_response({
+            "items": SocialPostSerializer(posts[:page_size], many=True, context={"request": request}).data,
+            "page": page,
+            "page_size": page_size,
+            "has_more": has_more,
+            "branches": list(Branch.objects.filter(is_active=True).order_by("name").values("id", "name"))
+            if _role(request.user) == Roles.SUPER_ADMIN else [],
+        })
+
+    def post(self, request):
+        branch = _branch(request.user, request.data.get("branch"))
+        caption = str(request.data.get("caption", "")).strip()
+        files = request.FILES.getlist("files")
+        if not caption and not files:
+            raise ValidationError({"post": "Add a caption, a photo, or a video before posting."})
+        if len(caption) > 1_000:
+            raise ValidationError({"caption": "Keep your caption within 1,000 characters."})
+        if caption and SocialPost.objects.filter(
+            branch=branch, author=request.user, caption=caption,
+            created_at__gte=timezone.now() - timedelta(minutes=1),
+        ).exists():
+            raise ValidationError({"caption": "You recently shared this post."})
+        if len(files) > 4:
+            raise ValidationError({"files": "Add up to four photos or videos in one post."})
+
+        media = []
+        for file_obj in files:
+            content_type = (file_obj.content_type or "").lower()
+            if content_type.startswith("image/"):
+                media_type = SocialMediaType.IMAGE
+            elif content_type.startswith("video/"):
+                media_type = SocialMediaType.VIDEO
+            else:
+                raise ValidationError({"files": "The Upper Room accepts image and video files only."})
+            try:
+                validate_upload(file_obj, max_size_mb=getattr(settings, "MAX_MEDIA_UPLOAD_SIZE_MB", 100))
+                validate_social_media(file_obj)
+            except DjangoValidationError as exc:
+                raise ValidationError({"files": exc.messages}) from exc
+            media.append((file_obj, media_type))
+
+        provider = getattr(settings, "UPPER_ROOM_STORAGE_PROVIDER", "")
+        if provider == "auto":
+            provider = "cloudinary" if all((
+                settings.CLOUDINARY_CLOUD_NAME,
+                settings.CLOUDINARY_API_KEY,
+                settings.CLOUDINARY_API_SECRET,
+            )) else "s3"
+        storage = get_storage_service(provider or None)
+        with transaction.atomic():
+            post = SocialPost.objects.create(branch=branch, author=request.user, caption=caption)
+            for position, (file_obj, media_type) in enumerate(media):
+                file_obj.seek(0)
+                file_url = storage.upload_fileobj(
+                    file_obj,
+                    generate_storage_filename(file_obj.name, prefix="upper-room"),
+                    content_type=file_obj.content_type,
+                )
+                upload = Upload.objects.create(
+                    branch=branch,
+                    uploaded_by=request.user,
+                    category=UploadCategory.SOCIAL_POST,
+                    original_filename=file_obj.name,
+                    file_url=file_url,
+                    content_type=file_obj.content_type or "",
+                    size_bytes=file_obj.size,
+                )
+                SocialPostMedia.objects.create(post=post, upload=upload, media_type=media_type, position=position)
+        post = _posts_for(request.user).get(pk=post.pk)
+        return success_response(SocialPostSerializer(post, context={"request": request}).data, message="Posted to The Upper Room.", status=201)
+
+
+class SocialPostDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request, pk):
+        post = _post_or_404(request.user, pk)
+        if post.author_id != request.user.id and not _can_moderate(request.user):
+            raise PermissionDenied("You can remove only your own posts.")
+        post.status = SocialPostStatus.REMOVED
+        post.save(update_fields=["status", "updated_at"])
+        return success_response(message="Post removed from The Upper Room.")
+
+
+class SocialLikeView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        post = _post_or_404(request.user, pk)
+        with transaction.atomic():
+            reaction = SocialReaction.objects.filter(post=post, user=request.user).first()
+            if reaction:
+                reaction.delete()
+                liked = False
+            else:
+                try:
+                    SocialReaction.objects.create(post=post, user=request.user)
+                    liked = True
+                except IntegrityError:
+                    liked = True
+        count = SocialReaction.objects.filter(post=post).count()
+        return success_response({"liked": liked, "like_count": count})
+
+
+class SocialCommentCollectionView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get_throttles(self):
+        if self.request.method == "POST":
+            self.throttle_scope = "community_comment"
+        return super().get_throttles()
+
+    def get(self, request, pk):
+        post = _post_or_404(request.user, pk)
+        comments = visible(SocialComment.objects.filter(post=post, status=SocialCommentStatus.PUBLISHED), TargetKind.COMMENT).select_related("author")[:100]
+        return success_response(SocialCommentSerializer(comments, many=True, context={"request": request}).data)
+
+    def post(self, request, pk):
+        post = _post_or_404(request.user, pk)
+        body = str(request.data.get("body", "")).strip()
+        if not body:
+            raise ValidationError({"body": "Write a comment before posting it."})
+        if len(body) > 750:
+            raise ValidationError({"body": "Keep comments within 750 characters."})
+        if SocialComment.objects.filter(
+            post=post, author=request.user, body=body,
+            created_at__gte=timezone.now() - timedelta(minutes=1),
+        ).exists():
+            raise ValidationError({"body": "You recently posted this comment."})
+        comment = SocialComment.objects.create(post=post, author=request.user, body=body)
+        return success_response(SocialCommentSerializer(comment, context={"request": request}).data, message="Comment posted.", status=201)
+
+
+class SocialCommentDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request, pk, comment_pk):
+        post = _post_or_404(request.user, pk)
+        comment = SocialComment.objects.filter(pk=comment_pk, post=post, status=SocialCommentStatus.PUBLISHED).first()
+        if not comment:
+            raise ValidationError({"comment": "This comment is unavailable."})
+        if comment.author_id != request.user.id and not _can_moderate(request.user):
+            raise PermissionDenied("You can remove only your own comments.")
+        comment.status = SocialCommentStatus.REMOVED
+        comment.save(update_fields=["status", "updated_at"])
+        return success_response(message="Comment removed.")

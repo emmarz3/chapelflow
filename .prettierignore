@@ -1,0 +1,8 @@
+node_modules
+dist
+coverage
+playwright-report
+test-results
+public/*.png
+package-lock.json
+firebase-debug.log
