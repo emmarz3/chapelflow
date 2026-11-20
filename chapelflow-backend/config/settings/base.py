@@ -183,10 +183,13 @@ REST_FRAMEWORK = {
     "DEFAULT_THROTTLE_CLASSES": (
         "rest_framework.throttling.ScopedRateThrottle",
     ),
+    "NUM_PROXIES": 1,
     "DEFAULT_THROTTLE_RATES": {
         "auth": "10/min",
         "sync": "30/min",
         "attendance_scan": "20/min",
+        "attendance_code_user": "8/min",
+        "attendance_code_ip": "50/min",
         "reports": "20/min",
         "moderation_report": "5/hour",
         "community_post": "10/min",
@@ -340,7 +343,7 @@ QR_TOKEN_TTL_HOURS = env.int("QR_TOKEN_TTL_HOURS", default=24 * 30)
 ATTENDANCE_DUPLICATE_WINDOW_MIN = env.int("ATTENDANCE_DUPLICATE_WINDOW_MIN", default=120)
 MFA_ENFORCED_ROLES = env.list(
     "MFA_ENFORCED_ROLES",
-    default=["SUPER_ADMIN", "CHAPEL_ADMIN", "FINANCE_OFFICER"],
+    default=["SUPER_ADMIN", "CHAPEL_ADMIN", "FINANCE_OFFICER", "ATTENDANCE_USHER"],
 )
 MFA_ENFORCE_ROLE_OBJECTS = env.bool("MFA_ENFORCE_ROLE_OBJECTS", default=True)
 

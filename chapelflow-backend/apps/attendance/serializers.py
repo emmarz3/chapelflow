@@ -149,11 +149,6 @@ class StudentUsherCodeSerializer(serializers.Serializer):
     code = serializers.RegexField(r"^\d{6}$")
 
 
-class StudentUsherCodeSyncSerializer(StudentUsherCodeSerializer):
-    checked_in_at = serializers.DateTimeField()
-    client_record_id = serializers.CharField(max_length=64)
-
-
 class AttendanceCorrectionSerializer(serializers.Serializer):
     status = serializers.ChoiceField(choices=AttendanceStatus.choices)
     reason = serializers.CharField(max_length=500, trim_whitespace=True)

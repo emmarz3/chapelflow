@@ -13,19 +13,7 @@
       html[data-intro-entry="true"],
       html[data-intro-entry="true"] body { background: #fff; }
     </style>
-    <script>
-      (() => {
-        try {
-          document.documentElement.dataset.theme = localStorage.getItem("chapelflow-theme") === "dark" ? "dark" : "light";
-        } catch { /* The default light theme remains available without storage. */ }
-        if (location.pathname !== "/") return;
-        let seen = false;
-        try { seen = sessionStorage.getItem("chapelflow:intro-seen") === "1"; }
-        catch { /* Storage can be unavailable; the intro still runs. */ }
-        if (seen) return;
-        document.documentElement.dataset.introEntry = "true";
-      })();
-    </script>
+    <script src="/theme-init.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link

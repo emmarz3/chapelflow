@@ -688,13 +688,6 @@ export async function djangoRequest(
     );
   if (route === "/attendance/student-code/" && method === "POST")
     return call("/attendance/student-code/", json("POST", { session_id: body.session_id, code: body.code }));
-  if (route === "/attendance/student-code-sync/" && method === "POST")
-    return call("/attendance/student-code-sync/", json("POST", {
-      session_id: body.session_id,
-      code: body.code,
-      client_record_id: body.client_record_id,
-      checked_in_at: body.checked_in_at,
-    }));
   if (route === "/attendance/qr-check-in" && method === "POST")
     return call(
       "/attendance/qr-check-in/",

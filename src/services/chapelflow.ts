@@ -855,11 +855,6 @@ export const attendanceService = {
         checkedInAt: item.createdAt,
       },
     }),
-  syncStudentCode: (item: { id: string; sessionId: string; code?: string; createdAt: string }) =>
-    api.post<{ data: { result: "recorded" | "duplicate"; record: AttendanceRecord } }>(
-      "/attendance/student-code-sync/",
-      { client_record_id: item.id, session_id: item.sessionId, code: item.code, checked_in_at: item.createdAt },
-    ),
   correct: (recordId: string, payload: { status: string; reason: string }) =>
     api.patch<{ data: AttendanceRecord }>(
       `/attendance/records/${encodeURIComponent(recordId)}`,

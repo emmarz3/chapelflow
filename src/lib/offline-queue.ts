@@ -3,14 +3,12 @@ interface PendingAttendanceBase {
   sessionId: string;
   createdAt: string;
 }
-export type PendingAttendanceCheckIn =
-  | (PendingAttendanceBase & { kind: "student-code"; code: string })
-  | (PendingAttendanceBase & {
+export type PendingAttendanceCheckIn = PendingAttendanceBase & {
       kind?: "staff";
       branchId?: string;
       memberIdentifier: string;
       method: "manual" | "kiosk";
-    });
+    };
 const STORAGE_KEY = "chapelflow-pending-attendance";
 export const ATTENDANCE_QUEUE_EVENT = "chapelflow:attendance-queue-changed";
 
@@ -29,9 +27,11 @@ export function readPendingAttendance(): PendingAttendanceCheckIn[] {
       }
       window.localStorage.removeItem(STORAGE_KEY);
     }
-    return JSON.parse(
-      window.sessionStorage.getItem(STORAGE_KEY) || "[]",
-    ) as PendingAttendanceCheckIn[];
+    const items = JSON.parse(window.sessionStorage.getItem(STORAGE_KEY) || "[]") as Array<PendingAttendanceCheckIn | { kind: "student-code" }>;
+    const safe = Array.isArray(items) ? items.filter((item): item is PendingAttendanceCheckIn =>
+      item.kind !== "student-code" && Boolean("memberIdentifier" in item && item.memberIdentifier)) : [];
+    if (safe.length !== items.length) savePendingAttendance(safe);
+    return safe;
   } catch {
     return [];
   }
@@ -50,7 +50,6 @@ export function queueAttendanceCheckIn(
     current.some(
       (entry) =>
         entry.sessionId === item.sessionId &&
-        entry.kind !== "student-code" &&
         entry.memberIdentifier === item.memberIdentifier,
     )
   )
@@ -59,20 +58,6 @@ export function queueAttendanceCheckIn(
     ...item,
     kind: "staff",
     id: crypto.randomUUID(),
-    createdAt: new Date().toISOString(),
-  });
-  savePendingAttendance(current);
-  return true;
-}
-
-export function queueStudentAttendanceCode(sessionId: string, code: string) {
-  const current = readPendingAttendance();
-  if (current.some((entry) => entry.kind === "student-code" && entry.sessionId === sessionId)) return false;
-  current.push({
-    id: crypto.randomUUID(),
-    sessionId,
-    kind: "student-code",
-    code,
     createdAt: new Date().toISOString(),
   });
   savePendingAttendance(current);

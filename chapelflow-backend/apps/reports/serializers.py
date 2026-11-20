@@ -18,7 +18,13 @@ class ReportJobSerializer(serializers.ModelSerializer):
         if job.status != "COMPLETE" or not job.file_url:
             return ""
         from apps.uploads.storage import get_storage_service
-        return get_storage_service().get_download_url(job.file_url)
+        url = get_storage_service().get_download_url(job.file_url)
+        request = self.context.get("request")
+        if url and request and request.user.is_authenticated:
+            from apps.audit.models import AuditAction
+            from apps.audit.services import write_audit_log
+            write_audit_log(AuditAction.REPORT_DOWNLOAD_LINK, "reports.ReportJob", str(job.id), user=request.user)
+        return url
     
     def validate_filters(self, filters):
         """

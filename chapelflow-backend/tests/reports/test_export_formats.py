@@ -178,9 +178,11 @@ class TestReportsAPIFormats:
         assert response.status_code == 201
 
         from apps.reports.models import ReportJob
+        from apps.audit.models import AuditAction, AuditLog
         job = ReportJob.objects.get(id=response.data["data"]["id"])
         # CELERY_TASK_ALWAYS_EAGER in test settings runs this synchronously.
         assert job.file_url.endswith(".xlsx")
+        assert AuditLog.objects.filter(action=AuditAction.REPORT_EXPORT, user=chapel_admin_a, resource_id=str(job.id)).exists()
 
     def test_report_history_and_downloads_are_limited_to_requester(
         self, api_client, chapel_admin_a, branch_a, seed_member_permissions,

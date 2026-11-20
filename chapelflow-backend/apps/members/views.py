@@ -139,6 +139,12 @@ class MemberViewSet(BranchScopedQuerysetMixin, StandardModelViewSet):
             canvas.drawRightString(A4[0] - 42, 26, f"Page {document.page}")
 
         doc.build(story, onFirstPage=footer, onLaterPages=footer)
+        from apps.audit.models import AuditAction
+        from apps.audit.services import write_audit_log
+        write_audit_log(AuditAction.MEMBER_EXPORT, "member.directory", metadata={
+            "record_count": count,
+            "filter_fields": sorted(key for key in request.query_params if key in {"branch", "membership_status", "academic_level", "search"}),
+        }, user=request.user)
         response = HttpResponse(output.getvalue(), content_type="application/pdf")
         response["Content-Disposition"] = 'attachment; filename="chapelflow-members.pdf"'
         response["Cache-Control"] = "private, no-store"

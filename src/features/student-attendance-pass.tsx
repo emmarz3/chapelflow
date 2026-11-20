@@ -17,7 +17,6 @@ import {
 } from "../components/ui";
 import { useQrScanner } from "../lib/use-qr-scanner";
 import { attendanceService } from "../services/chapelflow";
-import { queueStudentAttendanceCode } from "../lib/offline-queue";
 
 export function StudentAttendancePassPage() {
   const [scanning, setScanning] = useState(false);
@@ -70,13 +69,9 @@ export function StudentAttendancePassPage() {
       void history.refetch();
     },
     onError: (error) => {
-      const sessionId = pass.data?.session?.id;
-      if (!navigator.onLine && sessionId && queueStudentAttendanceCode(sessionId, manualToken)) {
-        setManualToken("");
-        setMessage({ tone: "success", text: "Attendance code saved on this device. It will sync when you are back online." });
-        return;
-      }
-      setMessage({ tone: "danger", text: error instanceof Error ? error.message : "Attendance could not be recorded." });
+      setMessage({ tone: "danger", text: navigator.onLine
+        ? error instanceof Error ? error.message : "Attendance could not be recorded."
+        : "Connect to the internet and enter the usher's current code. Ask the usher to record you if you are offline." });
     },
   });
   const pendingScan = useRef(false);
@@ -202,12 +197,7 @@ export function StudentAttendancePassPage() {
             }
             setMessage(null);
             if (!navigator.onLine) {
-              if (queueStudentAttendanceCode(sessionId, code)) {
-                setManualToken("");
-                setMessage({ tone: "success", text: "Attendance code saved on this device. It will sync when you are back online." });
-              } else {
-                setMessage({ tone: "danger", text: "A check-in for this session is already waiting to sync." });
-              }
+              setMessage({ tone: "danger", text: "Connect to the internet and enter the usher's current code. Ask the usher to record you if you are offline." });
               return;
             }
             submitCode.mutate({ sessionId, code });

@@ -20,6 +20,8 @@ class UsherQrAttendanceTests(TestCase):
         organization = Organization.objects.create(name="Chrisland University", slug="cuc-test")
         self.branch = Branch.objects.create(organization=organization, name="Chrisland University Chapel", branch_type="CHAPEL")
         self.usher = User.objects.create_user(email="usher@example.edu", password="safe-password-123", first_name="Usher", last_name="One", role="ATTENDANCE_USHER", branch=self.branch)
+        self.usher.mfa_enabled = True
+        self.usher.save(update_fields=["mfa_enabled"])
         self.student_user = User.objects.create_user(email="student@example.edu", password="safe-password-123", first_name="Student", last_name="One", role=Roles.MEMBER, branch=self.branch)
         self.student = Member.objects.create(user=self.student_user, branch=self.branch, first_name="Student", last_name="One", community=CommunityClassification.STUDENT)
         self.session = AttendanceSession.objects.create(branch=self.branch, label="Sunday service")
@@ -55,7 +57,25 @@ class UsherQrAttendanceTests(TestCase):
         self.assertEqual(response.data["data"]["result"], "recorded")
         self.assertEqual(AttendanceRecord.objects.filter(session=self.session, member=self.student).count(), 1)
 
-    def test_offline_manual_code_sync_records_authenticated_student_once(self):
+    def test_code_guessing_is_limited_and_failed_attempts_are_audited_without_codes(self):
+        from apps.audit.models import AuditAction, AuditLog
+
+        client = APIClient()
+        client.force_authenticate(self.student_user)
+        for _ in range(8):
+            response = client.post("/api/v1/attendance/student-code/", {
+                "session_id": str(self.session.id), "code": "999999",
+            }, format="json")
+            self.assertEqual(response.status_code, 400)
+        response = client.post("/api/v1/attendance/student-code/", {
+            "session_id": str(self.session.id), "code": "999999",
+        }, format="json")
+        self.assertEqual(response.status_code, 429)
+        entries = AuditLog.objects.filter(action=AuditAction.ATTENDANCE_CODE_REJECTED)
+        self.assertEqual(entries.count(), 8)
+        self.assertNotIn("999999", str(entries.values_list("metadata", flat=True)))
+
+    def test_offline_manual_code_sync_rejects_even_a_valid_past_code(self):
         issued = issue_checkpoint_token(self.checkpoint)
         client = APIClient()
         client.force_authenticate(self.student_user)
@@ -69,11 +89,9 @@ class UsherQrAttendanceTests(TestCase):
         first = client.post("/api/v1/attendance/student-code-sync/", payload, format="json")
         second = client.post("/api/v1/attendance/student-code-sync/", payload, format="json")
 
-        self.assertEqual(first.status_code, 201)
-        self.assertEqual(first.data["data"]["result"], "recorded")
-        self.assertEqual(second.status_code, 200)
-        self.assertEqual(second.data["data"]["result"], "duplicate")
-        self.assertEqual(AttendanceRecord.objects.filter(session=self.session, member=self.student).count(), 1)
+        self.assertEqual(first.status_code, 410)
+        self.assertEqual(second.status_code, 410)
+        self.assertEqual(AttendanceRecord.objects.filter(session=self.session, member=self.student).count(), 0)
 
     def test_student_scan_endpoint_returns_duplicate_without_creating_another_record(self):
         token = issue_checkpoint_token(self.checkpoint)["token"]
@@ -111,6 +129,14 @@ class UsherQrAttendanceTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["data"]["checkpoint_id"], str(self.checkpoint.id))
 
+    def test_usher_must_complete_mfa_before_receiving_code(self):
+        self.usher.mfa_enabled = False
+        self.usher.save(update_fields=["mfa_enabled"])
+        client = APIClient()
+        client.force_authenticate(self.usher)
+        response = client.get("/api/v1/attendance/checkpoint/token/")
+        self.assertEqual(response.status_code, 403)
+
     def _create_active_rostered_usher(self, *, status=AssignmentStatus.CONFIRMED, starts_at=None, ends_at=None):
         profile = VolunteerProfile.objects.create(
             member=self.student,
@@ -130,6 +156,8 @@ class UsherQrAttendanceTests(TestCase):
             starts_at=now - timedelta(minutes=10),
             ends_at=now + timedelta(minutes=10),
         )
+        self.student_user.mfa_enabled = True
+        self.student_user.save(update_fields=["mfa_enabled"])
         client = APIClient()
         client.force_authenticate(self.student_user)
 
@@ -143,6 +171,14 @@ class UsherQrAttendanceTests(TestCase):
         )
         self.assertTrue(created)
         self.assertEqual(record.checked_in_by_id, self.student_user.id)
+
+    def test_rostered_usher_without_mfa_cannot_fetch_checkpoint(self):
+        now = timezone.now()
+        self._create_active_rostered_usher(starts_at=now - timedelta(minutes=10), ends_at=now + timedelta(minutes=10))
+        client = APIClient()
+        client.force_authenticate(self.student_user)
+        response = client.get("/api/v1/attendance/checkpoint/token/")
+        self.assertEqual(response.status_code, 403)
 
     def test_rostered_usher_cannot_fetch_token_outside_shift_window(self):
         now = timezone.now()
@@ -183,6 +219,8 @@ class UsherQrAttendanceTests(TestCase):
         self.assertEqual(response.status_code, 403)
 
     def test_confirmed_event_assignment_uses_event_occurrence_window(self):
+        self.student_user.mfa_enabled = True
+        self.student_user.save(update_fields=["mfa_enabled"])
         now = timezone.now()
         event = Event.objects.create(
             branch=self.branch,

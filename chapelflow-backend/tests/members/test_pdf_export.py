@@ -25,6 +25,9 @@ def test_member_pdf_exports_all_pages_and_respects_filters(api_client, super_adm
     assert response["Cache-Control"] == "private, no-store"
     assert response.content.startswith(b"%PDF-")
     assert captured == [30]
+    from apps.audit.models import AuditAction, AuditLog
+    assert AuditLog.objects.filter(action=AuditAction.MEMBER_EXPORT, user=super_admin,
+                                   metadata__record_count=30).exists()
 
 
 @pytest.mark.django_db

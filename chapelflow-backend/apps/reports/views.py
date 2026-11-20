@@ -10,6 +10,8 @@ from .models import ReportJob
 from .serializers import ReportJobSerializer
 from .services import REPORT_EXPORTERS
 from .tasks import run_report_job
+from apps.audit.models import AuditAction
+from apps.audit.services import write_audit_log
 
 
 class ReportJobViewSet(BranchScopedQuerysetMixin, StandardModelViewSet):
@@ -40,6 +42,8 @@ class ReportJobViewSet(BranchScopedQuerysetMixin, StandardModelViewSet):
 
     def perform_create(self, serializer):
         job = serializer.save(requested_by=self.request.user)
+        write_audit_log(AuditAction.REPORT_EXPORT, "reports.ReportJob", str(job.id), user=self.request.user,
+                        metadata={"report_type": job.report_type, "export_format": job.export_format, "branch_id": str(job.branch_id)})
         run_report_job.delay(str(job.id))
 
     @action(detail=False, methods=["get"])

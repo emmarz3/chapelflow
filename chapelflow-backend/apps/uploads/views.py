@@ -15,8 +15,9 @@ from common.viewsets import StandardReadOnlyModelViewSet
 from .models import Upload, UploadCategory
 from .serializers import UploadSerializer, public_media_url
 from .storage import S3StorageService, generate_storage_filename, get_storage_service
-from .validators import validate_upload
+from .validators import validate_upload, validate_category_content
 from apps.operations.models import ContentEntry, ContentStatus
+from common.constants.roles import Roles
 
 
 class PublicMediaView(APIView):
@@ -54,6 +55,10 @@ class UploadView(APIView):
             return error_response("Select a valid upload category.", status=400)
         if category == UploadCategory.MEDIA_CONTENT and not user_has_media_management_access(request.user):
             return error_response("Only the Super Admin, Chaplain, Student Chaplain, Media Leader, or Social Media Leader can upload public media.", status=403)
+        if category in {UploadCategory.DOCUMENT, UploadCategory.OTHER} and request.user.get_role_code() not in {
+            Roles.SUPER_ADMIN, Roles.CHAPEL_ADMIN, Roles.CHAPLAIN, Roles.STUDENT_CHAPLAIN,
+        }:
+            return error_response("This file category is restricted to chapel administrators.", status=403)
 
         max_size_mb = (
             getattr(settings, "MAX_MEDIA_UPLOAD_SIZE_MB", 100)
@@ -62,6 +67,7 @@ class UploadView(APIView):
         )
         try:
             validate_upload(file_obj, max_size_mb=max_size_mb)
+            validate_category_content(file_obj, category)
         except ValidationError as exc:
             return error_response(str(exc), status=400)
         storage = get_storage_service()
@@ -103,3 +109,10 @@ class UploadListView(BranchScopedQuerysetMixin, StandardReadOnlyModelViewSet):
 
     def get_base_queryset(self):
         return Upload.objects.select_related("branch", "uploaded_by").order_by("-created_at")
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        if self.request.user.get_role_code() not in {Roles.SUPER_ADMIN, Roles.CHAPEL_ADMIN, Roles.CHAPLAIN, Roles.STUDENT_CHAPLAIN} \
+                and not user_has_media_management_access(self.request.user):
+            return queryset.filter(uploaded_by=self.request.user)
+        return queryset

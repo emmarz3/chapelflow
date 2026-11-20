@@ -16,11 +16,6 @@ export function OfflineAttendanceSync() {
     const synchronize = async () => {
       if (!navigator.onLine) return;
       const result = await flushPendingAttendance(async (item) => {
-        if (item.kind === "student-code") {
-          if (!item.code) throw new Error("Queued attendance code is missing.");
-          await attendanceService.syncStudentCode(item);
-          return;
-        }
         if (item.memberIdentifier && item.method) {
           await attendanceService.syncOffline({
             id: item.id,

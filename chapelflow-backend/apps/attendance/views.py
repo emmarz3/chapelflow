@@ -18,12 +18,16 @@ from .models import AttendanceCheckpoint, AttendanceCorrection, AttendanceRecord
 from .serializers import (
     AttendanceRecordSerializer, AttendanceSessionSerializer, CheckInDeviceSerializer,
     KioskCheckInSerializer, ManualCheckInSerializer, OfflineSyncRequestSerializer, QRCheckInSerializer,
-    StudentUsherCodeSerializer, StudentUsherCodeSyncSerializer, VisitorAttendanceSerializer,
+    StudentUsherCodeSerializer, VisitorAttendanceSerializer,
 )
 from .services import (
     AttendanceError, issue_checkpoint_token, manual_check_in, qr_check_in,
     student_scan_usher_token, student_submit_checkpoint_code, sync_offline_records,
 )
+from common.permissions.rbac import user_has_completed_required_mfa
+from .throttles import AttendanceCodeIPThrottle, AttendanceCodeUserThrottle
+from apps.audit.models import AuditAction
+from apps.audit.services import write_audit_log
 
 
 class AttendanceSessionViewSet(BranchScopedQuerysetMixin, StandardModelViewSet):
@@ -419,6 +423,8 @@ class UsherCheckpointTokenView(APIView):
             is_usher_role = is_active_usher(request.user)
         if not is_usher_role:
             return error_response("This attendance checkpoint is restricted to usher accounts.", status=403)
+        if not user_has_completed_required_mfa(request.user):
+            return error_response("Set up your authenticator before using the usher checkpoint.", status=403)
         session = AttendanceSession.objects.filter(
             branch_id=request.user.branch_id,
             is_open=True,
@@ -469,8 +475,7 @@ class StudentUsherScanView(APIView):
 class StudentUsherCodeView(APIView):
     """Record a student check-in using the usher's short rotating code."""
     permission_classes = [IsAuthenticated]
-    throttle_classes = [ScopedRateThrottle]
-    throttle_scope = "attendance_scan"
+    throttle_classes = [AttendanceCodeUserThrottle, AttendanceCodeIPThrottle]
 
     def post(self, request):
         serializer = StudentUsherCodeSerializer(data=request.data)
@@ -483,6 +488,8 @@ class StudentUsherCodeView(APIView):
                 code=serializer.validated_data["code"], session=session, user=request.user,
             )
         except AttendanceError as exc:
+            write_audit_log(AuditAction.ATTENDANCE_CODE_REJECTED, "attendance.session", str(session.id),
+                            metadata={"reason": "invalid_or_ineligible"}, user=request.user)
             return error_response(str(exc), status=400)
         return success_response(
             {"record": AttendanceRecordSerializer(record).data, "result": "recorded" if created else "duplicate"},
@@ -492,31 +499,11 @@ class StudentUsherCodeView(APIView):
 
 
 class StudentUsherCodeSyncView(APIView):
-    """Reconcile a code entered while offline; identity comes from the signed-in student."""
+    """Reject legacy queued student codes: client timestamps cannot prove presence."""
     permission_classes = [IsAuthenticated]
-    throttle_classes = [ScopedRateThrottle]
-    throttle_scope = "sync"
 
     def post(self, request):
-        serializer = StudentUsherCodeSyncSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        data = serializer.validated_data
-        session = AttendanceSession.objects.filter(id=data["session_id"]).first()
-        if not session:
-            return error_response("Attendance session not found.", status=404)
-        try:
-            record, created = student_submit_checkpoint_code(
-                code=data["code"], session=session, user=request.user,
-                checked_in_at=data["checked_in_at"], offline=True,
-                client_record_id=data["client_record_id"],
-            )
-        except AttendanceError as exc:
-            return error_response(str(exc), status=400)
-        return success_response(
-            {"record": AttendanceRecordSerializer(record).data, "result": "recorded" if created else "duplicate"},
-            message="Offline attendance synchronized." if created else "Attendance has already been recorded.",
-            status=201 if created else 200,
-        )
+        return error_response("Offline student codes cannot verify attendance. Scan the live usher QR or enter the current code while online.", status=410)
 
 
 class ManualCheckInView(APIView):

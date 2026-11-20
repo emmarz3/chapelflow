@@ -42,3 +42,46 @@ def validate_social_media(file_obj):
     }
     if not signature_matches.get(ext, False):
         raise ValidationError("The media file contents do not match its declared type.")
+
+
+def validate_category_content(file_obj, category):
+    """Reject mismatched media and document bytes before sending them to storage."""
+    from zipfile import BadZipFile, ZipFile
+
+    from .models import UploadCategory
+
+    ext = file_obj.name.rsplit(".", 1)[-1].lower() if "." in file_obj.name else ""
+    image_categories = {UploadCategory.MEMBER_PHOTO, UploadCategory.BRANCH_LOGO, UploadCategory.EVENT_IMAGE}
+    if category in image_categories and ext not in {"jpg", "jpeg", "png", "gif", "webp"}:
+        raise ValidationError("This category accepts images only.")
+    if category in image_categories | {UploadCategory.MEDIA_CONTENT, UploadCategory.SOCIAL_POST}:
+        validate_social_media(file_obj)
+        return
+    if ext in {"jpg", "jpeg", "png", "gif", "webp", "mp4", "mov", "webm"}:
+        validate_social_media(file_obj)
+        return
+    if category == UploadCategory.DOCUMENT and ext not in {"pdf", "docx"}:
+        raise ValidationError("This category accepts PDF and DOCX documents only.")
+    if category == UploadCategory.SERMON_AUDIO and ext not in {"mp3", "m4a"}:
+        raise ValidationError("This category accepts MP3 and M4A audio only.")
+    if ext in {"pdf", "docx", "mp3", "m4a"}:
+        position = file_obj.tell()
+        header = file_obj.read(16)
+        file_obj.seek(position)
+        signatures = {
+            "pdf": header.startswith(b"%PDF-"),
+            "docx": header.startswith(b"PK\x03\x04"),
+            "mp3": header.startswith(b"ID3") or (len(header) > 1 and header[0] == 0xff and header[1] & 0xe0 == 0xe0),
+            "m4a": header[4:8] == b"ftyp",
+        }
+        if not signatures[ext]:
+            raise ValidationError("The file contents do not match its declared type.")
+        if ext == "docx":
+            try:
+                with ZipFile(file_obj) as archive:
+                    if "[Content_Types].xml" not in archive.namelist() or "word/document.xml" not in archive.namelist():
+                        raise ValidationError("The DOCX document is invalid.")
+            except BadZipFile as exc:
+                raise ValidationError("The DOCX document is invalid.") from exc
+            finally:
+                file_obj.seek(position)

@@ -81,8 +81,8 @@ def _resolve_checkpoint_code(session: AttendanceSession, code: str, slot: int):
     return None
 
 
-def student_submit_checkpoint_code(*, code: str, session: AttendanceSession, user, checked_in_at=None, offline=False, client_record_id=None):
-    """Validate a live usher code, or reconcile a queued offline entry."""
+def student_submit_checkpoint_code(*, code: str, session: AttendanceSession, user):
+    """Validate a live code against the server clock; clients cannot backdate attendance."""
     member = Member.objects.select_related("branch").filter(user=user).first()
     if user.get_role_code() != "MEMBER" or not is_student_community_member(member):
         raise AttendanceError("Only authenticated student accounts can record attendance.")
@@ -92,41 +92,22 @@ def student_submit_checkpoint_code(*, code: str, session: AttendanceSession, use
         raise AttendanceError("This attendance code is not for your chapel service.")
 
     now = timezone.now()
-    if offline:
-        if checked_in_at is None:
-            raise AttendanceError("The offline check-in time is missing.")
-        window_start = session.window_opens_at or session.opened_at
-        window_end = session.window_closes_at or session.closed_at
-        if checked_in_at < window_start or (window_end and checked_in_at > window_end) or checked_in_at > now + timedelta(minutes=2):
-            raise AttendanceError("This offline check-in is outside the attendance window.")
-        slot = int(checked_in_at.timestamp()) // QR_ROTATION_SECONDS
-        checkpoint = _resolve_checkpoint_code(session, code, slot)
-    else:
-        if not _attendance_window_is_open(session, now):
-            raise AttendanceError("Attendance is not currently open.")
-        now_epoch = int(now.timestamp())
-        slot = now_epoch // QR_ROTATION_SECONDS
-        checkpoint = _resolve_checkpoint_code(session, code, slot)
-        # Allow brief typing/network delay across the 20-second boundary.
-        if not checkpoint and now_epoch % QR_ROTATION_SECONDS <= 4 and slot > 0:
-            checkpoint = _resolve_checkpoint_code(session, code, slot - 1)
-        checked_in_at = now
+    if not _attendance_window_is_open(session, now):
+        raise AttendanceError("Attendance is not currently open.")
+    now_epoch = int(now.timestamp())
+    slot = now_epoch // QR_ROTATION_SECONDS
+    checkpoint = _resolve_checkpoint_code(session, code, slot)
+    # Allow brief typing/network delay across the 20-second boundary.
+    if not checkpoint and now_epoch % QR_ROTATION_SECONDS <= 4 and slot > 0:
+        checkpoint = _resolve_checkpoint_code(session, code, slot - 1)
 
     if not checkpoint:
         raise AttendanceError("This attendance code is invalid or has expired.")
 
-    if client_record_id:
-        record = AttendanceRecord.objects.filter(client_record_id=client_record_id).first()
-        if record:
-            if record.session_id != session.id or record.member_id != member.id:
-                raise AttendanceError("This offline check-in has already been used.")
-            return record, False
-
     return _create_record(
         session=session, member=member, method=AttendanceMethod.QR_CODE,
         checked_in_by=checkpoint.usher, checkpoint=checkpoint,
-        checked_in_at=checked_in_at, client_record_id=client_record_id,
-        synced_at=now if offline else None,
+        checked_in_at=now,
     )
 
 

@@ -20,6 +20,16 @@ def user_requires_mfa(user) -> bool:
     falls back to settings.MFA_ENFORCED_ROLES for legacy roles.
     """
     from django.conf import settings
+
+    role_code = user.get_role_code() if hasattr(user, 'get_role_code') else user.role
+    # A cached Role row or an admin-edited flag must never disable MFA for
+    # an attendance checkpoint account.
+    if role_code == Roles.ATTENDANCE_USHER:
+        return True
+    if role_code == Roles.MEMBER:
+        from apps.volunteers.services import is_active_usher
+        if is_active_usher(user):
+            return True
     
     # Try new role system first
     role_obj = user.get_role_obj() if hasattr(user, 'get_role_obj') else None
@@ -28,7 +38,6 @@ def user_requires_mfa(user) -> bool:
     
     # Fall back to legacy settings
     mfa_roles = getattr(settings, 'MFA_ENFORCED_ROLES', [])
-    role_code = user.get_role_code() if hasattr(user, 'get_role_code') else user.role
     return role_code in mfa_roles
 
 

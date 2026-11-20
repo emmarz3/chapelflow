@@ -2,7 +2,6 @@ import { beforeEach, describe, expect, it } from "vitest";
 import {
   flushPendingAttendance,
   queueAttendanceCheckIn,
-  queueStudentAttendanceCode,
   readPendingAttendance,
   removePendingAttendance,
 } from "../lib/offline-queue";
@@ -48,12 +47,12 @@ describe("offline attendance queue", () => {
     expect(readPendingAttendance()).toEqual([]);
   });
 
-  it("queues a student camera-free code once per open service", () => {
-    expect(queueStudentAttendanceCode("session-1", "104258")).toBe(true);
-    expect(queueStudentAttendanceCode("session-1", "104258")).toBe(false);
-    expect(readPendingAttendance()).toEqual([
-      expect.objectContaining({ kind: "student-code", sessionId: "session-1", code: "104258" }),
-    ]);
+  it("purges legacy student codes instead of submitting forged offline timestamps", () => {
+    window.sessionStorage.setItem("chapelflow-pending-attendance", JSON.stringify([{
+      id: "legacy-student", sessionId: "session-1", kind: "student-code", code: "104258", createdAt: new Date().toISOString(),
+    }]));
+    expect(readPendingAttendance()).toEqual([]);
+    expect(window.sessionStorage.getItem("chapelflow-pending-attendance")).toBe("[]");
   });
 
   it("migrates an old persistent queue into session storage and clears its old copy", () => {
@@ -86,7 +85,7 @@ describe("offline attendance queue", () => {
     });
 
     const result = await flushPendingAttendance(async (item) => {
-      if (item.kind !== "student-code" && item.memberIdentifier.endsWith("102"))
+      if (item.memberIdentifier.endsWith("102"))
         throw new Error("Network error");
     });
 
