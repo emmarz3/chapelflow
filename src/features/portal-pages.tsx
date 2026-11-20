@@ -72,7 +72,7 @@ import {
 } from "../lib/fixtures";
 import { hasPermission, useAuth } from "./auth-context";
 import { isStudentMember } from "../lib/permissions";
-import { downloadCsv } from "../lib/export";
+import { downloadPdf } from "../lib/export";
 import type { Member, Permission } from "../types/domain";
 import {
   LiveAnalyticsPage,
@@ -633,9 +633,10 @@ function DemoMembersPage() {
               icon={<Download />}
               disabled={!filtered.length}
               onClick={() =>
-                downloadCsv(
-                  "chapelflow-members-preview.csv",
+                void downloadPdf(
+                  "chapelflow-members-preview.pdf",
                   filtered as unknown as Record<string, unknown>[],
+                  { title: "Member directory preview" },
                 )
               }
             >
@@ -1687,7 +1688,7 @@ function DemoOperationsPage({
               icon={module === "audit" ? <Download /> : <Plus />}
               onClick={() =>
                 module === "audit"
-                  ? downloadCsv("chapelflow-audit-preview.csv", exportRows)
+                  ? void downloadPdf("chapelflow-audit-preview.pdf", exportRows, { title: "Audit preview" })
                   : setOpen(true)
               }
             >
@@ -1728,7 +1729,7 @@ function DemoOperationsPage({
           icon={<Download />}
           disabled={!visibleRows.length}
           onClick={() =>
-            downloadCsv("chapelflow-records-preview.csv", exportRows)
+            void downloadPdf("chapelflow-records-preview.pdf", exportRows, { title: "Records preview" })
           }
         >
           Export
@@ -1852,7 +1853,7 @@ function DemoAnalyticsPage() {
             variant="secondary"
             icon={<Download />}
             onClick={() =>
-              downloadCsv("chapelflow-analytics-preview.csv", attendanceByLevel)
+              void downloadPdf("chapelflow-analytics-preview.pdf", attendanceByLevel, { title: "Analytics preview" })
             }
           >
             Export report

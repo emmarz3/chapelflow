@@ -303,33 +303,51 @@ def export_rows_excel(rows: list) -> bytes:
 
 def export_rows_pdf(rows: list, title: str = "Report") -> bytes:
     import io
+    from xml.sax.saxutils import escape
+    from django.utils import timezone
 
     from reportlab.lib import colors
-    from reportlab.lib.pagesizes import letter
-    from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
-    from reportlab.lib.styles import getSampleStyleSheet
+    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.lib.styles import ParagraphStyle
+    from reportlab.platypus import LongTable, Paragraph, SimpleDocTemplate, Spacer, TableStyle
 
     buffer = io.BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=letter)
-    styles = getSampleStyleSheet()
-    elements = [Paragraph(title, styles["Title"]), Spacer(1, 12)]
+    page_size = landscape(A4)
+    doc = SimpleDocTemplate(buffer, pagesize=page_size, leftMargin=38, rightMargin=38,
+                            topMargin=48, bottomMargin=48, title=title, author="Chrisland University Chapel")
+    title_style = ParagraphStyle("ReportTitle", fontName="Helvetica-Bold", fontSize=16, leading=21, textColor=colors.HexColor("#422663"))
+    subtitle_style = ParagraphStyle("ReportSubtitle", fontName="Helvetica", fontSize=8, leading=12)
+    cell_style = ParagraphStyle("ReportCell", fontName="Helvetica", fontSize=7, leading=10, wordWrap="CJK")
+    heading_style = ParagraphStyle("ReportHeading", parent=cell_style, fontName="Helvetica-Bold", textColor=colors.white)
+    elements = [Paragraph("CHRISLAND UNIVERSITY CHAPEL", title_style), Spacer(1, 5),
+                Paragraph(escape(title), title_style),
+                Paragraph(f"Generated {timezone.now():%d %b %Y, %H:%M UTC}  |  {len(rows)} records", subtitle_style), Spacer(1, 14)]
 
     if rows:
         headers = list(rows[0].keys())
-        data = [headers] + [[str(row.get(h, "")) for h in headers] for row in rows]
-        table = Table(data, repeatRows=1)
+        available = page_size[0] - 76
+        column_widths = [available / len(headers)] * len(headers)
+        data = [[Paragraph(escape(header.replace("_", " ").title()), heading_style) for header in headers]]
+        data += [[Paragraph(escape(str(row.get(header) if row.get(header) is not None else "—")), cell_style)
+                  for header in headers] for row in rows]
+        table = LongTable(data, colWidths=column_widths, repeatRows=1, hAlign="LEFT")
         table.setStyle(TableStyle([
-            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1f2937")),
-            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-            ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
-            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f3f4f6")]),
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#422663")),
+            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f6f2f9")]),
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
         ]))
         elements.append(table)
     else:
-        elements.append(Paragraph("No data for the selected filters.", styles["Normal"]))
+        elements.append(Paragraph("No data for the selected filters.", subtitle_style))
 
-    doc.build(elements)
+    def footer(canvas, document):
+        canvas.setFont("Helvetica", 8)
+        canvas.setFillColor(colors.HexColor("#6b6074"))
+        canvas.drawString(38, 24, "ChapelFlow  |  Confidential report")
+        canvas.drawRightString(page_size[0] - 38, 24, f"Page {document.page}")
+
+    doc.build(elements, onFirstPage=footer, onLaterPages=footer)
     return buffer.getvalue()
 
 

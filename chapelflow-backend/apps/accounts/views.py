@@ -114,9 +114,9 @@ def _set_auth_cookies(response, access, refresh):
 
 def _clear_auth_cookies(response):
     cookie_options = _auth_cookie_options()
-    response.delete_cookie(ACCESS_COOKIE, path="/", **cookie_options)
-    response.delete_cookie(REFRESH_COOKIE, path="/", **cookie_options)
-    response.delete_cookie(CSRF_COOKIE, path="/", **cookie_options)
+    response.delete_cookie(ACCESS_COOKIE, path="/", samesite=cookie_options["samesite"])
+    response.delete_cookie(REFRESH_COOKIE, path="/", samesite=cookie_options["samesite"])
+    response.delete_cookie(CSRF_COOKIE, path="/", samesite=cookie_options["samesite"])
     return _mark_partitioned_local_cookies(response)
 
 

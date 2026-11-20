@@ -49,10 +49,10 @@ describe("offline attendance queue", () => {
   });
 
   it("queues a student camera-free code once per open service", () => {
-    expect(queueStudentAttendanceCode("session-1", "10425831")).toBe(true);
-    expect(queueStudentAttendanceCode("session-1", "10425831")).toBe(false);
+    expect(queueStudentAttendanceCode("session-1", "104258")).toBe(true);
+    expect(queueStudentAttendanceCode("session-1", "104258")).toBe(false);
     expect(readPendingAttendance()).toEqual([
-      expect.objectContaining({ kind: "student-code", sessionId: "session-1", code: "10425831" }),
+      expect.objectContaining({ kind: "student-code", sessionId: "session-1", code: "104258" }),
     ]);
   });
 

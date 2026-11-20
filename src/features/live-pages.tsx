@@ -45,7 +45,7 @@ import {
   useToast,
 } from "../components/ui";
 import { ApiError } from "../lib/api";
-import { downloadBrandedCsv, downloadCsv } from "../lib/export";
+import { downloadPdf } from "../lib/export";
 import { BRAND_ASSETS } from "../lib/brand-assets";
 import {
   ATTENDANCE_QUEUE_EVENT,
@@ -241,6 +241,7 @@ export function LiveMembersPage() {
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
   });
   const [createOpen, setCreateOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [selected, setSelected] = useState<Member | null>(null);
   const toast = useToast();
   const client = useQueryClient();
@@ -327,6 +328,20 @@ export function LiveMembersPage() {
       status: "active",
     });
   }
+  async function exportMembers() {
+    setExporting(true);
+    try {
+      if (isDjangoBackend) {
+        await memberService.exportPdf({ search: queryText, status: params.status, academic_level: params.academic_level });
+      } else {
+        await downloadPdf("chapelflow-members.pdf", rows as unknown as Record<string, unknown>[], { title: "Member directory" });
+      }
+    } catch (error) {
+      toast(message(error), "error");
+    } finally {
+      setExporting(false);
+    }
+  }
   return (
     <>
       <PageHeader
@@ -339,14 +354,10 @@ export function LiveMembersPage() {
               variant="secondary"
               icon={<Download />}
               disabled={!rows.length}
-              onClick={() =>
-                downloadCsv(
-                  "chapelflow-members.csv",
-                  rows as unknown as Record<string, unknown>[],
-                )
-              }
+              loading={exporting}
+              onClick={() => void exportMembers()}
             >
-              Export
+              Download all members PDF
             </Button>
             {canWrite && !isDjangoBackend && (
               <Button icon={<Plus />} onClick={() => setCreateOpen(true)}>
@@ -382,12 +393,13 @@ export function LiveMembersPage() {
                   missed_service_date: date,
                   monthly_attendance: student.attendance_percentage == null ? "Not available" : `${student.attendance_percentage}%`,
                 })));
-                downloadBrandedCsv(
-                  `chrisland-chapel-sunday-absentees-${report.month}.csv`,
-                  `Sunday service absentees · ${report.month}`,
-                  `Generated ${new Date().toLocaleString("en-NG", { timeZone: "Africa/Lagos" })} · ${absentRows.length} missed-service records`,
-                  new URL(BRAND_ASSETS.institutionLogo, window.location.origin).href,
-                  [
+                void downloadPdf(
+                  `chrisland-chapel-sunday-absentees-${report.month}.pdf`,
+                  absentRows,
+                  {
+                    title: `Sunday service absentees · ${report.month}`,
+                    subtitle: `${absentRows.length} missed-service records`,
+                    columns: [
                     { key: "name", label: "Student name" },
                     { key: "student_id", label: "Student ID" },
                     { key: "academic_level", label: "Academic level" },
@@ -396,11 +408,11 @@ export function LiveMembersPage() {
                     { key: "phone", label: "Phone" },
                     { key: "missed_service_date", label: "Missed Sunday service" },
                     { key: "monthly_attendance", label: "Monthly attendance" },
-                  ],
-                  absentRows,
+                    ],
+                  },
                 );
               }}
-            >Download Sunday absentees CSV</Button>
+            >Download Sunday absentees PDF</Button>
           </div>
           {!!monthlyReport.data?.sunday_absentees.length && (
             <div className="attendance-absence-list">
@@ -1917,9 +1929,10 @@ function LiveModuleOperationsPage({
               icon={<Download />}
               disabled={!rows.length}
               onClick={() =>
-                downloadCsv(
-                  "chapelflow-audit.csv",
+                void downloadPdf(
+                  "chapelflow-audit.pdf",
                   rows as unknown as Record<string, unknown>[],
+                  { title: "Audit log" },
                 )
               }
             >
@@ -2792,9 +2805,10 @@ export function LiveAnalyticsPage() {
               variant="secondary"
               icon={<Download />}
               onClick={() =>
-                downloadCsv(
-                  "chapelflow-analytics.csv",
+                void downloadPdf(
+                  "chapelflow-analytics.pdf",
                   query.data.metrics as unknown as Record<string, unknown>[],
+                  { title: "Chapel insights" },
                 )
               }
             >

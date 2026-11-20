@@ -3,7 +3,7 @@ import { ExternalLink, Plus, RotateCcw, Save, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Badge, Button, ErrorState, LoadingState, Modal, PageHeader, useToast } from "../../components/ui";
 import { ApiError } from "../../lib/api";
-import { downloadCsv } from "../../lib/export";
+import { downloadPdf } from "../../lib/export";
 import {
   DEFAULT_HOMEPAGE,
   UNIT_ICONS,
@@ -615,8 +615,6 @@ function GeneralTab({ draft, set, errors }: { draft: HomepageContent; set: (patc
 
 /* ------------------------------ Sign-ups tab ----------------------------- */
 
-const csvSafe = (value: string) => (/^[=+\-@\t\r]/.test(value) ? `'${value}` : value);
-
 function SignupsTab() {
   const client = useQueryClient();
   const toast = useToast();
@@ -653,10 +651,10 @@ function SignupsTab() {
           variant="secondary"
           disabled={!rows.length}
           onClick={() =>
-            downloadCsv("homepage-signups.csv", rows.map((r) => ({ Type: r.kind === "EVENT" ? "Event" : "Ministry", Programme: csvSafe(r.itemTitle), Name: csvSafe(r.name), Email: csvSafe(r.email), "Matric no.": csvSafe(r.matricNo), Status: r.status, Submitted: r.createdAt })))
+            void downloadPdf("homepage-signups.pdf", rows.map((r) => ({ Type: r.kind === "EVENT" ? "Event" : "Ministry", Programme: r.itemTitle, Name: r.name, Email: r.email, "Matric no.": r.matricNo, Status: r.status, Submitted: r.createdAt })), { title: "Homepage sign-ups" })
           }
         >
-          Export CSV
+          Export PDF
         </Button>
       </div>
       {list.isPending ? (

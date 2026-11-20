@@ -52,7 +52,7 @@ export function UsherCheckpointQr({ compact = false, expectedSessionId }: { comp
       <div className="usher-checkpoint__status"><Wifi /> Live checkpoint</div>
       <p className="eyebrow">{data.checkpoint_name}</p>
       <h2>{data.session.label || "Chapel service attendance"}</h2>
-      {!compact && <p>Students can scan the QR or enter its matching 8-digit code. Both are unique to this checkpoint and expire every 20 seconds.</p>}
+      {!compact && <p>Students can scan the QR or enter its matching 6-digit code. Both are unique to this checkpoint and expire every 20 seconds.</p>}
       <p><strong>{data.successful_scans}</strong> successful scans at this checkpoint</p>
       {data.session.window_closes_at && <p>Attendance window closes {new Date(data.session.window_closes_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}.</p>}
       <div className="usher-checkpoint__qr">
@@ -61,7 +61,7 @@ export function UsherCheckpointQr({ compact = false, expectedSessionId }: { comp
       <div className="usher-checkpoint__manual-code" aria-label="Camera-free attendance code">
         <small>Camera-free student code</small>
         <strong aria-live="polite" aria-atomic="true">{data.code}</strong>
-        <span>Enter this 8-digit code in ChapelFlow. It rotates with the QR.</span>
+        <span>Enter this 6-digit code in ChapelFlow. It rotates with the QR.</span>
       </div>
       <strong className="usher-checkpoint__countdown"><Clock3 /> Refreshes in {secondsLeft}s</strong>
       <small>Token rotation: {data.rotation_seconds}s</small>

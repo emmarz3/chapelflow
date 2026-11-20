@@ -38,7 +38,7 @@ class UsherQrAttendanceTests(TestCase):
     def test_usher_qr_and_manual_code_share_a_twenty_second_rotation(self):
         issued = issue_checkpoint_token(self.checkpoint)
         self.assertEqual(issued["rotation_seconds"], 20)
-        self.assertRegex(issued["code"], r"^\d{8}$")
+        self.assertRegex(issued["code"], r"^\d{6}$")
 
     def test_student_can_record_attendance_with_the_rotating_code(self):
         issued = issue_checkpoint_token(self.checkpoint)

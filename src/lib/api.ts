@@ -294,3 +294,22 @@ export const api = {
     apiRequest<T>(path, { method: "PATCH", body: JSON.stringify(body) }),
   delete: <T>(path: string) => apiRequest<T>(path, { method: "DELETE" }),
 };
+
+export async function downloadAuthenticatedPdf(path: string, filename: string) {
+  const request = () => fetch(`${API_BASE_URL}${path}`, {
+    credentials: "include",
+    headers: { Accept: "application/pdf" },
+  });
+  let response = await request();
+  if (response.status === 401 && await refreshSession()) response = await request();
+  if (!response.ok || !response.headers.get("Content-Type")?.includes("application/pdf")) {
+    throw new ApiError({ code: "EXPORT_FAILED", message: "The PDF could not be downloaded. Please try again.", status: response.status });
+  }
+  const url = URL.createObjectURL(await response.blob());
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.rel = "noopener";
+  anchor.click();
+  window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}

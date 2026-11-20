@@ -108,7 +108,7 @@ export function StudentAttendancePassPage() {
       <PageHeader
         eyebrow="Student attendance"
         title="My Chapel Pass"
-        description="Scan the live usher QR or enter its rotating 8-digit code if your camera is unavailable."
+        description="Scan the live usher QR or enter its rotating 6-digit code if your camera is unavailable."
       />
       <section className="chapel-pass">
         {message?.tone === "success" && (
@@ -196,8 +196,8 @@ export function StudentAttendancePassPage() {
             event.preventDefault();
             const code = manualToken.trim();
             const sessionId = pass.data.session?.id;
-            if (!/^\d{8}$/.test(code) || !sessionId) {
-              setMessage({ tone: "danger", text: sessionId ? "Enter the 8-digit code shown by your usher." : "There is no open attendance session." });
+            if (!/^\d{6}$/.test(code) || !sessionId) {
+              setMessage({ tone: "danger", text: sessionId ? "Enter the 6-digit code shown by your usher." : "There is no open attendance session." });
               return;
             }
             setMessage(null);
@@ -215,26 +215,26 @@ export function StudentAttendancePassPage() {
         >
           <div className="chapel-pass__recovery-heading">
             <strong>Can’t scan the QR?</strong>
-            <span>Enter the 8-digit code displayed by the usher. It refreshes every 20 seconds.</span>
+            <span>Enter the 6-digit code displayed by the usher. It refreshes every 20 seconds.</span>
           </div>
           <label>
             Usher attendance code
             <input
               value={manualToken}
-              onChange={(event) => setManualToken(event.target.value.replace(/\D/g, "").slice(0, 8))}
-              placeholder="00000000"
+              onChange={(event) => setManualToken(event.target.value.replace(/\D/g, "").slice(0, 6))}
+              placeholder="000000"
               inputMode="numeric"
-              pattern="[0-9]{8}"
-              maxLength={8}
+              pattern="[0-9]{6}"
+              maxLength={6}
               autoComplete="off"
-              aria-label="8-digit usher attendance code"
+              aria-label="6-digit usher attendance code"
             />
           </label>
           <Button
             variant="secondary"
             icon={<Clipboard />}
             type="submit"
-            disabled={scan.isPending || submitCode.isPending || manualToken.length !== 8 || !pass.data.session}
+            disabled={scan.isPending || submitCode.isPending || manualToken.length !== 6 || !pass.data.session}
           >
             Submit code
           </Button>

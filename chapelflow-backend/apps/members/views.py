@@ -3,6 +3,8 @@ from common.viewsets import StandardModelViewSet
 from rest_framework.decorators import action
 from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.throttling import ScopedRateThrottle
+from django.http import HttpResponse
+from django.utils import timezone
 
 from common.constants.roles import PermissionCodes
 from common.permissions.rbac import HasRolePermission
@@ -48,6 +50,7 @@ class MemberViewSet(BranchScopedQuerysetMixin, StandardModelViewSet):
     #      (import_csv / MEMBERS_IMPORT), never the normal admin flow.
     permission_action_map = {
         "list": PermissionCodes.MEMBERS_VIEW,
+        "export_pdf": PermissionCodes.MEMBERS_VIEW,
         "retrieve": PermissionCodes.MEMBERS_VIEW,
         "update": PermissionCodes.MEMBERS_UPDATE,
         "partial_update": PermissionCodes.MEMBERS_UPDATE,
@@ -76,6 +79,70 @@ class MemberViewSet(BranchScopedQuerysetMixin, StandardModelViewSet):
         return Member.objects.select_related(
             "branch", "household", "college", "department", "fellowship"
         ).prefetch_related("tags", "qr_code")
+
+    @action(detail=False, methods=["get"], url_path="export-pdf")
+    def export_pdf(self, request):
+        """Export every filtered, authorized member rather than the current page."""
+        import io
+        from xml.sax.saxutils import escape
+
+        from reportlab.lib import colors
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib.styles import ParagraphStyle
+        from reportlab.platypus import KeepTogether, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+
+        members = self.filter_queryset(self.get_queryset()).select_related("user", "branch", "college", "department", "fellowship").order_by("last_name", "first_name", "id")
+        count = members.count()
+        output = io.BytesIO()
+        title_style = ParagraphStyle("Title", fontName="Helvetica-Bold", fontSize=18, leading=22, textColor=colors.HexColor("#422663"), spaceAfter=7)
+        meta_style = ParagraphStyle("Meta", fontName="Helvetica", fontSize=9, leading=13, textColor=colors.HexColor("#555068"))
+        name_style = ParagraphStyle("Name", fontName="Helvetica-Bold", fontSize=11, leading=15, textColor=colors.HexColor("#292136"))
+        label_style = ParagraphStyle("Label", fontName="Helvetica-Bold", fontSize=8, leading=11, textColor=colors.HexColor("#594f68"))
+        value_style = ParagraphStyle("Value", fontName="Helvetica", fontSize=8, leading=11, wordWrap="CJK")
+        doc = SimpleDocTemplate(output, pagesize=A4, leftMargin=42, rightMargin=42, topMargin=48, bottomMargin=48,
+                                title="ChapelFlow Member Directory", author="Chrisland University Chapel")
+        story = [
+            Paragraph("CHRISLAND UNIVERSITY CHAPEL", title_style),
+            Paragraph("Member directory", name_style),
+            Paragraph(f"Generated {timezone.now():%d %b %Y, %H:%M UTC}  |  {count} member records  |  Authorized scope and selected filters", meta_style),
+            Spacer(1, 18),
+        ]
+
+        for index, member in enumerate(members.iterator(chunk_size=200), 1):
+            fields = [
+                ("Member ID", member.id), ("Student / matric number", member.user.matric_no if member.user_id else ""),
+                ("Email", member.email), ("Phone", member.phone_number),
+                ("Status", member.get_membership_status_display()), ("Community", member.get_community_display()),
+                ("Academic level", member.academic_level), ("Gender", member.get_gender_display() if member.gender else ""),
+                ("College", member.college.name if member.college_id else ""),
+                ("Department", member.department.name if member.department_id else ""),
+                ("Fellowship", member.fellowship.name if member.fellowship_id else ""),
+                ("Branch", member.branch.name if member.branch_id else ""),
+                ("Date of birth", member.date_of_birth), ("Membership date", member.membership_date),
+                ("Other names", member.other_names), ("Address", member.address),
+                ("Emergency contact", member.emergency_contact_name), ("Emergency phone", member.emergency_contact_phone),
+            ]
+            table = Table([[Paragraph(escape(label), label_style), Paragraph(escape(str(value if value not in (None, "") else "—")), value_style)] for label, value in fields], colWidths=[132, 378], hAlign="LEFT")
+            table.setStyle(TableStyle([
+                ("VALIGN", (0, 0), (-1, -1), "TOP"), ("ROWBACKGROUNDS", (0, 0), (-1, -1), [colors.white, colors.HexColor("#f6f2f9")]),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 4), ("TOPPADDING", (0, 0), (-1, -1), 4),
+                ("LINEBELOW", (0, -1), (-1, -1), 0.5, colors.HexColor("#d5c8df")),
+            ]))
+            story.append(KeepTogether([Paragraph(f"{index}. {escape(member.full_name)}", name_style), table, Spacer(1, 15)]))
+        if not count:
+            story.append(Paragraph("No members match the selected filters.", meta_style))
+
+        def footer(canvas, document):
+            canvas.setFont("Helvetica", 8)
+            canvas.setFillColor(colors.HexColor("#6b6074"))
+            canvas.drawString(42, 26, "ChapelFlow  •  Confidential member directory")
+            canvas.drawRightString(A4[0] - 42, 26, f"Page {document.page}")
+
+        doc.build(story, onFirstPage=footer, onLaterPages=footer)
+        response = HttpResponse(output.getvalue(), content_type="application/pdf")
+        response["Content-Disposition"] = 'attachment; filename="chapelflow-members.pdf"'
+        response["Cache-Control"] = "private, no-store"
+        return response
 
     def _apply_leader_scope(self, qs, user):
         """

@@ -64,10 +64,10 @@ def issue_checkpoint_token(checkpoint: AttendanceCheckpoint) -> dict:
 
 
 def _checkpoint_code(checkpoint: AttendanceCheckpoint, slot: int) -> str:
-    """Derive a non-PII, eight-digit code tied to one usher/session/time slot."""
+    """Derive a non-PII, six-digit code tied to one usher/session/time slot."""
     value = f"{checkpoint.id}:{checkpoint.session_id}:{slot}"
     digest = salted_hmac(QR_CODE_SALT, value).hexdigest()
-    return str(int(digest[:16], 16) % 100_000_000).zfill(8)
+    return str(int(digest[:16], 16) % 1_000_000).zfill(6)
 
 
 def _resolve_checkpoint_code(session: AttendanceSession, code: str, slot: int):

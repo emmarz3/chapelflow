@@ -1,4 +1,4 @@
-import { API_BASE_URL, api } from "../lib/api";
+import { API_BASE_URL, api, downloadAuthenticatedPdf } from "../lib/api";
 import { isDemoMode } from "../lib/fixtures";
 import type {
   AttendanceRecord,
@@ -792,6 +792,13 @@ export const careService = {
 export const memberService = {
   list: (params: QueryParams) =>
     api.get<PagedResponse<Member>>(`/members${queryString(params)}`),
+  exportPdf: (params: { search?: string; status?: string; academic_level?: string }) => {
+    const search = new URLSearchParams();
+    if (params.search) search.set("search", params.search);
+    if (params.status) search.set("membership_status", params.status.toUpperCase());
+    if (params.academic_level) search.set("academic_level", params.academic_level);
+    return downloadAuthenticatedPdf(`/members/export-pdf/${search.size ? `?${search}` : ""}`, "chapelflow-members.pdf");
+  },
   create: (payload: Partial<Member>) =>
     api.post<{ data: Member }>("/members", payload),
   update: (id: string, payload: Partial<Member>) =>

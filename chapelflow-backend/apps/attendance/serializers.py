@@ -146,7 +146,7 @@ class StudentUsherScanSerializer(serializers.Serializer):
 
 class StudentUsherCodeSerializer(serializers.Serializer):
     session_id = serializers.UUIDField()
-    code = serializers.RegexField(r"^\d{8}$")
+    code = serializers.RegexField(r"^\d{6}$")
 
 
 class StudentUsherCodeSyncSerializer(StudentUsherCodeSerializer):

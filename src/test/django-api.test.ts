@@ -399,7 +399,7 @@ describe("Django API integration", () => {
       token: "signed-live-token",
       expires_at: "2026-10-04T09:00:20Z",
       rotation_seconds: 20,
-      code: "10425831",
+      code: "104258",
       checkpoint_id: "checkpoint-1",
       checkpoint_name: "Main Chapel",
       successful_scans: 3,
@@ -408,9 +408,23 @@ describe("Django API integration", () => {
     vi.stubGlobal("fetch", fetch);
 
     await expect(apiRequest("/attendance/checkpoint/token")).resolves.toMatchObject({
-      data: { token: "signed-live-token", code: "10425831", rotation_seconds: 20, successful_scans: 3, session: { id: "session-1" } },
+      data: { token: "signed-live-token", code: "104258", rotation_seconds: 20, successful_scans: 3, session: { id: "session-1" } },
     });
     expect(fetch.mock.calls[0]?.[0]).toBe("/api/v1/attendance/checkpoint/token/");
+  });
+
+  it("routes the student attendance code and queued sync to Django", async () => {
+    const fetch = vi.fn().mockImplementation(() => Promise.resolve(response({ data: { result: "recorded", record: { id: "record-1" } } }, 201)));
+    vi.stubGlobal("fetch", fetch);
+    await apiRequest("/attendance/student-code/", { method: "POST", body: JSON.stringify({ session_id: "session-1", code: "104258" }) });
+    await apiRequest("/attendance/student-code-sync/", { method: "POST", body: JSON.stringify({ session_id: "session-1", code: "104258", checked_in_at: "2026-11-20T10:00:00Z", client_record_id: "offline-1" }) });
+    expect(fetch.mock.calls.map(([url]) => url)).toEqual([
+      "/api/v1/attendance/student-code/",
+      "/api/v1/attendance/student-code-sync/",
+    ]);
+    expect(JSON.parse(String(fetch.mock.calls[1]?.[1]?.body))).toEqual({
+      session_id: "session-1", code: "104258", checked_in_at: "2026-11-20T10:00:00Z", client_record_id: "offline-1",
+    });
   });
 
   it("maps kiosk identity QR check-in to the staff QR endpoint", async () => {

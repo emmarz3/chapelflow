@@ -35,7 +35,7 @@ class ReportJob(models.Model):
             ("VOLUNTEERS", "Volunteers"),
         ],
     )
-    export_format = models.CharField(max_length=10, choices=ReportExportFormat.choices, default=ReportExportFormat.CSV)
+    export_format = models.CharField(max_length=10, choices=ReportExportFormat.choices, default=ReportExportFormat.PDF)
     filters = models.JSONField(default=dict, blank=True)
     status = models.CharField(max_length=10, choices=ReportJobStatus.choices, default=ReportJobStatus.QUEUED)
     progress = models.PositiveSmallIntegerField(default=0)
