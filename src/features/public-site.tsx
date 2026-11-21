@@ -50,6 +50,7 @@ import { KJV_DAILY_VERSES } from "../lib/daily-verses";
 import { homepageService, publicService } from "../services/chapelflow";
 import type { EventSummary } from "../types/domain";
 import { LivePublicDetailPage, LivePublicPage } from "./live-public";
+import "./mobile-menu.css";
 
 const publicNav = [
   ["About", "/about"],
@@ -128,13 +129,6 @@ export function PublicLayout() {
           <div className="mobile-menu__brand">
             <PublicWordmark />
           </div>
-          <nav className="mobile-menu__links" aria-label="Primary">
-            {publicNav.map(([label, path]) => (
-              <Link onClick={() => setOpen(false)} key={path} to={path}>
-                {label}
-              </Link>
-            ))}
-          </nav>
           {!loading && (
             <div className="mobile-menu__auth">
               {user ? (
@@ -144,17 +138,26 @@ export function PublicLayout() {
                 </Link>
               ) : (
                 <>
-                  <p className="mobile-menu__auth-prompt">New to ChapelFlow?</p>
-                  <Link onClick={() => setOpen(false)} className="button button--primary mobile-menu__create" to="/register">
-                    Create account <ArrowRight size={16} />
-                  </Link>
-                  <Link onClick={() => setOpen(false)} className="mobile-menu__signin" to="/login">
-                    Already have an account? Sign in
-                  </Link>
+                  <p className="mobile-menu__auth-prompt">Your ChapelFlow account</p>
+                  <div className="mobile-menu__auth-actions">
+                    <Link onClick={() => setOpen(false)} className="mobile-menu__signin" to="/login">
+                      Sign in
+                    </Link>
+                    <Link onClick={() => setOpen(false)} className="button button--primary mobile-menu__create" to="/register">
+                      Register <ArrowRight size={16} />
+                    </Link>
+                  </div>
                 </>
               )}
             </div>
           )}
+          <nav className="mobile-menu__links" aria-label="Primary">
+            {publicNav.map(([label, path]) => (
+              <Link onClick={() => setOpen(false)} key={path} to={path}>
+                {label}
+              </Link>
+            ))}
+          </nav>
         </div>
       )}
       <main id="main-content" ref={mainRef}>
