@@ -550,3 +550,21 @@ disposable) database. Before shipping to real users:
 ## Environment variables
 
 See `.env.example` for the full list with defaults. Never commit a real `.env`.
+# Super Admin data controls
+
+The **Institutional accounts** dashboard includes a searchable directory for
+one-time password replacement and deletion of an individual account, its linked
+member profile, and its Upper Room posts. Account deletion requires the Super
+Admin's current password, a confirmed authenticator code, and the exact account
+identifier. Financial, audit, and shared public records remain for integrity;
+external uploaded files are not automatically removed.
+
+The separate **Fresh start** action previews database record counts, then
+requires a fresh password, authenticator code, exact confirmation phrase, and
+acknowledgement of a restorable backup within five minutes. It flushes the
+application database and restores only the Super Admin identity and MFA device,
+the role catalog, and the standard chapel configuration. It rotates the
+Super Admin's internal ID, invalidating existing JWT sessions. It does not
+delete Cloudinary/S3 objects, external payment records, or backups. Never run
+it to remove a single demo account; use the individual account action instead.
+
