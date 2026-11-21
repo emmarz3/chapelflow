@@ -142,6 +142,10 @@ describe("authentication recovery flows", () => {
     await user.type(screen.getByLabelText(/last name/i), "Okafor");
     await user.type(screen.getByLabelText(/matric number/i), "CU/26/101");
     await user.click(screen.getByRole("button", { name: /continue/i }));
+    const programme = await screen.findByLabelText(/school programme or department/i);
+    expect(screen.getByRole("option", { name: "Nursing Science" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Law" })).toBeInTheDocument();
+    await user.selectOptions(programme, "Software Engineering");
     await user.selectOptions(
       await screen.findByLabelText(/academic level/i),
       "300",
@@ -165,6 +169,7 @@ describe("authentication recovery flows", () => {
     expect(JSON.parse(String(request.body))).toMatchObject({
       academic_level: "300",
       community: "STUDENT",
+      programme: "Software Engineering",
     });
   });
 });

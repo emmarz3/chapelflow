@@ -34,5 +34,7 @@ class Command(BaseCommand):
             },
         )
         ensure_standard_chapel_groups(branch)
+        from apps.university.catalog import ensure_chrisland_programmes
+        ensure_chrisland_programmes()
         User.objects.filter(role="SUPER_ADMIN", branch__isnull=True).update(branch=branch)
         self.stdout.write(self.style.SUCCESS("Chrisland University Chapel and its Fellowship/Unit catalog are ready."))

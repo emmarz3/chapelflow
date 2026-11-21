@@ -215,6 +215,7 @@ describe("Django API integration", () => {
         phone: "",
         memberType: "Student",
         level: "600",
+        programme: "Software Engineering",
         acceptedPolicies: true,
       }),
     });
@@ -224,6 +225,7 @@ describe("Django API integration", () => {
       matric_no: "SWE/2026/001",
       community: "STUDENT",
       academic_level: "600",
+      programme: "Software Engineering",
     });
   });
 

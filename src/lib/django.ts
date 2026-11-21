@@ -395,7 +395,7 @@ export async function djangoRequest(
         phone_number: body.phone,
         community,
         ...(community === "STUDENT"
-          ? { matric_no: body.identifier, academic_level: body.level }
+          ? { matric_no: body.identifier, academic_level: body.level, programme: body.programme }
           : {}),
       }),
     );
