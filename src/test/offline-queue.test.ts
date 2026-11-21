@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import {
   flushPendingAttendance,
   queueAttendanceCheckIn,
+  queueOfflineQrScan,
   readPendingAttendance,
   removePendingAttendance,
 } from "../lib/offline-queue";
@@ -32,6 +33,13 @@ describe("offline attendance queue", () => {
     expect(readPendingAttendance()).toHaveLength(1);
     expect(window.localStorage.getItem("chapelflow-pending-attendance")).toBeNull();
     expect(window.sessionStorage.getItem("chapelflow-pending-attendance")).not.toBeNull();
+  });
+
+  it("queues an usher identity QR only once per service", () => {
+    const scan = { sessionId: "session-1", branchId: "branch-1", usherId: "usher-1", token: "identity-token", grant: "signed-grant" };
+    expect(queueOfflineQrScan(scan)).toBe(true);
+    expect(queueOfflineQrScan(scan)).toBe(false);
+    expect(readPendingAttendance()).toEqual([expect.objectContaining({ method: "qr", memberIdentifier: "identity-token", grant: "signed-grant" })]);
   });
 
   it("removes a check-in after reconciliation", () => {

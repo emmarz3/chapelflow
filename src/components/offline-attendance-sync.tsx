@@ -16,6 +16,12 @@ export function OfflineAttendanceSync() {
     const synchronize = async () => {
       if (!navigator.onLine) return;
       const result = await flushPendingAttendance(async (item) => {
+        if (item.method === "qr") {
+          if (!item.grant || item.usherId !== user.id)
+            throw new Error("Sign in as the usher who scanned this pass to synchronize it.");
+          await attendanceService.syncOfflineQr({ ...item, grant: item.grant });
+          return;
+        }
         if (item.memberIdentifier && item.method) {
           await attendanceService.syncOffline({
             id: item.id,

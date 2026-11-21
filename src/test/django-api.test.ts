@@ -394,6 +394,20 @@ describe("Django API integration", () => {
     });
   });
 
+  it("sends an usher's offline QR directly for server-side identity validation", async () => {
+    const fetch = vi.fn().mockResolvedValue(response({ data: { result: "recorded" } }));
+    vi.stubGlobal("fetch", fetch);
+    await apiRequest("/attendance/offline-usher-scan", {
+      method: "POST",
+      body: JSON.stringify({ clientRecordId: "scan-1", sessionId: "service-1", token: "student-qr", grant: "signed-grant", checkedInAt: "2026-11-21T10:00:00Z" }),
+    });
+    expect(fetch.mock.calls[0]![0]).toBe("/api/v1/attendance/offline-usher-scan/");
+    expect(JSON.parse(fetch.mock.calls[0]![1].body)).toEqual({
+      client_record_id: "scan-1", session_id: "service-1", token: "student-qr",
+      grant: "signed-grant", checked_in_at: "2026-11-21T10:00:00Z",
+    });
+  });
+
   it("loads the logged-in usher checkpoint token from its dedicated endpoint", async () => {
     const fetch = vi.fn().mockResolvedValue(response({ data: {
       token: "signed-live-token",

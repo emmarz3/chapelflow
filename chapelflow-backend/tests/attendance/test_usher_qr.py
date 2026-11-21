@@ -7,9 +7,9 @@ from rest_framework.test import APIClient
 
 from apps.accounts.models import User
 from apps.events.models import Event, EventSchedule
-from apps.attendance.models import AttendanceCheckpoint, AttendanceRecord, AttendanceSession, AttendanceSessionState
-from apps.attendance.services import AttendanceError, issue_checkpoint_token, student_scan_usher_token, student_submit_checkpoint_code
-from apps.members.models import CommunityClassification, Member
+from apps.attendance.models import AttendanceCheckpoint, AttendanceMethod, AttendanceRecord, AttendanceSession, AttendanceSessionState, AttendanceStatus
+from apps.attendance.services import AttendanceError, issue_checkpoint_token, issue_offline_usher_grant, student_scan_usher_token, student_submit_checkpoint_code
+from apps.members.models import CommunityClassification, Member, MemberQRCode
 from apps.organizations.models import Branch, Organization
 from apps.volunteers.models import AssignmentStatus, VolunteerAssignment, VolunteerProfile, VolunteerRole, VolunteerStatus
 from common.constants.roles import Roles
@@ -41,6 +41,38 @@ class UsherQrAttendanceTests(TestCase):
         issued = issue_checkpoint_token(self.checkpoint)
         self.assertEqual(issued["rotation_seconds"], 20)
         self.assertRegex(issued["code"], r"^\d{6}$")
+
+    def test_offline_usher_scan_syncs_once_after_service_closes(self):
+        client = APIClient()
+        client.force_authenticate(self.usher)
+        token = MemberQRCode.objects.create(member=self.student).token
+        grant = issue_offline_usher_grant(self.checkpoint)
+        payload = {"grant": grant, "token": token, "session_id": str(self.session.id),
+                   "client_record_id": "usher-offline-001", "checked_in_at": timezone.now().isoformat()}
+        self.session.is_open = False
+        self.session.state = AttendanceSessionState.CLOSED
+        self.session.save(update_fields=["is_open", "state"])
+        AttendanceRecord.objects.create(session=self.session, member=self.student, method=AttendanceMethod.MANUAL,
+                                        status=AttendanceStatus.ABSENT, checked_in_at=timezone.now())
+        first = client.post("/api/v1/attendance/offline-usher-scan/", payload, format="json")
+        second = client.post("/api/v1/attendance/offline-usher-scan/", payload, format="json")
+        self.assertEqual(first.status_code, 201, first.data)
+        self.assertEqual(second.status_code, 200, second.data)
+        self.assertEqual(AttendanceRecord.objects.filter(session=self.session, member=self.student).count(), 1)
+        self.assertEqual(AttendanceRecord.objects.get(session=self.session, member=self.student).status, AttendanceStatus.PRESENT)
+
+    def test_offline_usher_scan_rejects_other_user_and_backdated_time(self):
+        client = APIClient()
+        token = MemberQRCode.objects.create(member=self.student).token
+        payload = {"grant": issue_offline_usher_grant(self.checkpoint), "token": token,
+                   "session_id": str(self.session.id), "client_record_id": "usher-offline-002",
+                   "checked_in_at": timezone.now().isoformat()}
+        client.force_authenticate(self.student_user)
+        self.assertEqual(client.post("/api/v1/attendance/offline-usher-scan/", payload, format="json").status_code, 400)
+        client.force_authenticate(self.usher)
+        payload["checked_in_at"] = (timezone.now() - timedelta(days=1)).isoformat()
+        self.assertEqual(client.post("/api/v1/attendance/offline-usher-scan/", payload, format="json").status_code, 400)
+        self.assertFalse(AttendanceRecord.objects.filter(session=self.session, member=self.student).exists())
 
     def test_student_can_record_attendance_with_the_rotating_code(self):
         issued = issue_checkpoint_token(self.checkpoint)

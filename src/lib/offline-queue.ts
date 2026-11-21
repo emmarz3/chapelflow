@@ -7,7 +7,9 @@ export type PendingAttendanceCheckIn = PendingAttendanceBase & {
       kind?: "staff";
       branchId?: string;
       memberIdentifier: string;
-      method: "manual" | "kiosk";
+      method: "manual" | "kiosk" | "qr";
+      grant?: string;
+      usherId?: string;
     };
 const STORAGE_KEY = "chapelflow-pending-attendance";
 export const ATTENDANCE_QUEUE_EVENT = "chapelflow:attendance-queue-changed";
@@ -59,6 +61,20 @@ export function queueAttendanceCheckIn(
     kind: "staff",
     id: crypto.randomUUID(),
     createdAt: new Date().toISOString(),
+  });
+  savePendingAttendance(current);
+  return true;
+}
+
+export function queueOfflineQrScan(item: {
+  sessionId: string; branchId: string; token: string; grant: string; usherId: string;
+}) {
+  const current = readPendingAttendance();
+  if (current.some((entry) => entry.sessionId === item.sessionId && entry.memberIdentifier === item.token)) return false;
+  current.push({
+    kind: "staff", method: "qr", sessionId: item.sessionId, branchId: item.branchId,
+    memberIdentifier: item.token, grant: item.grant, usherId: item.usherId,
+    id: crypto.randomUUID(), createdAt: new Date().toISOString(),
   });
   savePendingAttendance(current);
   return true;

@@ -30,6 +30,9 @@ class AttendanceError(Exception):
 QR_ROTATION_SECONDS = 20
 QR_TOKEN_SALT = "chapelflow.attendance.usher.v1"
 QR_CODE_SALT = "chapelflow.attendance.usher-code.v1"
+OFFLINE_USHER_SALT = "chapelflow.attendance.offline-usher.v1"
+OFFLINE_USHER_MAX_AGE = 24 * 60 * 60
+OFFLINE_SCAN_WINDOW = timedelta(hours=4)
 
 
 def _attendance_window_is_open(session: AttendanceSession, now=None) -> bool:
@@ -61,6 +64,77 @@ def issue_checkpoint_token(checkpoint: AttendanceCheckpoint) -> dict:
         "expires_at": datetime.fromtimestamp(expires_epoch, tz=dt_timezone.utc),
         "rotation_seconds": QR_ROTATION_SECONDS,
     }
+
+
+def issue_offline_usher_grant(checkpoint: AttendanceCheckpoint) -> str:
+    if not _attendance_window_is_open(checkpoint.session) or not checkpoint.usher.is_active:
+        raise AttendanceError("Attendance is not currently open.")
+    return signing.dumps({
+        "checkpoint": str(checkpoint.id), "session": str(checkpoint.session_id),
+        "usher": str(checkpoint.usher_id), "branch": str(checkpoint.session.branch_id),
+        "issued": timezone.now().isoformat(),
+    }, salt=OFFLINE_USHER_SALT)
+
+
+def sync_offline_usher_scan(*, user, grant, token, session_id, client_record_id, checked_in_at):
+    """Reconcile an usher's queued identity scan against a pre-issued session grant."""
+    try:
+        payload = signing.loads(grant, salt=OFFLINE_USHER_SALT, max_age=OFFLINE_USHER_MAX_AGE)
+    except signing.BadSignature as exc:
+        raise AttendanceError("Offline scanner grant has expired or is invalid.") from exc
+    if str(user.id) != payload.get("usher") or str(session_id) != payload.get("session"):
+        raise AttendanceError("This offline scanner grant belongs to another usher or service.")
+    checkpoint = AttendanceCheckpoint.objects.select_related("session", "usher").filter(
+        id=payload.get("checkpoint"), session_id=session_id, usher=user,
+        session__branch_id=payload.get("branch"),
+    ).first()
+    if not checkpoint or not user.is_active or not _is_authorized_checkpoint_usher(user):
+        raise AttendanceError("This usher checkpoint is no longer authorized.")
+    issued = datetime.fromisoformat(payload["issued"])
+    now = timezone.now()
+    if not (issued <= checked_in_at <= min(issued + OFFLINE_SCAN_WINDOW, now + timedelta(minutes=2))):
+        raise AttendanceError("Offline scan time is outside the authorized window.")
+    session = checkpoint.session
+    if checked_in_at < session.opened_at or (session.window_closes_at and checked_in_at > session.window_closes_at):
+        raise AttendanceError("Scan time is outside this service's attendance window.")
+    member = resolve_member_from_qr_token(token)
+    if member.branch_id != session.branch_id or not is_student_community_member(member):
+        raise AttendanceError("This identity pass is not for a student in this branch.")
+    if not member.user.is_active or member.membership_status != "ACTIVE":
+        raise AttendanceError("The student account is inactive.")
+    existing = AttendanceRecord.objects.filter(client_record_id=client_record_id).first()
+    if existing:
+        if existing.session_id != session.id or existing.member_id != member.id or existing.checked_in_by_id != user.id:
+            raise AttendanceError("Offline record ID has already been used for another scan.")
+        return existing, False
+    # Closing an event may have generated an ABSENT placeholder before the
+    # usher's device could reconnect. Reconcile it into the verified scan.
+    with transaction.atomic():
+        absent = AttendanceRecord.objects.select_for_update().filter(
+            session=session, member=member, status=AttendanceStatus.ABSENT,
+        ).first()
+        if absent:
+            absent.method = AttendanceMethod.QR_CODE
+            absent.status = AttendanceStatus.PRESENT
+            if session.event_schedule and checked_in_at > session.event_schedule.occurrence_start + timedelta(minutes=LATE_ARRIVAL_GRACE_MINUTES):
+                absent.status = AttendanceStatus.LATE
+            absent.checked_in_at = checked_in_at
+            absent.checked_in_by = user
+            absent.checkpoint = checkpoint
+            absent.client_record_id = client_record_id
+            absent.synced_at = now
+            absent.save(update_fields=["method", "status", "checked_in_at", "checked_in_by", "checkpoint", "client_record_id", "synced_at"])
+            if session.event_schedule:
+                _sync_event_registration_attended(session.event_schedule, member)
+            logger.info("offline_usher_absence_reconciled usher_id=%s session_id=%s member_id=%s", user.id, session.id, member.id)
+            return absent, True
+    record, created = _create_record(
+        session=session, member=member, method=AttendanceMethod.QR_CODE,
+        checked_in_by=user, checkpoint=checkpoint, checked_in_at=checked_in_at,
+        client_record_id=client_record_id, synced_at=now,
+    )
+    logger.info("offline_usher_qr_sync usher_id=%s session_id=%s member_id=%s created=%s", user.id, session.id, member.id, created)
+    return record, created
 
 
 def _checkpoint_code(checkpoint: AttendanceCheckpoint, slot: int) -> str:

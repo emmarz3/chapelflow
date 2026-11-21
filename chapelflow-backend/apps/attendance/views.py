@@ -17,11 +17,11 @@ from common.utils.responses import error_response, success_response
 from .models import AttendanceCheckpoint, AttendanceCorrection, AttendanceRecord, AttendanceScanAttempt, AttendanceSession, AttendanceSessionState, CheckInDevice, VisitorAttendance
 from .serializers import (
     AttendanceRecordSerializer, AttendanceSessionSerializer, CheckInDeviceSerializer,
-    KioskCheckInSerializer, ManualCheckInSerializer, OfflineSyncRequestSerializer, QRCheckInSerializer,
+    KioskCheckInSerializer, ManualCheckInSerializer, OfflineSyncRequestSerializer, OfflineUsherScanSerializer, QRCheckInSerializer,
     StudentUsherCodeSerializer, VisitorAttendanceSerializer,
 )
 from .services import (
-    AttendanceError, issue_checkpoint_token, manual_check_in, qr_check_in,
+    AttendanceError, issue_checkpoint_token, issue_offline_usher_grant, manual_check_in, qr_check_in, sync_offline_usher_scan,
     student_scan_usher_token, student_submit_checkpoint_code, sync_offline_records,
 )
 from common.permissions.rbac import user_has_completed_required_mfa
@@ -442,8 +442,28 @@ class UsherCheckpointTokenView(APIView):
             "checkpoint_name": request.user.full_name or "Attendance checkpoint",
             "successful_scans": AttendanceRecord.objects.filter(checkpoint=checkpoint).count(),
             "session": AttendanceSessionSerializer(session).data,
+            "offline_grant": issue_offline_usher_grant(checkpoint),
             **token,
         })
+
+
+class OfflineUsherScanView(APIView):
+    permission_classes = [IsAuthenticated]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "sync"
+
+    def post(self, request):
+        if not user_has_completed_required_mfa(request.user):
+            return error_response("Set up your authenticator before synchronizing scans.", status=403)
+        serializer = OfflineUsherScanSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            record, created = sync_offline_usher_scan(user=request.user, **serializer.validated_data)
+        except AttendanceError as exc:
+            return error_response(str(exc), status=400)
+        return success_response({"record": AttendanceRecordSerializer(record).data,
+                                 "result": "recorded" if created else "duplicate"},
+                                status=201 if created else 200)
 
 
 class StudentUsherScanView(APIView):

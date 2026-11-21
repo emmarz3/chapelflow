@@ -3,7 +3,7 @@ from rest_framework.routers import DefaultRouter
 
 from .views import (
     AttendanceRecordViewSet, AttendanceScanAttemptViewSet, AttendanceSessionViewSet, CheckInDeviceViewSet,
-    KioskCheckInView, ManualCheckInView, OfflineSyncView, QRCheckInView,
+    KioskCheckInView, ManualCheckInView, OfflineSyncView, OfflineUsherScanView, QRCheckInView,
     MemberAttendanceHistoryView, MemberAttendancePassView, MemberIdentityPassView,
     StudentUsherCodeSyncView, StudentUsherCodeView, StudentUsherScanView, UsherCheckpointTokenView,
     VisitorAttendanceViewSet,
@@ -21,6 +21,7 @@ urlpatterns = [
     path("check-in/", KioskCheckInView.as_view(), name="attendance-kiosk-check-in"),
     path("manual/", ManualCheckInView.as_view(), name="attendance-manual-check-in"),
     path("sync/", OfflineSyncView.as_view(), name="attendance-sync"),
+    path("offline-usher-scan/", OfflineUsherScanView.as_view(), name="attendance-offline-usher-scan"),
     path("pass/", MemberAttendancePassView.as_view(), name="attendance-pass"),
     path("identity-pass/", MemberIdentityPassView.as_view(), name="attendance-identity-pass"),
     path("history/me/", MemberAttendanceHistoryView.as_view(), name="attendance-history-me"),

@@ -132,6 +132,14 @@ class OfflineSyncRequestSerializer(serializers.Serializer):
     records = OfflineSyncRecordSerializer(many=True)
 
 
+class OfflineUsherScanSerializer(serializers.Serializer):
+    grant = serializers.CharField(max_length=2048)
+    token = serializers.CharField(max_length=64)
+    session_id = serializers.UUIDField()
+    client_record_id = serializers.CharField(max_length=64)
+    checked_in_at = serializers.DateTimeField()
+
+
 class SelfCheckInSerializer(serializers.Serializer):
     """
     Phase 7 security enhancement: Self-check-in serializer that does NOT

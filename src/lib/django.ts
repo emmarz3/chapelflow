@@ -893,6 +893,12 @@ export async function djangoRequest(
       throw new Error(str(syncResult?.error || "The backend did not confirm this offline check-in."));
     return { data: syncResult };
   }
+  if (route === "/attendance/offline-usher-scan" && method === "POST") {
+    return call("/attendance/offline-usher-scan/", json("POST", {
+      client_record_id: str(body.clientRecordId), session_id: str(body.sessionId),
+      token: str(body.token), grant: str(body.grant), checked_in_at: str(body.checkedInAt),
+    }));
+  }
   if (route === "/attendance/manual" && method === "POST") {
     const branchId = str(body.branchId);
     const memberResponse = await call(`/members/?branch=${encodeURIComponent(branchId)}&search=${encodeURIComponent(str(body.identifier))}&page_size=100`);

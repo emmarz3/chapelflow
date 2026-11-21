@@ -1,12 +1,15 @@
 import QRCode from "qrcode";
 import { useQuery } from "@tanstack/react-query";
-import { Clock3, LogOut, QrCode, RefreshCw, Wifi } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Camera, Clock3, LogOut, QrCode, RefreshCw, Wifi } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
 import { Brand, Button, ErrorState, LoadingState } from "../components/ui";
+import { queueOfflineQrScan, readPendingAttendance } from "../lib/offline-queue";
+import { useQrScanner } from "../lib/use-qr-scanner";
 import { attendanceService } from "../services/chapelflow";
 import { useAuth } from "./auth-context";
 
 export function UsherCheckpointQr({ compact = false, expectedSessionId }: { compact?: boolean; expectedSessionId?: string }) {
+  const { user } = useAuth();
   const [now, setNow] = useState(Date.now());
   const [image, setImage] = useState("");
   const checkpoint = useQuery({
@@ -31,6 +34,13 @@ export function UsherCheckpointQr({ compact = false, expectedSessionId }: { comp
   }, [data, refetch]);
   useEffect(() => {
     if (!data) return;
+    if (user && data.offline_grant) {
+      window.sessionStorage.setItem(`chapelflow-offline-grant-${user.id}`, JSON.stringify({
+        grant: data.offline_grant, sessionId: data.session.id,
+        branchId: user.branchId,
+        issuedAt: Date.now(),
+      }));
+    }
     let active = true;
     void QRCode.toDataURL(data.token, {
       width: 420,
@@ -40,7 +50,7 @@ export function UsherCheckpointQr({ compact = false, expectedSessionId }: { comp
       .then((url) => { if (active) setImage(url); })
       .catch(() => { if (active) setImage(""); });
     return () => { active = false; };
-  }, [data]);
+  }, [data, user]);
 
   if (isPending) return <LoadingState label="Preparing your secure attendance checkpoint" />;
   if (isError) return <ErrorState description={error.message} onRetry={() => void refetch()} />;
@@ -71,7 +81,42 @@ export function UsherCheckpointQr({ compact = false, expectedSessionId }: { comp
 }
 
 export function UsherAttendancePage() {
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
+  const [scanning, setScanning] = useState(false);
+  const [message, setMessage] = useState("");
+  const [pending, setPending] = useState(0);
+  useEffect(() => {
+    if (!user) return;
+    const refresh = () => setPending(readPendingAttendance().filter((item) => item.method === "qr" && item.usherId === user.id).length);
+    refresh();
+    window.addEventListener("chapelflow:attendance-queue-changed", refresh);
+    return () => window.removeEventListener("chapelflow:attendance-queue-changed", refresh);
+  }, [user]);
+  const onScan = useCallback(async (token: string) => {
+    if (!user || !scanning) return;
+    setScanning(false);
+    const stored = window.sessionStorage.getItem(`chapelflow-offline-grant-${user.id}`);
+    const grant = stored ? JSON.parse(stored) as { grant: string; sessionId: string; branchId: string; issuedAt: number } : null;
+    if (!grant?.grant || !grant.sessionId || !grant.branchId || Date.now() - grant.issuedAt > 4 * 60 * 60 * 1000) {
+      setMessage("Open this page while connected during an active service to prepare the offline scanner.");
+      return;
+    }
+    if (!navigator.onLine) {
+      const queued = queueOfflineQrScan({ token, grant: grant.grant, sessionId: grant.sessionId, branchId: grant.branchId, usherId: user.id });
+      setMessage(queued ? "Identity QR saved. Reconnect with this usher account to synchronize." : "This identity QR is already queued for this service.");
+      return;
+    }
+    try {
+      await attendanceService.qrCheckIn({ token, sessionId: grant.sessionId });
+      setMessage("Student attendance recorded.");
+    } catch (error) {
+      if (!navigator.onLine) {
+        queueOfflineQrScan({ token, grant: grant.grant, sessionId: grant.sessionId, branchId: grant.branchId, usherId: user.id });
+        setMessage("Connection lost. Identity QR saved for synchronization.");
+      } else setMessage(error instanceof Error ? error.message : "Check-in failed.");
+    }
+  }, [scanning, user]);
+  const { videoRef, permissionError } = useQrScanner((token) => { void onScan(token); }, scanning);
   return (
     <main className="usher-checkpoint">
       <header className="usher-checkpoint__header">
@@ -79,6 +124,17 @@ export function UsherAttendancePage() {
         <Button variant="secondary" icon={<LogOut />} onClick={() => void logout()}>Log out</Button>
       </header>
       <UsherCheckpointQr />
+      <section className="usher-checkpoint__card" aria-live="polite">
+        <h2>Scan a student identity pass</h2>
+        <p>Open this page online during the service. If the connection drops, scan students' personal ChapelFlow QR codes here and keep this tab open until they synchronize.</p>
+        <p>{pending} scan{pending === 1 ? "" : "s"} awaiting synchronization on this device.</p>
+        {scanning && <video ref={videoRef} muted playsInline aria-label="Student identity QR scanner camera" className="kiosk__camera" />}
+        {permissionError && <p role="alert">{permissionError}</p>}
+        {message && <p role="status">{message}</p>}
+        <Button icon={<Camera />} onClick={() => { setMessage(""); setScanning((value) => !value); }}>
+          {scanning ? "Stop scanner" : "Scan identity QR"}
+        </Button>
+      </section>
     </main>
   );
 }

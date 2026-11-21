@@ -855,6 +855,11 @@ export const attendanceService = {
         checkedInAt: item.createdAt,
       },
     }),
+  syncOfflineQr: (item: { id: string; sessionId: string; memberIdentifier: string; grant: string; createdAt: string }) =>
+    api.post<{ data: { result: string } }>("/attendance/offline-usher-scan", {
+      clientRecordId: item.id, sessionId: item.sessionId,
+      token: item.memberIdentifier, grant: item.grant, checkedInAt: item.createdAt,
+    }),
   correct: (recordId: string, payload: { status: string; reason: string }) =>
     api.patch<{ data: AttendanceRecord }>(
       `/attendance/records/${encodeURIComponent(recordId)}`,
@@ -893,6 +898,7 @@ export const attendanceService = {
         code: string;
         expires_at: string;
         rotation_seconds: number;
+        offline_grant: string;
         session: { id: string; label: string; state: string; window_opens_at?: string | null; window_closes_at?: string | null };
       };
     }>("/attendance/checkpoint/token"),
