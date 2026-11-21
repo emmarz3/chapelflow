@@ -144,6 +144,19 @@ def test_media_content_validates_required_fields(api_client, make_user, media_au
     assert page.status_code == 201, page.data
 
 
+def test_gallery_album_accepts_optional_slug_and_notes_from_upload_form(api_client, media_author):
+    api_client.force_authenticate(media_author)
+    response = api_client.post("/api/v1/operations/media/", {
+        "title": "Chapel album", "content_type": "GALLERY", "slug": "",
+        "summary": "A chapel gallery album", "detail": "",
+    }, format="json")
+    assert response.status_code == 201, response.data
+    entry = ContentEntry.objects.get(pk=response.data["data"]["id"])
+    assert entry.slug == "chapel-album"
+    assert entry.details == "A chapel gallery album"
+    assert entry.status == ContentStatus.PUBLISHED
+
+
 def test_super_admin_can_publish_and_list_sermons_without_assigned_branch(api_client, super_admin, organization):
     from apps.organizations.models import Branch
 

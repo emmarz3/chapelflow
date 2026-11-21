@@ -1841,7 +1841,16 @@ function LiveModuleOperationsPage({
       delete payload.cover_image_file;
       delete payload.gallery_files;
       const contentType = String(payload.content_type || "");
-      if (contentType === "GALLERY" && galleryFiles.length) {
+      if (contentType === "GALLERY") {
+        if (!galleryFiles.length) {
+          setUploadError("Choose at least one photo or video for the gallery album.");
+          return;
+        }
+        if (!String(payload.slug || "").trim()) {
+          const titleSlug = String(payload.title || "gallery").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 100) || "gallery";
+          payload.slug = `${titleSlug}-${crypto.randomUUID().slice(0, 8)}`;
+        }
+        payload.detail = String(payload.detail || payload.summary || payload.title || "").trim();
         setUploading(true);
         try {
           const uploadedFiles: { file: File; url: string }[] = [];

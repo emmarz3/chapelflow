@@ -787,6 +787,11 @@ class ContentCollectionView(APIView):
         payload["content_type"] = str(payload.get("content_type") or self.default_type).upper()
         payload["details"] = payload.get("details") or payload.get("detail") or ""
         payload["summary"] = payload.get("summary") or payload["details"][:500]
+        if payload["content_type"] == ContentType.GALLERY:
+            if not payload.get("slug"):
+                payload.pop("slug", None)
+            if not payload["details"]:
+                payload["details"] = payload.get("summary") or payload.get("title") or ""
         if "downloadable" in payload:
             metadata = payload.get("metadata") if isinstance(payload.get("metadata"), dict) else {}
             metadata["downloadable"] = str(payload.pop("downloadable")).lower() in {"1", "true", "on", "yes"}
