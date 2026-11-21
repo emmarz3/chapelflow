@@ -18,6 +18,7 @@ interface AuthContextValue {
   loading: boolean;
   authError: string | null;
   retryAuth: () => void;
+  setProfilePhoto: (url: string) => void;
   login: (
     identifier: string,
     password: string,
@@ -92,6 +93,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user,
       loading,
       authError,
+      setProfilePhoto(url) {
+        setUser((current) => current ? { ...current, photoUrl: url } : current);
+      },
       retryAuth() {
         setAuthError(null);
         setLoading(true);

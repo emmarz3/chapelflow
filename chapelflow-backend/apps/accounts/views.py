@@ -797,7 +797,7 @@ class StudentProfileView(APIView):
             "email": request.user.email,
             "phone_number": request.user.phone_number,
             "address": member.address,
-            "photo_url": member.photo_url,
+            "photo_url": request.user.photo_url or member.photo_url,
             "date_of_birth": member.date_of_birth.isoformat() if member.date_of_birth else None,
             "emergency_contact_name": member.emergency_contact_name,
             "emergency_contact_phone": member.emergency_contact_phone,
@@ -836,14 +836,13 @@ class StudentProfileView(APIView):
 
 
 class ProfilePhotoUploadView(APIView):
-    """Stores a member-owned profile image without accepting arbitrary URLs."""
+    """Stores the authenticated account's image, for every role."""
     permission_classes = [IsAuthenticated]
     parser_classes = [MultiPartParser, FormParser]
 
     def post(self, request):
-        member = StudentProfileView()._member(request)
-        if member is None:
-            return error_response("This profile is available only to member accounts.", status=403)
+        from apps.members.models import Member
+        member = Member.objects.filter(user=request.user).first()
         file_obj = request.FILES.get("file")
         if not file_obj:
             return error_response("Choose an image to upload.", status=400)
@@ -854,17 +853,21 @@ class ProfilePhotoUploadView(APIView):
         from django.core.exceptions import ValidationError
         from apps.uploads.models import Upload, UploadCategory
         from apps.uploads.storage import generate_storage_filename, get_storage_service
-        from apps.uploads.validators import validate_upload
+        from apps.uploads.validators import validate_upload, validate_category_content
 
         try:
-            validate_upload(file_obj)
+            validate_upload(file_obj, max_size_mb=10)
+            validate_category_content(file_obj, UploadCategory.MEMBER_PHOTO)
         except ValidationError as exc:
             return error_response(str(exc), status=400)
-        file_url = get_storage_service().upload_bytes(
-            file_obj.read(),
-            generate_storage_filename(file_obj.name, prefix="member-photo"),
-            content_type=file_obj.content_type,
-        )
+        try:
+            file_url = get_storage_service().upload_bytes(
+                file_obj.read(),
+                generate_storage_filename(file_obj.name, prefix="member-photo"),
+                content_type=file_obj.content_type,
+            )
+        except Exception:
+            return error_response("Photo storage is unavailable. Please try again shortly.", status=503)
         with transaction.atomic():
             Upload.objects.create(
                 branch=request.user.branch,
@@ -875,9 +878,12 @@ class ProfilePhotoUploadView(APIView):
                 content_type=file_obj.content_type or "",
                 size_bytes=file_obj.size,
             )
-            member.photo_url = file_url
-            member.save(update_fields=["photo_url", "updated_at"])
-        return StudentProfileView().get(request)
+            request.user.photo_url = file_url
+            request.user.save(update_fields=["photo_url"])
+            if member is not None:
+                member.photo_url = file_url
+                member.save(update_fields=["photo_url", "updated_at"])
+        return success_response({"photo_url": file_url})
 
 
 class PasswordResetRequestView(APIView):

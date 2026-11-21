@@ -121,6 +121,7 @@ function user(value: Row): User {
     id: str(value.id),
     name: name || fallback.name,
     email: str(value.email),
+    photoUrl: str(value.photo_url),
     role: mappedRole,
     roles: [mappedRole],
     permissions,

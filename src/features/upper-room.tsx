@@ -106,7 +106,7 @@ export function UpperRoomPage() {
         <main className="upper-room__main">
           <section className="upper-room__stories" aria-label="Upper Room stories">{storyNames.map((name, index) => <button type="button" key={name} className="upper-room__story"><span className={`upper-room__story-ring upper-room__story-ring--${index % 3}`}><span>{initials(name)}</span></span><small>{name === user?.name ? "Your story" : name.split(" ")[0]}</small></button>)}</section>
           <section className="upper-room__composer panel" aria-label="Create an Upper Room post">
-            <div className="upper-room__avatar" aria-hidden="true">{initials(user?.name || "")}</div>
+            <div className="upper-room__avatar" aria-hidden="true">{user?.photoUrl ? <img src={user.photoUrl} alt="" /> : initials(user?.name || "")}</div>
             <form onSubmit={submit}>
               {user?.role === "super_admin" && <label className="upper-room__branch-picker">Post to chapel branch
                 <select value={selectedBranch} onChange={(event) => setSelectedBranch(event.target.value)} required>
@@ -137,9 +137,9 @@ export function UpperRoomPage() {
             {posts.length ? posts.map((post) => <PostCard key={post.id} post={post} />) : <EmptyState icon={<MessageCircle />} title="The room is ready" description="Be the first person in your chapel community to share a photo, video, or encouraging word." />}
           </section>
         </main>
-        <aside className="upper-room__sidebar"><div className="upper-room__profile"><div className="upper-room__avatar">{initials(user?.name || "")}</div><div><strong>{user?.name || "Chapel member"}</strong><small>Chrisland University Chapel</small></div><button type="button">Switch</button></div><div className="upper-room__suggestions"><header><strong>Suggested for you</strong><button type="button">See all</button></header><p>Follow the moments and people making chapel life meaningful.</p><span><Sparkles /> Share with care. Keep the grace.</span></div></aside>
+        <aside className="upper-room__sidebar"><div className="upper-room__profile"><div className="upper-room__avatar">{user?.photoUrl ? <img src={user.photoUrl} alt="" /> : initials(user?.name || "")}</div><div><strong>{user?.name || "Chapel member"}</strong><small>Chrisland University Chapel</small></div><button type="button">Switch</button></div><div className="upper-room__suggestions"><header><strong>Suggested for you</strong><button type="button">See all</button></header><p>Follow the moments and people making chapel life meaningful.</p><span><Sparkles /> Share with care. Keep the grace.</span></div></aside>
       </div>
-      <nav className="upper-room__mobile-nav" aria-label="Upper Room mobile navigation"><button type="button" aria-label="Home"><Home /></button><button type="button" aria-label="Search"><Search /></button><button type="button" aria-label="Create a post" onClick={() => document.getElementById("upper-room-caption")?.focus()}><PlusSquare /></button><button type="button" aria-label="Notifications"><Heart /></button><span className="upper-room__avatar" aria-hidden="true">{initials(user?.name || "")}</span></nav>
+      <nav className="upper-room__mobile-nav" aria-label="Upper Room mobile navigation"><button type="button" aria-label="Home"><Home /></button><button type="button" aria-label="Search"><Search /></button><button type="button" aria-label="Create a post" onClick={() => document.getElementById("upper-room-caption")?.focus()}><PlusSquare /></button><button type="button" aria-label="Notifications"><Heart /></button><span className="upper-room__avatar" aria-hidden="true">{user?.photoUrl ? <img src={user.photoUrl} alt="" /> : initials(user?.name || "")}</span></nav>
     </div>
   );
 }

@@ -40,7 +40,7 @@ class StudentProfileTests(TestCase):
         self.assertEqual(self.member.date_of_birth, birthday)
 
         with TemporaryDirectory() as media_root, override_settings(MEDIA_ROOT=media_root):
-            photo = SimpleUploadedFile("profile.jpg", b"image-bytes", content_type="image/jpeg")
+            photo = SimpleUploadedFile("profile.jpg", b"\xff\xd8\xffimage-bytes", content_type="image/jpeg")
             uploaded = client.post("/api/v1/auth/profile/photo/", {"file": photo}, format="multipart")
         self.assertEqual(uploaded.status_code, 200)
         self.member.refresh_from_db()

@@ -162,6 +162,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     first_name = models.CharField(max_length=150)
     last_name = models.CharField(max_length=150)
     phone_number = models.CharField(max_length=20, blank=True)
+    photo_url = models.URLField(max_length=500, blank=True, default="")
 
     # PHASE 3: Dual role system for backward compatibility
     # LEGACY: Keep for backward compatibility during migration
