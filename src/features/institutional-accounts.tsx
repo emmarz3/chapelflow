@@ -83,6 +83,7 @@ export function InstitutionalAccountsPage() {
   const [selectedOffice, setSelectedOffice] = useState("CHAPLAIN");
   const [resetAccount, setResetAccount] = useState<{ id: string; name: string; scope: "institutional" | "all" } | null>(null);
   const [deleteAccount, setDeleteAccount] = useState<{ id: string; name: string } | null>(null);
+  const [eraseAccount, setEraseAccount] = useState<{ id: string; name: string; identifier: string } | null>(null);
   const [temporaryPassword, setTemporaryPassword] = useState("");
   const [searchDraft, setSearchDraft] = useState("");
   const [search, setSearch] = useState("");
@@ -147,6 +148,21 @@ export function InstitutionalAccountsPage() {
       toast("Institutional account removed and access revoked.");
       refresh();
     },
+  });
+  const erase = useMutation({
+    mutationFn: ({ id, confirmation, password, otp }: { id: string; confirmation: string; password: string; otp: string }) =>
+      adminAccountService.erase(id, confirmation, password, otp),
+    onSuccess: () => {
+      setEraseAccount(null);
+      toast("Account and linked member profile deleted.");
+      refresh();
+    },
+  });
+  const resetPreview = useMutation({ mutationFn: adminAccountService.resetPreview });
+  const freshStart = useMutation({
+    mutationFn: ({ token, confirmation, password, otp }: { token: string; confirmation: string; password: string; otp: string }) =>
+      adminAccountService.resetDatabase(token, confirmation, password, otp),
+    onSuccess: () => window.location.assign("/login"),
   });
   function closeReset() {
     if (reset.isPending) return;
@@ -480,7 +496,10 @@ export function InstitutionalAccountsPage() {
                 <td>{account.role || "Member"}</td>
                 <td>{account.branch_name || "Global"}</td>
                 <td><Badge tone={account.deleted_at || !account.is_active ? "danger" : "success"}>{account.deleted_at ? "Removed" : account.is_active ? "Active" : "Suspended"}</Badge></td>
-                <td>{account.can_reset && <Button variant="ghost" icon={<KeyRound />} onClick={() => setResetAccount({ id: account.id, name: account.name || account.email || account.matric_no, scope: "all" })}>Reset password</Button>}</td>
+                <td className="button-row">
+                  {account.can_reset && <Button variant="ghost" icon={<KeyRound />} onClick={() => setResetAccount({ id: account.id, name: account.name || account.email || account.matric_no, scope: "all" })}>Reset password</Button>}
+                  {account.role !== "SUPER_ADMIN" && <Button variant="ghost" icon={<Trash2 />} onClick={() => setEraseAccount({ id: account.id, name: account.name || account.email || account.matric_no, identifier: account.email || account.matric_no })}>Delete account and member data</Button>}
+                </td>
               </tr>)}</tbody>
             </table>
             {directory.data.items.length === 0 && <p>No matching accounts.</p>}
@@ -491,6 +510,45 @@ export function InstitutionalAccountsPage() {
             </div>
           </>}
       </section>
+      <section className="panel">
+        <h2>Fresh start: reset the application database</h2>
+        <p>This clears all database records, including accounts, attendance, finance, website content and audit history. Your Super Admin sign-in and authenticator are restored, along with the chapel and standard role catalog. Uploaded files in Cloudinary or S3 and external payment records are not removed.</p>
+        <p>Make and verify a database backup before using this. The reset cannot be undone from this dashboard.</p>
+        <Button variant="secondary" loading={resetPreview.isPending} onClick={() => resetPreview.mutate()}>Review data reset</Button>
+        {resetPreview.isError && <p className="form-error" role="alert">{resetPreview.error.message}</p>}
+      </section>
+      <Modal open={Boolean(eraseAccount)} onClose={() => { if (!erase.isPending) { setEraseAccount(null); erase.reset(); } }}
+        title="Delete account and member data" description={`Delete ${eraseAccount?.name || "this account"}? Their linked member profile and Upper Room posts will be removed. Financial, audit and shared public records remain.`}>
+        <form className="form-grid" onSubmit={(event) => {
+          event.preventDefault();
+          if (!eraseAccount) return;
+          const data = new FormData(event.currentTarget);
+          erase.mutate({ id: eraseAccount.id, confirmation: String(data.get("confirmation")), password: String(data.get("password")), otp: String(data.get("otp")) });
+        }}>
+          <label className="field"><span>Type {eraseAccount?.identifier} to confirm</span><input name="confirmation" required autoComplete="off" /></label>
+          <label className="field"><span>Your Super Admin password</span><input name="password" type="password" required autoComplete="current-password" /></label>
+          <label className="field"><span>Authenticator code</span><input name="otp" inputMode="numeric" pattern="[0-9]{6}" required autoComplete="one-time-code" /></label>
+          {erase.isError && <p className="form-error" role="alert">{erase.error.message}</p>}
+          <div className="button-row"><Button type="button" variant="ghost" onClick={() => setEraseAccount(null)}>Cancel</Button><Button type="submit" loading={erase.isPending}>Delete this account</Button></div>
+        </form>
+      </Modal>
+      <Modal open={Boolean(resetPreview.data)} onClose={() => { if (!freshStart.isPending) { resetPreview.reset(); freshStart.reset(); } }}
+        title="Reset all application database records" description="Review the counts and confirm the permanent fresh start.">
+        {resetPreview.data && <form className="form-grid" onSubmit={(event) => {
+          event.preventDefault();
+          const data = new FormData(event.currentTarget);
+          freshStart.mutate({ token: resetPreview.data.data.token, confirmation: String(data.get("confirmation")), password: String(data.get("password")), otp: String(data.get("otp")) });
+        }}>
+          <p>{resetPreview.data.data.database_rows} database rows will be cleared, including {resetPreview.data.data.accounts_to_remove} other accounts. The preview expires after five minutes or if records change.</p>
+          <p>Uploaded files and external service data remain. Confirm your backup can be restored before proceeding.</p>
+          <label className="field"><span>Type {resetPreview.data.data.confirmation}</span><input name="confirmation" required autoComplete="off" /></label>
+          <label className="field"><span>Your Super Admin password</span><input name="password" type="password" required autoComplete="current-password" /></label>
+          <label className="field"><span>Authenticator code</span><input name="otp" inputMode="numeric" pattern="[0-9]{6}" required autoComplete="one-time-code" /></label>
+          <label><input type="checkbox" name="backup" required /> I have verified a restorable database backup.</label>
+          {freshStart.isError && <p className="form-error" role="alert">{freshStart.error.message}</p>}
+          <div className="button-row"><Button type="button" variant="ghost" onClick={() => resetPreview.reset()}>Cancel</Button><Button type="submit" loading={freshStart.isPending}>Reset database records</Button></div>
+        </form>}
+      </Modal>
       <Modal open={Boolean(deleteAccount)} onClose={() => { if (!remove.isPending) { setDeleteAccount(null); remove.reset(); } }} title="Delete institutional account" description={`Remove ${deleteAccount?.name || "this account"} from institutional accounts? Their sign-in access will be revoked. Historical records will remain.`} footer={<>
         <Button variant="ghost" onClick={() => setDeleteAccount(null)} disabled={remove.isPending}>Cancel</Button>
         <Button loading={remove.isPending} onClick={() => deleteAccount && remove.mutate(deleteAccount.id)}>Delete account</Button>

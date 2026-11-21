@@ -978,6 +978,14 @@ export const adminAccountService = {
   resetPassword: (id: string) => api.post<{ data: { temporary_password: string; password_change_required: boolean } }>(
     `/admin/accounts/${encodeURIComponent(id)}/password-reset`,
   ),
+  erase: (id: string, confirmation: string, password: string, otp: string) =>
+    api.post<void>(`/admin/accounts/${encodeURIComponent(id)}/erase`, { confirmation, password, otp }),
+  resetPreview: () => api.get<{ data: {
+    accounts_to_remove: number; database_rows: number; counts: Record<string, number>;
+    confirmation: string; token: string;
+  } }>("/admin/data-reset"),
+  resetDatabase: (token: string, confirmation: string, password: string, otp: string) =>
+    api.post<void>("/admin/data-reset", { token, confirmation, password, otp, backup_acknowledged: true }),
 };
 
 export const chapelGroupService = {
