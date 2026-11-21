@@ -9,7 +9,7 @@ test("first homepage entry reveals the chapel brand, then stays dismissed on ref
   await expect(intro.locator(".cf-intro__wordmark")).toBeVisible({ timeout: 3_000 });
   await expect(intro.locator(".cf-intro__chapel-logo")).toBeVisible({ timeout: 4_000 });
   await expect.poll(() => intro.locator(".cf-intro__chapel-logo").evaluate((image: HTMLImageElement) => image.naturalWidth)).toBeGreaterThan(0);
-  await expect.poll(() => intro.locator(".cf-intro__wipe").evaluate((element) => element.getBoundingClientRect().left)).toBeGreaterThan(1200);
+  await expect.poll(() => intro.locator(".cf-intro__wipe").evaluate((element) => element.getBoundingClientRect().left >= window.innerWidth)).toBe(true);
   await expect(intro).toHaveCount(0, { timeout: 5_000 });
   await expect(page.locator(".cuc-home__hero")).toBeVisible();
 
