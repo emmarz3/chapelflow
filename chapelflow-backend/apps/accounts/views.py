@@ -1,6 +1,7 @@
 from django.contrib.auth import get_user_model
 from django.conf import settings
 from django.db import transaction
+from django.core.signing import BadSignature, SignatureExpired
 from django.db.models import Q
 from django.utils import timezone
 import secrets
@@ -17,7 +18,7 @@ from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from common.constants.roles import Roles
-from common.permissions.rbac import IsChapelAdminOrSuperAdmin, IsSuperAdmin
+from common.permissions.rbac import IsChapelAdminOrSuperAdmin, IsSuperAdmin, user_has_completed_required_mfa
 from common.utils.responses import error_response, success_response
 from .models import RolePermission
 from .serializers import (
@@ -546,6 +547,90 @@ class AdminAccountPasswordResetView(APIView):
         if not account or account.get_role_code() == Roles.SUPER_ADMIN:
             return error_response("Account not found or cannot be reset here.", status=404)
         return _issue_temporary_password(request, account)
+
+
+def _confirm_sensitive_admin_action(request):
+    """Fresh password and authenticator proof, independent of a live session."""
+    import pyotp
+    from .models import MFADevice
+
+    password = request.data.get("password", "")
+    otp = request.data.get("otp", "")
+    device = MFADevice.objects.filter(user=request.user, confirmed=True).first()
+    if not (request.user.is_active and user_has_completed_required_mfa(request.user)
+            and device and isinstance(password, str) and request.user.check_password(password)
+            and isinstance(otp, str) and pyotp.TOTP(device.secret).verify(otp, valid_window=1)):
+        return error_response("Confirm your current password and authenticator code.", status=403)
+    return None
+
+
+class AdminAccountEraseView(APIView):
+    """Erase a non-admin account and its linked member profile, with reauthentication."""
+    permission_classes = [IsSuperAdmin]
+    throttle_scope = "admin_destructive"
+
+    def post(self, request, pk):
+        from django.db.models.deletion import ProtectedError
+        from apps.attendance.models import AttendanceCheckpoint
+        from apps.audit.models import AuditAction
+        from apps.audit.services import write_audit_log
+        from apps.members.models import Member
+        from apps.social.models import SocialComment, SocialPost
+
+        failure = _confirm_sensitive_admin_action(request)
+        if failure:
+            return failure
+        target = User.objects.filter(pk=pk).first()
+        if not target or target.get_role_code() == Roles.SUPER_ADMIN:
+            return error_response("Account not found or protected.", status=404)
+        identifier = target.email or target.matric_no
+        if request.data.get("confirmation") != identifier:
+            return error_response("Type the account's email or matric number to confirm.", status=400)
+        try:
+            with transaction.atomic():
+                # Checkpoints protect their usher FK. Remove those rows before
+                # deleting the user; other attendance remains without a member.
+                AttendanceCheckpoint.objects.filter(usher=target).delete()
+                SocialComment.objects.filter(author=target).delete()
+                SocialPost.objects.filter(author=target).delete()
+                Member.objects.filter(user=target).delete()
+                target_id = target.pk
+                target.delete()
+                write_audit_log(AuditAction.DELETE, "accounts.User", target_id, user=request.user,
+                                metadata={"erased_account_and_member": True})
+        except ProtectedError:
+            return error_response("This account has protected records. No data was deleted.", status=409)
+        return success_response(message="Account, member profile and Upper Room posts deleted. Financial, audit, and shared public records remain.")
+
+
+class AdminDataResetView(APIView):
+    """Preview and explicitly execute a full database fresh start."""
+    permission_classes = [IsSuperAdmin]
+    throttle_scope = "admin_destructive"
+
+    def get(self, request):
+        from .data_reset import reset_preview
+        from .models import MFADevice
+        if (not request.user.is_active or not user_has_completed_required_mfa(request.user)
+                or not MFADevice.objects.filter(user=request.user, confirmed=True).exists()):
+            return error_response("Complete Super Admin MFA before resetting data.", status=403)
+        return success_response(reset_preview(request.user))
+
+    def post(self, request):
+        from .data_reset import RESET_PHRASE, reset_database
+        failure = _confirm_sensitive_admin_action(request)
+        if failure:
+            return failure
+        if request.data.get("confirmation") != RESET_PHRASE or request.data.get("backup_acknowledged") is not True:
+            return error_response("Confirm the phrase and acknowledge your database backup.", status=400)
+        token = request.data.get("token")
+        if not isinstance(token, str):
+            return error_response("Review the current data before resetting.", status=400)
+        try:
+            reset_database(request.user, token)
+        except (BadSignature, SignatureExpired, ValueError):
+            return error_response("The preview expired or data changed. Review it again.", status=409)
+        return _clear_auth_cookies(success_response(message="Database reset. Sign in again with your Super Admin account."))
 
 
 class InstitutionalAccountListCreateView(APIView):
