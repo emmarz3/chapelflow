@@ -1,13 +1,29 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 vi.mock("../lib/backend", () => ({ isDjangoBackend: true }));
 import { apiRequest } from "../lib/api";
-import { communityAdminService, communityService, studentContentService } from "../services/chapelflow";
+import { adminAccountService, communityAdminService, communityService, studentContentService } from "../services/chapelflow";
 
 const response = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { "Content-Type": "application/json" } });
 afterEach(() => vi.unstubAllGlobals());
 
 describe("Django API integration", () => {
+  it("routes Super Admin data preview and account erasure to Django", async () => {
+    const fetch = vi.fn()
+      .mockResolvedValueOnce(response({ data: { token: "preview", counts: {}, database_rows: 3, accounts_to_remove: 1, confirmation: "RESET CHAPELFLOW DATA" } }))
+      .mockResolvedValueOnce(response({ success: true, message: "Deleted" }));
+    vi.stubGlobal("fetch", fetch);
+
+    await adminAccountService.resetPreview();
+    await adminAccountService.erase("user-1", "student@example.edu", "password", "123456");
+    expect(fetch.mock.calls.map(([url]) => url)).toEqual([
+      "/api/v1/auth/admin/data-reset/",
+      "/api/v1/auth/admin/accounts/user-1/erase/",
+    ]);
+    expect(JSON.parse(fetch.mock.calls[1]![1].body)).toEqual({
+      confirmation: "student@example.edu", password: "password", otp: "123456",
+    });
+  });
   it("loads student fellowship and unit choices through the Django adapter and submits a join request", async () => {
     const groups = [{ id: "group-1", name: "Music", type: "UNIT", description: "Chapel music" }];
     const fetch = vi.fn()
