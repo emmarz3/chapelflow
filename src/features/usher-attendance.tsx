@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Brand, Button, ErrorState, LoadingState } from "../components/ui";
 import { queueOfflineQrScan, readPendingAttendance } from "../lib/offline-queue";
 import { useQrScanner } from "../lib/use-qr-scanner";
+import { ApiError } from "../lib/api";
 import { attendanceService } from "../services/chapelflow";
 import { useAuth } from "./auth-context";
 
@@ -110,10 +111,11 @@ export function UsherAttendancePage() {
       await attendanceService.qrCheckIn({ token, sessionId: grant.sessionId });
       setMessage("Student attendance recorded.");
     } catch (error) {
-      if (!navigator.onLine) {
+      const reason = error instanceof Error ? error.message : "";
+      if (!navigator.onLine || error instanceof TypeError || (error instanceof Error && error.name === "AbortError") || (error instanceof ApiError && error.status >= 500) || /failed to fetch|network|connection|offline|timeout/i.test(reason)) {
         queueOfflineQrScan({ token, grant: grant.grant, sessionId: grant.sessionId, branchId: grant.branchId, usherId: user.id });
         setMessage("Connection lost. Identity QR saved for synchronization.");
-      } else setMessage(error instanceof Error ? error.message : "Check-in failed.");
+      } else setMessage(reason || "Check-in failed.");
     }
   }, [scanning, user]);
   const { videoRef, permissionError } = useQrScanner((token) => { void onScan(token); }, scanning);
