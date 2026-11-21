@@ -195,6 +195,7 @@ REST_FRAMEWORK = {
         "community_post": "10/min",
         "community_comment": "20/min",
         "public": "20/min",
+        "admin_destructive": "5/hour",
     },
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
 }
