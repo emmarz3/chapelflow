@@ -477,7 +477,7 @@ function MfaEnrollment() {
 }
 
 const registrationSteps = ["Account", "Profile", "Membership", "Consent"];
-const academicLevels = ["JUPEB", "100", "200", "300", "400", "500", "600"];
+const academicLevels = ["JUPEB", "100", "200", "300", "400", "500", "600", "POSTGRADUATE"];
 
 function registrationPayload(values: Record<string, string>) {
   return {
@@ -719,7 +719,7 @@ export function RegisterPage() {
                         <option value="" disabled>Select your current level</option>
                         {academicLevels.map((level) => (
                           <option key={level} value={level}>
-                            {level === "JUPEB" ? level : `${level} Level`}
+                            {level === "JUPEB" ? level : level === "POSTGRADUATE" ? "Postgraduate" : `${level} Level`}
                           </option>
                         ))}
                       </select>
@@ -732,7 +732,7 @@ export function RegisterPage() {
                     <span>Academic level</span>
                     <select name="level" defaultValue={values.level}>
                       {academicLevels.map((level) => (
-                        <option key={level}>{level}</option>
+                        <option key={level} value={level}>{level === "POSTGRADUATE" ? "Postgraduate" : level}</option>
                       ))}
                       <option>Not applicable</option>
                     </select>

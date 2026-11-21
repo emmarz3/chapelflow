@@ -12,6 +12,7 @@ from .models import (
     Level400Student,
     Level500Student,
     Level600Student,
+    PostgraduateStudent,
     Member,
     MemberFollowUp,
     MemberQRCode,
@@ -80,6 +81,11 @@ class Level500StudentAdmin(AcademicLevelMemberAdmin):
 @admin.register(Level600Student)
 class Level600StudentAdmin(AcademicLevelMemberAdmin):
     academic_level = AcademicLevel.LEVEL_600
+
+
+@admin.register(PostgraduateStudent)
+class PostgraduateStudentAdmin(AcademicLevelMemberAdmin):
+    academic_level = AcademicLevel.POSTGRADUATE
 
 
 @admin.register(MembershipHistory)

@@ -36,4 +36,5 @@ export const ACADEMIC_PROGRAMMES = [
   { college: "Nursing Sciences", programmes: ["Nursing Science"] },
   { college: "Law", programmes: ["Law"] },
   { college: "Foundation", programmes: ["JUPEB"] },
+  { college: "Postgraduate College", programmes: ["Postgraduate Studies"] },
 ] as const;

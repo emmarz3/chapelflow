@@ -22,6 +22,7 @@ PROGRAMMES_BY_COLLEGE = {
     "Faculty of Nursing Sciences": ("Nursing Science",),
     "College of Law": ("Law",),
     "Foundation Programmes": ("JUPEB",),
+    "Postgraduate College": ("Postgraduate Studies",),
 }
 
 

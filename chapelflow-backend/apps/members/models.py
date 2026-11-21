@@ -32,6 +32,7 @@ class AcademicLevel(models.TextChoices):
     LEVEL_400 = "400", "400 Level"
     LEVEL_500 = "500", "500 Level"
     LEVEL_600 = "600", "600 Level"
+    POSTGRADUATE = "POSTGRADUATE", "Postgraduate"
 
 
 class Member(models.Model):
@@ -66,7 +67,7 @@ class Member(models.Model):
         help_text="Student or Staff Community. A classification, not a role — see CommunityClassification.",
     )
     academic_level = models.CharField(
-        max_length=5,
+        max_length=12,
         choices=AcademicLevel.choices,
         blank=True,
         db_index=True,
@@ -167,6 +168,13 @@ class Level600Student(Member):
         proxy = True
         verbose_name = "600 Level student"
         verbose_name_plural = "600 Level students"
+
+
+class PostgraduateStudent(Member):
+    class Meta:
+        proxy = True
+        verbose_name = "Postgraduate student"
+        verbose_name_plural = "Postgraduate students"
 
 
 class MemberTag(models.Model):
