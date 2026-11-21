@@ -283,7 +283,7 @@ class RegisterSerializer(serializers.Serializer):
         allow_blank=True,
     )
     academic_level = serializers.ChoiceField(
-        choices=["JUPEB", "100", "200", "300", "400", "500", "600"],
+        choices=["JUPEB", "100", "200", "300", "400", "500", "600", "POSTGRADUATE"],
         required=False,
         allow_blank=True,
     )
@@ -338,7 +338,7 @@ class RegisterSerializer(serializers.Serializer):
             if not attrs.get("matric_no"):
                 raise serializers.ValidationError({"matric_no": ["Student registration requires a matriculation number."]})
             if not attrs.get("academic_level"):
-                raise serializers.ValidationError({"academic_level": ["Select JUPEB or your current academic level."]})
+                raise serializers.ValidationError({"academic_level": ["Select JUPEB, an undergraduate level, or Postgraduate."]})
             programme = attrs.pop("programme", None)
             if programme:
                 from apps.university.models import Department
@@ -352,6 +352,8 @@ class RegisterSerializer(serializers.Serializer):
                     raise serializers.ValidationError({"programme": ["Select a current Chrisland University programme."]})
                 if (attrs["academic_level"] == "JUPEB") != (department.name == "JUPEB"):
                     raise serializers.ValidationError({"programme": ["JUPEB students should select JUPEB; degree students should select their degree programme."]})
+                if department.name == "Postgraduate Studies" and attrs["academic_level"] != "POSTGRADUATE":
+                    raise serializers.ValidationError({"programme": ["Postgraduate Studies is for postgraduate students."]})
                 attrs["department"] = department
                 attrs["college"] = department.college
         else:

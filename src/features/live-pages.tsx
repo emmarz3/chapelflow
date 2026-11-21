@@ -96,7 +96,7 @@ function timeInputValue(value: string) {
   return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
 }
 
-const academicLevels = ["JUPEB", "100", "200", "300", "400", "500", "600"] as const;
+const academicLevels = ["JUPEB", "100", "200", "300", "400", "500", "600", "POSTGRADUATE"] as const;
 const academicLevelLabels: Record<(typeof academicLevels)[number], string> = {
   JUPEB: "JUPEB",
   "100": "100 Level",
@@ -105,6 +105,7 @@ const academicLevelLabels: Record<(typeof academicLevels)[number], string> = {
   "400": "400 Level",
   "500": "500 Level",
   "600": "600 Level",
+  POSTGRADUATE: "Postgraduate",
 };
 
 function academicLevelLabel(level: string) {

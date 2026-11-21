@@ -10,6 +10,7 @@ from apps.members.models import (
     Level400Student,
     Level500Student,
     Level600Student,
+    PostgraduateStudent,
     Member,
 )
 
@@ -24,6 +25,7 @@ def test_admin_level_sections_show_only_students_in_the_selected_level(rf, super
         AcademicLevel.LEVEL_400: Level400Student,
         AcademicLevel.LEVEL_500: Level500Student,
         AcademicLevel.LEVEL_600: Level600Student,
+        AcademicLevel.POSTGRADUATE: PostgraduateStudent,
     }
     expected_ids = {}
     for level in models_by_level:

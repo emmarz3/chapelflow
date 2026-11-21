@@ -99,6 +99,25 @@ class TestSelfRegistrationPipeline:
         assert response.status_code == 400
         assert "programme" in response.data["errors"]
 
+    def test_postgraduate_registration_saves_level_and_programme(self, api_client, branch_a):
+        from apps.organizations.models import Organization
+        from apps.university.catalog import ensure_chrisland_programmes
+        from apps.members.models import Member
+
+        Organization.objects.get_or_create(slug="chrisland", defaults={"name": "Chrisland University"})
+        ensure_chrisland_programmes()
+        response = api_client.post("/api/v1/auth/register/", {
+            "matric_no": "pg/2026/220", "password": "StrongPass123!",
+            "first_name": "Ada", "last_name": "Okafor", "branch": str(branch_a.id),
+            "community": "STUDENT", "academic_level": "POSTGRADUATE",
+            "programme": "Postgraduate Studies",
+        })
+        assert response.status_code == 201
+        member = Member.objects.get(user__matric_no="PG/2026/220")
+        assert member.academic_level == "POSTGRADUATE"
+        assert member.department.name == "Postgraduate Studies"
+        assert member.college.name == "Postgraduate College"
+
     def test_student_registration_requires_an_academic_level(self, api_client, branch_a):
         response = api_client.post("/api/v1/auth/register/", {
             "matric_no": "swe/2025/011",

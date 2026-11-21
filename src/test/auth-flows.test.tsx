@@ -145,6 +145,8 @@ describe("authentication recovery flows", () => {
     const programme = await screen.findByLabelText(/school programme or department/i);
     expect(screen.getByRole("option", { name: "Nursing Science" })).toBeInTheDocument();
     expect(screen.getByRole("option", { name: "Law" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Postgraduate Studies" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Postgraduate" })).toBeInTheDocument();
     await user.selectOptions(programme, "Software Engineering");
     await user.selectOptions(
       await screen.findByLabelText(/academic level/i),
