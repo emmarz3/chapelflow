@@ -21,6 +21,7 @@ import { useQuery } from "@tanstack/react-query";
 import { z } from "zod";
 import { Button, Field, LocalBrandImage } from "../components/ui";
 import { BRAND_ASSETS } from "../lib/brand-assets";
+import { ACADEMIC_PROGRAMMES } from "../lib/academic-programmes";
 import { PasswordStrength, defaultPasswordRules, eightCharacterPasswordRules } from "../components/ui/password-strength";
 import { useAuthMotion, useReducedMotionPreference } from "../components/motion/motion-system";
 import { useCompletionAnimation } from "../components/motion/completion-animation";
@@ -687,6 +688,21 @@ export function RegisterPage() {
           )}
           {step === 2 && (
             <div className="form-grid">
+              {memberType === "Student" && (
+                <label className="field field--full">
+                  <span>School programme or department</span>
+                  <select name="programme" defaultValue={values.programme || ""} required>
+                    <option value="" disabled>Select your programme</option>
+                    {ACADEMIC_PROGRAMMES.map(({ college, programmes }) => (
+                      <optgroup key={college} label={college}>
+                        {programmes.map((programme) => (
+                          <option key={programme} value={programme}>{programme}</option>
+                        ))}
+                      </optgroup>
+                    ))}
+                  </select>
+                </label>
+              )}
               {isDjangoBackend ? (
                 <>
                   <p className="form-note">
@@ -712,11 +728,6 @@ export function RegisterPage() {
                 </>
               ) : (
                 <>
-                  <Field
-                    name="programme"
-                    defaultValue={values.programme}
-                    label="Programme or department"
-                  />
                   <label className="field">
                     <span>Academic level</span>
                     <select name="level" defaultValue={values.level}>

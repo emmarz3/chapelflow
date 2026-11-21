@@ -272,6 +272,7 @@ class RegisterSerializer(serializers.Serializer):
     date_of_birth = serializers.DateField(required=False, allow_null=True)
     college = serializers.UUIDField(required=False, allow_null=True)
     department = serializers.UUIDField(required=False, allow_null=True)
+    programme = serializers.CharField(required=False, allow_blank=False, write_only=True)
     community = serializers.ChoiceField(
         choices=[
             ("STUDENT", "Student"),
@@ -338,11 +339,27 @@ class RegisterSerializer(serializers.Serializer):
                 raise serializers.ValidationError({"matric_no": ["Student registration requires a matriculation number."]})
             if not attrs.get("academic_level"):
                 raise serializers.ValidationError({"academic_level": ["Select JUPEB or your current academic level."]})
+            programme = attrs.pop("programme", None)
+            if programme:
+                from apps.university.models import Department
+                department = Department.objects.select_related("college").filter(
+                    name__iexact=programme.strip(),
+                    college__university__slug="chrisland-university",
+                    college__is_active=True,
+                    is_active=True,
+                ).first()
+                if not department:
+                    raise serializers.ValidationError({"programme": ["Select a current Chrisland University programme."]})
+                if (attrs["academic_level"] == "JUPEB") != (department.name == "JUPEB"):
+                    raise serializers.ValidationError({"programme": ["JUPEB students should select JUPEB; degree students should select their degree programme."]})
+                attrs["department"] = department
+                attrs["college"] = department.college
         else:
             if not attrs.get("email"):
                 raise serializers.ValidationError({"email": ["Staff and guest registration requires an email address."]})
             # Staff and guests do not use a student matriculation number.
             attrs.pop("matric_no", None)
+            attrs.pop("programme", None)
             attrs["academic_level"] = ""
         if not attrs.get("branch"):
             from apps.organizations.services import get_chrisland_chapel_branch

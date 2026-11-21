@@ -71,6 +71,34 @@ class TestSelfRegistrationPipeline:
         assert member.academic_level == "100"
         assert member.qr_code is not None
 
+    def test_student_programme_is_saved_as_college_and_department(self, api_client, branch_a):
+        from apps.organizations.models import Organization
+        from apps.university.catalog import ensure_chrisland_programmes
+        from apps.members.models import Member
+
+        Organization.objects.get_or_create(slug="chrisland", defaults={"name": "Chrisland University"})
+        ensure_chrisland_programmes()
+        response = api_client.post("/api/v1/auth/register/", {
+            "matric_no": "swe/2026/220", "password": "StrongPass123!",
+            "first_name": "Ada", "last_name": "Okafor", "branch": str(branch_a.id),
+            "community": "STUDENT", "academic_level": "300",
+            "programme": "Software Engineering",
+        })
+        assert response.status_code == 201
+        member = Member.objects.get(user__matric_no="SWE/2026/220")
+        assert member.department.name == "Software Engineering"
+        assert member.college.name == "College of Natural and Applied Sciences"
+
+    def test_unknown_programme_is_rejected(self, api_client, branch_a):
+        response = api_client.post("/api/v1/auth/register/", {
+            "matric_no": "swe/2026/221", "password": "StrongPass123!",
+            "first_name": "Ada", "last_name": "Okafor", "branch": str(branch_a.id),
+            "community": "STUDENT", "academic_level": "300",
+            "programme": "An unknown programme",
+        })
+        assert response.status_code == 400
+        assert "programme" in response.data["errors"]
+
     def test_student_registration_requires_an_academic_level(self, api_client, branch_a):
         response = api_client.post("/api/v1/auth/register/", {
             "matric_no": "swe/2025/011",
