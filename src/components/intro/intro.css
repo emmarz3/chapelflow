@@ -3,9 +3,10 @@
   z-index: 10000;
   inset: 0;
   overflow: hidden;
-  background: #100d27;
-  color: #fff;
+  background: #fff;
+  color: #25202b;
   isolation: isolate;
+  font-family: "DM Sans", system-ui, sans-serif;
 }
 body.cf-intro-active {
   overflow: hidden;
@@ -19,233 +20,95 @@ body.cf-intro-active {
   visibility: hidden;
   opacity: 0;
   overflow: hidden;
+  background: #fff;
 }
-.cf-intro__brand-scene {
-  background: radial-gradient(
-    circle at 50% 44%,
-    #302059 0,
-    #171332 42%,
-    #0d0c20 83%
-  );
-}
-.cf-intro__brand-scene::before {
-  content: "";
+/* A single flat diagonal accent keeps the movement tied to the brand. */
+.cf-intro__edge {
   position: absolute;
-  inset: 0;
-  opacity: 0.36;
-  background-image:
-    linear-gradient(#b99de71a 1px, transparent 1px),
-    linear-gradient(90deg, #b99de71a 1px, transparent 1px);
-  background-size: 76px 76px;
-  mask-image: radial-gradient(ellipse at center, #000 5%, transparent 72%);
+  left: -48px;
+  bottom: -85px;
+  width: 110px;
+  height: clamp(250px, 44vh, 480px);
+  background: #4c266a;
+  transform: rotate(36deg);
 }
-.cf-intro__brand-scene::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  box-shadow: inset 0 0 130px #0a091d;
-}
-.cf-intro__ambient {
-  position: absolute;
-  width: min(92vw, 850px);
-  aspect-ratio: 1;
-  border-radius: 50%;
-  background: radial-gradient(
-    circle,
-    #7455c638,
-    #8046e513 42%,
-    transparent 67%
-  );
-  filter: blur(18px);
-}
-.cf-intro__orbit {
-  position: absolute;
-  width: min(80vw, 580px);
-  aspect-ratio: 1;
-  border: 1px solid #ccb5f32b;
-  border-radius: 50%;
-  box-shadow:
-    0 0 70px #8a59de12,
-    inset 0 0 60px #9566e90c;
-}
-.cf-intro__orbit::before,
-.cf-intro__orbit::after {
-  content: "";
-  position: absolute;
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: #d9c2ff;
-  box-shadow: 0 0 17px #d9c2ff;
-}
-.cf-intro__orbit::before {
-  top: 14%;
-  left: 15%;
-}
-.cf-intro__orbit::after {
-  right: 10%;
-  bottom: 20%;
-}
-.cf-intro__orbit--inner {
-  width: min(65vw, 460px);
-  border-color: #ad8ee834;
-}
-.cf-intro__brand-lockup {
+.cf-intro__brand-lockup,
+.cf-intro__chapel-lockup {
   position: relative;
-  z-index: 1;
   display: grid;
   justify-items: center;
-  padding: 24px;
+  width: min(100%, 600px);
+  padding: 64px 24px;
   text-align: center;
 }
 .cf-intro__eyebrow,
 .cf-intro__chapel-kicker {
-  margin: 0 0 25px;
-  color: #d3c3ef;
-  font:
-    700 clamp(9px, 1.1vw, 12px)/1.5 "DM Sans",
-    system-ui,
-    sans-serif;
-  letter-spacing: 0.24em;
+  margin: 0 0 28px;
+  color: #66606b;
+  font-size: clamp(10px, 1.1vw, 12px);
+  line-height: 1.5;
+  font-weight: 500;
+  letter-spacing: 0.13em;
   text-transform: uppercase;
 }
-.cf-intro__eyebrow span {
-  color: #e7c897;
-  padding: 0 5px;
-}
 .cf-intro__mark {
-  width: clamp(145px, 17vw, 224px);
+  width: clamp(100px, 12vw, 150px);
   overflow: visible;
-  filter: drop-shadow(0 16px 40px #a077f75e);
-  transform-origin: center;
-}
-.cf-intro__mark-fill {
-  transform-origin: center;
 }
 .cf-intro__wordmark {
-  margin: 7px 0 0;
-  font:
-    600 clamp(48px, 6vw, 82px)/1 "DM Sans",
-    system-ui,
-    sans-serif;
-  letter-spacing: -0.06em;
+  margin: 18px 0 0;
+  font-size: clamp(42px, 5.5vw, 68px);
+  line-height: 1.1;
+  font-weight: 500;
+  letter-spacing: -0.055em;
   white-space: nowrap;
-  text-shadow: 0 12px 45px #0b0829;
 }
 .cf-intro__wordmark strong {
-  color: #b791ff;
+  color: #4c266a;
   font-weight: 700;
 }
 .cf-intro__tagline {
-  margin: 18px 0 0;
-  color: #e1d8f3;
-  font:
-    500 clamp(12px, 1.5vw, 16px)/1.5 "DM Sans",
-    system-ui,
-    sans-serif;
-  letter-spacing: 0.15em;
+  margin: 16px 0 0;
+  color: #66606b;
+  font-size: clamp(12px, 1.4vw, 15px);
+  line-height: 1.5;
+  letter-spacing: 0.025em;
 }
-.cf-intro__scene-index {
-  position: absolute;
-  z-index: 1;
-  bottom: max(29px, env(safe-area-inset-bottom));
-  left: 50%;
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  transform: translateX(-50%);
-  color: #e0d2f0;
-  font:
-    600 11px/1 "DM Sans",
-    system-ui,
-    sans-serif;
-  letter-spacing: 0.12em;
+.cf-intro__rule {
+  width: 48px;
+  height: 3px;
+  margin-top: 28px;
+  background: #4c266a;
+  transform-origin: left;
 }
-.cf-intro__scene-index span {
-  width: 52px;
-  height: 1px;
-  background: #9a72d6;
-}
-.cf-intro__chapel-scene {
-  color: #25203b;
-  background: radial-gradient(
-    circle at 50% 38%,
-    #fff 0,
-    #f7f1eb 52%,
-    #ebe1e1 100%
-  );
-}
-.cf-intro__chapel-scene::before,
-.cf-intro__chapel-scene::after {
-  content: "";
-  position: absolute;
-  width: min(72vw, 750px);
-  aspect-ratio: 1;
-  border: 1px solid #b9a5bc70;
-  border-radius: 50%;
-  pointer-events: none;
-}
-.cf-intro__chapel-scene::after {
-  width: min(92vw, 980px);
-  border-color: #c7b5bb50;
-}
-.cf-intro__chapel-halo {
-  position: absolute;
-  width: min(72vw, 680px);
-  aspect-ratio: 1;
-  background: radial-gradient(circle, #dfc7b9a6, transparent 68%);
-  filter: blur(28px);
-}
-.cf-intro__chapel-lockup {
-  position: relative;
-  z-index: 1;
-  display: grid;
-  justify-items: center;
-  width: min(90vw, 580px);
-  text-align: center;
-}
-.cf-intro__chapel-kicker {
-  color: #685374;
-  margin-bottom: 20px;
-}
-.cf-intro__chapel-card {
+.cf-intro__chapel-emblem {
   display: grid;
   place-items: center;
-  width: min(76vw, 430px);
-  min-height: min(44vh, 310px);
-  padding: 32px;
-  border: 1px solid #fff;
-  border-radius: 32px;
-  background: #ffffffc9;
-  box-shadow:
-    0 28px 90px #58375426,
-    inset 0 1px #fff;
-  backdrop-filter: blur(12px);
+  width: min(72vw, 320px);
 }
 .cf-intro__chapel-logo {
   display: block;
-  width: min(100%, 350px);
+  width: 100%;
   height: auto;
-  max-height: 37vh;
+  max-height: 35vh;
   object-fit: contain;
 }
 .cf-intro__chapel-copy {
-  margin: 23px 0 0;
-  font:
-    600 clamp(25px, 3.4vw, 43px)/1.15 "DM Sans",
-    system-ui,
-    sans-serif;
-  letter-spacing: -0.045em;
+  margin: 24px 0 0;
+  font-size: clamp(24px, 3vw, 38px);
+  line-height: 1.2;
+  font-weight: 500;
+  letter-spacing: -0.035em;
 }
 .cf-intro__chapel-copy span {
-  color: #6b35b8;
+  color: #4c266a;
 }
 .cf-intro__wipe {
   position: absolute;
   z-index: 2;
-  inset: 0;
-  background: linear-gradient(100deg, #27104e, #7e43d0 55%, #c49af8);
+  inset: 0 -20%;
+  background: #4c266a;
+  transform: skewX(-12deg);
   visibility: hidden;
   pointer-events: none;
 }
@@ -254,57 +117,53 @@ body.cf-intro-active {
   z-index: 3;
   top: max(20px, env(safe-area-inset-top));
   right: max(22px, env(safe-area-inset-right));
-  padding: 10px 17px;
-  border: 1px solid #ffffff59;
-  border-radius: 999px;
-  background: #ffffff18;
-  color: #fff;
+  padding: 10px 14px;
+  border: 1px solid #dedbe1;
+  border-radius: 0;
+  background: #fff;
+  color: #4c266a;
   font:
     600 12px/1.2 "DM Sans",
     system-ui,
     sans-serif;
   cursor: pointer;
-  backdrop-filter: blur(12px);
 }
 .cf-intro__skip:hover {
-  background: #ffffff33;
+  background: #f3f1f5;
 }
 .cf-intro__skip:focus-visible {
-  outline: 3px solid #e7c897;
+  outline: 3px solid #4c266a;
   outline-offset: 4px;
 }
 @media (max-width: 600px) {
-  .cf-intro__mark {
-    width: min(46vw, 190px);
+  .cf-intro__edge {
+    left: -65px;
+    width: 90px;
+    height: 240px;
   }
-  .cf-intro__wordmark {
-    font-size: clamp(43px, 13vw, 60px);
-  }
-  .cf-intro__eyebrow {
-    max-width: 280px;
-    font-size: 9px;
-    letter-spacing: 0.16em;
-  }
-  .cf-intro__tagline {
-    letter-spacing: 0.07em;
-  }
-  .cf-intro__chapel-card {
-    min-height: 230px;
-    padding: 20px;
-    border-radius: 24px;
-  }
-  .cf-intro__chapel-logo {
-    max-height: 32vh;
-  }
+  .cf-intro__eyebrow,
   .cf-intro__chapel-kicker {
-    max-width: 290px;
-    letter-spacing: 0.14em;
+    max-width: 280px;
+    letter-spacing: 0.09em;
   }
 }
-@media (prefers-reduced-motion: reduce) {
-  .cf-intro__mark,
-  .cf-intro__ambient,
-  .cf-intro__chapel-halo {
-    filter: none;
+@media (max-height: 500px) {
+  .cf-intro__brand-lockup,
+  .cf-intro__chapel-lockup {
+    padding: 20px;
+  }
+  .cf-intro__mark {
+    width: 75px;
+  }
+  .cf-intro__eyebrow,
+  .cf-intro__chapel-kicker {
+    margin-bottom: 12px;
+  }
+  .cf-intro__wordmark {
+    font-size: 36px;
+    margin-top: 8px;
+  }
+  .cf-intro__rule {
+    margin-top: 12px;
   }
 }
