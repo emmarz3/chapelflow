@@ -550,7 +550,7 @@ export function PortalShell() {
               aria-haspopup="menu"
               onClick={() => setProfileOpen((value) => !value)}
             >
-              <span className="avatar">{user.initials}</span>
+              <span className="avatar">{user.photoUrl ? <img src={user.photoUrl} alt="" /> : user.initials}</span>
               <span>
                 <strong>{user.name}</strong>
                 <small>{isLimitedMember ? `${user.community} account` : user.role.replaceAll("_", " ")}</small>
@@ -560,6 +560,7 @@ export function PortalShell() {
           </div>
           {profileOpen && (
             <div className="profile-menu">
+              <Link to="/app/account" onClick={() => setProfileOpen(false)}>Profile picture</Link>
               <Link to={accountMenuItem.path}>{accountMenuItem.label}</Link>
               {isDemoMode && (
                 <label>

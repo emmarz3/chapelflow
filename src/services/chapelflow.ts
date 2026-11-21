@@ -330,10 +330,10 @@ export const authService = {
     api.get<{ data: StudentProfile }>("/account/profile"),
   updateStudentProfile: (payload: Partial<StudentProfile>) =>
     api.patch<{ data: StudentProfile }>("/account/profile", payload),
-  uploadStudentProfilePhoto: (file: File) => {
+  uploadProfilePhoto: (file: File) => {
     const body = new FormData();
     body.set("file", file);
-    return api.postForm<{ data: StudentProfile }>("/account/profile/photo", body);
+    return api.postForm<{ data: { photo_url: string } }>("/account/profile/photo", body);
   },
 };
 

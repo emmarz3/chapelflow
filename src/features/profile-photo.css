@@ -1,0 +1,9 @@
+/* Shared account picture controls, available to every signed-in role. */
+.profile-photo-editor { margin-bottom: 24px; }
+.profile-photo-editor__preview { margin: 16px 0; width: 112px; height: 112px; border-radius: 50%; overflow: hidden; background: var(--surface); border: 1px solid var(--border); }
+.profile-photo-editor__preview > span { display: grid; place-items: center; width: 100%; height: 100%; font-size: 32px; font-weight: 700; }
+.profile-photo-editor__preview > img,
+.avatar > img,
+.public-nav__avatar > img,
+.upper-room__avatar > img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; display: block; }
+.profile-photo-editor input[type="file"] { width: 100%; min-width: 0; }

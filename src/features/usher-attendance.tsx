@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import QRCode from "qrcode";
 import { useQuery } from "@tanstack/react-query";
 import { Camera, Clock3, LogOut, QrCode, RefreshCw, Wifi } from "lucide-react";
@@ -123,6 +124,7 @@ export function UsherAttendancePage() {
     <main className="usher-checkpoint">
       <header className="usher-checkpoint__header">
         <Brand />
+        <Link className="button button--secondary" to="/app/account">Profile picture</Link>
         <Button variant="secondary" icon={<LogOut />} onClick={() => void logout()}>Log out</Button>
       </header>
       <UsherCheckpointQr />

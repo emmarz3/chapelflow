@@ -103,7 +103,7 @@ export function PublicLayout() {
         </nav>
         {location.pathname === "/" && <button className="icon-button public-theme-toggle" type="button" aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`} onClick={() => setTheme((value) => value === "dark" ? "light" : "dark")}>{theme === "dark" ? <Sun /> : <Moon />}</button>}
         <div className="public-nav__actions">
-          {!loading && (user ? <Link className="public-nav__avatar-link" to="/app" aria-label={`Open ${user.name}'s dashboard`} title={user.name}><span className="public-nav__avatar" aria-hidden="true">{getInitials(user.name)}</span></Link> : <><Link className="text-link" to="/login">Sign in</Link><Link className="button button--primary" to="/register">Create account <ArrowRight size={16} /></Link></>)}
+          {!loading && (user ? <Link className="public-nav__avatar-link" to="/app" aria-label={`Open ${user.name}'s dashboard`} title={user.name}><span className="public-nav__avatar" aria-hidden="true">{user.photoUrl ? <img src={user.photoUrl} alt="" /> : getInitials(user.name)}</span></Link> : <><Link className="text-link" to="/login">Sign in</Link><Link className="button button--primary" to="/register">Create account <ArrowRight size={16} /></Link></>)}
         </div>
         <button
           className="icon-button public-nav__menu"
@@ -133,7 +133,7 @@ export function PublicLayout() {
             <div className="mobile-menu__auth">
               {user ? (
                 <Link className="mobile-menu__account" onClick={() => setOpen(false)} to="/app" aria-label={`Open ${user.name}'s dashboard`}>
-                  <span className="public-nav__avatar" aria-hidden="true">{getInitials(user.name)}</span>
+                  <span className="public-nav__avatar" aria-hidden="true">{user.photoUrl ? <img src={user.photoUrl} alt="" /> : getInitials(user.name)}</span>
                   <span>Dashboard</span>
                 </Link>
               ) : (
@@ -166,7 +166,7 @@ export function PublicLayout() {
       <nav className="public-mobile-nav" aria-label="Mobile chapel navigation">
         <NavLink to="/" end><Home aria-hidden="true" /><span>Home</span></NavLink>
         <NavLink to="/events"><CalendarDays aria-hidden="true" /><span>Events</span></NavLink>
-        {user ? <NavLink className="public-mobile-nav__account" to="/app" aria-label={`Open ${user.name}'s dashboard`} title="Dashboard"><span className="public-nav__avatar" aria-hidden="true">{getInitials(user.name)}</span></NavLink> : <NavLink to="/app"><Gauge aria-hidden="true" /><span>Dashboard</span></NavLink>}
+        {user ? <NavLink className="public-mobile-nav__account" to="/app" aria-label={`Open ${user.name}'s dashboard`} title="Dashboard"><span className="public-nav__avatar" aria-hidden="true">{user.photoUrl ? <img src={user.photoUrl} alt="" /> : getInitials(user.name)}</span></NavLink> : <NavLink to="/app"><Gauge aria-hidden="true" /><span>Dashboard</span></NavLink>}
         <NavLink to="/about"><Info aria-hidden="true" /><span>About</span></NavLink>
       </nav>
       <SiteFooter />

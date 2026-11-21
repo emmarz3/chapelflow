@@ -14,12 +14,19 @@ from .institutional_offices import INSTITUTIONAL_OFFICES, DEFAULT_OFFICES_BY_ROL
 
 
 class UserPublicSerializer(serializers.ModelSerializer):
+    photo_url = serializers.SerializerMethodField()
     effective_permissions = serializers.SerializerMethodField()
     mfa_required = serializers.SerializerMethodField()
     inventory_access = serializers.SerializerMethodField()
     media_access = serializers.SerializerMethodField()
     community = serializers.SerializerMethodField()
     institutional_group_name = serializers.CharField(source="institutional_group.name", read_only=True, default="")
+
+    def get_photo_url(self, user):
+        if user.photo_url:
+            return user.photo_url
+        from apps.members.models import Member
+        return Member.objects.filter(user=user).values_list("photo_url", flat=True).first() or ""
 
     def get_effective_permissions(self, user):
         """Return the server-evaluated grants used by the web client manifest."""
@@ -57,7 +64,7 @@ class UserPublicSerializer(serializers.ModelSerializer):
             "full_name", "phone_number", "role", "branch", "mfa_enabled", "mfa_required",
             "is_active", "password_change_required", "date_joined", "effective_permissions",
             "inventory_access", "media_access", "community", "institutional_office",
-            "institutional_group_name",
+            "institutional_group_name", "photo_url",
         ]
         read_only_fields = fields
 
