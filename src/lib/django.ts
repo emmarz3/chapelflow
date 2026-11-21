@@ -926,6 +926,12 @@ export async function djangoRequest(
     return call(`/auth/admin/accounts/${suffix}`);
   if (/^\/admin\/accounts\/[^/]+\/password-reset$/.test(route) && method === "POST")
     return call(`/auth${route}/`, json("POST", {}));
+  if (/^\/admin\/accounts\/[^/]+\/erase$/.test(route) && method === "POST")
+    return call(`/auth${route}/`, json("POST", body));
+  if (route === "/admin/data-reset" && method === "GET")
+    return call("/auth/admin/data-reset/");
+  if (route === "/admin/data-reset" && method === "POST")
+    return call("/auth/admin/data-reset/", json("POST", body));
   if (route === "/chapel-groups" && method === "GET")
     return call(`/groups-catalog/${suffix}`);
   if (route === "/chapel-groups/bootstrap-groups" && method === "POST")
