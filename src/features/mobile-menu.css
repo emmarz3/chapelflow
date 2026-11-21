@@ -1,0 +1,28 @@
+@media (max-width: 900px) {
+  .public-shell .mobile-menu__auth {
+    flex: 0 0 auto;
+    margin-top: 0;
+    padding: 0 0 22px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .public-shell .mobile-menu__auth-actions {
+    display: flex;
+    gap: 10px;
+  }
+
+  .public-shell .mobile-menu__create { flex: 1; width: auto; }
+
+  .public-shell .mobile-menu__signin {
+    align-items: center;
+    border: 1px solid var(--purple-700, #573078);
+    border-radius: 8px;
+    display: inline-flex;
+    flex: 1;
+    font-size: 14px;
+    font-weight: 700;
+    justify-content: center;
+    padding: 10px 12px;
+    text-decoration: none;
+  }
+}
