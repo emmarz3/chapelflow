@@ -50,6 +50,7 @@ import { KJV_DAILY_VERSES } from "../lib/daily-verses";
 import { homepageService, publicService } from "../services/chapelflow";
 import type { EventSummary } from "../types/domain";
 import { LivePublicDetailPage, LivePublicPage } from "./live-public";
+import "./mobile-menu.css";
 
 const publicNav = [
   ["About", "/about"],
