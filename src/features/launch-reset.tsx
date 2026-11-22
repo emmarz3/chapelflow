@@ -1,0 +1,150 @@
+import { useMutation } from "@tanstack/react-query";
+import { type FormEvent, useState } from "react";
+import { Link } from "react-router-dom";
+import { Button, PageHeader } from "../components/ui";
+import { adminAccountService } from "../services/chapelflow";
+
+/** Super Admin only: the route is protected; the API rechecks role and MFA. */
+export function LaunchResetPage() {
+  const [confirmed, setConfirmed] = useState(false);
+  const preview = useMutation({ mutationFn: adminAccountService.resetPreview });
+  const reset = useMutation({
+    mutationFn: ({
+      token,
+      confirmation,
+      password,
+      otp,
+    }: {
+      token: string;
+      confirmation: string;
+      password: string;
+      otp: string;
+    }) => adminAccountService.resetDatabase(token, confirmation, password, otp),
+    onSuccess: () => window.location.assign("/login"),
+  });
+  function review() {
+    preview.reset();
+    reset.reset();
+    setConfirmed(false);
+    preview.mutate();
+  }
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!preview.data || !confirmed || reset.isPending) return;
+    const fields = new FormData(event.currentTarget);
+    reset.mutate({
+      token: preview.data.data.token,
+      confirmation: String(fields.get("confirmation") || ""),
+      password: String(fields.get("password") || ""),
+      otp: String(fields.get("otp") || ""),
+    });
+  }
+  return (
+    <>
+      <PageHeader
+        eyebrow="Super Admin · Launch preparation"
+        title="Reset saved accounts and records"
+        description="Prepare ChapelFlow for launch by clearing saved application data."
+      />
+      <section className="panel">
+        <h2>What this reset deletes</h2>
+        <p>
+          All other user accounts, member profiles, attendance, finance records,
+          messages, gallery and website entries, upload references, and previous
+          audit history are cleared from the application database.
+        </p>
+        <h2>What stays</h2>
+        <p>
+          Your Super Admin sign-in and authenticator, chapel branches, academic
+          programmes, units, fellowships, roles, and permissions remain.
+          Application code, database structure, and hosting settings remain.
+          Files stored in Cloudinary or S3 and external payment records are
+          outside this reset.
+        </p>
+        <p>
+          <strong>This cannot be undone from the dashboard.</strong> Verify a
+          restorable database backup before proceeding.
+        </p>
+        <Button
+          type="button"
+          variant="secondary"
+          loading={preview.isPending}
+          onClick={review}
+        >
+          Review records to reset
+        </Button>
+        {preview.isError && (
+          <p className="form-error" role="alert">
+            {preview.error.message}
+          </p>
+        )}
+      </section>
+      {preview.data && (
+        <section className="panel" aria-label="Confirm launch reset">
+          <h2>Confirm launch reset</h2>
+          <p>
+            {preview.data.data.accounts_to_remove} other accounts will be
+            removed. The preview covers {preview.data.data.database_rows}{" "}
+            database rows, including configuration that will be restored. It
+            expires after five minutes or when record counts change.
+          </p>
+          <form className="form-grid" onSubmit={submit}>
+            <label className="field">
+              <span>Type {preview.data.data.confirmation}</span>
+              <input name="confirmation" required autoComplete="off" />
+            </label>
+            <label className="field">
+              <span>Super Admin password</span>
+              <input
+                name="password"
+                type="password"
+                required
+                autoComplete="current-password"
+              />
+            </label>
+            <label className="field">
+              <span>Authenticator code</span>
+              <input
+                name="otp"
+                inputMode="numeric"
+                pattern="[0-9]{6}"
+                required
+                autoComplete="one-time-code"
+              />
+            </label>
+            <label>
+              <input
+                type="checkbox"
+                checked={confirmed}
+                onChange={(event) => setConfirmed(event.target.checked)}
+                required
+              />{" "}
+              I have verified a restorable database backup.
+            </label>
+            {reset.isError && (
+              <p className="form-error" role="alert">
+                {reset.error.message} Review the records again if the preview
+                expired.
+              </p>
+            )}
+            <div className="button-row">
+              <Link
+                className="button button--secondary"
+                to="/app/admin/dashboard"
+              >
+                Cancel
+              </Link>
+              <Button
+                type="submit"
+                disabled={!confirmed}
+                loading={reset.isPending}
+              >
+                Permanently reset saved accounts and records
+              </Button>
+            </div>
+          </form>
+        </section>
+      )}
+    </>
+  );
+}

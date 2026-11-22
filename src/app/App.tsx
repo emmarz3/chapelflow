@@ -22,6 +22,7 @@ import { AttendanceKioskPage } from "../features/attendance-kiosk";
 import { StudentAttendancePassPage } from "../features/student-attendance-pass";
 import { UsherAttendancePage } from "../features/usher-attendance";
 import { InstitutionalAccountsPage } from "../features/institutional-accounts";
+import { LaunchResetPage } from "../features/launch-reset";
 import { AdminOperationsPage } from "../features/admin-operations";
 import { RoleOperationsPage } from "../features/role-operations";
 import { GivingPage } from "../features/giving-page";
@@ -400,6 +401,10 @@ export function App() {
                   <Route
                     path="/app/admin/accounts"
                     element={<InstitutionalAccountsPage />}
+                  />
+                  <Route
+                    path="/app/admin/launch-reset"
+                    element={<LaunchResetPage />}
                   />
                   <Route
                     path="/app/admin/control-room"
