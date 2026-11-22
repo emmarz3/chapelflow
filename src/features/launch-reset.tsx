@@ -1,5 +1,5 @@
 import { useMutation } from "@tanstack/react-query";
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { Button, PageHeader } from "../components/ui";
 import { adminAccountService } from "../services/chapelflow";
@@ -7,6 +7,7 @@ import { adminAccountService } from "../services/chapelflow";
 /** Super Admin only: the route is protected; the API rechecks role and MFA. */
 export function LaunchResetPage() {
   const [confirmed, setConfirmed] = useState(false);
+  const confirmationInput = useRef<HTMLInputElement>(null);
   const preview = useMutation({ mutationFn: adminAccountService.resetPreview });
   const reset = useMutation({
     mutationFn: ({
@@ -28,6 +29,9 @@ export function LaunchResetPage() {
     setConfirmed(false);
     preview.mutate();
   }
+  useEffect(() => {
+    if (preview.data) confirmationInput.current?.focus();
+  }, [preview.data]);
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!preview.data || !confirmed || reset.isPending) return;
@@ -47,13 +51,18 @@ export function LaunchResetPage() {
         description="Prepare ChapelFlow for launch by clearing saved application data."
       />
       <section className="panel">
-        <h2>What this reset deletes</h2>
+        <h2>Step 1: Review what will be reset</h2>
+        <p>
+          Select <strong>Review records to reset</strong> below. The confirmation
+          fields, including where to type the reset phrase, will appear next.
+        </p>
+        <h3>What this reset deletes</h3>
         <p>
           All other user accounts, member profiles, attendance, finance records,
           messages, gallery and website entries, upload references, and previous
           audit history are cleared from the application database.
         </p>
-        <h2>What stays</h2>
+        <h3>What stays</h3>
         <p>
           Your Super Admin sign-in and authenticator, chapel branches, academic
           programmes, units, fellowships, roles, and permissions remain.
@@ -81,7 +90,7 @@ export function LaunchResetPage() {
       </section>
       {preview.data && (
         <section className="panel" aria-label="Confirm launch reset">
-          <h2>Confirm launch reset</h2>
+          <h2>Step 2: Enter the confirmation phrase</h2>
           <p>
             {preview.data.data.accounts_to_remove} other accounts will be
             removed. The preview covers {preview.data.data.database_rows}{" "}
@@ -90,8 +99,15 @@ export function LaunchResetPage() {
           </p>
           <form className="form-grid" onSubmit={submit}>
             <label className="field">
-              <span>Type {preview.data.data.confirmation}</span>
-              <input name="confirmation" required autoComplete="off" />
+              <span>Type this exact phrase: {preview.data.data.confirmation}</span>
+              <input
+                ref={confirmationInput}
+                name="confirmation"
+                aria-label="Reset confirmation phrase"
+                placeholder={preview.data.data.confirmation}
+                required
+                autoComplete="off"
+              />
             </label>
             <label className="field">
               <span>Super Admin password</span>
