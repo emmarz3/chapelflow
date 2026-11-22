@@ -28,12 +28,14 @@ it("requires a typed phrase and backup acknowledgement before sending a reset", 
       </QueryClientProvider>
     </MemoryRouter>,
   );
-  expect(screen.queryByRole("textbox", { name: "Reset confirmation phrase" })).not.toBeInTheDocument();
-  await user.click(screen.getByRole("button", { name: "Review records to reset" }));
-  const phrase = await screen.findByRole("textbox", { name: "Reset confirmation phrase" });
+  const phrase = screen.getByRole("textbox", { name: "Reset confirmation phrase" });
   expect(phrase).toHaveValue("");
-  expect(phrase).toHaveFocus();
+  const resetButton = screen.getByRole("button", { name: "Permanently reset saved accounts and records" });
+  expect(resetButton).toBeDisabled();
   await user.type(phrase, "WRONG PHRASE");
+  await user.click(screen.getByRole("button", { name: "Review records to reset" }));
+  await screen.findByText(/3 other accounts will be removed/i);
+  expect(phrase).toHaveValue("WRONG PHRASE");
   await user.type(screen.getByLabelText("Super Admin password"), "password");
   await user.type(screen.getByLabelText("Authenticator code"), "123456");
   await user.click(screen.getByRole("checkbox", { name: /verified a restorable database backup/i }));

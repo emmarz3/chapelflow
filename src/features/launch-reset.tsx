@@ -1,5 +1,5 @@
 import { useMutation } from "@tanstack/react-query";
-import { type FormEvent, useEffect, useRef, useState } from "react";
+import { type FormEvent, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { Button, PageHeader } from "../components/ui";
 import { ApiError } from "../lib/api";
@@ -29,14 +29,9 @@ export function LaunchResetPage() {
   function review() {
     preview.reset();
     reset.reset();
-    setConfirmed(false);
-    setPhrase("");
     setPhraseError(false);
     preview.mutate();
   }
-  useEffect(() => {
-    if (preview.data) confirmationInput.current?.focus();
-  }, [preview.data]);
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!preview.data || !confirmed || reset.isPending) return;
@@ -64,26 +59,13 @@ export function LaunchResetPage() {
       <section className="panel">
         <h2>Step 1: Review what will be reset</h2>
         <p>
-          Select <strong>Review records to reset</strong> below. The confirmation
-          fields, including where to type the reset phrase, will appear next.
-        </p>
-        <h3>What this reset deletes</h3>
-        <p>
-          All other user accounts, member profiles, attendance, finance records,
-          messages, gallery and website entries, upload references, and previous
-          audit history are cleared from the application database.
-        </p>
-        <h3>What stays</h3>
-        <p>
-          Your Super Admin sign-in and authenticator, chapel branches, academic
-          programmes, units, fellowships, roles, and permissions remain.
-          Application code, database structure, and hosting settings remain.
-          Files stored in Cloudinary or S3 and external payment records are
-          outside this reset.
+          Select <strong>Review records to reset</strong> below to see current
+          counts. The confirmation form is already visible beneath this section.
         </p>
         <p>
-          <strong>This cannot be undone from the dashboard.</strong> Verify a
-          restorable database backup before proceeding.
+          This permanently clears saved accounts and operational records, while
+          preserving your Super Admin account and chapel configuration. Read the
+          full scope below and verify a restorable database backup before proceeding.
         </p>
         <Button
           type="button"
@@ -99,19 +81,18 @@ export function LaunchResetPage() {
           </p>
         )}
       </section>
-      {preview.data && (
-        <section className="panel" aria-label="Confirm launch reset">
-          <h2>Step 2: Enter the confirmation phrase</h2>
-          <p>
+      <section className="panel" aria-label="Confirm launch reset">
+          <h2>Step 2: Complete the confirmation form</h2>
+          {preview.data ? <p>
             {preview.data.data.accounts_to_remove} other accounts will be
             removed. The preview covers {preview.data.data.database_rows}{" "}
             database rows, including configuration that will be restored. It
             expires after five minutes or when record counts change.
-          </p>
+          </p> : <p>Review the records above before the final reset button becomes available.</p>}
           <form className="form-grid" onSubmit={submit}>
-            <label className="field">
+            <label className="field field--full">
               <span>Confirmation phrase</span>
-              <small>Type <strong>{preview.data.data.confirmation}</strong> into the empty box below. The displayed phrase is not filled in for you.</small>
+              <small>Type <strong>{preview.data?.data.confirmation || "RESET CHAPELFLOW DATA"}</strong> into the empty box below.</small>
               <input
                 ref={confirmationInput}
                 name="confirmation"
@@ -123,7 +104,7 @@ export function LaunchResetPage() {
                 required
                 autoComplete="off"
               />
-              {phraseError && <small className="field__error" id="reset-phrase-error" role="alert">The phrase must match {preview.data.data.confirmation} exactly.</small>}
+              {phraseError && <small className="field__error" id="reset-phrase-error" role="alert">The phrase must match {preview.data?.data.confirmation || "RESET CHAPELFLOW DATA"} exactly.</small>}
             </label>
             <label className="field">
               <span>Super Admin password</span>
@@ -168,15 +149,30 @@ export function LaunchResetPage() {
               </Link>
               <Button
                 type="submit"
-                disabled={!confirmed}
+                disabled={!confirmed || !preview.data}
                 loading={reset.isPending}
               >
                 Permanently reset saved accounts and records
               </Button>
             </div>
           </form>
-        </section>
-      )}
+      </section>
+      <section className="panel">
+        <h2>What the reset changes</h2>
+        <p>
+          All other user accounts, member profiles, attendance, finance records,
+          messages, gallery and website entries, upload references, and previous
+          audit history are cleared from the application database.
+        </p>
+        <p>
+          Your Super Admin sign-in and authenticator, chapel branches, academic
+          programmes, units, fellowships, roles, and permissions remain.
+          Application code, database structure, and hosting settings remain.
+          Files stored in Cloudinary or S3 and external payment records are
+          outside this reset.
+        </p>
+        <p><strong>This cannot be undone from the dashboard.</strong></p>
+      </section>
     </>
   );
 }
