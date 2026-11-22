@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { InstitutionalAccountsPage } from "../features/institutional-accounts";
 import { ApiError } from "../lib/api";
@@ -24,9 +25,11 @@ vi.mock("../services/chapelflow", () => ({
 function renderPage() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
-    <QueryClientProvider client={client}>
-      <InstitutionalAccountsPage />
-    </QueryClientProvider>,
+    <MemoryRouter>
+      <QueryClientProvider client={client}>
+        <InstitutionalAccountsPage />
+      </QueryClientProvider>
+    </MemoryRouter>,
   );
 }
 
