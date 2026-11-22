@@ -33,9 +33,9 @@ it("requires a typed phrase and backup acknowledgement before sending a reset", 
   expect(phrase).toHaveValue("");
   const resetButton = screen.getByRole("button", { name: "Permanently reset saved accounts and records" });
   expect(resetButton).toBeDisabled();
-  await user.type(phrase, "WRONG PHRASE");
   await user.click(screen.getByRole("button", { name: "Review records to reset" }));
   await screen.findByText(/3 other accounts will be removed/i);
+  await user.type(phrase, "WRONG PHRASE");
   expect(phrase).toHaveValue("WRONG PHRASE");
   await user.type(screen.getByLabelText("Super Admin password"), "password");
   await user.type(screen.getByLabelText("Authenticator code"), "123456");
