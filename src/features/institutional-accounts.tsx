@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { KeyRound, Plus, Trash2, UserRoundCheck } from "lucide-react";
-import { useEffect, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
+import { Link } from "react-router-dom";
 import {
   Badge,
   Button,
@@ -158,12 +159,6 @@ export function InstitutionalAccountsPage() {
       refresh();
     },
   });
-  const resetPreview = useMutation({ mutationFn: adminAccountService.resetPreview });
-  const freshStart = useMutation({
-    mutationFn: ({ token, confirmation, password, otp }: { token: string; confirmation: string; password: string; otp: string }) =>
-      adminAccountService.resetDatabase(token, confirmation, password, otp),
-    onSuccess: () => window.location.assign("/login"),
-  });
   function closeReset() {
     if (reset.isPending) return;
     setResetAccount(null);
@@ -212,11 +207,6 @@ export function InstitutionalAccountsPage() {
       ...(requestedGroupType ? { institutional_group: groupId } : {}),
     });
   }
-  useEffect(() => {
-    if (!accounts.isPending && window.location.hash === "#launch-reset") {
-      document.getElementById("launch-reset")?.scrollIntoView({ block: "start" });
-    }
-  }, [accounts.isPending]);
 
   if (accounts.isPending)
     return <LoadingState label="Loading institutional accounts" />;
@@ -517,11 +507,9 @@ export function InstitutionalAccountsPage() {
           </>}
       </section>
       <section className="panel">
-        <h2 id="launch-reset" style={{ scrollMarginTop: 100 }}>Fresh launch: reset saved data</h2>
-        <p>Deletes all other accounts and saved application records, including member profiles, attendance, finance, messages, gallery and website content, upload references, and previous audit history. Your Super Admin sign-in and authenticator remain. Chapel branches, academic programmes, units, fellowships, and role permissions are preserved. The application code, database structure, hosting settings, and integrations stay intact. Files stored in Cloudinary or S3 and external payment records are not deleted.</p>
-        <p>Make and verify a database backup before using this. The reset cannot be undone from this dashboard.</p>
-        <Button variant="secondary" loading={resetPreview.isPending} onClick={() => resetPreview.mutate()}>Review launch reset</Button>
-        {resetPreview.isError && <p className="form-error" role="alert">{resetPreview.error.message}</p>}
+        <h2>Fresh launch reset</h2>
+        <p>The reset confirmation form is on its own Super Admin page.</p>
+        <Link className="button button--secondary" to="/app/admin/launch-reset">Open launch reset</Link>
       </section>
       <Modal open={Boolean(eraseAccount)} onClose={() => { if (!erase.isPending) { setEraseAccount(null); erase.reset(); } }}
         title="Delete account and member data" description={`Delete ${eraseAccount?.name || "this account"}? Their linked member profile and Upper Room posts will be removed. Financial, audit and shared public records remain.`}>
@@ -537,23 +525,6 @@ export function InstitutionalAccountsPage() {
           {erase.isError && <p className="form-error" role="alert">{erase.error.message}</p>}
           <div className="button-row"><Button type="button" variant="ghost" onClick={() => setEraseAccount(null)}>Cancel</Button><Button type="submit" loading={erase.isPending}>Delete this account</Button></div>
         </form>
-      </Modal>
-      <Modal open={Boolean(resetPreview.data)} onClose={() => { if (!freshStart.isPending) { resetPreview.reset(); freshStart.reset(); } }}
-        title="Reset saved data for launch" description="Review the counts and confirm the permanent fresh start.">
-        {resetPreview.data && <form className="form-grid" onSubmit={(event) => {
-          event.preventDefault();
-          const data = new FormData(event.currentTarget);
-          freshStart.mutate({ token: resetPreview.data.data.token, confirmation: String(data.get("confirmation")), password: String(data.get("password")), otp: String(data.get("otp")) });
-        }}>
-          <p>{resetPreview.data.data.database_rows} database rows reviewed. This reset removes {resetPreview.data.data.accounts_to_remove} other accounts and all operational records, while preserving system configuration and your Super Admin access. The preview expires after five minutes or if records change.</p>
-          <p>Uploaded files and external service data remain. Confirm your backup can be restored before proceeding.</p>
-          <label className="field"><span>Type {resetPreview.data.data.confirmation}</span><input name="confirmation" required autoComplete="off" /></label>
-          <label className="field"><span>Your Super Admin password</span><input name="password" type="password" required autoComplete="current-password" /></label>
-          <label className="field"><span>Authenticator code</span><input name="otp" inputMode="numeric" pattern="[0-9]{6}" required autoComplete="one-time-code" /></label>
-          <label><input type="checkbox" name="backup" required /> I have verified a restorable database backup.</label>
-          {freshStart.isError && <p className="form-error" role="alert">{freshStart.error.message}</p>}
-          <div className="button-row"><Button type="button" variant="ghost" onClick={() => resetPreview.reset()}>Cancel</Button><Button type="submit" loading={freshStart.isPending}>Reset saved accounts and records</Button></div>
-        </form>}
       </Modal>
       <Modal open={Boolean(deleteAccount)} onClose={() => { if (!remove.isPending) { setDeleteAccount(null); remove.reset(); } }} title="Delete institutional account" description={`Remove ${deleteAccount?.name || "this account"} from institutional accounts? Their sign-in access will be revoked. Historical records will remain.`} footer={<>
         <Button variant="ghost" onClick={() => setDeleteAccount(null)} disabled={remove.isPending}>Cancel</Button>
