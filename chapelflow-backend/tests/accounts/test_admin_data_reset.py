@@ -100,3 +100,51 @@ class AdminDataResetTests(TransactionTestCase):
         response = self.client.post(url, self.credentials(confirmation="admin@example.edu"), format="json")
         self.assertEqual(response.status_code, 404)
         self.assertTrue(User.objects.filter(pk=self.admin.pk).exists())
+
+    def test_launch_reset_preserves_configuration_and_removes_assignments(self):
+        from apps.accounts.models import Role, Permission, RolePermission
+        from apps.ministries.models import Group
+        from apps.university.models import University, College, Department
+        role = Role.objects.create(code="CUSTOM_ROLE", name="Custom", scope_type="SELF", created_by=self.member_user)
+        permission = Permission.objects.create(code="custom.view", name="Custom view")
+        grant = RolePermission.objects.create(role_obj=role, permission=permission)
+        group = Group.objects.create(branch=self.branch, name="Launch unit", group_type="UNIT", leader=self.member)
+        uni = University.objects.create(organization=self.branch.organization, name="University", slug="launch-uni")
+        college = College.objects.create(university=uni, name="College")
+        department = Department.objects.create(college=college, name="Programme")
+        self.admin.branch = self.branch
+        self.admin.photo_url = "https://example.com/test-photo.jpg"
+        self.admin.save()
+        preview = self.client.get("/api/v1/auth/admin/data-reset/").data["data"]
+        self.assertIn("university.Department", preview["preserved_configuration"])
+        response = self.client.post("/api/v1/auth/admin/data-reset/", self.credentials(
+            token=preview["token"], confirmation=RESET_PHRASE, backup_acknowledged=True,
+        ), format="json")
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertTrue(Branch.objects.filter(pk=self.branch.pk).exists())
+        self.assertTrue(Department.objects.filter(pk=department.pk).exists())
+        self.assertTrue(RolePermission.objects.filter(pk=grant.pk).exists())
+        self.assertEqual(RolePermission.objects.count(), 1)
+        role.refresh_from_db()
+        group.refresh_from_db()
+        self.assertIsNone(role.created_by_id)
+        self.assertIsNone(group.leader_id)
+        restored = User.objects.get(email=self.admin.email)
+        self.assertEqual(restored.branch_id, self.branch.pk)
+        self.assertEqual(restored.photo_url, "")
+        self.assertEqual(User.objects.count(), 1)
+        self.assertEqual(Member.objects.count(), 0)
+        # Retained integer PKs must not collide with subsequent inserts.
+        Permission.objects.create(code="after.reset", name="After reset")
+
+    def test_reset_rolls_back_when_configuration_restore_fails(self):
+        from unittest.mock import patch
+        from apps.accounts.data_reset import reset_database, reset_preview
+        token = reset_preview(self.admin)["token"]
+        with patch("apps.accounts.data_reset.serializers.deserialize", side_effect=RuntimeError("restore failed")):
+            with self.assertRaises(RuntimeError):
+                reset_database(self.admin, token)
+        self.assertTrue(User.objects.filter(pk=self.admin.pk).exists())
+        self.assertTrue(User.objects.filter(pk=self.member_user.pk).exists())
+        self.assertTrue(Member.objects.filter(pk=self.member.pk).exists())
+        self.assertTrue(Branch.objects.filter(pk=self.branch.pk).exists())
