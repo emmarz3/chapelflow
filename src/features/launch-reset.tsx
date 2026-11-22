@@ -10,7 +10,9 @@ export function LaunchResetPage() {
   const [confirmed, setConfirmed] = useState(false);
   const [phrase, setPhrase] = useState("");
   const [phraseError, setPhraseError] = useState(false);
+  const [stalePreview, setStalePreview] = useState(false);
   const confirmationInput = useRef<HTMLInputElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
   const preview = useMutation({ mutationFn: adminAccountService.resetPreview });
   const reset = useMutation({
     mutationFn: ({
@@ -24,12 +26,29 @@ export function LaunchResetPage() {
       password: string;
       otp: string;
     }) => adminAccountService.resetDatabase(token, confirmation, password, otp),
+    onError: (error) => {
+      if (error instanceof ApiError && error.status === 409) {
+        // A 409 means this signed preview must never be submitted again.
+        // Clear the displayed snapshot and sensitive form fields, and require
+        // an explicit fresh review before another destructive attempt.
+        preview.reset();
+        setStalePreview(true);
+        setPhrase("");
+        setPhraseError(false);
+        setConfirmed(false);
+        formRef.current?.reset();
+      }
+    },
     onSuccess: () => window.location.assign("/login"),
   });
   function review() {
     preview.reset();
     reset.reset();
+    setStalePreview(false);
+    setPhrase("");
     setPhraseError(false);
+    setConfirmed(false);
+    formRef.current?.reset();
     preview.mutate();
   }
   function submit(event: FormEvent<HTMLFormElement>) {
@@ -87,9 +106,9 @@ export function LaunchResetPage() {
             {preview.data.data.accounts_to_remove} other accounts will be
             removed. The preview covers {preview.data.data.database_rows}{" "}
             database rows, including configuration that will be restored. It
-            expires after five minutes or when record counts change.
+            is valid for five minutes. Routine sign-in refreshes, audit entries and background-task results do not invalidate it; changes to chapel application records do.
           </p> : <p>Review the records above before the final reset button becomes available.</p>}
-          <form className="form-grid" onSubmit={submit}>
+          <form ref={formRef} className="form-grid" onSubmit={submit}>
             <label className="field field--full">
               <span>Confirmation phrase</span>
               <small>Type <strong>{preview.data?.data.confirmation || "RESET CHAPELFLOW DATA"}</strong> into the empty box below.</small>
@@ -137,8 +156,20 @@ export function LaunchResetPage() {
             {reset.isError && (
               <p className="form-error" role="alert">
                 {reset.error.message}
-                {reset.error instanceof ApiError && reset.error.status === 409 && " Review the records again to get a new preview."}
+                {stalePreview && " The old preview has been discarded. Review the records again before attempting the reset."}
               </p>
+            )}
+            {stalePreview && (
+              <div className="field--full">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  loading={preview.isPending}
+                  onClick={review}
+                >
+                  Review records again
+                </Button>
+              </div>
             )}
             <div className="button-row">
               <Link
@@ -149,7 +180,7 @@ export function LaunchResetPage() {
               </Link>
               <Button
                 type="submit"
-                disabled={!confirmed || !preview.data}
+                disabled={!confirmed || !preview.data || stalePreview || preview.isPending}
                 loading={reset.isPending}
               >
                 Permanently reset saved accounts and records
