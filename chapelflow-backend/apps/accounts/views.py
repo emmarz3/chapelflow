@@ -630,8 +630,16 @@ class AdminDataResetView(APIView):
             return error_response("Review the current data before resetting.", status=400)
         try:
             reset_database(request.user, token)
-        except (BadSignature, SignatureExpired, ValueError):
-            return error_response("The preview expired or data changed. Review it again.", status=409)
+        except SignatureExpired:
+            return error_response(
+                "The reset preview expired after five minutes. Review the current records to generate a new preview.",
+                status=409,
+            )
+        except (BadSignature, ValueError):
+            return error_response(
+                "Application records changed after this preview. Review the current records to generate a new preview.",
+                status=409,
+            )
         return _clear_auth_cookies(success_response(message="Database reset. Sign in again with your Super Admin account."))
 
 

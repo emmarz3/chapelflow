@@ -59,6 +59,25 @@ class AdminDataResetTests(TransactionTestCase):
         self.assertEqual(stale.status_code, 409, stale.data)
         self.assertTrue(User.objects.filter(pk=self.member_user.pk).exists())
 
+    def test_audit_activity_does_not_invalidate_reset_preview(self):
+        from apps.accounts.data_reset import reset_database, reset_preview
+
+        token = reset_preview(self.admin)["token"]
+        # Audit rows can be written while an administrator reviews the reset.
+        AuditLog.objects.create(
+            user=self.admin,
+            action="CREATE",
+            resource_type="accounts.User",
+            resource_id=str(self.member_user.pk),
+            metadata={"during_preview": True},
+        )
+
+        restored = reset_database(self.admin, token)
+
+        self.assertEqual(restored.email, "admin@example.edu")
+        self.assertFalse(User.objects.filter(pk=self.member_user.pk).exists())
+        self.assertEqual(AuditLog.objects.filter(resource_type="application.DatabaseReset").count(), 1)
+
     def test_full_reset_keeps_admin_and_mfa_but_removes_other_records(self):
         url = "/api/v1/auth/admin/data-reset/"
         old_token = str(AccessToken.for_user(self.admin))

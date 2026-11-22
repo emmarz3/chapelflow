@@ -12,7 +12,22 @@ from common.constants.roles import Roles
 
 
 RESET_PHRASE = "RESET CHAPELFLOW DATA"
-RESET_SALT = "chapelflow-fresh-start-v2"
+RESET_SALT = "chapelflow-fresh-start-v3"
+
+# These tables can legitimately grow while an administrator is reviewing a
+# reset: token refresh/blacklisting, browser sessions, audit activity and
+# asynchronous task results. They remain included in the displayed blast
+# radius, but must not make an otherwise-current application-data preview
+# unusable.
+VOLATILE_PREVIEW_MODELS = frozenset({
+    "audit.AuditLog",
+    "notifications.Notification",
+    "sessions.Session",
+    "token_blacklist.OutstandingToken",
+    "token_blacklist.BlacklistedToken",
+    "django_celery_results.TaskResult",
+    "django_celery_results.GroupResult",
+})
 
 # Configuration survives a launch reset; assignments and personal records do not.
 CONFIG_MODELS = (
@@ -37,32 +52,60 @@ def configuration_snapshot():
 
 
 
-def reset_preview(admin):
-    # Show the actual blast radius, including Django auth and Celery rows.
-    counts = {
+def _database_row_counts():
+    """Return all managed table counts shown in the destructive reset preview."""
+    return {
         model._meta.label: model._base_manager.count()
         for model in apps.get_models(include_auto_created=False)
         if model._meta.managed and model._meta.db_table
     }
+
+
+def _preview_validation_snapshot(counts):
+    """Ignore routine system-table churn while protecting application records."""
+    return {
+        label: count
+        for label, count in counts.items()
+        if label not in VOLATILE_PREVIEW_MODELS
+    }
+
+
+def reset_preview(admin):
+    # Show the full blast radius, including system/auth/task rows. Only the
+    # stable application-data subset is signed for stale-preview validation.
+    counts = _database_row_counts()
+    snapshot = _preview_validation_snapshot(counts)
     return {
         "accounts_to_remove": User.objects.exclude(pk=admin.pk).count(),
         "database_rows": sum(counts.values()),
         "counts": counts,
         "preserved_configuration": list(CONFIG_MODELS),
         "confirmation": RESET_PHRASE,
-        "token": signing.dumps({"admin": str(admin.pk), "counts": counts}, salt=RESET_SALT),
+        "token": signing.dumps(
+            {"admin": str(admin.pk), "snapshot": snapshot},
+            salt=RESET_SALT,
+        ),
     }
 
 
 def reset_database(admin, token):
     preview = signing.loads(token, salt=RESET_SALT, max_age=300)
-    if preview.get("admin") != str(admin.pk) or preview.get("counts") != reset_preview(admin)["counts"]:
-        raise ValueError("The data changed since the preview. Review the counts again.")
+    if preview.get("admin") != str(admin.pk):
+        raise ValueError("This reset preview belongs to a different administrator.")
 
     with transaction.atomic():
+        # Recheck inside the transaction immediately before flushing. Locking
+        # the administrator also prevents concurrent reset attempts for the
+        # same account from racing each other.
+        locked = User.objects.select_for_update().get(pk=admin.pk, role=Roles.SUPER_ADMIN)
+        current_counts = _database_row_counts()
+        current_snapshot = _preview_validation_snapshot(current_counts)
+        if preview.get("snapshot") != current_snapshot:
+            raise ValueError("Application records changed after the preview.")
+        previous_rows = sum(current_counts.values())
+
         # Serialize only this administrator's identity and authenticator; the
         # original password hash remains valid and no secret is returned.
-        locked = User.objects.select_for_update().get(pk=admin.pk, role=Roles.SUPER_ADMIN)
         admin_fields = {
             field.attname: getattr(locked, field.attname)
             for field in User._meta.concrete_fields
@@ -103,6 +146,6 @@ def reset_database(admin, token):
             restored.save(update_fields=["branch"])
         write_audit_log(
             AuditAction.DELETE, "application.DatabaseReset", restored.pk,
-            user=restored, metadata={"fresh_start": True, "previous_rows": sum(preview["counts"].values())},
+            user=restored, metadata={"fresh_start": True, "previous_rows": previous_rows},
         )
     return restored
