@@ -129,6 +129,8 @@ export function VolunteerWorkspacePage() {
   const [shiftEndsAt, setShiftEndsAt] = useState(() => localDateTimeInput(new Date(Date.now() + 24 * 60 * 60 * 1000)));
   const [shiftEndEdited, setShiftEndEdited] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [memberSearch, setMemberSearch] = useState("");
+  const [selectedMember, setSelectedMember] = useState("");
   const profiles = useQuery({
     queryKey: ["volunteer-profiles", user?.branchId],
     queryFn: async () => {
@@ -183,6 +185,8 @@ export function VolunteerWorkspacePage() {
     onSuccess: () => {
       toast("Volunteer profile created.");
       setProfileOpen(false);
+      setMemberSearch("");
+      setSelectedMember("");
       void client.invalidateQueries({ queryKey: ["volunteer-profiles"] });
     },
   });
@@ -191,6 +195,11 @@ export function VolunteerWorkspacePage() {
   if (assignments.isError) return <ErrorState description={message(assignments.error)} onRetry={() => void assignments.refetch()} />;
   const active = profiles.data.data.filter(isAssignableVolunteer).length;
   const awaiting = assignments.data.data.filter((assignment) => assignment.status === "PENDING").length;
+  const matchingMembers = (members.data || []).filter((member) => {
+    const query = memberSearch.trim().toLocaleLowerCase();
+    return !query || [member.name, member.identifier, member.email]
+      .some((value) => value?.toLocaleLowerCase().includes(query));
+  });
   return <>
     <PageHeader eyebrow="Volunteer operations" title="Duty roster" description="Assignments, conflicts, availability and service history remain validated by the server." actions={canUpdate ? <><Button variant="secondary" icon={<Plus />} onClick={() => setProfileOpen(true)}>Add volunteer</Button><Button icon={<Plus />} onClick={openAssignmentForm}>Assign duty</Button></> : undefined} />
     <section className="metric-grid metric-grid--three"><Metric label="Active volunteers" value={active} detail="Approved service profiles" /><Metric label="Assignments awaiting response" value={awaiting} detail="Confirm only after availability checks" /><Metric label="Completed assignments" value={assignments.data.data.filter((assignment) => assignment.status === "COMPLETED").length} detail="Recorded service history" /></section>
@@ -232,7 +241,46 @@ export function VolunteerWorkspacePage() {
         {createAssignment.isError && <p className="form-error field--full">{message(createAssignment.error)}</p>}
       </form>
     </Modal>
-    <Modal open={profileOpen} onClose={() => setProfileOpen(false)} title="Add volunteer" description="Create a service profile for a registered member." footer={<><Button variant="ghost" onClick={() => setProfileOpen(false)}>Cancel</Button><Button type="submit" form="volunteer-profile-form" loading={createProfile.isPending}>Create profile</Button></>}><form id="volunteer-profile-form" className="form-grid" onSubmit={(event) => { event.preventDefault(); const form = new FormData(event.currentTarget); createProfile.mutate({ member: String(form.get("member")), skills: String(form.get("skills") || ""), availabilityNotes: String(form.get("availability") || "") }); }}><label className="field field--full"><span>Member</span><select name="member" required defaultValue=""><option value="" disabled>{members.isPending ? "Loading registered members…" : "Select a member"}</option>{(members.data || []).map((member) => { const existingProfile = profiles.data.data.some((profile) => profile.memberId === member.id); return <option key={member.id} value={member.id} disabled={existingProfile}>{member.name} · {member.identifier || member.email}{existingProfile ? " · already a volunteer" : ""}</option>; })}</select></label><Field name="skills" label="Skills" placeholder="Ushering, media, sound" /><Field name="availability" label="Availability" placeholder="e.g. Sunday mornings" />{members.isError && <p className="form-error field--full">{message(members.error)}</p>}{createProfile.isError && <p className="form-error field--full">{message(createProfile.error)}</p>}</form></Modal>
+    <Modal
+      open={profileOpen}
+      onClose={() => setProfileOpen(false)}
+      title="Add volunteer"
+      description="Create a service profile for a registered member so they can be assigned duties, with skills, availability and service hours tracked. This does not assign a duty yet."
+      footer={<><Button variant="ghost" onClick={() => setProfileOpen(false)}>Cancel</Button><Button type="submit" form="volunteer-profile-form" loading={createProfile.isPending}>Create profile</Button></>}
+    >
+      <form id="volunteer-profile-form" className="form-grid" onSubmit={(event) => {
+        event.preventDefault();
+        const form = new FormData(event.currentTarget);
+        createProfile.mutate({ member: String(form.get("member")), skills: String(form.get("skills") || ""), availabilityNotes: String(form.get("availability") || "") });
+      }}>
+        <label className="field field--full">
+          <span>Search registered members</span>
+          <input
+            type="search"
+            value={memberSearch}
+            onChange={(event) => { setMemberSearch(event.target.value); setSelectedMember(""); }}
+            placeholder="Search by name, matric number or email"
+            autoComplete="off"
+          />
+        </label>
+        <label className="field field--full">
+          <span>Member</span>
+          <select name="member" required value={selectedMember} onChange={(event) => setSelectedMember(event.target.value)} disabled={members.isPending || members.isError}>
+            <option value="" disabled>{members.isPending ? "Loading registered members…" : "Select a member"}</option>
+            {matchingMembers.map((member) => {
+              const existingProfile = profiles.data.data.some((profile) => profile.memberId === member.id);
+              return <option key={member.id} value={member.id} disabled={existingProfile}>{member.name} · {member.identifier || member.email}{existingProfile ? " · already a volunteer" : ""}</option>;
+            })}
+          </select>
+          {!members.isPending && !members.isError && matchingMembers.length === 0 && <small>No registered members match this search.</small>}
+          {!members.isPending && !members.isError && matchingMembers.length > 0 && <small>{matchingMembers.length} matching member{matchingMembers.length === 1 ? "" : "s"}</small>}
+        </label>
+        <Field name="skills" label="Skills" placeholder="Ushering, media, sound" />
+        <Field name="availability" label="Availability" placeholder="e.g. Sunday mornings" />
+        {members.isError && <p className="form-error field--full">{message(members.error)}</p>}
+        {createProfile.isError && <p className="form-error field--full">{message(createProfile.error)}</p>}
+      </form>
+    </Modal>
   </>;
 }
 
