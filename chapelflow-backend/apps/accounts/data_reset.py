@@ -97,9 +97,11 @@ def reset_database(admin, token):
         # the administrator also prevents concurrent reset attempts for the
         # same account from racing each other.
         locked = User.objects.select_for_update().get(pk=admin.pk, role=Roles.SUPER_ADMIN)
-        current_snapshot = _preview_validation_snapshot(_database_row_counts())
+        current_counts = _database_row_counts()
+        current_snapshot = _preview_validation_snapshot(current_counts)
         if preview.get("snapshot") != current_snapshot:
             raise ValueError("Application records changed after the preview.")
+        previous_rows = sum(current_counts.values())
 
         # Serialize only this administrator's identity and authenticator; the
         # original password hash remains valid and no secret is returned.
@@ -143,6 +145,6 @@ def reset_database(admin, token):
             restored.save(update_fields=["branch"])
         write_audit_log(
             AuditAction.DELETE, "application.DatabaseReset", restored.pk,
-            user=restored, metadata={"fresh_start": True, "previous_rows": sum(preview["counts"].values())},
+            user=restored, metadata={"fresh_start": True, "previous_rows": previous_rows},
         )
     return restored
