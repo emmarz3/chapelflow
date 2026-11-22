@@ -44,6 +44,11 @@ class AdminDataResetTests(TransactionTestCase):
         refused = self.client.post(url, self.credentials(token=token, confirmation="wrong",
                                                           backup_acknowledged=True), format="json")
         self.assertEqual(refused.status_code, 400)
+        self.assertIn("Type RESET CHAPELFLOW DATA", refused.data["message"])
+        refused = self.client.post(url, self.credentials(token=token, confirmation=RESET_PHRASE,
+                                                          backup_acknowledged=False), format="json")
+        self.assertEqual(refused.status_code, 400)
+        self.assertIn("Acknowledge", refused.data["message"])
         refused = self.client.post(url, {"token": token, "confirmation": RESET_PHRASE,
                                          "backup_acknowledged": True, "password": "wrong", "otp": "000000"}, format="json")
         self.assertEqual(refused.status_code, 403)
