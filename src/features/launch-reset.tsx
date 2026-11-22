@@ -106,7 +106,7 @@ export function LaunchResetPage() {
             {preview.data.data.accounts_to_remove} other accounts will be
             removed. The preview covers {preview.data.data.database_rows}{" "}
             database rows, including configuration that will be restored. It
-            is valid for five minutes. Routine sign-in refreshes, audit entries and background-task results do not invalidate it; changes to chapel application records do.
+            is valid for five minutes. Routine sign-in refreshes, audit/notification entries and background-task results do not invalidate it; changes to chapel application records do.
           </p> : <p>Review the records above before the final reset button becomes available.</p>}
           <form ref={formRef} className="form-grid" onSubmit={submit}>
             <label className="field field--full">
