@@ -621,8 +621,10 @@ class AdminDataResetView(APIView):
         failure = _confirm_sensitive_admin_action(request)
         if failure:
             return failure
-        if request.data.get("confirmation") != RESET_PHRASE or request.data.get("backup_acknowledged") is not True:
-            return error_response("Confirm the phrase and acknowledge your database backup.", status=400)
+        if request.data.get("confirmation") != RESET_PHRASE:
+            return error_response(f"Type {RESET_PHRASE} exactly in the confirmation phrase field.", status=400)
+        if request.data.get("backup_acknowledged") is not True:
+            return error_response("Acknowledge that you verified a restorable database backup.", status=400)
         token = request.data.get("token")
         if not isinstance(token, str):
             return error_response("Review the current data before resetting.", status=400)

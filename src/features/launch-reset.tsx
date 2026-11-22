@@ -2,11 +2,14 @@ import { useMutation } from "@tanstack/react-query";
 import { type FormEvent, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { Button, PageHeader } from "../components/ui";
+import { ApiError } from "../lib/api";
 import { adminAccountService } from "../services/chapelflow";
 
 /** Super Admin only: the route is protected; the API rechecks role and MFA. */
 export function LaunchResetPage() {
   const [confirmed, setConfirmed] = useState(false);
+  const [phrase, setPhrase] = useState("");
+  const [phraseError, setPhraseError] = useState(false);
   const confirmationInput = useRef<HTMLInputElement>(null);
   const preview = useMutation({ mutationFn: adminAccountService.resetPreview });
   const reset = useMutation({
@@ -27,6 +30,8 @@ export function LaunchResetPage() {
     preview.reset();
     reset.reset();
     setConfirmed(false);
+    setPhrase("");
+    setPhraseError(false);
     preview.mutate();
   }
   useEffect(() => {
@@ -35,10 +40,16 @@ export function LaunchResetPage() {
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!preview.data || !confirmed || reset.isPending) return;
+    const confirmation = phrase.trim();
+    if (confirmation !== preview.data.data.confirmation) {
+      setPhraseError(true);
+      confirmationInput.current?.focus();
+      return;
+    }
     const fields = new FormData(event.currentTarget);
     reset.mutate({
       token: preview.data.data.token,
-      confirmation: String(fields.get("confirmation") || ""),
+      confirmation,
       password: String(fields.get("password") || ""),
       otp: String(fields.get("otp") || ""),
     });
@@ -99,15 +110,20 @@ export function LaunchResetPage() {
           </p>
           <form className="form-grid" onSubmit={submit}>
             <label className="field">
-              <span>Type this exact phrase: {preview.data.data.confirmation}</span>
+              <span>Confirmation phrase</span>
+              <small>Type <strong>{preview.data.data.confirmation}</strong> into the empty box below. The displayed phrase is not filled in for you.</small>
               <input
                 ref={confirmationInput}
                 name="confirmation"
                 aria-label="Reset confirmation phrase"
-                placeholder={preview.data.data.confirmation}
+                value={phrase}
+                onChange={(event) => { setPhrase(event.target.value); setPhraseError(false); }}
+                aria-invalid={phraseError}
+                aria-describedby={phraseError ? "reset-phrase-error" : undefined}
                 required
                 autoComplete="off"
               />
+              {phraseError && <small className="field__error" id="reset-phrase-error" role="alert">The phrase must match {preview.data.data.confirmation} exactly.</small>}
             </label>
             <label className="field">
               <span>Super Admin password</span>
@@ -128,7 +144,7 @@ export function LaunchResetPage() {
                 autoComplete="one-time-code"
               />
             </label>
-            <label>
+            <label className="field--full">
               <input
                 type="checkbox"
                 checked={confirmed}
@@ -139,8 +155,8 @@ export function LaunchResetPage() {
             </label>
             {reset.isError && (
               <p className="form-error" role="alert">
-                {reset.error.message} Review the records again if the preview
-                expired.
+                {reset.error.message}
+                {reset.error instanceof ApiError && reset.error.status === 409 && " Review the records again to get a new preview."}
               </p>
             )}
             <div className="button-row">
