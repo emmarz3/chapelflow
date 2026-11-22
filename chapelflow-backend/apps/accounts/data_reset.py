@@ -21,6 +21,7 @@ RESET_SALT = "chapelflow-fresh-start-v3"
 # unusable.
 VOLATILE_PREVIEW_MODELS = frozenset({
     "audit.AuditLog",
+    "notifications.Notification",
     "sessions.Session",
     "token_blacklist.OutstandingToken",
     "token_blacklist.BlacklistedToken",
