@@ -1,0 +1,50 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { MemoryRouter } from "react-router-dom";
+import { beforeEach, expect, it, vi } from "vitest";
+import { LaunchResetPage } from "../features/launch-reset";
+import { adminAccountService } from "../services/chapelflow";
+
+vi.mock("../services/chapelflow", () => ({
+  adminAccountService: { resetPreview: vi.fn(), resetDatabase: vi.fn() },
+}));
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  vi.mocked(adminAccountService.resetPreview).mockResolvedValue({ data: {
+    token: "preview-token", confirmation: "RESET CHAPELFLOW DATA",
+    accounts_to_remove: 3, database_rows: 10, counts: {},
+  } });
+  vi.mocked(adminAccountService.resetDatabase).mockImplementation(() => new Promise(() => {}));
+});
+
+it("requires a typed phrase and backup acknowledgement before sending a reset", async () => {
+  const user = userEvent.setup();
+  render(
+    <MemoryRouter>
+      <QueryClientProvider client={new QueryClient()}>
+        <LaunchResetPage />
+      </QueryClientProvider>
+    </MemoryRouter>,
+  );
+  expect(screen.queryByRole("textbox", { name: "Reset confirmation phrase" })).not.toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Review records to reset" }));
+  const phrase = await screen.findByRole("textbox", { name: "Reset confirmation phrase" });
+  expect(phrase).toHaveValue("");
+  expect(phrase).toHaveFocus();
+  await user.type(phrase, "WRONG PHRASE");
+  await user.type(screen.getByLabelText("Super Admin password"), "password");
+  await user.type(screen.getByLabelText("Authenticator code"), "123456");
+  await user.click(screen.getByRole("checkbox", { name: /verified a restorable database backup/i }));
+  await user.click(screen.getByRole("button", { name: "Permanently reset saved accounts and records" }));
+  expect(screen.getByText(/phrase must match RESET CHAPELFLOW DATA exactly/i)).toBeInTheDocument();
+  expect(adminAccountService.resetDatabase).not.toHaveBeenCalled();
+
+  await user.clear(phrase);
+  await user.type(phrase, "RESET CHAPELFLOW DATA");
+  await user.click(screen.getByRole("button", { name: "Permanently reset saved accounts and records" }));
+  await waitFor(() => expect(adminAccountService.resetDatabase).toHaveBeenCalledWith(
+    "preview-token", "RESET CHAPELFLOW DATA", "password", "123456",
+  ));
+});

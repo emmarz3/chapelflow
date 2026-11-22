@@ -24,6 +24,16 @@ describe("Django API integration", () => {
       confirmation: "student@example.edu", password: "password", otp: "123456",
     });
   });
+  it("sends the typed reset phrase and backup acknowledgement to Django", async () => {
+    const fetch = vi.fn().mockResolvedValue(response({ success: true, message: "Reset" }));
+    vi.stubGlobal("fetch", fetch);
+    await adminAccountService.resetDatabase("preview-token", "RESET CHAPELFLOW DATA", "password", "123456");
+    expect(fetch.mock.calls[0]![0]).toBe("/api/v1/auth/admin/data-reset/");
+    expect(JSON.parse(fetch.mock.calls[0]![1].body)).toEqual({
+      token: "preview-token", confirmation: "RESET CHAPELFLOW DATA", password: "password",
+      otp: "123456", backup_acknowledged: true,
+    });
+  });
   it("loads student fellowship and unit choices through the Django adapter and submits a join request", async () => {
     const groups = [{ id: "group-1", name: "Music", type: "UNIT", description: "Chapel music" }];
     const fetch = vi.fn()
