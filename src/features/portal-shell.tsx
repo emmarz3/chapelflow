@@ -133,6 +133,12 @@ const navGroups: { label: string; items: NavItem[] }[] = [
         roles: ["super_admin"],
       },
       {
+        label: "Launch reset",
+        path: "/app/admin/launch-reset",
+        icon: <Settings />,
+        roles: ["super_admin"],
+      },
+      {
         label: "Service control room",
         path: "/app/admin/control-room",
         icon: <Activity />,

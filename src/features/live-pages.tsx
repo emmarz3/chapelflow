@@ -2535,7 +2535,7 @@ function LiveModuleOperationsPage({
         {user?.role === "super_admin" && <section className="panel">
           <h2>Fresh launch reset</h2>
           <p>Clear saved accounts and operational records while keeping your Super Admin access and system configuration. Review the scope before confirming.</p>
-          <Link className="button button--secondary" to="/app/admin/accounts#launch-reset">Review launch reset</Link>
+          <Link className="button button--secondary" to="/app/admin/launch-reset">Open launch reset</Link>
         </section>}
         <section className="panel">
           <header className="panel-heading"><div><h2>Notifications</h2><p>Choose topics, delivery channels, and quiet hours.</p></div></header>
