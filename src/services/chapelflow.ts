@@ -218,6 +218,10 @@ export interface PublicContentPayload {
     imageUrl?: string;
     imageAlt?: string;
     mediaType?: "image" | "video" | "file";
+    itemCount?: number;
+    photoCount?: number;
+    videoCount?: number;
+    fileCount?: number;
     action?: { label: string; href: string };
   }[];
   updatedAt: string;

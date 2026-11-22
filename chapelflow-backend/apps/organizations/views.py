@@ -1,5 +1,5 @@
 from rest_framework import viewsets
-from django.db.models import Q
+from django.db.models import Q, Prefetch
 from django.utils import timezone
 from common.viewsets import StandardModelViewSet
 
@@ -23,6 +23,22 @@ class PublicContentView(APIView):
         "gallery": (("GALLERY",), "Chapel gallery", "/gallery"),
     }
 
+    @staticmethod
+    def gallery_preview(entry):
+        from apps.operations.models import ContentType
+        items = entry.published_gallery_items
+        photos = [item for item in items if item.content_type == ContentType.GALLERY_IMAGE]
+        videos = [item for item in items if item.content_type == ContentType.GALLERY_VIDEO]
+        preview = next((item for item in photos + videos if item.media_url or item.cover_image_url), None)
+        return {
+            "imageUrl": entry.cover_image_url or (
+                (preview.media_url or preview.cover_image_url) if preview else None
+            ),
+            "mediaType": "image" if entry.cover_image_url or not preview or preview in photos else "video",
+            "itemCount": len(items), "photoCount": len(photos), "videoCount": len(videos),
+            "fileCount": len(items) - len(photos) - len(videos),
+        }
+
     def get(self, request, slug):
         from apps.operations.models import ContentEntry, ContentStatus, ContentType
 
@@ -38,6 +54,14 @@ class PublicContentView(APIView):
                     Q(title__icontains=search) | Q(summary__icontains=search) | Q(author_name__icontains=search)
                 )
             entries = entries.order_by("-published_at", "-updated_at")
+            if slug == "gallery":
+                entries = entries.prefetch_related(Prefetch(
+                    "children",
+                    queryset=published.filter(content_type__in=(
+                        ContentType.GALLERY_IMAGE, ContentType.GALLERY_VIDEO, ContentType.MEDIA,
+                    )).order_by("sort_order", "published_at", "updated_at"),
+                    to_attr="published_gallery_items",
+                ))
             return success_response({
                 "slug": slug,
                 "eyebrow": "Chrisland University Chapel",
@@ -48,6 +72,7 @@ class PublicContentView(APIView):
                     "heading": entry.title,
                     "body": entry.summary or entry.details,
                     "imageUrl": entry.cover_image_url or None,
+                    **(self.gallery_preview(entry) if slug == "gallery" else {}),
                     "imageAlt": entry.title if entry.cover_image_url else "",
                     "action": {
                         "label": "Open collection" if entry.content_type == ContentType.GALLERY else (

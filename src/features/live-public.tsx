@@ -1,3 +1,4 @@
+import { GalleryCollection } from "./gallery-media";
 import { ArrowRight, FileText } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
@@ -179,7 +180,7 @@ export function LivePublicDetailPage({
         />
       </div>
     );
-  return <LiveDetailContent content={query.data} />;
+  return kind === "gallery" ? <GalleryCollection key={id} content={query.data} /> : <LiveDetailContent content={query.data} />;
 }
 
 function LiveDetailContent({
