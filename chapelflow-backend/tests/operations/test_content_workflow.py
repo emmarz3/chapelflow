@@ -231,3 +231,31 @@ def test_published_gallery_exposes_only_published_images(
         "imageAlt": "Opening worship",
         "mediaType": "image",
     }]
+
+
+@pytest.mark.django_db
+def test_gallery_index_previews_published_media_and_counts(api_client, media_author):
+    album = ContentEntry.objects.create(
+        branch=media_author.branch, created_by=media_author, title="Video collection", slug="video-collection",
+        content_type=ContentType.GALLERY, status=ContentStatus.PUBLISHED,
+    )
+    ContentEntry.objects.create(
+        branch=media_author.branch, parent=album, created_by=media_author, title="Video", slug="video-preview",
+        content_type=ContentType.GALLERY_VIDEO, status=ContentStatus.PUBLISHED, media_url="https://example.com/video.mp4",
+    )
+    ContentEntry.objects.create(
+        branch=media_author.branch, parent=album, created_by=media_author, title="Draft", slug="draft-preview",
+        content_type=ContentType.GALLERY_IMAGE, status=ContentStatus.DRAFT, media_url="https://example.com/private.jpg",
+    )
+    response = api_client.get("/api/v1/public/content/gallery/")
+    assert response.status_code == 200
+    item = next(item for item in response.data["data"]["sections"] if item["id"] == str(album.id))
+    assert item["imageUrl"] == "https://example.com/video.mp4"
+    assert item["mediaType"] == "video"
+    assert item["itemCount"] == item["videoCount"] == 1
+    assert item["photoCount"] == item["fileCount"] == 0
+    album.cover_image_url = "https://example.com/cover.jpg"
+    album.save()
+    item = api_client.get("/api/v1/public/content/gallery/").data["data"]["sections"][0]
+    assert item["mediaType"] == "image"
+    assert item["imageUrl"] == album.cover_image_url
