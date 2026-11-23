@@ -349,7 +349,7 @@ export const authService = {
 export interface StudentProfile {
   email: string;
   phone_number: string;
-  bio: string;
+  bio?: string;
   address: string;
   photo_url: string;
   date_of_birth: string | null;
