@@ -122,6 +122,7 @@ function user(value: Row): User {
     name: name || fallback.name,
     email: str(value.email),
     photoUrl: str(value.photo_url),
+    bio: str(value.bio),
     role: mappedRole,
     roles: [mappedRole],
     permissions,
@@ -156,6 +157,18 @@ function upperRoomPost(value: Row) {
     likeCount: Number(value.like_count || 0),
     commentCount: Number(value.comment_count || 0),
     isLiked: Boolean(value.is_liked),
+  };
+}
+
+function upperRoomStory(value: Row) {
+  return {
+    id: str(value.id),
+    authorName: str(value.author_name),
+    caption: str(value.caption),
+    mediaType: str(value.media_type).toUpperCase() === "VIDEO" ? "VIDEO" as const : "IMAGE" as const,
+    mediaUrl: str(value.media_url),
+    createdAt: str(value.created_at),
+    expiresAt: str(value.expires_at),
   };
 }
 
@@ -377,6 +390,22 @@ export async function djangoRequest(
     return { data: user(row(row(response.data).user)) };
   }
   if (route === "/auth/logout") return call("/auth/logout/", json("POST", {}));
+  if (route === "/auth/register/availability" && method === "POST") {
+    const response = await call(
+      "/auth/register/availability/",
+      json("POST", {
+        ...(body.email ? { email: body.email } : {}),
+        ...(body.matric_no ? { matric_no: body.matric_no } : {}),
+      }),
+    );
+    const availability = row(response.data);
+    return {
+      data: {
+        ...(availability.email_available === undefined ? {} : { email_available: Boolean(availability.email_available) }),
+        ...(availability.matric_no_available === undefined ? {} : { matric_no_available: Boolean(availability.matric_no_available) }),
+      },
+    };
+  }
   if (route === "/auth/register") {
     if (!body.acceptedPolicies)
       unsupported("Accept the privacy policy and terms before registering.");
@@ -429,6 +458,11 @@ export async function djangoRequest(
   const homepageRequest = route.match(/^\/operations\/homepage\/requests\/([^/]+)$/);
   if (homepageRequest && (method === "PATCH" || method === "DELETE"))
     return call(`/operations/homepage/requests/${encodeURIComponent(homepageRequest[1]!)}/`, init);
+  if (route === "/social/stories") {
+    const response = await call(`/social/stories/${suffix}`, init);
+    if (method === "POST") return { data: upperRoomStory(row(response.data)) };
+    return { data: list(response.data).map(upperRoomStory) };
+  }
   if (route === "/social/posts") {
     const response = await call("/social/posts/", init);
     if (method === "POST") return { data: upperRoomPost(row(response.data)) };
