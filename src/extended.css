@@ -1625,3 +1625,10 @@
   .upper-room__share-actions { display: grid; grid-template-columns: 1fr 1fr; }
   .upper-room__share-actions .button { width: 100%; }
 }
+
+.upper-room__recent-note {
+  margin: -2px 0 8px;
+  color: var(--text-muted);
+  font-size: 10px;
+  line-height: 1.45;
+}
