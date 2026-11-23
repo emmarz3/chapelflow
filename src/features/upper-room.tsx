@@ -5,6 +5,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Button, EmptyState, ErrorState, LoadingState, useToast } from "../components/ui";
+import { useLocation } from "react-router-dom";
 import {
   upperRoomService,
   type UpperRoomMedia,
@@ -71,6 +72,7 @@ function loadRecent(key: string | null): RecentMedia[] {
 
 export function UpperRoomPage() {
   const { user } = useAuth();
+  const location = useLocation();
   const toast = useToast();
   const client = useQueryClient();
   const storyInput = useRef<HTMLInputElement>(null);
@@ -212,6 +214,12 @@ export function UpperRoomPage() {
   const posts = feed.data?.items ?? [];
   const activeStory = stories.data?.find((story) => story.id === viewingStoryId) ?? null;
 
+  useEffect(() => {
+    const postId = new URLSearchParams(location.search).get("post");
+    if (!postId || !feed.data) return;
+    document.getElementById(`upper-room-post-${postId}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [feed.data, location.search]);
+
   if (feed.isPending) return <LoadingState label="Opening The Upper Room" />;
   if (feed.isError) return <ErrorState description={failureMessage(feed.error)} onRetry={() => void feed.refetch()} />;
 
@@ -323,6 +331,7 @@ export function UpperRoomPage() {
           {recent.length > 0 && (
             <section className="upper-room__recent" aria-label="Recently viewed media">
               <header><div><Clock3 /><strong>Recently viewed</strong></div><button type="button" onClick={() => setRecent([])}>Clear history</button></header>
+              <p className="upper-room__recent-note">Your last 12 opened media items are saved on this device for quick access. Reopening requires a connection.</p>
               <div className="upper-room__recent-list">
                 {recent.map((item) => (
                   <button type="button" key={item.id} onClick={() => setViewingMedia(item)}>
@@ -452,7 +461,7 @@ function PostCard({ post, onOpenMedia }: { post: UpperRoomPost; onOpenMedia: (po
 
   return (
     <>
-      <article className="upper-room-post panel">
+      <article id={`upper-room-post-${post.id}`} className="upper-room-post panel">
         <header>
           <div className="upper-room__avatar" aria-hidden="true">{initials(post.authorName)}</div>
           <div><strong>{post.authorName}</strong><small>{relativeTime(post.createdAt)} · {post.branchName || "The Upper Room"}</small></div>
