@@ -98,6 +98,6 @@ class SocialStory(models.Model):
         db_table = "social_story"
         ordering = ["-created_at"]
         indexes = [
-            models.Index(fields=["branch", "expires_at", "created_at"]),
+            models.Index(fields=["branch", "expires_at", "created_at"], name="social_story_branch_exp_idx"),
         ]
 
