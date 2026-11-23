@@ -60,7 +60,7 @@ class UserPublicSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = [
-            "id", "email", "matric_no", "first_name", "last_name",
+            "id", "email", "email_verified", "matric_no", "first_name", "last_name",
             "full_name", "phone_number", "role", "branch", "mfa_enabled", "mfa_required",
             "is_active", "password_change_required", "date_joined", "effective_permissions",
             "inventory_access", "media_access", "community", "institutional_office",
