@@ -42,6 +42,17 @@ class TestNotificationDeliveryStates:
         assert notification.status != NotificationStatus.SENT
         assert notification.sent_at is None
 
+
+    def test_sms_channel_disabled_stays_stubbed_even_with_an_api_key(self, settings, monkeypatch):
+        from apps.notifications.providers import SMSProvider
+
+        settings.SMS_CHANNEL_ENABLED = False
+        settings.SMS_API_KEY = "configured-test-key"
+        provider = SMSProvider()
+        monkeypatch.setattr(provider, "_send_termii", lambda **kwargs: pytest.fail("SMS sent while channel is disabled"))
+
+        assert provider.send(to="08012345678", body="Test")["status"] == "stubbed"
+
     def test_push_delivery_is_marked_stubbed_not_sent(self, branch_a):
         from apps.notifications.models import NotificationStatus
         from apps.notifications.tasks import deliver_notification
