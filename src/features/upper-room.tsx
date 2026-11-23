@@ -10,7 +10,6 @@ import {
   upperRoomService,
   type UpperRoomMedia,
   type UpperRoomPost,
-  type UpperRoomStory,
 } from "../services/chapelflow";
 import { useAuth } from "./auth-context";
 import { ReportContentButton } from "./moderation";
@@ -189,16 +188,18 @@ export function UpperRoomPage() {
   function recordRecent(item: Omit<RecentMedia, "viewedAt">, cacheMedia = true) {
     const entry: RecentMedia = { ...item, viewedAt: new Date().toISOString() };
     setRecent((current) => [entry, ...current.filter((row) => row.id !== entry.id)].slice(0, 12));
-    if (!cacheMedia || !user?.id) return;
-    void cacheUpperRoomMedia(user.id, item.id, item.url).then(async (saved) => {
+    const userId = user?.id;
+    if (!cacheMedia || !userId) return;
+    void cacheUpperRoomMedia(userId, item.id, item.url).then(async (saved) => {
       if (!saved) return;
-      const cachedUrl = await getCachedUpperRoomMediaUrl(user.id, item.id, item.url);
+      const cachedUrl = await getCachedUpperRoomMediaUrl(userId, item.id, item.url);
       if (!cachedUrl) return;
       cachedObjectUrls.current.add(cachedUrl);
       setCachedMediaUrls((current) => {
-        if (current[item.id]) {
-          URL.revokeObjectURL(current[item.id]);
-          cachedObjectUrls.current.delete(current[item.id]);
+        const previousUrl = current[item.id];
+        if (previousUrl) {
+          URL.revokeObjectURL(previousUrl);
+          cachedObjectUrls.current.delete(previousUrl);
         }
         return { ...current, [item.id]: cachedUrl };
       });
