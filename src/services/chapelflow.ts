@@ -306,6 +306,8 @@ export const authService = {
     }>("/auth/register", payload),
   verifyEmail: (token: string) =>
     api.post<{ data: { verified: boolean } }>("/auth/verify-email", { token }),
+  resendEmailVerification: (email: string) =>
+    api.post<{ data: { sent: boolean } }>("/auth/resend-verification", { email }),
   verifyOtp: (identifier: string, code: string) =>
     api.post<{ data: { verified: boolean } }>("/auth/verify-otp", {
       identifier,
