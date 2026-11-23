@@ -250,6 +250,8 @@ class LoginSerializer(serializers.Serializer):
             raise serializers.ValidationError({"non_field_errors": ["Invalid credentials."]})
         if not user.is_active:
             raise serializers.ValidationError({"non_field_errors": ["This account has been deactivated."]})
+        if user.email and not user.email_verified:
+            raise serializers.ValidationError({"non_field_errors": ["Please verify your email address before signing in."]})
 
         attrs["user"] = user
         return attrs
