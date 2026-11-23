@@ -605,6 +605,11 @@ export function RegisterPage() {
                 : "Sign in with the email address you registered to open your ChapelFlow account."
             )}
           </p>
+          {verificationRequired && (
+            <Link className="button button--secondary full-button" to="/verify-email">
+              Didn’t receive the email? Resend verification
+            </Link>
+          )}
           <Link className="button button--primary full-button" to="/login">
             Return to sign in
           </Link>
