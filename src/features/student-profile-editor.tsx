@@ -30,12 +30,12 @@ export function StudentProfileEditorPage() {
       email: String(data.get("email") || ""),
       phone_number: String(data.get("phone_number") || ""),
       bio: String(data.get("bio") || ""),
-      address: String(data.get("address") || ""),
-      ...(birthday ? { date_of_birth: birthday } : {}),
-      emergency_contact_name: String(data.get("emergency_contact_name") || ""),
-      emergency_contact_phone: String(
-        data.get("emergency_contact_phone") || "",
-      ),
+      ...(isStudent ? {
+        address: String(data.get("address") || ""),
+        ...(birthday ? { date_of_birth: birthday } : {}),
+        emergency_contact_name: String(data.get("emergency_contact_name") || ""),
+        emergency_contact_phone: String(data.get("emergency_contact_phone") || ""),
+      } : {}),
     });
   }
 
