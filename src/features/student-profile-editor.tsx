@@ -29,6 +29,7 @@ export function StudentProfileEditorPage() {
     update.mutate({
       email: String(data.get("email") || ""),
       phone_number: String(data.get("phone_number") || ""),
+      bio: String(data.get("bio") || ""),
       address: String(data.get("address") || ""),
       ...(birthday ? { date_of_birth: birthday } : {}),
       emergency_contact_name: String(data.get("emergency_contact_name") || ""),
@@ -74,6 +75,17 @@ export function StudentProfileEditorPage() {
           <label>
             Phone number
             <input name="phone_number" defaultValue={value.phone_number} />
+          </label>
+          <label className="field--full">
+            Bio
+            <textarea
+              name="bio"
+              defaultValue={value.bio || ""}
+              maxLength={200}
+              rows={3}
+              placeholder="A short introduction about yourself…"
+            />
+            <small>{(value.bio || "").length}/200 characters. Keep it kind and appropriate for the chapel community.</small>
           </label>
           <label>
             Address
