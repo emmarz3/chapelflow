@@ -79,6 +79,7 @@ export function UpperRoomPage() {
   const [selectedBranch, setSelectedBranch] = useState("");
   const [storyFile, setStoryFile] = useState<File | null>(null);
   const [storyCaption, setStoryCaption] = useState("");
+  const [storyPreview, setStoryPreview] = useState("");
   const [storyComposerOpen, setStoryComposerOpen] = useState(false);
   const [viewingStoryId, setViewingStoryId] = useState<string | null>(null);
   const [viewingMedia, setViewingMedia] = useState<RecentMedia | null>(null);
@@ -97,6 +98,16 @@ export function UpperRoomPage() {
       // Private browsing or a full storage quota should not block the feed.
     }
   }, [recent, recentKey]);
+
+  useEffect(() => {
+    if (!storyFile) {
+      setStoryPreview("");
+      return;
+    }
+    const url = URL.createObjectURL(storyFile);
+    setStoryPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [storyFile]);
 
   const feed = useQuery({
     queryKey: ["upper-room", 1],
@@ -259,7 +270,7 @@ export function UpperRoomPage() {
                 <button type="button" aria-label="Close story composer" onClick={() => { setStoryComposerOpen(false); setStoryFile(null); setStoryCaption(""); }}><X /></button>
               </header>
               <div className="upper-room__story-preview">
-                {storyFile.type.startsWith("video/") ? <video src={URL.createObjectURL(storyFile)} controls playsInline /> : <img src={URL.createObjectURL(storyFile)} alt="Story preview" />}
+                {storyFile.type.startsWith("video/") ? <video src={storyPreview} controls playsInline /> : <img src={storyPreview} alt="Story preview" />}
               </div>
               <label className="field">
                 Caption (optional)
