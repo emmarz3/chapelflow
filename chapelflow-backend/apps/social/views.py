@@ -277,7 +277,7 @@ class SocialStoryCollectionView(APIView):
         stories = SocialStory.objects.filter(
             branch=branch,
             expires_at__gt=timezone.now(),
-        ).select_related("author", "branch", "upload").order_by("created_at")
+        ).select_related("author", "branch", "upload").order_by("-created_at")
         return success_response(SocialStorySerializer(stories[:50], many=True, context={"request": request}).data)
 
     def post(self, request):
