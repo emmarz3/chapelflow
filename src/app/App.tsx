@@ -1,4 +1,3 @@
-import { AccountProfilePage } from "../features/profile-photo";
 import { lazy, Suspense } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { PwaPrompt } from "../components/pwa-prompt";
@@ -313,7 +312,7 @@ export function App() {
             <Route element={<ProtectedRoute />}>
               <Route element={<PortalShell />}>
                 <Route path="/app" element={<DashboardPage />} />
-                <Route path="/app/account" element={<AccountProfilePage />} />
+                <Route path="/app/account" element={<StudentProfileEditorPage />} />
                 <Route path="/app/giving" element={<GivingPage />} />
                 <Route path="/app/upper-room" element={<UpperRoomPage />} />
                 <Route path="/app/community-safety" element={<CommunitySafetyPage />} />
