@@ -225,6 +225,31 @@ describe("Django API integration", () => {
     expect(storyForm.get("branch")).toBe("branch-1");
   });
 
+
+
+  it("maps configured notification provider availability into member preferences", async () => {
+    const fetch = vi.fn().mockResolvedValue(response({ data: {
+      master_enabled: true,
+      email_enabled: true,
+      sms_enabled: false,
+      in_app_enabled: true,
+      email_available: true,
+      sms_available: false,
+      push_available: false,
+      timezone_name: "Africa/Lagos",
+    } }));
+    vi.stubGlobal("fetch", fetch);
+
+    await expect(apiRequest("/notifications/preferences")).resolves.toMatchObject({
+      data: {
+        emailAvailable: true,
+        smsAvailable: false,
+        pushAvailable: false,
+        inAppEnabled: true,
+      },
+    });
+  });
+
   it("sends community reports with server field names", async () => {
     const fetch = vi.fn().mockResolvedValue(response({ data: { id: "report-1", status: "PENDING" } }, 201));
     vi.stubGlobal("fetch", fetch);
