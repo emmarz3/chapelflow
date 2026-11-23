@@ -88,10 +88,38 @@ export function UpperRoomPage() {
   const [viewingMedia, setViewingMedia] = useState<RecentMedia | null>(null);
   const recentKey = user?.id ? `chapelflow-upper-room-recent-${user.id}` : null;
   const [recent, setRecent] = useState<RecentMedia[]>(() => loadRecent(recentKey));
+  const [cachedMediaUrls, setCachedMediaUrls] = useState<Record<string, string>>({});
+  const recentSignature = recent.map((item) => `${item.id}:${item.viewedAt}`).join("|");
 
   useEffect(() => {
     setRecent(loadRecent(recentKey));
+    setCachedMediaUrls({});
   }, [recentKey]);
+
+  useEffect(() => {
+    if (!user?.id || !recent.length) {
+      setCachedMediaUrls({});
+      return;
+    }
+    let disposed = false;
+    let objectUrls: string[] = [];
+    void Promise.all(recent.map(async (item) => {
+      const cachedUrl = await getCachedUpperRoomMediaUrl(user.id, item.id, item.url);
+      if (cachedUrl) objectUrls.push(cachedUrl);
+      return cachedUrl ? [item.id, cachedUrl] as const : null;
+    })).then((entries) => {
+      if (disposed) {
+        objectUrls.forEach((url) => URL.revokeObjectURL(url));
+        return;
+      }
+      setCachedMediaUrls(Object.fromEntries(entries.filter((entry): entry is readonly [string, string] => Boolean(entry))));
+    });
+    return () => {
+      disposed = true;
+      objectUrls.forEach((url) => URL.revokeObjectURL(url));
+      objectUrls = [];
+    };
+  }, [user?.id, recentKey, recentSignature]);
 
   useEffect(() => {
     if (!recentKey) return;
@@ -158,6 +186,15 @@ export function UpperRoomPage() {
   function recordRecent(item: Omit<RecentMedia, "viewedAt">) {
     const entry: RecentMedia = { ...item, viewedAt: new Date().toISOString() };
     setRecent((current) => [entry, ...current.filter((row) => row.id !== entry.id)].slice(0, 12));
+    if (user?.id) {
+      void cacheUpperRoomMedia(user.id, item.id, item.url).then((saved) => {
+        if (!saved) return;
+        // Re-run cache hydration once the blob has been persisted.
+        setRecent((current) => current.map((row) =>
+          row.id === item.id ? { ...row, viewedAt: new Date().toISOString() } : row
+        ));
+      });
+    }
   }
 
   function openPostMedia(post: UpperRoomPost, media: UpperRoomMedia, openViewer = true) {
@@ -258,7 +295,7 @@ export function UpperRoomPage() {
                 setViewingStoryId(story.id);
               }}>
                 <span className="upper-room__story-ring upper-room__story-ring--1">
-                  {story.mediaType === "IMAGE" ? <img src={story.mediaUrl} alt="" loading="lazy" /> : <span><Video /></span>}
+                  {story.mediaType === "IMAGE" ? <img src={cachedMediaUrls[story.id] || story.mediaUrl} alt="" loading="lazy" /> : <span><Video /></span>}
                 </span>
                 <small>{story.authorName.split(" ")[0]}</small>
               </button>
@@ -349,8 +386,8 @@ export function UpperRoomPage() {
               <p className="upper-room__recent-note">Your last 12 opened photos and videos are remembered. Cached copies reopen offline; the cache is limited to 120 MB per account.</p>
               <div className="upper-room__recent-list">
                 {recent.map((item) => (
-                  <button type="button" key={item.id} onClick={() => setViewingMedia(item)}>
-                    <span>{item.mediaType === "IMAGE" ? <img src={item.url} alt="" loading="lazy" /> : <span className="upper-room__recent-video"><Video /></span>}</span>
+                  <button type="button" key={item.id} onClick={() => setViewingMedia({ ...item, url: cachedMediaUrls[item.id] || item.url })}>
+                    <span>{item.mediaType === "IMAGE" ? <img src={cachedMediaUrls[item.id] || item.url} alt="" loading="lazy" /> : <span className="upper-room__recent-video"><Video /></span>}</span>
                     <small>{item.authorName} · {relativeTime(item.viewedAt)}</small>
                   </button>
                 ))}
