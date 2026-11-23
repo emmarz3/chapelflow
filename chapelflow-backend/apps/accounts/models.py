@@ -150,6 +150,8 @@ class User(AbstractBaseUser, PermissionsMixin):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
 
     email = models.EmailField(unique=True, null=True, blank=True)
+    # Existing/provisioned accounts remain trusted; public self-registration sets this false.
+    email_verified = models.BooleanField(default=True)
     matric_no = models.CharField(
         max_length=32,
         unique=True,
