@@ -77,6 +77,34 @@ class TestEmailVerification:
         )
         assert response.status_code == 400
 
+    def test_expired_signed_tokens_are_rejected(self, api_client):
+        from django.core import signing
+        from django.test import override_settings
+        from apps.accounts.models import User
+
+        user = User.objects.create_user(
+            email="expired.confirmation@example.com",
+            password="StrongPass123!",
+            first_name="Expired",
+            last_name="Link",
+            email_verified=False,
+        )
+        token = signing.dumps(
+            {"user_id": str(user.pk), "email": user.email},
+            salt="chapelflow.email-verification",
+            compress=True,
+        )
+        with override_settings(EMAIL_VERIFICATION_TIMEOUT_SECONDS=-1):
+            response = api_client.post(
+                "/api/v1/auth/verify-email/",
+                {"token": token},
+                format="json",
+            )
+
+        assert response.status_code == 400
+        user.refresh_from_db()
+        assert user.email_verified is False
+
     def test_resend_is_generic_for_registered_and_unknown_addresses(self, api_client):
         from apps.accounts.models import User
 
