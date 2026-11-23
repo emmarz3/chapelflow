@@ -40,7 +40,7 @@ export function NotificationSettingsPage() {
     for (const key of ["masterEnabled", "emailEnabled", "inAppEnabled", ...categories.map((item) => item.key), "quietHoursEnabled"] as (keyof NotificationPreferences)[]) {
       (values as unknown as Record<string, unknown>)[key] = form.has(key);
     }
-    values.smsEnabled = false;
+    values.smsEnabled = form.has("smsEnabled");
     values.quietHoursStart = String(form.get("quietHoursStart") || "");
     values.quietHoursEnd = String(form.get("quietHoursEnd") || "");
     values.timezoneName = String(form.get("timezoneName") || "Africa/Lagos").trim();
@@ -56,10 +56,11 @@ export function NotificationSettingsPage() {
     <section className="panel">
       <form className="form-grid" onSubmit={submit}>
         <label className="field field--full checkbox-field"><input type="checkbox" name="masterEnabled" defaultChecked={preference.masterEnabled} /><span><strong>Allow ordinary notifications</strong><small>Turn off to pause all ordinary updates. Your category choices are kept for later.</small></span></label>
-        <div className="field--full"><h2>Delivery channels</h2><p>Email requires a valid address on your account. In-app updates appear when you sign in. SMS and push are coming later.</p></div>
-        <label className="field checkbox-field"><input type="checkbox" name="inAppEnabled" defaultChecked={preference.inAppEnabled} /><span>In-app</span></label>
-        <label className="field checkbox-field"><input type="checkbox" name="emailEnabled" defaultChecked={preference.emailEnabled} /><span>Email</span></label>
-        <p className="field--full">Browser push is unavailable until device registration is configured. ChapelFlow does not request browser notification permission.</p>
+        <div className="field--full"><h2>Delivery channels</h2><p>On-site notifications appear in ChapelFlow. Off-site email and SMS notifications are sent through the chapel's configured delivery providers.</p></div>
+        <label className="field checkbox-field"><input type="checkbox" name="inAppEnabled" defaultChecked={preference.inAppEnabled} /><span><strong>In-app</strong><small>On-site notification inbox and unread alerts.</small></span></label>
+        <label className="field checkbox-field"><input type="checkbox" name="emailEnabled" defaultChecked={preference.emailEnabled} disabled={preference.emailAvailable === false} /><span><strong>Email</strong><small>{preference.emailAvailable === false ? "Email delivery is not configured by the chapel yet." : "Off-site email updates to your registered address."}</small></span></label>
+        <label className="field checkbox-field"><input type="checkbox" name="smsEnabled" defaultChecked={preference.smsEnabled} disabled={preference.smsAvailable === false} /><span><strong>SMS</strong><small>{preference.smsAvailable === false ? "SMS is unavailable until the chapel configures its Termii service." : "Off-site text-message updates to your registered phone number."}</small></span></label>
+        <p className="field--full">Browser push notifications are not active yet. They require a device subscription and permission flow, which ChapelFlow does not currently provide.</p>
         <div className="field--full"><h2>Topics</h2><p>Choose each kind of update independently.</p></div>
         {categories.map(({ key, label, detail }) => <label key={key} className="field field--full checkbox-field"><input type="checkbox" name={key} defaultChecked={Boolean(preference[key])} /><span><strong>{label}</strong><small>{detail}</small></span></label>)}
         <div className="field--full"><h2>Quiet hours</h2><p>External messages wait until quiet hours end. In-app updates remain available when you open ChapelFlow.</p></div>
