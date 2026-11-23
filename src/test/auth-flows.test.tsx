@@ -195,12 +195,12 @@ describe("authentication recovery flows", () => {
     await waitFor(() =>
       expect(
         fetchMock.mock.calls.some(([url]) =>
-          String(url).includes("/auth/register"),
+          String(url).endsWith("/auth/register/"),
         ),
       ).toBe(true),
     );
     const [, request] = fetchMock.mock.calls.find(([url]) =>
-      String(url).includes("/auth/register"),
+      String(url).endsWith("/auth/register/"),
     ) as [string, RequestInit];
     expect(JSON.parse(String(request.body))).toMatchObject({
       academic_level: "300",
