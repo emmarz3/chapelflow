@@ -186,6 +186,7 @@ REST_FRAMEWORK = {
     "NUM_PROXIES": 1,
     "DEFAULT_THROTTLE_RATES": {
         "auth": "10/min",
+        "registration_check": "20/min",
         "sync": "30/min",
         "attendance_scan": "20/min",
         "attendance_code_user": "8/min",
@@ -301,6 +302,7 @@ SUPABASE_STORAGE_BUCKET = env("SUPABASE_STORAGE_BUCKET", default="chapelflow-upl
 
 MAX_UPLOAD_SIZE_MB = env.int("MAX_UPLOAD_SIZE_MB", default=10)
 MAX_MEDIA_UPLOAD_SIZE_MB = env.int("MAX_MEDIA_UPLOAD_SIZE_MB", default=100)
+UPPER_ROOM_MAX_FILE_SIZE_MB = env.int("UPPER_ROOM_MAX_FILE_SIZE_MB", default=50)
 ALLOWED_UPLOAD_EXTENSIONS = env.list(
     "ALLOWED_UPLOAD_EXTENSIONS",
     default=["jpg", "jpeg", "png", "webp", "gif", "pdf", "mp3", "m4a", "mp4", "mov", "webm", "docx"],

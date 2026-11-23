@@ -64,7 +64,7 @@ class UserPublicSerializer(serializers.ModelSerializer):
             "full_name", "phone_number", "role", "branch", "mfa_enabled", "mfa_required",
             "is_active", "password_change_required", "date_joined", "effective_permissions",
             "inventory_access", "media_access", "community", "institutional_office",
-            "institutional_group_name", "photo_url",
+            "institutional_group_name", "photo_url", "bio",
         ]
         read_only_fields = fields
 
@@ -74,6 +74,7 @@ class StudentSelfProfileSerializer(serializers.Serializer):
 
     email = serializers.EmailField(required=False)
     phone_number = serializers.CharField(max_length=20, required=False, allow_blank=True)
+    bio = serializers.CharField(max_length=200, required=False, allow_blank=True, trim_whitespace=True)
     address = serializers.CharField(max_length=500, required=False, allow_blank=True)
     date_of_birth = serializers.DateField(required=False, allow_null=True)
     emergency_contact_name = serializers.CharField(max_length=150, required=False, allow_blank=True)

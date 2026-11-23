@@ -22,16 +22,41 @@ describe("Profile photo upload", () => {
     vi.clearAllMocks();
     URL.createObjectURL = vi.fn(() => "blob:preview");
     URL.revokeObjectURL = vi.fn();
+    vi.stubGlobal("Image", class {
+      naturalWidth = 1200;
+      naturalHeight = 900;
+      onload: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      set src(_value: string) { this.onload?.(); }
+    });
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({
+      clearRect: vi.fn(),
+      drawImage: vi.fn(),
+    } as unknown as CanvasRenderingContext2D);
+    Object.defineProperty(HTMLCanvasElement.prototype, "toBlob", {
+      configurable: true,
+      writable: true,
+      value: vi.fn((callback: BlobCallback) => {
+        callback(new Blob(["cropped-jpeg"], { type: "image/jpeg" }));
+      }),
+    });
   });
   it("previews a selection, saves it, and refreshes profile and attendance identity", async () => {
     mocks.upload.mockResolvedValue({ data: { photo_url: "https://example.com/new.png" } });
     const invalidate = mount();
     const file = new File(["photo"], "photo.png", { type: "image/png" });
     fireEvent.change(screen.getByLabelText("Choose profile picture"), { target: { files: [file] } });
-    expect(await screen.findByAltText("Selected profile picture preview")).toHaveAttribute("src", "blob:preview");
+    expect(await screen.findByLabelText("Cropped profile picture preview")).toBeInTheDocument();
+    expect(screen.getByLabelText(/zoom/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/horizontal position/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/vertical position/i)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Save profile picture" }));
     await screen.findByText("Profile picture updated.");
-    expect(mocks.upload).toHaveBeenCalledWith(file);
+    expect(mocks.upload).toHaveBeenCalledTimes(1);
+    const cropped = mocks.upload.mock.calls[0]?.[0] as File;
+    expect(cropped).toBeInstanceOf(File);
+    expect(cropped.type).toBe("image/jpeg");
+    expect(cropped.name).toContain("-cropped.jpg");
     expect(mocks.setPhoto).toHaveBeenCalledWith("https://example.com/new.png");
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["attendance-pass"] });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["student-profile"] });

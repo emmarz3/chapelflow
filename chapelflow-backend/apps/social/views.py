@@ -34,8 +34,9 @@ from .models import (
     SocialPostMedia,
     SocialPostStatus,
     SocialReaction,
+    SocialStory,
 )
-from .serializers import SocialCommentSerializer, SocialPostSerializer
+from .serializers import SocialCommentSerializer, SocialPostSerializer, SocialStorySerializer
 
 
 def _branch(user, requested_id=None):
@@ -112,9 +113,16 @@ class SocialMediaView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, pk):
+        story_scope = Q(upper_room_stories__expires_at__gt=timezone.now())
+        if _role(request.user) != Roles.SUPER_ADMIN:
+            story_scope &= Q(upper_room_stories__branch_id=request.user.branch_id)
         upload = get_object_or_404(
-            Upload, pk=pk, category=UploadCategory.SOCIAL_POST,
-            upper_room_media__post__in=_posts_for(request.user),
+            Upload.objects.filter(
+                pk=pk,
+                category=UploadCategory.SOCIAL_POST,
+            ).filter(
+                Q(upper_room_media__post__in=_posts_for(request.user)) | story_scope
+            ).distinct()
         )
         if settings.AWS_S3_ENDPOINT_URL and upload.file_url.startswith(
             f"{urlparse(settings.AWS_S3_ENDPOINT_URL).scheme}://{settings.AWS_STORAGE_BUCKET_NAME}."
@@ -217,7 +225,7 @@ class SocialPostCollectionView(APIView):
             else:
                 raise ValidationError({"files": "The Upper Room accepts image and video files only."})
             try:
-                validate_upload(file_obj, max_size_mb=getattr(settings, "MAX_MEDIA_UPLOAD_SIZE_MB", 100))
+                validate_upload(file_obj, max_size_mb=getattr(settings, "UPPER_ROOM_MAX_FILE_SIZE_MB", 50))
                 validate_social_media(file_obj)
             except DjangoValidationError as exc:
                 raise ValidationError({"files": exc.messages}) from exc
@@ -252,6 +260,84 @@ class SocialPostCollectionView(APIView):
                 SocialPostMedia.objects.create(post=post, upload=upload, media_type=media_type, position=position)
         post = _posts_for(request.user).get(pk=post.pk)
         return success_response(SocialPostSerializer(post, context={"request": request}).data, message="Posted to The Upper Room.", status=201)
+
+
+class SocialStoryCollectionView(APIView):
+    """Create and retrieve short-lived, branch-scoped Upper Room stories."""
+    permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def get_throttles(self):
+        if self.request.method == "POST":
+            self.throttle_scope = "community_post"
+        return super().get_throttles()
+
+    def get(self, request):
+        branch = _branch(request.user, request.query_params.get("branch"))
+        stories = SocialStory.objects.filter(
+            branch=branch,
+            expires_at__gt=timezone.now(),
+        ).select_related("author", "branch", "upload").order_by("-created_at")
+        return success_response(SocialStorySerializer(stories[:50], many=True, context={"request": request}).data)
+
+    def post(self, request):
+        branch = _branch(request.user, request.data.get("branch"))
+        file_obj = request.FILES.get("file")
+        caption = str(request.data.get("caption", "")).strip()
+        if not file_obj:
+            raise ValidationError({"file": "Choose one photo or video for your story."})
+        if len(caption) > 280:
+            raise ValidationError({"caption": "Keep story captions within 280 characters."})
+        content_type = (file_obj.content_type or "").lower()
+        if content_type.startswith("image/"):
+            media_type = SocialMediaType.IMAGE
+        elif content_type.startswith("video/"):
+            media_type = SocialMediaType.VIDEO
+        else:
+            raise ValidationError({"file": "Stories accept image and video files only."})
+        try:
+            validate_upload(file_obj, max_size_mb=getattr(settings, "UPPER_ROOM_MAX_FILE_SIZE_MB", 50))
+            validate_social_media(file_obj)
+        except DjangoValidationError as exc:
+            raise ValidationError({"file": exc.messages}) from exc
+
+        provider = getattr(settings, "UPPER_ROOM_STORAGE_PROVIDER", "")
+        if provider == "auto":
+            provider = "cloudinary" if all((
+                settings.CLOUDINARY_CLOUD_NAME,
+                settings.CLOUDINARY_API_KEY,
+                settings.CLOUDINARY_API_SECRET,
+            )) else "s3"
+        storage = get_storage_service(provider or None)
+        file_obj.seek(0)
+        file_url = storage.upload_fileobj(
+            file_obj,
+            generate_storage_filename(file_obj.name, prefix="upper-room"),
+            content_type=file_obj.content_type,
+        )
+        with transaction.atomic():
+            upload = Upload.objects.create(
+                branch=branch,
+                uploaded_by=request.user,
+                category=UploadCategory.SOCIAL_POST,
+                original_filename=file_obj.name,
+                file_url=file_url,
+                content_type=file_obj.content_type or "",
+                size_bytes=file_obj.size,
+            )
+            story = SocialStory.objects.create(
+                branch=branch,
+                author=request.user,
+                upload=upload,
+                media_type=media_type,
+                caption=caption,
+                expires_at=timezone.now() + timedelta(hours=24),
+            )
+        return success_response(
+            SocialStorySerializer(story, context={"request": request}).data,
+            message="Story shared. It will remain visible for 24 hours.",
+            status=201,
+        )
 
 
 class SocialPostDetailView(APIView):

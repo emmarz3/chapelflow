@@ -523,6 +523,30 @@ export function RegisterPage() {
       ),
     };
     setValues(merged);
+    if (!isDemoMode && (step === 0 || (step === 1 && memberType === "Student"))) {
+      setSubmitting(true);
+      try {
+        const check = await authService.checkRegistrationAvailability(
+          step === 0
+            ? { email: merged.email?.trim() }
+            : { matric_no: merged.identifier?.trim() },
+        );
+        const available = step === 0
+          ? check.data.email_available
+          : check.data.matric_no_available;
+        if (available === false) {
+          setError(step === 0
+            ? "An account with this email already exists. Sign in or use another email address."
+            : "An account with this matriculation number already exists. Check the number or sign in.");
+          return;
+        }
+      } catch (caught) {
+        setError(registrationError(caught));
+        return;
+      } finally {
+        setSubmitting(false);
+      }
+    }
     if (step < registrationSteps.length - 1) {
       setStep((value) => value + 1);
       return;

@@ -295,6 +295,11 @@ export const queryKeys = {
 };
 
 export const authService = {
+  checkRegistrationAvailability: (payload: { email?: string; matric_no?: string }) =>
+    api.post<{ data: { email_available?: boolean; matric_no_available?: boolean } }>(
+      "/auth/register/availability",
+      payload,
+    ),
   register: (payload: Record<string, unknown>) =>
     api.post<{
       data: { verificationRequired: boolean; approvalRequired?: boolean };
@@ -344,6 +349,7 @@ export const authService = {
 export interface StudentProfile {
   email: string;
   phone_number: string;
+  bio?: string;
   address: string;
   photo_url: string;
   date_of_birth: string | null;
@@ -417,6 +423,16 @@ export interface UpperRoomPost {
   isLiked: boolean;
 }
 
+export interface UpperRoomStory {
+  id: string;
+  authorName: string;
+  caption: string;
+  mediaType: "IMAGE" | "VIDEO";
+  mediaUrl: string;
+  createdAt: string;
+  expiresAt: string;
+}
+
 export interface UpperRoomComment {
   id: string;
   body: string;
@@ -436,6 +452,15 @@ export const uploadService = {
 
 export const upperRoomService = {
   feed: (page = 1) => api.get<{ data: { items: UpperRoomPost[]; page: number; hasMore: boolean; branches: { id: string; name: string }[] } }>(`/social/posts${queryString({ page, pageSize: 15 })}`),
+  stories: (branch?: string) =>
+    api.get<{ data: UpperRoomStory[] }>(`/social/stories${queryString({ branch })}`),
+  createStory: (file: File, caption: string, branch?: string) => {
+    const body = new FormData();
+    body.set("file", file);
+    body.set("caption", caption);
+    if (branch) body.set("branch", branch);
+    return api.postForm<{ data: UpperRoomStory }>("/social/stories", body);
+  },
   createPost: (caption: string, files: File[], branchId?: string) => {
     const body = new FormData();
     body.set("caption", caption);
@@ -671,6 +696,9 @@ export const notificationService = {
 
 export interface NotificationPreferences {
   masterEnabled: boolean;
+  emailAvailable?: boolean;
+  smsAvailable?: boolean;
+  pushAvailable?: boolean;
   emailEnabled: boolean;
   smsEnabled: boolean;
   inAppEnabled: boolean;

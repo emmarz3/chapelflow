@@ -7,12 +7,14 @@ from .views import (
     SocialMediaView,
     SocialPostCollectionView,
     SocialPostDetailView,
+    SocialStoryCollectionView,
 )
 
 
 urlpatterns = [
     path("media/<uuid:pk>/", SocialMediaView.as_view(), name="social-media"),
     path("posts/", SocialPostCollectionView.as_view(), name="social-posts"),
+    path("stories/", SocialStoryCollectionView.as_view(), name="social-stories"),
     path("posts/<uuid:pk>/", SocialPostDetailView.as_view(), name="social-post-detail"),
     path("posts/<uuid:pk>/like/", SocialLikeView.as_view(), name="social-like"),
     path("posts/<uuid:pk>/comments/", SocialCommentCollectionView.as_view(), name="social-comments"),

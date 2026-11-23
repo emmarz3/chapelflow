@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 vi.mock("../lib/backend", () => ({ isDjangoBackend: true }));
 import { apiRequest } from "../lib/api";
-import { adminAccountService, communityAdminService, communityService, studentContentService } from "../services/chapelflow";
+import { adminAccountService, authService, communityAdminService, communityService, studentContentService, upperRoomService } from "../services/chapelflow";
 
 const response = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { "Content-Type": "application/json" } });
@@ -183,6 +183,71 @@ describe("Django API integration", () => {
     const [url, init] = fetch.mock.calls[0]!;
     expect(String(url)).toContain("/api/v1/communications/preferences/me/");
     expect(JSON.parse(init.body)).toMatchObject({ master_enabled: false, events_enabled: false, quiet_hours_start: null, timezone_name: "Europe/London" });
+  });
+
+
+
+  it("checks registration availability and loads/creates branch-scoped Upper Room stories", async () => {
+    const story = {
+      id: "story-1",
+      author_name: "Ada Grace",
+      caption: "Sunday worship",
+      media_type: "IMAGE",
+      media_url: "/api/v1/social/media/upload-1/",
+      created_at: "2026-11-23T08:00:00Z",
+      expires_at: "2026-11-24T08:00:00Z",
+    };
+    const fetch = vi.fn()
+      .mockResolvedValueOnce(response({ data: { email_available: false, matric_no_available: true } }))
+      .mockResolvedValueOnce(response({ data: [story] }))
+      .mockResolvedValueOnce(response({ data: story }, 201));
+    vi.stubGlobal("fetch", fetch);
+
+    await expect(authService.checkRegistrationAvailability({ email: "ada@cuc.edu.ng" }))
+      .resolves.toMatchObject({ data: { email_available: false, matric_no_available: true } });
+
+    await expect(upperRoomService.stories("branch-1")).resolves.toMatchObject({
+      data: [{ id: "story-1", authorName: "Ada Grace", mediaType: "IMAGE", mediaUrl: story.media_url }],
+    });
+
+    const upload = new File(["image-bytes"], "story.png", { type: "image/png" });
+    await expect(upperRoomService.createStory(upload, "Sunday worship", "branch-1"))
+      .resolves.toMatchObject({ data: { id: "story-1", authorName: "Ada Grace" } });
+
+    expect(fetch.mock.calls.map(([url]) => String(url))).toEqual([
+      "/api/v1/auth/register/availability/",
+      "/api/v1/social/stories/?branch=branch-1",
+      "/api/v1/social/stories/",
+    ]);
+    const storyForm = fetch.mock.calls[2]?.[1]?.body as FormData;
+    expect(storyForm.get("file")).toBe(upload);
+    expect(storyForm.get("caption")).toBe("Sunday worship");
+    expect(storyForm.get("branch")).toBe("branch-1");
+  });
+
+
+
+  it("maps configured notification provider availability into member preferences", async () => {
+    const fetch = vi.fn().mockResolvedValue(response({ data: {
+      master_enabled: true,
+      email_enabled: true,
+      sms_enabled: false,
+      in_app_enabled: true,
+      email_available: true,
+      sms_available: false,
+      push_available: false,
+      timezone_name: "Africa/Lagos",
+    } }));
+    vi.stubGlobal("fetch", fetch);
+
+    await expect(apiRequest("/notifications/preferences")).resolves.toMatchObject({
+      data: {
+        emailAvailable: true,
+        smsAvailable: false,
+        pushAvailable: false,
+        inAppEnabled: true,
+      },
+    });
   });
 
   it("sends community reports with server field names", async () => {

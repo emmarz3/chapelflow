@@ -47,6 +47,7 @@ export type Permission =
 
 export interface User {
   photoUrl?: string;
+  bio?: string;
   mfaRequired?: boolean;
   passwordChangeRequired?: boolean;
   community?: "student" | "staff" | "guest";

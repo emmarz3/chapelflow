@@ -134,8 +134,16 @@ export async function apiRequest<T>(
 
 async function rawRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
   const controller = new AbortController();
-  const timeout = window.setTimeout(() => controller.abort(),
-    ["/social/posts/", "/uploads/upload/"].includes(path) && init.body instanceof FormData ? 115_000 : 60_000);
+  const normalisedPath = path.replace(/\/+$/, "");
+  const isFileUpload = init.body instanceof FormData && (
+    normalisedPath === "/social/posts" ||
+    normalisedPath === "/social/stories" ||
+    normalisedPath === "/account/profile/photo" ||
+    normalisedPath.startsWith("/uploads")
+  );
+  // Mobile connections and larger photos/videos need more time than ordinary
+  // JSON requests. Do not time out valid uploads at the generic 60 second mark.
+  const timeout = window.setTimeout(() => controller.abort(), isFileUpload ? 180_000 : 60_000);
   try {
     const signal = init.signal
       ? AbortSignal.any([init.signal, controller.signal])
