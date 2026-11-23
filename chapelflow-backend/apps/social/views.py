@@ -312,7 +312,7 @@ class SocialStoryCollectionView(APIView):
         file_obj.seek(0)
         file_url = storage.upload_fileobj(
             file_obj,
-            generate_storage_filename(file_obj.name, prefix="upper-room-story"),
+            generate_storage_filename(file_obj.name, prefix="upper-room"),
             content_type=file_obj.content_type,
         )
         upload = Upload.objects.create(
