@@ -47,6 +47,7 @@ export function ProfilePhotoEditor() {
   const imageRef = useRef<HTMLImageElement | null>(null);
   const objectUrl = useRef("");
   const [file, setFile] = useState<File | null>(null);
+  const [imageReady, setImageReady] = useState(false);
   const [validation, setValidation] = useState("");
   const [zoom, setZoom] = useState(1);
   const [horizontal, setHorizontal] = useState(0);
@@ -54,6 +55,7 @@ export function ProfilePhotoEditor() {
 
   useEffect(() => {
     if (!file) {
+      setImageReady(false);
       imageRef.current = null;
       if (objectUrl.current) URL.revokeObjectURL(objectUrl.current);
       objectUrl.current = "";
@@ -65,6 +67,7 @@ export function ProfilePhotoEditor() {
     image.onload = () => {
       imageRef.current = image;
       if (canvas.current) drawCrop(image, canvas.current, 1, 0, 0);
+      setImageReady(true);
     };
     image.onerror = () => setValidation("This image could not be opened. Choose another picture.");
     image.src = url;
@@ -100,6 +103,7 @@ export function ProfilePhotoEditor() {
     upload.reset();
     setValidation("");
     setFile(null);
+    setImageReady(false);
     setZoom(1);
     setHorizontal(0);
     setVertical(0);
