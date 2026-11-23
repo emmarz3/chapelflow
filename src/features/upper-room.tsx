@@ -186,10 +186,10 @@ export function UpperRoomPage() {
     onError: (error) => toast(failureMessage(error), "error"),
   });
 
-  function recordRecent(item: Omit<RecentMedia, "viewedAt">) {
+  function recordRecent(item: Omit<RecentMedia, "viewedAt">, cacheMedia = true) {
     const entry: RecentMedia = { ...item, viewedAt: new Date().toISOString() };
     setRecent((current) => [entry, ...current.filter((row) => row.id !== entry.id)].slice(0, 12));
-    if (!user?.id) return;
+    if (!cacheMedia || !user?.id) return;
     void cacheUpperRoomMedia(user.id, item.id, item.url).then(async (saved) => {
       if (!saved) return;
       const cachedUrl = await getCachedUpperRoomMediaUrl(user.id, item.id, item.url);
@@ -299,7 +299,7 @@ export function UpperRoomPage() {
                   mediaType: story.mediaType,
                   caption: story.caption,
                   authorName: story.authorName,
-                });
+                }, false);
                 setViewingStoryId(story.id);
               }}>
                 <span className="upper-room__story-ring upper-room__story-ring--1">
