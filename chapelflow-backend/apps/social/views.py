@@ -315,23 +315,24 @@ class SocialStoryCollectionView(APIView):
             generate_storage_filename(file_obj.name, prefix="upper-room"),
             content_type=file_obj.content_type,
         )
-        upload = Upload.objects.create(
-            branch=branch,
-            uploaded_by=request.user,
-            category=UploadCategory.SOCIAL_POST,
-            original_filename=file_obj.name,
-            file_url=file_url,
-            content_type=file_obj.content_type or "",
-            size_bytes=file_obj.size,
-        )
-        story = SocialStory.objects.create(
-            branch=branch,
-            author=request.user,
-            upload=upload,
-            media_type=media_type,
-            caption=caption,
-            expires_at=timezone.now() + timedelta(hours=24),
-        )
+        with transaction.atomic():
+            upload = Upload.objects.create(
+                branch=branch,
+                uploaded_by=request.user,
+                category=UploadCategory.SOCIAL_POST,
+                original_filename=file_obj.name,
+                file_url=file_url,
+                content_type=file_obj.content_type or "",
+                size_bytes=file_obj.size,
+            )
+            story = SocialStory.objects.create(
+                branch=branch,
+                author=request.user,
+                upload=upload,
+                media_type=media_type,
+                caption=caption,
+                expires_at=timezone.now() + timedelta(hours=24),
+            )
         return success_response(
             SocialStorySerializer(story, context={"request": request}).data,
             message="Story shared. It will remain visible for 24 hours.",
