@@ -1,5 +1,6 @@
 from django.contrib.auth import get_user_model
 from django.conf import settings
+from django.core import signing
 from django.db import transaction
 from django.core.signing import BadSignature, SignatureExpired
 from django.db.models import Q
@@ -187,13 +188,90 @@ class RegisterView(APIView):
         if not serializer.is_valid():
             return error_response("Validation failed.", serializer.errors, status=400)
         user = serializer.save()
-        tokens = RefreshToken.for_user(user)
-        response = success_response(
-            {"access": str(tokens.access_token), "refresh": str(tokens), "user": UserPublicSerializer(user).data},
-            message="Registration successful.",
+        from .tasks import send_email_verification
+
+        verification_token = signing.dumps(
+            {"user_id": str(user.pk), "email": user.email},
+            salt="chapelflow.email-verification",
+            compress=True,
+        )
+        send_email_verification.delay(user.email, verification_token)
+        return success_response(
+            {
+                "verification_required": True,
+                "approval_required": False,
+                "email": user.email,
+                "user": UserPublicSerializer(user).data,
+            },
+            message="Registration successful. Check your email to verify your account.",
             status=201,
         )
-        return _set_auth_cookies(response, str(tokens.access_token), str(tokens))
+
+
+class EmailVerificationView(APIView):
+    """Confirm a newly registered account using a signed, time-limited token."""
+
+    permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "email_verification"
+
+    def post(self, request):
+        token = str(request.data.get("token") or "").strip()
+        if not token:
+            return error_response("A verification token is required.", status=400)
+        try:
+            payload = signing.loads(
+                token,
+                salt="chapelflow.email-verification",
+                max_age=settings.EMAIL_VERIFICATION_TIMEOUT_SECONDS,
+            )
+            if not isinstance(payload, dict):
+                raise BadSignature("Invalid verification payload.")
+            user = User.objects.filter(
+                pk=payload.get("user_id"),
+                email__iexact=payload.get("email", ""),
+            ).first()
+        except (BadSignature, SignatureExpired, TypeError, ValueError):
+            user = None
+        if not user or not user.email:
+            return error_response("This verification link is invalid or has expired.", status=400)
+        if not user.email_verified:
+            user.email_verified = True
+            user.save(update_fields=["email_verified"])
+        return success_response({"verified": True}, message="Email address verified successfully.")
+
+
+class EmailVerificationResendView(APIView):
+    """Resend confirmation without revealing whether an email has an account."""
+
+    permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "email_verification"
+
+    def post(self, request):
+        from django.core.exceptions import ValidationError as DjangoValidationError
+        from django.core.validators import validate_email
+
+        email = str(request.data.get("email") or "").strip()
+        try:
+            validate_email(email)
+        except DjangoValidationError:
+            return error_response("Enter a valid email address.", {"email": ["Enter a valid email address."]}, status=400)
+
+        user = User.objects.filter(email__iexact=email, email_verified=False).first()
+        if user:
+            token = signing.dumps(
+                {"user_id": str(user.pk), "email": user.email},
+                salt="chapelflow.email-verification",
+                compress=True,
+            )
+            from .tasks import send_email_verification
+            send_email_verification.delay(user.email, token)
+
+        return success_response(
+            {"sent": True},
+            message="If that address has an unverified ChapelFlow account, a fresh confirmation link has been sent.",
+        )
 
 
 class LocalSuperAdminSetupView(APIView):
