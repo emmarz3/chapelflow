@@ -199,3 +199,62 @@ class TestUpperRoom:
         assert created.status_code == 201
         assert created.data["data"]["author_name"] == "Ada Grace"
         assert created.data["data"]["body"] == "Amen to this."
+
+
+    def test_stories_are_uploadable_branch_scoped_and_expire_after_24_hours(
+        self, api_client, make_user, branch_a, branch_b, settings, tmp_path,
+    ):
+        from datetime import timedelta
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from django.utils import timezone
+        from apps.social.models import SocialStory
+        from apps.uploads.models import Upload
+
+        settings.STORAGE_PROVIDER = "local"
+        settings.UPPER_ROOM_STORAGE_PROVIDER = "local"
+        settings.MEDIA_ROOT = tmp_path
+        settings.PUBLIC_BACKEND_URL = "https://chapelflow-api.example"
+        author = make_user(email="story-author@chapelflow.test", branch=branch_a)
+        outsider = make_user(email="story-outsider@chapelflow.test", branch=branch_b)
+        api_client.force_authenticate(user=author)
+
+        image = b"\x89PNG\r\n\x1a\n" + b"story-image-bytes"
+        created = api_client.post(
+            "/api/v1/social/stories/",
+            {"caption": "Sunday service", "file": SimpleUploadedFile("story.png", image, "image/png")},
+            format="multipart",
+        )
+        assert created.status_code == 201, created.data
+        story = SocialStory.objects.get(pk=created.data["data"]["id"])
+        assert story.expires_at > timezone.now() + timedelta(hours=23)
+        assert created.data["data"]["media_url"] == f"/api/v1/social/media/{story.upload_id}/"
+
+        feed = api_client.get("/api/v1/social/stories/")
+        assert feed.status_code == 200
+        assert [row["id"] for row in feed.data["data"]] == [str(story.id)]
+
+        media_path = created.data["data"]["media_url"]
+        streamed = api_client.get(media_path)
+        assert streamed.status_code == 200
+        assert b"".join(streamed.streaming_content).startswith(b"\x89PNG")
+
+        api_client.force_authenticate(user=outsider)
+        assert api_client.get("/api/v1/social/stories/").data["data"] == []
+        assert api_client.get(media_path).status_code == 404
+
+        api_client.force_authenticate(user=author)
+        story.expires_at = timezone.now() - timedelta(seconds=1)
+        story.save(update_fields=["expires_at"])
+        assert api_client.get("/api/v1/social/stories/").data["data"] == []
+        assert api_client.get(media_path).status_code == 404
+
+    def test_upper_room_uploads_are_limited_to_50mb_by_default(self, settings):
+        from django.core.exceptions import ValidationError
+        from types import SimpleNamespace
+        from apps.uploads.validators import validate_upload
+
+        settings.UPPER_ROOM_MAX_FILE_SIZE_MB = 50
+        too_large = SimpleNamespace(name="large.jpg", size=50 * 1024 * 1024 + 1)
+        with pytest.raises(ValidationError):
+            validate_upload(too_large, max_size_mb=settings.UPPER_ROOM_MAX_FILE_SIZE_MB)
+
