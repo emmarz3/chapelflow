@@ -127,3 +127,46 @@ class TestUserMatricLogin:
         )
         assert response.status_code == 400
         assert response.data["success"] is False
+
+
+@pytest.mark.django_db
+class TestRegistrationAvailability:
+    def test_duplicate_email_and_matric_number_are_reported_before_submission(self, api_client):
+        from apps.accounts.models import User
+
+        User.objects.create_user(
+            email="existing@student.cuc.edu",
+            matric_no="SWE/2024/005",
+            password="safe-password-123",
+            role="MEMBER",
+        )
+
+        response = api_client.post(
+            "/api/v1/auth/register/availability/",
+            {"email": "EXISTING@student.cuc.edu", "matric_no": "swe/2024/005"},
+            format="json",
+        )
+
+        assert response.status_code == 200
+        assert response.data["data"] == {
+            "email_available": False,
+            "matric_no_available": False,
+        }
+
+    def test_available_email_and_matric_number_are_reported(self, api_client):
+        response = api_client.post(
+            "/api/v1/auth/register/availability/",
+            {"email": "new@student.cuc.edu", "matric_no": "SWE/2024/006"},
+            format="json",
+        )
+
+        assert response.status_code == 200
+        assert response.data["data"] == {
+            "email_available": True,
+            "matric_no_available": True,
+        }
+
+    def test_registration_availability_requires_at_least_one_identifier(self, api_client):
+        response = api_client.post("/api/v1/auth/register/availability/", {}, format="json")
+        assert response.status_code == 400
+
