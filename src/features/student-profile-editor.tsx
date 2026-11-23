@@ -57,7 +57,7 @@ export function StudentProfileEditorPage() {
         description={
           isStudent
             ? "Update your contact, birthday, photo, and emergency details. Academic fields remain protected."
-            : "Update your contact, birthday, photo, and emergency details for ChapelFlow."
+            : "Update your contact details, bio, and profile picture for ChapelFlow."
         }
       />
       <ProfilePhotoEditor />
@@ -87,33 +87,37 @@ export function StudentProfileEditorPage() {
             />
             <small>{(value.bio || "").length}/200 characters. Keep it kind and appropriate for the chapel community.</small>
           </label>
-          <label>
-            Address
-            <input name="address" defaultValue={value.address} />
-          </label>
-          <label>
-            Birthday
-            <input
-              name="date_of_birth"
-              type="date"
-              defaultValue={value.date_of_birth || ""}
-              max={new Date().toISOString().slice(0, 10)}
-            />
-          </label>
-          <label>
-            Emergency contact name
-            <input
-              name="emergency_contact_name"
-              defaultValue={value.emergency_contact_name}
-            />
-          </label>
-          <label>
-            Emergency contact phone
-            <input
-              name="emergency_contact_phone"
-              defaultValue={value.emergency_contact_phone}
-            />
-          </label>
+          {isStudent && (
+            <>
+              <label>
+                Address
+                <input name="address" defaultValue={value.address} />
+              </label>
+              <label>
+                Birthday
+                <input
+                  name="date_of_birth"
+                  type="date"
+                  defaultValue={value.date_of_birth || ""}
+                  max={new Date().toISOString().slice(0, 10)}
+                />
+              </label>
+              <label>
+                Emergency contact name
+                <input
+                  name="emergency_contact_name"
+                  defaultValue={value.emergency_contact_name}
+                />
+              </label>
+              <label>
+                Emergency contact phone
+                <input
+                  name="emergency_contact_phone"
+                  defaultValue={value.emergency_contact_phone}
+                />
+              </label>
+            </>
+          )}
           {update.isError && (
             <p className="form-note form-note--danger">
               {update.error instanceof Error
