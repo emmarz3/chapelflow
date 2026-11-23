@@ -389,6 +389,9 @@ export function UpperRoomPage() {
               <header><div><Clock3 /><strong>Recently viewed</strong></div><button type="button" onClick={() => {
                 setRecent([]);
                 setViewingMedia(null);
+                cachedObjectUrls.current.forEach((url) => URL.revokeObjectURL(url));
+                cachedObjectUrls.current.clear();
+                setCachedMediaUrls({});
                 if (user?.id) void clearUpperRoomMediaCache(user.id);
               }}>Clear history & cache</button></header>
               <p className="upper-room__recent-note">Your last 12 opened photos and videos are remembered. Cached copies reopen offline; the cache is limited to 120 MB per account.</p>
