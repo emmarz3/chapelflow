@@ -113,16 +113,17 @@ class SocialMediaView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, pk):
+        story_scope = Q(upper_room_stories__expires_at__gt=timezone.now())
+        if _role(request.user) != Roles.SUPER_ADMIN:
+            story_scope &= Q(upper_room_stories__branch_id=request.user.branch_id)
         upload = get_object_or_404(
-            Upload, pk=pk, category=UploadCategory.SOCIAL_POST,
-        ).filter(
-            Q(upper_room_media__post__in=_posts_for(request.user))
-            | (
-                Q(upper_room_stories__expires_at__gt=timezone.now())
-                if _role(request.user) == Roles.SUPER_ADMIN
-                else Q(upper_room_stories__branch_id=request.user.branch_id, upper_room_stories__expires_at__gt=timezone.now())
-            ),
-        ).distinct()
+            Upload.objects.filter(
+                pk=pk,
+                category=UploadCategory.SOCIAL_POST,
+            ).filter(
+                Q(upper_room_media__post__in=_posts_for(request.user)) | story_scope
+            ).distinct()
+        )
         if settings.AWS_S3_ENDPOINT_URL and upload.file_url.startswith(
             f"{urlparse(settings.AWS_S3_ENDPOINT_URL).scheme}://{settings.AWS_STORAGE_BUCKET_NAME}."
             f"{urlparse(settings.AWS_S3_ENDPOINT_URL).netloc}/upper-room/"
