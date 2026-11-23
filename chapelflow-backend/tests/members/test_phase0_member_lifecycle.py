@@ -1,4 +1,5 @@
 import pytest
+from django.core.cache import cache
 
 
 @pytest.mark.django_db
@@ -46,6 +47,12 @@ class TestPhase0MemberCreationLockdown:
 @pytest.mark.django_db
 class TestSelfRegistrationPipeline:
     """Spec section 3: the ONLY normal path a Member gets created through."""
+
+    @pytest.fixture(autouse=True)
+    def clear_auth_throttle_between_registration_tests(self):
+        # Each request test represents an independent client; a shared cache
+        # must not make later registration cases fail with a synthetic 429.
+        cache.clear()
 
     def test_register_creates_user_and_member_together(self, api_client, branch_a):
         response = api_client.post("/api/v1/auth/register/", {
