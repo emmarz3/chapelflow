@@ -40,8 +40,8 @@ export function NotificationSettingsPage() {
     for (const key of ["masterEnabled", "inAppEnabled", ...categories.map((item) => item.key), "quietHoursEnabled"] as (keyof NotificationPreferences)[]) {
       (values as unknown as Record<string, unknown>)[key] = form.has(key);
     }
-    values.emailEnabled = current.emailAvailable === false ? current.emailEnabled : form.has("emailEnabled");
-    values.smsEnabled = current.smsAvailable === false ? current.smsEnabled : form.has("smsEnabled");
+    values.emailEnabled = form.has("emailEnabled");
+    values.smsEnabled = form.has("smsEnabled");
     values.quietHoursStart = String(form.get("quietHoursStart") || "");
     values.quietHoursEnd = String(form.get("quietHoursEnd") || "");
     values.timezoneName = String(form.get("timezoneName") || "Africa/Lagos").trim();
