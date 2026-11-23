@@ -415,7 +415,7 @@ export async function djangoRequest(
       : registrationType === "Guest"
         ? "GUEST"
         : "STUDENT";
-    await call(
+    const registration = await call(
       "/auth/register/",
       json("POST", {
         email: body.email,
@@ -429,8 +429,18 @@ export async function djangoRequest(
           : {}),
       }),
     );
-    return { data: { verificationRequired: false, approvalRequired: false } };
+    const registrationData = row(registration.data);
+    return {
+      data: {
+        verificationRequired: Boolean(registrationData.verification_required),
+        approvalRequired: Boolean(registrationData.approval_required),
+      },
+    };
   }
+  if (route === "/auth/verify-email" && method === "POST")
+    return call("/auth/verify-email/", json("POST", { token: body.token }));
+  if (route === "/auth/resend-verification" && method === "POST")
+    return call("/auth/resend-verification/", json("POST", { email: body.email }));
   if (route === "/auth/setup/super-admin")
     return call("/auth/setup/super-admin/", json("POST", body));
   if (route === "/auth/change-password")
