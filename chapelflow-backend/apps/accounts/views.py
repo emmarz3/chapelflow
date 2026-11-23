@@ -142,6 +142,35 @@ class CsrfTokenView(APIView):
         return _mark_partitioned_local_cookies(response)
 
 
+class RegistrationAvailabilityView(APIView):
+    """Early duplicate-account check for the multi-step public registration form."""
+    permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "registration_check"
+
+    def post(self, request):
+        email = str(request.data.get("email") or "").strip()
+        matric_no = str(request.data.get("matric_no") or "").strip()
+        if not email and not matric_no:
+            return error_response("Enter an email address or matriculation number to check.", status=400)
+
+        result = {}
+        if email:
+            from django.core.validators import validate_email
+            from django.core.exceptions import ValidationError as DjangoValidationError
+            try:
+                validate_email(email)
+            except DjangoValidationError:
+                return error_response("Enter a valid email address.", {"email": ["Enter a valid email address."]}, status=400)
+            result["email_available"] = not User.objects.filter(email__iexact=email).exists()
+        if matric_no:
+            from .validators import normalize_matric_no
+            normalized = normalize_matric_no(matric_no)
+            result["matric_no_available"] = not User.objects.filter(matric_no=normalized).exists()
+
+        return success_response(result)
+
+
 class RegisterView(APIView):
     """
     POST /api/v1/auth/register/ — spec section 3's mandatory public
@@ -790,58 +819,61 @@ class ChangePasswordView(APIView):
 
 
 class StudentProfileView(APIView):
-    """Self-service profile endpoint with academic and role fields excluded."""
+    """Self-service profile endpoint; academic fields remain read-only."""
     permission_classes = [IsAuthenticated]
 
     def _member(self, request):
         if request.user.get_role_code() != Roles.MEMBER:
             return None
         from apps.members.models import Member
-        return Member.objects.filter(user=request.user).first()
+        return Member.objects.filter(user=request.user).select_related("department").first()
 
     def get(self, request):
         member = self._member(request)
-        if member is None:
-            return error_response("This profile is available only to student accounts.", status=403)
-        return success_response({
-            "email": request.user.email,
-            "phone_number": request.user.phone_number,
-            "address": member.address,
-            "photo_url": request.user.photo_url or member.photo_url,
-            "date_of_birth": member.date_of_birth.isoformat() if member.date_of_birth else None,
-            "emergency_contact_name": member.emergency_contact_name,
-            "emergency_contact_phone": member.emergency_contact_phone,
-            "matric_no": request.user.matric_no,
-            "department": getattr(member.department, "name", None),
+        data = {
+            "email": request.user.email or "",
+            "phone_number": request.user.phone_number or "",
+            "bio": request.user.bio or "",
+            "photo_url": request.user.photo_url or "",
             "role": request.user.get_role_code(),
-        })
+            "address": member.address if member else "",
+            "date_of_birth": member.date_of_birth.isoformat() if member and member.date_of_birth else None,
+            "emergency_contact_name": member.emergency_contact_name if member else "",
+            "emergency_contact_phone": member.emergency_contact_phone if member else "",
+            "matric_no": request.user.matric_no if member else None,
+            "department": getattr(member.department, "name", None) if member else None,
+        }
+        return success_response(data)
 
     def patch(self, request):
         member = self._member(request)
-        if member is None:
-            return error_response("This profile is available only to student accounts.", status=403)
         serializer = StudentSelfProfileSerializer(data=request.data, partial=True, context={"request": request})
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
+        member_fields = {"address", "date_of_birth", "emergency_contact_name", "emergency_contact_phone"}
+        if member is None and member_fields.intersection(data):
+            return error_response("Contact and academic details are available only to member accounts.", status=403)
+
         with transaction.atomic():
-            user_fields = [field for field in ("email", "phone_number") if field in data]
+            user_fields = [field for field in ("email", "phone_number", "bio") if field in data]
             for field in user_fields:
                 setattr(request.user, field, data[field])
             if user_fields:
                 request.user.save(update_fields=user_fields)
-            member_fields = [field for field in (
-                "address", "date_of_birth", "emergency_contact_name", "emergency_contact_phone",
-            ) if field in data]
-            for field in member_fields:
-                setattr(member, field, data[field])
-            if "email" in data:
-                member.email = data["email"]
-                member_fields.append("email")
-            if "phone_number" in data:
-                member.phone_number = data["phone_number"]
-                member_fields.append("phone_number")
-            if member_fields:
-                member.save(update_fields=list(set(member_fields)))
+
+            if member is not None:
+                changed_member_fields = [field for field in member_fields if field in data]
+                for field in changed_member_fields:
+                    setattr(member, field, data[field])
+                if "email" in data:
+                    member.email = data["email"]
+                    changed_member_fields.append("email")
+                if "phone_number" in data:
+                    member.phone_number = data["phone_number"]
+                    changed_member_fields.append("phone_number")
+                if changed_member_fields:
+                    member.save(update_fields=list(set(changed_member_fields)))
+
         return self.get(request)
 
 
