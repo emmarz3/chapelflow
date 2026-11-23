@@ -1,13 +1,9 @@
 import django.db.models.deletion
 import django.utils.timezone
-import datetime
 import uuid
+import apps.social.models
 from django.conf import settings
 from django.db import migrations, models
-
-
-def story_expiry():
-    return django.utils.timezone.now() + datetime.timedelta(hours=24)
 
 
 class Migration(migrations.Migration):
@@ -26,7 +22,7 @@ class Migration(migrations.Migration):
                 ("media_type", models.CharField(choices=[("IMAGE", "Image"), ("VIDEO", "Video")], max_length=8)),
                 ("caption", models.CharField(blank=True, max_length=280)),
                 ("created_at", models.DateTimeField(auto_now_add=True)),
-                ("expires_at", models.DateTimeField(db_index=True, default=story_expiry)),
+                ("expires_at", models.DateTimeField(db_index=True, default=apps.social.models.story_expiry)),
                 ("author", models.ForeignKey(null=True, on_delete=django.db.models.deletion.SET_NULL, related_name="upper_room_stories", to=settings.AUTH_USER_MODEL)),
                 ("branch", models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name="upper_room_stories", to="organizations.branch")),
                 ("upload", models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, related_name="upper_room_stories", to="uploads.upload")),
