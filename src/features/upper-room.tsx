@@ -291,17 +291,7 @@ export function UpperRoomPage() {
               <small>Your story</small>
             </button>
             {(stories.data ?? []).map((story) => (
-              <button type="button" key={story.id} className="upper-room__story" onClick={() => {
-                recordRecent({
-                  id: story.id,
-                  postId: `story:${story.id}`,
-                  url: story.mediaUrl,
-                  mediaType: story.mediaType,
-                  caption: story.caption,
-                  authorName: story.authorName,
-                }, false);
-                setViewingStoryId(story.id);
-              }}>
+              <button type="button" key={story.id} className="upper-room__story" onClick={() => setViewingStoryId(story.id)}>
                 <span className="upper-room__story-ring upper-room__story-ring--1">
                   {story.mediaType === "IMAGE" ? <img src={cachedMediaUrls[story.id] || story.mediaUrl} alt="" loading="lazy" /> : <span><Video /></span>}
                 </span>
