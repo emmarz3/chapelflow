@@ -33,8 +33,12 @@ describe("Profile photo upload", () => {
       clearRect: vi.fn(),
       drawImage: vi.fn(),
     } as unknown as CanvasRenderingContext2D);
-    vi.spyOn(HTMLCanvasElement.prototype, "toBlob").mockImplementation((callback) => {
-      callback(new Blob(["cropped-jpeg"], { type: "image/jpeg" }));
+    Object.defineProperty(HTMLCanvasElement.prototype, "toBlob", {
+      configurable: true,
+      writable: true,
+      value: vi.fn((callback: BlobCallback) => {
+        callback(new Blob(["cropped-jpeg"], { type: "image/jpeg" }));
+      }),
     });
   });
   it("previews a selection, saves it, and refreshes profile and attendance identity", async () => {
