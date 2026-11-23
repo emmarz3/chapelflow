@@ -330,6 +330,7 @@ class SocialStoryCollectionView(APIView):
             upload=upload,
             media_type=media_type,
             caption=caption,
+            expires_at=timezone.now() + timedelta(hours=24),
         )
         return success_response(
             SocialStorySerializer(story, context={"request": request}).data,
