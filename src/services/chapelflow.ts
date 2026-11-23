@@ -696,6 +696,9 @@ export const notificationService = {
 
 export interface NotificationPreferences {
   masterEnabled: boolean;
+  emailAvailable?: boolean;
+  smsAvailable?: boolean;
+  pushAvailable?: boolean;
   emailEnabled: boolean;
   smsEnabled: boolean;
   inAppEnabled: boolean;
