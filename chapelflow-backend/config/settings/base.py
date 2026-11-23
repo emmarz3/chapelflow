@@ -326,6 +326,8 @@ EMAIL_HOST_USER = env("EMAIL_HOST_USER", default="")
 EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", default="")
 EMAIL_USE_TLS = env.bool("EMAIL_USE_TLS", default=True)
 DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="no-reply@chapelflow.app")
+FRONTEND_URL = env("FRONTEND_URL", default="http://localhost:3000")
+EMAIL_VERIFICATION_TIMEOUT_SECONDS = env.int("EMAIL_VERIFICATION_TIMEOUT_SECONDS", default=1800)
 
 SMS_API_KEY = env("SMS_API_KEY", default="")
 SMS_CHANNEL_ENABLED = env.bool("SMS_CHANNEL_ENABLED", default=False)
