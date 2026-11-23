@@ -122,7 +122,7 @@ export function ProfilePhotoEditor() {
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!file || !canvas.current || upload.isPending) return;
+    if (!file || !imageReady || !canvas.current || upload.isPending) return;
     try {
       const cropped = await createCroppedPhoto(file, canvas.current);
       upload.mutate(cropped);
@@ -183,7 +183,7 @@ export function ProfilePhotoEditor() {
           </p>
         )}
         {upload.isSuccess && <p role="status" className="form-note form-note--success">Profile picture updated.</p>}
-        <button className="button button--primary" type="submit" disabled={!file || upload.isPending}>
+        <button className="button button--primary" type="submit" disabled={!file || !imageReady || upload.isPending}>
           {upload.isPending ? "Uploading picture…" : "Save profile picture"}
         </button>
       </form>
