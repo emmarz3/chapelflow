@@ -1381,3 +1381,247 @@
   .inventory-dashboard-panel .panel-heading .button { width: fit-content; }
   .inventory-dashboard-panel__steps { grid-template-columns: 1fr; }
 }
+
+
+/* Upper Room mobile stories, media viewer and share-card interactions. */
+.upper-room__story-ring > img {
+  width: 100%;
+  height: 100%;
+  border: 2px solid var(--surface);
+  border-radius: 50%;
+  object-fit: cover;
+}
+.upper-room__story--create .upper-room__story-ring > span {
+  color: var(--purple-700);
+  background: var(--purple-100);
+}
+.upper-room__story--create .upper-room__story-ring svg {
+  width: 21px;
+  height: 21px;
+}
+.upper-room__story-composer {
+  display: grid;
+  gap: 12px;
+  margin: 0 auto 20px;
+  max-width: 620px;
+  padding: 16px;
+}
+.upper-room__story-composer > header,
+.upper-room__recent > header,
+.upper-room__viewer-card > header,
+.upper-room__share-dialog > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.upper-room__story-composer > header > div,
+.upper-room__viewer-card > header > div {
+  display: grid;
+  gap: 3px;
+}
+.upper-room__story-composer > header small,
+.upper-room__viewer-card > header small {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+.upper-room__story-composer > header button,
+.upper-room__viewer-card > header button,
+.upper-room__share-dialog > header button {
+  display: inline-grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+}
+.upper-room__story-preview {
+  display: grid;
+  max-height: 460px;
+  min-height: 180px;
+  overflow: hidden;
+  place-items: center;
+  background: #17121c;
+  border-radius: 12px;
+}
+.upper-room__story-preview img,
+.upper-room__story-preview video {
+  display: block;
+  max-height: 460px;
+  max-width: 100%;
+  object-fit: contain;
+}
+.upper-room__recent {
+  margin: 0 auto 24px;
+  max-width: 620px;
+  padding: 12px 0 4px;
+}
+.upper-room__recent > header { margin-bottom: 10px; }
+.upper-room__recent > header > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+.upper-room__recent > header svg { width: 16px; height: 16px; color: var(--purple-700); }
+.upper-room__recent > header button {
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 11px;
+}
+.upper-room__recent-list {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+}
+.upper-room__recent-list > button {
+  display: grid;
+  gap: 5px;
+  flex: 0 0 88px;
+  min-width: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+}
+.upper-room__recent-list > button > span {
+  display: grid;
+  width: 88px;
+  height: 72px;
+  overflow: hidden;
+  place-items: center;
+  border-radius: 8px;
+  background: var(--surface-subtle);
+}
+.upper-room__recent-list img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.upper-room__recent-video { color: var(--purple-700); }
+.upper-room__recent-list small {
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.upper-room__viewer {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  display: grid;
+  overflow: auto;
+  padding: 18px;
+  place-items: center;
+  background: rgb(12 9 17 / 88%);
+}
+.upper-room__viewer-card,
+.upper-room__share-dialog {
+  width: min(680px, 100%);
+  max-height: min(92dvh, 900px);
+  overflow: auto;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-lg);
+}
+.upper-room__viewer-card > header { margin-bottom: 12px; }
+.upper-room__viewer-card > img,
+.upper-room__viewer-card > video {
+  display: block;
+  width: 100%;
+  max-height: 72dvh;
+  object-fit: contain;
+  background: #100c13;
+  border-radius: 10px;
+}
+.upper-room__viewer-card > p {
+  margin: 12px 2px 2px;
+  font-size: 13px;
+  line-height: 1.55;
+}
+.upper-room-post__image-button {
+  display: block;
+  min-width: 0;
+  padding: 0;
+  overflow: hidden;
+  background: #100c13;
+  cursor: zoom-in;
+}
+.upper-room-post__image-button img { display: block; }
+.upper-room__share-dialog { width: min(440px, 100%); }
+.upper-room__share-dialog > header { margin-bottom: 12px; }
+.upper-room__share-card {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: linear-gradient(145deg, #241334, #4d277b 70%, #8d6b40);
+  color: #fff;
+}
+.upper-room__share-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 16px;
+  color: #f5dba3;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .16em;
+}
+.upper-room__share-brand svg { width: 18px; height: 18px; }
+.upper-room__share-card > img {
+  display: block;
+  width: 100%;
+  max-height: 300px;
+  object-fit: cover;
+}
+.upper-room__share-video {
+  display: grid;
+  min-height: 150px;
+  place-items: center;
+  gap: 8px;
+  background: rgb(0 0 0 / 24%);
+}
+.upper-room__share-video svg { width: 32px; height: 32px; }
+.upper-room__share-card > strong,
+.upper-room__share-card > p,
+.upper-room__share-card > small {
+  display: block;
+  margin: 12px 16px;
+}
+.upper-room__share-card > p {
+  max-height: 6em;
+  overflow: hidden;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+.upper-room__share-card > small {
+  padding-bottom: 12px;
+  color: #f3dcae;
+  font-size: 9px;
+  letter-spacing: .1em;
+}
+.upper-room__share-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 14px;
+}
+@media (max-width: 640px) {
+  .upper-room__stories { gap: 12px; padding: 12px; }
+  .upper-room__story-ring { width: 58px; height: 58px; }
+  .upper-room__composer-actions { gap: 10px; }
+  .upper-room__viewer { padding: 8px; }
+  .upper-room__viewer-card,
+  .upper-room__share-dialog { border-radius: 12px; padding: 10px; }
+  .upper-room__share-actions { display: grid; grid-template-columns: 1fr 1fr; }
+  .upper-room__share-actions .button { width: 100%; }
+}
