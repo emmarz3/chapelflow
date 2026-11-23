@@ -271,7 +271,7 @@ class RegisterSerializer(serializers.Serializer):
     Member is created through; see apps.members.views.MemberViewSet.create
     for why manual admin creation is blocked.
     """
-    email = serializers.EmailField(required=False, allow_blank=False)
+    email = serializers.EmailField(required=True, allow_blank=False)
     matric_no = serializers.CharField(required=False, allow_blank=False)
     password = serializers.CharField(write_only=True, trim_whitespace=False)
     first_name = serializers.CharField(max_length=150)
