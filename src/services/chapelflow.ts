@@ -295,6 +295,11 @@ export const queryKeys = {
 };
 
 export const authService = {
+  checkRegistrationAvailability: (payload: { email?: string; matric_no?: string }) =>
+    api.post<{ data: { email_available?: boolean; matric_no_available?: boolean } }>(
+      "/auth/register/availability",
+      payload,
+    ),
   register: (payload: Record<string, unknown>) =>
     api.post<{
       data: { verificationRequired: boolean; approvalRequired?: boolean };
@@ -344,6 +349,7 @@ export const authService = {
 export interface StudentProfile {
   email: string;
   phone_number: string;
+  bio: string;
   address: string;
   photo_url: string;
   date_of_birth: string | null;
