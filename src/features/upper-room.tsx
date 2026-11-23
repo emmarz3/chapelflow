@@ -3,7 +3,7 @@ import {
   Bell, Clock3, Compass, Copy, Heart, Home, ImagePlus, MessageCircle,
   PlusSquare, Search, Send, Share2, Sparkles, Trash2, Video, X,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Button, EmptyState, ErrorState, LoadingState, useToast } from "../components/ui";
 import { useLocation } from "react-router-dom";
 import {
@@ -89,37 +89,40 @@ export function UpperRoomPage() {
   const recentKey = user?.id ? `chapelflow-upper-room-recent-${user.id}` : null;
   const [recent, setRecent] = useState<RecentMedia[]>(() => loadRecent(recentKey));
   const [cachedMediaUrls, setCachedMediaUrls] = useState<Record<string, string>>({});
-  const recentSignature = recent.map((item) => `${item.id}:${item.viewedAt}`).join("|");
+  const cachedObjectUrls = useRef(new Set<string>());
 
   useEffect(() => {
-    setRecent(loadRecent(recentKey));
-    setCachedMediaUrls({});
-  }, [recentKey]);
-
-  useEffect(() => {
-    if (!user?.id || !recent.length) {
-      setCachedMediaUrls({});
-      return;
-    }
     let disposed = false;
-    let objectUrls: string[] = [];
-    void Promise.all(recent.map(async (item) => {
-      const cachedUrl = await getCachedUpperRoomMediaUrl(user.id, item.id, item.url);
-      if (cachedUrl) objectUrls.push(cachedUrl);
-      return cachedUrl ? [item.id, cachedUrl] as const : null;
-    })).then((entries) => {
-      if (disposed) {
-        objectUrls.forEach((url) => URL.revokeObjectURL(url));
+    async function hydrateRecentCache() {
+      if (!user?.id || !recentKey) {
+        setRecent([]);
+        setCachedMediaUrls({});
         return;
       }
-      setCachedMediaUrls(Object.fromEntries(entries.filter((entry): entry is readonly [string, string] => Boolean(entry))));
-    });
+      const history = loadRecent(recentKey);
+      setRecent(history);
+      const entries = await Promise.all(history.map(async (item) => {
+        const cachedUrl = await getCachedUpperRoomMediaUrl(user.id, item.id, item.url);
+        if (!cachedUrl) return null;
+        if (disposed) {
+          URL.revokeObjectURL(cachedUrl);
+          return null;
+        }
+        cachedObjectUrls.current.add(cachedUrl);
+        return [item.id, cachedUrl] as const;
+      }));
+      if (!disposed) {
+        setCachedMediaUrls(Object.fromEntries(entries.filter((entry): entry is readonly [string, string] => Boolean(entry))));
+      }
+    }
+    void hydrateRecentCache();
     return () => {
       disposed = true;
-      objectUrls.forEach((url) => URL.revokeObjectURL(url));
-      objectUrls = [];
+      cachedObjectUrls.current.forEach((url) => URL.revokeObjectURL(url));
+      cachedObjectUrls.current.clear();
+      setCachedMediaUrls({});
     };
-  }, [user?.id, recentKey, recentSignature]);
+  }, [user?.id]);
 
   useEffect(() => {
     if (!recentKey) return;
@@ -186,15 +189,20 @@ export function UpperRoomPage() {
   function recordRecent(item: Omit<RecentMedia, "viewedAt">) {
     const entry: RecentMedia = { ...item, viewedAt: new Date().toISOString() };
     setRecent((current) => [entry, ...current.filter((row) => row.id !== entry.id)].slice(0, 12));
-    if (user?.id) {
-      void cacheUpperRoomMedia(user.id, item.id, item.url).then((saved) => {
-        if (!saved) return;
-        // Re-run cache hydration once the blob has been persisted.
-        setRecent((current) => current.map((row) =>
-          row.id === item.id ? { ...row, viewedAt: new Date().toISOString() } : row
-        ));
+    if (!user?.id) return;
+    void cacheUpperRoomMedia(user.id, item.id, item.url).then(async (saved) => {
+      if (!saved) return;
+      const cachedUrl = await getCachedUpperRoomMediaUrl(user.id, item.id, item.url);
+      if (!cachedUrl) return;
+      cachedObjectUrls.current.add(cachedUrl);
+      setCachedMediaUrls((current) => {
+        if (current[item.id]) {
+          URL.revokeObjectURL(current[item.id]);
+          cachedObjectUrls.current.delete(current[item.id]);
+        }
+        return { ...current, [item.id]: cachedUrl };
       });
-    }
+    });
   }
 
   function openPostMedia(post: UpperRoomPost, media: UpperRoomMedia, openViewer = true) {
