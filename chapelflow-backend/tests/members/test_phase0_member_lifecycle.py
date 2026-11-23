@@ -1,4 +1,5 @@
 import pytest
+from django.core.cache import cache
 
 
 @pytest.mark.django_db
@@ -47,8 +48,15 @@ class TestPhase0MemberCreationLockdown:
 class TestSelfRegistrationPipeline:
     """Spec section 3: the ONLY normal path a Member gets created through."""
 
+    @pytest.fixture(autouse=True)
+    def clear_auth_throttle_between_registration_tests(self):
+        # Each request test represents an independent client; a shared cache
+        # must not make later registration cases fail with a synthetic 429.
+        cache.clear()
+
     def test_register_creates_user_and_member_together(self, api_client, branch_a):
         response = api_client.post("/api/v1/auth/register/", {
+            "email": "chidi.okafor@example.edu.ng",
             "matric_no": "swe/2025/010",
             "password": "StrongPass123!",
             "first_name": "Chidi",
@@ -58,7 +66,8 @@ class TestSelfRegistrationPipeline:
             "academic_level": "100",
         })
         assert response.status_code == 201
-        assert "access" in response.data["data"]
+        assert response.data["data"]["verification_required"] is True
+        assert "chapelflow_access" not in response.cookies
 
         from apps.accounts.models import User
         from apps.members.models import Member
@@ -79,6 +88,7 @@ class TestSelfRegistrationPipeline:
         Organization.objects.get_or_create(slug="chrisland", defaults={"name": "Chrisland University"})
         ensure_chrisland_programmes()
         response = api_client.post("/api/v1/auth/register/", {
+            "email": "ada.okafor@example.edu.ng",
             "matric_no": "swe/2026/220", "password": "StrongPass123!",
             "first_name": "Ada", "last_name": "Okafor", "branch": str(branch_a.id),
             "community": "STUDENT", "academic_level": "300",
@@ -91,6 +101,7 @@ class TestSelfRegistrationPipeline:
 
     def test_unknown_programme_is_rejected(self, api_client, branch_a):
         response = api_client.post("/api/v1/auth/register/", {
+            "email": "unknown.programme@example.edu.ng",
             "matric_no": "swe/2026/221", "password": "StrongPass123!",
             "first_name": "Ada", "last_name": "Okafor", "branch": str(branch_a.id),
             "community": "STUDENT", "academic_level": "300",
@@ -107,6 +118,7 @@ class TestSelfRegistrationPipeline:
         Organization.objects.get_or_create(slug="chrisland", defaults={"name": "Chrisland University"})
         ensure_chrisland_programmes()
         response = api_client.post("/api/v1/auth/register/", {
+            "email": "ada.postgraduate@example.edu.ng",
             "matric_no": "pg/2026/220", "password": "StrongPass123!",
             "first_name": "Ada", "last_name": "Okafor", "branch": str(branch_a.id),
             "community": "STUDENT", "academic_level": "POSTGRADUATE",
@@ -120,6 +132,7 @@ class TestSelfRegistrationPipeline:
 
     def test_student_registration_requires_an_academic_level(self, api_client, branch_a):
         response = api_client.post("/api/v1/auth/register/", {
+            "email": "missing.level@example.edu.ng",
             "matric_no": "swe/2025/011",
             "password": "StrongPass123!",
             "first_name": "Missing",
@@ -133,6 +146,7 @@ class TestSelfRegistrationPipeline:
 
     def test_jupeb_registration_is_saved_in_jupeb_level(self, api_client, branch_a):
         response = api_client.post("/api/v1/auth/register/", {
+            "email": "jupeb.student@example.edu.ng",
             "matric_no": "jup/2026/012",
             "password": "StrongPass123!",
             "first_name": "Jupeb",
@@ -173,14 +187,18 @@ class TestSelfRegistrationPipeline:
         assert member.academic_level == ""
         assert response.data["data"]["user"]["community"] == community
 
-    def test_register_requires_email_or_matric_no(self, api_client, branch_a):
+    def test_register_requires_email_for_verification(self, api_client, branch_a):
         response = api_client.post("/api/v1/auth/register/", {
+            "matric_no": "swe/2026/099",
             "password": "StrongPass123!",
             "first_name": "No",
-            "last_name": "Identifier",
+            "last_name": "Email",
             "branch": str(branch_a.id),
+            "community": "STUDENT",
+            "academic_level": "100",
         })
         assert response.status_code == 400
+        assert "email" in response.data["errors"]
 
 
 @pytest.mark.django_db

@@ -150,6 +150,8 @@ class User(AbstractBaseUser, PermissionsMixin):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
 
     email = models.EmailField(unique=True, null=True, blank=True)
+    # Existing/provisioned accounts remain trusted; public self-registration sets this false.
+    email_verified = models.BooleanField(default=True)
     matric_no = models.CharField(
         max_length=32,
         unique=True,
@@ -163,6 +165,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     last_name = models.CharField(max_length=150)
     phone_number = models.CharField(max_length=20, blank=True)
     photo_url = models.URLField(max_length=500, blank=True, default="")
+    bio = models.CharField(max_length=200, blank=True, default="")
 
     # PHASE 3: Dual role system for backward compatibility
     # LEGACY: Keep for backward compatibility during migration

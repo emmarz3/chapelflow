@@ -57,6 +57,8 @@ services:
         sync: false
       - key: EMAIL_HOST_PASSWORD
         sync: false
+      - key: FRONTEND_URL
+        sync: false
       - key: PAYSTACK_SECRET_KEY
         sync: false
       - key: PAYSTACK_CALLBACK_URL
@@ -94,6 +96,11 @@ services:
           type: web
           name: chapelflow-api
           envVarKey: PUBLIC_BACKEND_URL
+      - key: FRONTEND_URL
+        fromService:
+          type: web
+          name: chapelflow-api
+          envVarKey: FRONTEND_URL
       - key: STORAGE_PROVIDER
         value: cloudinary
       - key: CLOUDINARY_CLOUD_NAME

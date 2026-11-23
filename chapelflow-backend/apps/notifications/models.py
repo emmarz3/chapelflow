@@ -92,7 +92,10 @@ class Notification(models.Model):
 
     class Meta:
         db_table = "notifications_notification"
-        indexes = [models.Index(fields=["recipient", "status"])]
+        indexes = [
+            models.Index(fields=["recipient", "status"]),
+            models.Index(fields=["recipient", "read_at", "created_at"], name="notif_rec_read_created_idx"),
+        ]
         constraints = [
             models.UniqueConstraint(
                 fields=["source_prayer_request", "recipient"],

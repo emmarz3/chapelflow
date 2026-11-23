@@ -489,6 +489,7 @@ def self_register_member(data):
     with transaction.atomic():
         user = User.objects.create_user(
             email=data.get("email"),
+            email_verified=False,
             matric_no=data.get("matric_no"),
             password=data["password"],
             first_name=data["first_name"],

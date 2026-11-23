@@ -1,5 +1,6 @@
 from django.contrib.auth import get_user_model
 from django.conf import settings
+from django.core import signing
 from django.db import transaction
 from django.core.signing import BadSignature, SignatureExpired
 from django.db.models import Q
@@ -142,6 +143,35 @@ class CsrfTokenView(APIView):
         return _mark_partitioned_local_cookies(response)
 
 
+class RegistrationAvailabilityView(APIView):
+    """Early duplicate-account check for the multi-step public registration form."""
+    permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "registration_check"
+
+    def post(self, request):
+        email = str(request.data.get("email") or "").strip()
+        matric_no = str(request.data.get("matric_no") or "").strip()
+        if not email and not matric_no:
+            return error_response("Enter an email address or matriculation number to check.", status=400)
+
+        result = {}
+        if email:
+            from django.core.validators import validate_email
+            from django.core.exceptions import ValidationError as DjangoValidationError
+            try:
+                validate_email(email)
+            except DjangoValidationError:
+                return error_response("Enter a valid email address.", {"email": ["Enter a valid email address."]}, status=400)
+            result["email_available"] = not User.objects.filter(email__iexact=email).exists()
+        if matric_no:
+            from .validators import normalize_matric_no
+            normalized = normalize_matric_no(matric_no)
+            result["matric_no_available"] = not User.objects.filter(matric_no=normalized).exists()
+
+        return success_response(result)
+
+
 class RegisterView(APIView):
     """
     POST /api/v1/auth/register/ — spec section 3's mandatory public
@@ -158,13 +188,90 @@ class RegisterView(APIView):
         if not serializer.is_valid():
             return error_response("Validation failed.", serializer.errors, status=400)
         user = serializer.save()
-        tokens = RefreshToken.for_user(user)
-        response = success_response(
-            {"access": str(tokens.access_token), "refresh": str(tokens), "user": UserPublicSerializer(user).data},
-            message="Registration successful.",
+        from .tasks import send_email_verification
+
+        verification_token = signing.dumps(
+            {"user_id": str(user.pk), "email": user.email},
+            salt="chapelflow.email-verification",
+            compress=True,
+        )
+        send_email_verification.delay(user.email, verification_token)
+        return success_response(
+            {
+                "verification_required": True,
+                "approval_required": False,
+                "email": user.email,
+                "user": UserPublicSerializer(user).data,
+            },
+            message="Registration successful. Check your email to verify your account.",
             status=201,
         )
-        return _set_auth_cookies(response, str(tokens.access_token), str(tokens))
+
+
+class EmailVerificationView(APIView):
+    """Confirm a newly registered account using a signed, time-limited token."""
+
+    permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "email_verification"
+
+    def post(self, request):
+        token = str(request.data.get("token") or "").strip()
+        if not token:
+            return error_response("A verification token is required.", status=400)
+        try:
+            payload = signing.loads(
+                token,
+                salt="chapelflow.email-verification",
+                max_age=settings.EMAIL_VERIFICATION_TIMEOUT_SECONDS,
+            )
+            if not isinstance(payload, dict):
+                raise BadSignature("Invalid verification payload.")
+            user = User.objects.filter(
+                pk=payload.get("user_id"),
+                email__iexact=payload.get("email", ""),
+            ).first()
+        except (BadSignature, SignatureExpired, TypeError, ValueError):
+            user = None
+        if not user or not user.email:
+            return error_response("This verification link is invalid or has expired.", status=400)
+        if not user.email_verified:
+            user.email_verified = True
+            user.save(update_fields=["email_verified"])
+        return success_response({"verified": True}, message="Email address verified successfully.")
+
+
+class EmailVerificationResendView(APIView):
+    """Resend confirmation without revealing whether an email has an account."""
+
+    permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "email_verification"
+
+    def post(self, request):
+        from django.core.exceptions import ValidationError as DjangoValidationError
+        from django.core.validators import validate_email
+
+        email = str(request.data.get("email") or "").strip()
+        try:
+            validate_email(email)
+        except DjangoValidationError:
+            return error_response("Enter a valid email address.", {"email": ["Enter a valid email address."]}, status=400)
+
+        user = User.objects.filter(email__iexact=email, email_verified=False).first()
+        if user:
+            token = signing.dumps(
+                {"user_id": str(user.pk), "email": user.email},
+                salt="chapelflow.email-verification",
+                compress=True,
+            )
+            from .tasks import send_email_verification
+            send_email_verification.delay(user.email, token)
+
+        return success_response(
+            {"sent": True},
+            message="If that address has an unverified ChapelFlow account, a fresh confirmation link has been sent.",
+        )
 
 
 class LocalSuperAdminSetupView(APIView):
@@ -790,58 +897,61 @@ class ChangePasswordView(APIView):
 
 
 class StudentProfileView(APIView):
-    """Self-service profile endpoint with academic and role fields excluded."""
+    """Self-service profile endpoint; academic fields remain read-only."""
     permission_classes = [IsAuthenticated]
 
     def _member(self, request):
         if request.user.get_role_code() != Roles.MEMBER:
             return None
         from apps.members.models import Member
-        return Member.objects.filter(user=request.user).first()
+        return Member.objects.filter(user=request.user).select_related("department").first()
 
     def get(self, request):
         member = self._member(request)
-        if member is None:
-            return error_response("This profile is available only to student accounts.", status=403)
-        return success_response({
-            "email": request.user.email,
-            "phone_number": request.user.phone_number,
-            "address": member.address,
-            "photo_url": request.user.photo_url or member.photo_url,
-            "date_of_birth": member.date_of_birth.isoformat() if member.date_of_birth else None,
-            "emergency_contact_name": member.emergency_contact_name,
-            "emergency_contact_phone": member.emergency_contact_phone,
-            "matric_no": request.user.matric_no,
-            "department": getattr(member.department, "name", None),
+        data = {
+            "email": request.user.email or "",
+            "phone_number": request.user.phone_number or "",
+            "bio": request.user.bio or "",
+            "photo_url": request.user.photo_url or "",
             "role": request.user.get_role_code(),
-        })
+            "address": member.address if member else "",
+            "date_of_birth": member.date_of_birth.isoformat() if member and member.date_of_birth else None,
+            "emergency_contact_name": member.emergency_contact_name if member else "",
+            "emergency_contact_phone": member.emergency_contact_phone if member else "",
+            "matric_no": request.user.matric_no if member else None,
+            "department": getattr(member.department, "name", None) if member else None,
+        }
+        return success_response(data)
 
     def patch(self, request):
         member = self._member(request)
-        if member is None:
-            return error_response("This profile is available only to student accounts.", status=403)
         serializer = StudentSelfProfileSerializer(data=request.data, partial=True, context={"request": request})
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
+        member_fields = {"address", "date_of_birth", "emergency_contact_name", "emergency_contact_phone"}
+        if member is None and member_fields.intersection(data):
+            return error_response("Contact and academic details are available only to member accounts.", status=403)
+
         with transaction.atomic():
-            user_fields = [field for field in ("email", "phone_number") if field in data]
+            user_fields = [field for field in ("email", "phone_number", "bio") if field in data]
             for field in user_fields:
                 setattr(request.user, field, data[field])
             if user_fields:
                 request.user.save(update_fields=user_fields)
-            member_fields = [field for field in (
-                "address", "date_of_birth", "emergency_contact_name", "emergency_contact_phone",
-            ) if field in data]
-            for field in member_fields:
-                setattr(member, field, data[field])
-            if "email" in data:
-                member.email = data["email"]
-                member_fields.append("email")
-            if "phone_number" in data:
-                member.phone_number = data["phone_number"]
-                member_fields.append("phone_number")
-            if member_fields:
-                member.save(update_fields=list(set(member_fields)))
+
+            if member is not None:
+                changed_member_fields = [field for field in member_fields if field in data]
+                for field in changed_member_fields:
+                    setattr(member, field, data[field])
+                if "email" in data:
+                    member.email = data["email"]
+                    changed_member_fields.append("email")
+                if "phone_number" in data:
+                    member.phone_number = data["phone_number"]
+                    changed_member_fields.append("phone_number")
+                if changed_member_fields:
+                    member.save(update_fields=list(set(changed_member_fields)))
+
         return self.get(request)
 
 

@@ -523,6 +523,30 @@ export function RegisterPage() {
       ),
     };
     setValues(merged);
+    if (!isDemoMode && (step === 0 || (step === 1 && memberType === "Student"))) {
+      setSubmitting(true);
+      try {
+        const check = await authService.checkRegistrationAvailability(
+          step === 0
+            ? { email: merged.email?.trim() }
+            : { matric_no: merged.identifier?.trim() },
+        );
+        const available = step === 0
+          ? check.data.email_available
+          : check.data.matric_no_available;
+        if (available === false) {
+          setError(step === 0
+            ? "An account with this email already exists. Sign in or use another email address."
+            : "An account with this matriculation number already exists. Check the number or sign in.");
+          return;
+        }
+      } catch (caught) {
+        setError(registrationError(caught));
+        return;
+      } finally {
+        setSubmitting(false);
+      }
+    }
     if (step < registrationSteps.length - 1) {
       setStep((value) => value + 1);
       return;
@@ -581,6 +605,11 @@ export function RegisterPage() {
                 : "Sign in with the email address you registered to open your ChapelFlow account."
             )}
           </p>
+          {verificationRequired && (
+            <Link className="button button--secondary full-button" to="/verify-email">
+              Didn’t receive the email? Resend verification
+            </Link>
+          )}
           <Link className="button button--primary full-button" to="/login">
             Return to sign in
           </Link>
@@ -1044,29 +1073,48 @@ export function ResetPasswordPage() {
 
 export function VerifyEmailPage() {
   const [params] = useSearchParams();
-  const [state, setState] = useState<"loading" | "success" | "error">(
-    "loading",
-  );
+  const [state, setState] = useState<"loading" | "success" | "error">("loading");
+  const [email, setEmail] = useState("");
+  const [resending, setResending] = useState(false);
+  const [notice, setNotice] = useState("");
+  const [resendError, setResendError] = useState("");
   const token = params.get("token") || "";
+
   useEffect(() => {
+    let active = true;
     if (isDemoMode) {
       setState("success");
-      return;
+      return () => { active = false; };
     }
     if (!token) {
       setState("error");
-      return;
+      return () => { active = false; };
     }
     authService
       .verifyEmail(token)
-      .then(() => setState("success"))
-      .catch(() => setState("error"));
+      .then(() => { if (active) setState("success"); })
+      .catch(() => { if (active) setState("error"); });
+    return () => { active = false; };
   }, [token]);
+
+  async function resend(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setResending(true);
+    setNotice("");
+    setResendError("");
+    try {
+      await authService.resendEmailVerification(email.trim());
+      setNotice("Request received. If that address has an unverified ChapelFlow account, a fresh link will be sent.");
+    } catch (caught) {
+      setResendError(caught instanceof Error ? caught.message : "We could not send a new link. Please try again.");
+    } finally {
+      setResending(false);
+    }
+  }
+
   return (
     <div className="auth-card auth-success">
-      <span
-        className={`auth-icon ${state === "success" ? "auth-icon--success" : ""}`}
-      >
+      <span className={`auth-icon ${state === "success" ? "auth-icon--success" : ""}`}>
         {state === "success" ? <Check /> : <Mail />}
       </span>
       <p className="eyebrow">Email verification</p>
@@ -1075,18 +1123,41 @@ export function VerifyEmailPage() {
           ? "Verifying your email…"
           : state === "success"
             ? "Email verified."
-            : "This verification link is invalid."}
+            : "This verification link is invalid or expired."}
       </h1>
       <p>
         {state === "loading"
           ? "Please keep this page open."
           : state === "success"
-            ? "Your account is ready for the next onboarding step."
-            : "The link may have expired or already been used. Request a new link from sign in."}
+            ? "Your email address is confirmed. You can now sign in to ChapelFlow."
+            : "Enter the email address used during registration and we will send a fresh confirmation link when an unverified account exists."}
       </p>
-      {state !== "loading" && (
+      {state === "error" && (
+        <form onSubmit={(event) => void resend(event)} noValidate>
+          <Field
+            name="email"
+            label="Registration email"
+            type="email"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            autoComplete="email"
+            required
+          />
+          {resendError && <div className="form-error" role="alert">{resendError}</div>}
+          {notice && <div className="inline-alert" role="status">{notice}</div>}
+          <Button type="submit" className="full-button" loading={resending} disabled={!email.trim()}>
+            Send a new verification link
+          </Button>
+        </form>
+      )}
+      {state === "success" && (
         <Link className="button button--primary full-button" to="/login">
           Continue to sign in
+        </Link>
+      )}
+      {state === "error" && (
+        <Link className="button button--secondary full-button" to="/login">
+          Return to sign in
         </Link>
       )}
     </div>

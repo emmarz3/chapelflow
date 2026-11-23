@@ -112,6 +112,22 @@ class AnnouncementSerializer(ScopedFKValidationMixin, serializers.ModelSerialize
 
 
 class CommunicationPreferenceSerializer(serializers.ModelSerializer):
+    email_available = serializers.SerializerMethodField()
+    sms_available = serializers.SerializerMethodField()
+    push_available = serializers.SerializerMethodField()
+
+    def get_email_available(self, obj):
+        from django.conf import settings
+        return bool(settings.EMAIL_HOST and settings.DEFAULT_FROM_EMAIL)
+
+    def get_sms_available(self, obj):
+        from django.conf import settings
+        return bool(settings.SMS_CHANNEL_ENABLED and settings.SMS_API_KEY and settings.SMS_PROVIDER == "termii")
+
+    def get_push_available(self, obj):
+        # ChapelFlow does not yet have a device-subscription lifecycle.
+        return False
+
     """
     Phase 10: Communication preference serializer for self-service management.
     
@@ -128,7 +144,7 @@ class CommunicationPreferenceSerializer(serializers.ModelSerializer):
     class Meta:
         model = CommunicationPreference
         fields = [
-            "id", "member",
+            "id", "member", "email_available", "sms_available", "push_available",
             "master_enabled", "email_enabled", "sms_enabled", "push_enabled", "in_app_enabled",
             "announcements_enabled", "events_enabled", "service_reminders_enabled",
             "devotional_enabled", "fellowship_enabled", "prayer_updates_enabled",
@@ -137,7 +153,7 @@ class CommunicationPreferenceSerializer(serializers.ModelSerializer):
             "timezone_name",
             "updated_at",
         ]
-        read_only_fields = ["id", "member", "updated_at"]
+        read_only_fields = ["id", "member", "email_available", "sms_available", "push_available", "updated_at"]
     
     def validate(self, attrs):
         from zoneinfo import ZoneInfo, ZoneInfoNotFoundError

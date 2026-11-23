@@ -23,12 +23,13 @@ class StudentProfileTests(TestCase):
     def test_student_can_update_only_personal_contact_fields(self):
         client = APIClient()
         client.force_authenticate(self.student)
-        response = client.patch("/api/v1/auth/profile/", {"phone_number": "08000000000", "emergency_contact_name": "Parent"}, format="json")
+        response = client.patch("/api/v1/auth/profile/", {"phone_number": "08000000000", "emergency_contact_name": "Parent", "bio": "Serving with joy."}, format="json")
         self.assertEqual(response.status_code, 200)
         self.student.refresh_from_db()
         self.member.refresh_from_db()
         self.assertEqual(self.student.phone_number, "08000000000")
         self.assertEqual(self.member.emergency_contact_name, "Parent")
+        self.assertEqual(self.student.bio, "Serving with joy.")
 
     def test_member_can_add_a_birthday_and_upload_a_device_photo(self):
         client = APIClient()
@@ -56,7 +57,17 @@ class StudentProfileTests(TestCase):
         )
         self.assertEqual(response.status_code, 400)
 
-    def test_staff_cannot_use_student_profile_endpoint(self):
+    def test_staff_can_read_and_update_only_their_public_bio(self):
         client = APIClient()
         client.force_authenticate(self.usher)
-        self.assertEqual(client.get("/api/v1/auth/profile/").status_code, 403)
+        response = client.get("/api/v1/auth/profile/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["data"]["bio"], "")
+
+        updated = client.patch("/api/v1/auth/profile/", {"bio": "Chapel usher."}, format="json")
+        self.assertEqual(updated.status_code, 200)
+        self.usher.refresh_from_db()
+        self.assertEqual(self.usher.bio, "Chapel usher.")
+
+        forbidden = client.patch("/api/v1/auth/profile/", {"address": "Private address"}, format="json")
+        self.assertEqual(forbidden.status_code, 403)

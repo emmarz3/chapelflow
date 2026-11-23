@@ -1,7 +1,9 @@
 import uuid
+from datetime import timedelta
 
 from django.conf import settings
 from django.db import models
+from django.utils import timezone
 
 
 class SocialPostStatus(models.TextChoices):
@@ -73,3 +75,29 @@ class SocialComment(models.Model):
         db_table = "social_comment"
         ordering = ["created_at"]
         indexes = [models.Index(fields=["post", "status", "created_at"])]
+
+
+
+def story_expiry():
+    return timezone.now() + timedelta(hours=24)
+
+
+class SocialStory(models.Model):
+    """A single-photo or video story visible to its chapel branch for 24 hours."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    branch = models.ForeignKey("organizations.Branch", on_delete=models.CASCADE, related_name="upper_room_stories")
+    author = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="upper_room_stories")
+    upload = models.ForeignKey("uploads.Upload", on_delete=models.PROTECT, related_name="upper_room_stories")
+    media_type = models.CharField(max_length=8, choices=SocialMediaType.choices)
+    caption = models.CharField(max_length=280, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField(default=story_expiry, db_index=True)
+
+    class Meta:
+        db_table = "social_story"
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["branch", "expires_at", "created_at"], name="social_story_branch_exp_idx"),
+        ]
+

@@ -60,11 +60,11 @@ class UserPublicSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = [
-            "id", "email", "matric_no", "first_name", "last_name",
+            "id", "email", "email_verified", "matric_no", "first_name", "last_name",
             "full_name", "phone_number", "role", "branch", "mfa_enabled", "mfa_required",
             "is_active", "password_change_required", "date_joined", "effective_permissions",
             "inventory_access", "media_access", "community", "institutional_office",
-            "institutional_group_name", "photo_url",
+            "institutional_group_name", "photo_url", "bio",
         ]
         read_only_fields = fields
 
@@ -74,6 +74,7 @@ class StudentSelfProfileSerializer(serializers.Serializer):
 
     email = serializers.EmailField(required=False)
     phone_number = serializers.CharField(max_length=20, required=False, allow_blank=True)
+    bio = serializers.CharField(max_length=200, required=False, allow_blank=True, trim_whitespace=True)
     address = serializers.CharField(max_length=500, required=False, allow_blank=True)
     date_of_birth = serializers.DateField(required=False, allow_null=True)
     emergency_contact_name = serializers.CharField(max_length=150, required=False, allow_blank=True)
@@ -249,6 +250,8 @@ class LoginSerializer(serializers.Serializer):
             raise serializers.ValidationError({"non_field_errors": ["Invalid credentials."]})
         if not user.is_active:
             raise serializers.ValidationError({"non_field_errors": ["This account has been deactivated."]})
+        if user.email and not user.email_verified:
+            raise serializers.ValidationError({"non_field_errors": ["Please verify your email address before signing in."]})
 
         attrs["user"] = user
         return attrs
@@ -268,7 +271,7 @@ class RegisterSerializer(serializers.Serializer):
     Member is created through; see apps.members.views.MemberViewSet.create
     for why manual admin creation is blocked.
     """
-    email = serializers.EmailField(required=False, allow_blank=False)
+    email = serializers.EmailField(required=True, allow_blank=False)
     matric_no = serializers.CharField(required=False, allow_blank=False)
     password = serializers.CharField(write_only=True, trim_whitespace=False)
     first_name = serializers.CharField(max_length=150)
