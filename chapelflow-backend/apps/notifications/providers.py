@@ -26,8 +26,13 @@ class SMSProvider:
     """
 
     def send(self, *, to: str, body: str):
-        if not settings.SMS_API_KEY:
-            logger.info("sms_stub_send provider=%s", settings.SMS_PROVIDER)
+        if not settings.SMS_CHANNEL_ENABLED or not settings.SMS_API_KEY:
+            logger.info(
+                "sms_stub_send provider=%s enabled=%s configured=%s",
+                settings.SMS_PROVIDER,
+                settings.SMS_CHANNEL_ENABLED,
+                bool(settings.SMS_API_KEY),
+            )
             return {"status": "stubbed", "provider": settings.SMS_PROVIDER}
 
         if settings.SMS_PROVIDER == "termii":
