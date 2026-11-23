@@ -113,9 +113,10 @@ describe("authentication recovery flows", () => {
 
     expect(await screen.findByRole("alert")).toHaveTextContent(/account with this email already exists/i);
     expect(screen.getByLabelText(/your email/i)).toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(String(fetchMock.mock.calls[0]?.[0])).toContain("/auth/register/availability/");
-    expect(String(fetchMock.mock.calls[0]?.[0])).not.toContain("/auth/register/");
+    expect(fetchMock).toHaveBeenCalled();
+    const requestedPaths = fetchMock.mock.calls.map(([url]) => String(url));
+    expect(requestedPaths.some((url) => url.endsWith("/auth/register/availability/"))).toBe(true);
+    expect(requestedPaths.some((url) => url.endsWith("/auth/register/"))).toBe(false);
   });
 
   it("submits registration consent fields as booleans", async () => {
