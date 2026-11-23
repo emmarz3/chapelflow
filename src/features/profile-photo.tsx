@@ -64,7 +64,7 @@ export function ProfilePhotoEditor() {
     const image = new Image();
     image.onload = () => {
       imageRef.current = image;
-      if (canvas.current) drawCrop(image, canvas.current, zoom, horizontal, vertical);
+      if (canvas.current) drawCrop(image, canvas.current, 1, 0, 0);
     };
     image.onerror = () => setValidation("This image could not be opened. Choose another picture.");
     image.src = url;
