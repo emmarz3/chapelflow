@@ -66,3 +66,28 @@ class SocialCommentSerializer(serializers.ModelSerializer):
     def get_is_author(self, comment):
         request = self.context.get("request")
         return bool(request and comment.author_id == request.user.id)
+
+
+
+class SocialStorySerializer(serializers.Serializer):
+    id = serializers.UUIDField(read_only=True)
+    author_name = serializers.SerializerMethodField()
+    caption = serializers.CharField(read_only=True)
+    media_type = serializers.CharField(read_only=True)
+    media_url = serializers.SerializerMethodField()
+    created_at = serializers.DateTimeField(read_only=True)
+    expires_at = serializers.DateTimeField(read_only=True)
+
+    def get_author_name(self, story):
+        return display_name(story.author)
+
+    def get_media_url(self, story):
+        url = story.upload.file_url
+        if urlparse(url).path.startswith(f"{settings.MEDIA_URL.rstrip('/')}/upper-room/"):
+            return reverse("social-media", kwargs={"pk": story.upload_id})
+        if settings.AWS_S3_ENDPOINT_URL and url.startswith(
+            f"{urlparse(settings.AWS_S3_ENDPOINT_URL).scheme}://{settings.AWS_STORAGE_BUCKET_NAME}."
+            f"{urlparse(settings.AWS_S3_ENDPOINT_URL).netloc}/upper-room/"
+        ):
+            return reverse("social-media", kwargs={"pk": story.upload_id})
+        return url
