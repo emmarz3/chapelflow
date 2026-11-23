@@ -189,12 +189,16 @@ class TestSelfRegistrationPipeline:
 
     def test_register_requires_email_for_verification(self, api_client, branch_a):
         response = api_client.post("/api/v1/auth/register/", {
+            "matric_no": "swe/2026/099",
             "password": "StrongPass123!",
             "first_name": "No",
-            "last_name": "Identifier",
+            "last_name": "Email",
             "branch": str(branch_a.id),
+            "community": "STUDENT",
+            "academic_level": "100",
         })
         assert response.status_code == 400
+        assert "email" in response.data["errors"]
 
 
 @pytest.mark.django_db
