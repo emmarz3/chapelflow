@@ -157,7 +157,7 @@ export function UpperRoomPage() {
     setRecent((current) => [entry, ...current.filter((row) => row.id !== entry.id)].slice(0, 12));
   }
 
-  function openPostMedia(post: UpperRoomPost, media: UpperRoomMedia) {
+  function openPostMedia(post: UpperRoomPost, media: UpperRoomMedia, openViewer = true) {
     const item: RecentMedia = {
       id: media.id,
       postId: post.id,
@@ -168,7 +168,7 @@ export function UpperRoomPage() {
       viewedAt: new Date().toISOString(),
     };
     recordRecent(item);
-    setViewingMedia(item);
+    if (openViewer) setViewingMedia(item);
   }
 
   function handleFiles(selected: File[]) {
@@ -381,7 +381,7 @@ export function UpperRoomPage() {
   );
 }
 
-function PostCard({ post, onOpenMedia }: { post: UpperRoomPost; onOpenMedia: (post: UpperRoomPost, media: UpperRoomMedia) => void }) {
+function PostCard({ post, onOpenMedia }: { post: UpperRoomPost; onOpenMedia: (post: UpperRoomPost, media: UpperRoomMedia, openViewer?: boolean) => void }) {
   const { user } = useAuth();
   const toast = useToast();
   const client = useQueryClient();
@@ -462,7 +462,7 @@ function PostCard({ post, onOpenMedia }: { post: UpperRoomPost; onOpenMedia: (po
         {post.media.length > 0 && (
           <div className={`upper-room-post__media upper-room-post__media--${Math.min(post.media.length, 4)}`}>
             {post.media.map((media) => media.mediaType === "VIDEO" ? (
-              <video key={media.id} controls preload="metadata" playsInline onPlay={() => onOpenMedia(post, media)}>
+              <video key={media.id} controls preload="metadata" playsInline onPlay={() => onOpenMedia(post, media, false)}>
                 <source src={media.url} />
               </video>
             ) : (
