@@ -171,7 +171,7 @@ export function UpperRoomPage() {
       viewedAt: new Date().toISOString(),
     };
     recordRecent(item);
-    if (openViewer) setViewingMedia(item);
+    if (openViewer) setViewingMedia({ ...item, url: cachedMediaUrls[media.id] || item.url });
   }
 
   function handleFiles(selected: File[]) {
