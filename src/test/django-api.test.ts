@@ -8,6 +8,44 @@ const response = (data: unknown, status = 200) =>
 afterEach(() => vi.unstubAllGlobals());
 
 describe("Django API integration", () => {
+  it("submits registrations, verifies email tokens, and resends confirmation links", async () => {
+    const fetch = vi.fn()
+      .mockResolvedValueOnce(response({ data: { verification_required: true, approval_required: false } }, 201))
+      .mockResolvedValueOnce(response({ data: { verified: true } }))
+      .mockResolvedValueOnce(response({ data: { sent: true } }));
+    vi.stubGlobal("fetch", fetch);
+
+    await expect(authService.register({
+      email: "staff@example.edu.ng",
+      password: "StrongPass123!",
+      firstName: "Ada",
+      lastName: "Okafor",
+      phone: "08000000000",
+      memberType: "Staff",
+      acceptedPolicies: true,
+    })).resolves.toMatchObject({
+      data: { verificationRequired: true, approvalRequired: false },
+    });
+    await expect(authService.verifyEmail("signed-token")).resolves.toMatchObject({
+      data: { verified: true },
+    });
+    await expect(authService.resendEmailVerification("staff@example.edu.ng")).resolves.toMatchObject({
+      data: { sent: true },
+    });
+
+    expect(fetch.mock.calls.map(([url]) => String(url))).toEqual([
+      "/api/v1/auth/register/",
+      "/api/v1/auth/verify-email/",
+      "/api/v1/auth/resend-verification/",
+    ]);
+    expect(JSON.parse(String(fetch.mock.calls[0]?.[1]?.body))).toMatchObject({
+      email: "staff@example.edu.ng",
+      community: "STAFF",
+    });
+    expect(JSON.parse(String(fetch.mock.calls[1]?.[1]?.body))).toEqual({ token: "signed-token" });
+    expect(JSON.parse(String(fetch.mock.calls[2]?.[1]?.body))).toEqual({ email: "staff@example.edu.ng" });
+  });
+
   it("routes Super Admin data preview and account erasure to Django", async () => {
     const fetch = vi.fn()
       .mockResolvedValueOnce(response({ data: { token: "preview", counts: {}, database_rows: 3, accounts_to_remove: 1, confirmation: "RESET CHAPELFLOW DATA" } }))
