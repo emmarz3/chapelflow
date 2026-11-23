@@ -14,6 +14,7 @@ import {
 } from "../services/chapelflow";
 import { useAuth } from "./auth-context";
 import { ReportContentButton } from "./moderation";
+import { cacheUpperRoomMedia, clearUpperRoomMediaCache, getCachedUpperRoomMediaUrl } from "../lib/upper-room-media-cache";
 
 const MAX_MEDIA_BYTES = 50 * 1024 * 1024;
 
@@ -245,7 +246,17 @@ export function UpperRoomPage() {
               <small>Your story</small>
             </button>
             {(stories.data ?? []).map((story) => (
-              <button type="button" key={story.id} className="upper-room__story" onClick={() => setViewingStoryId(story.id)}>
+              <button type="button" key={story.id} className="upper-room__story" onClick={() => {
+                recordRecent({
+                  id: story.id,
+                  postId: `story:${story.id}`,
+                  url: story.mediaUrl,
+                  mediaType: story.mediaType,
+                  caption: story.caption,
+                  authorName: story.authorName,
+                });
+                setViewingStoryId(story.id);
+              }}>
                 <span className="upper-room__story-ring upper-room__story-ring--1">
                   {story.mediaType === "IMAGE" ? <img src={story.mediaUrl} alt="" loading="lazy" /> : <span><Video /></span>}
                 </span>
@@ -330,8 +341,12 @@ export function UpperRoomPage() {
 
           {recent.length > 0 && (
             <section className="upper-room__recent" aria-label="Recently viewed media">
-              <header><div><Clock3 /><strong>Recently viewed</strong></div><button type="button" onClick={() => setRecent([])}>Clear history</button></header>
-              <p className="upper-room__recent-note">Your last 12 opened media items are saved on this device for quick access. Reopening requires a connection.</p>
+              <header><div><Clock3 /><strong>Recently viewed</strong></div><button type="button" onClick={() => {
+                setRecent([]);
+                setViewingMedia(null);
+                if (user?.id) void clearUpperRoomMediaCache(user.id);
+              }}>Clear history & cache</button></header>
+              <p className="upper-room__recent-note">Your last 12 opened photos and videos are remembered. Cached copies reopen offline; the cache is limited to 120 MB per account.</p>
               <div className="upper-room__recent-list">
                 {recent.map((item) => (
                   <button type="button" key={item.id} onClick={() => setViewingMedia(item)}>
@@ -372,7 +387,7 @@ export function UpperRoomPage() {
         <div className="upper-room__viewer" role="dialog" aria-modal="true" aria-label="Upper Room story" onClick={() => setViewingStoryId(null)}>
           <div className="upper-room__viewer-card" onClick={(event) => event.stopPropagation()}>
             <header><div><strong>{activeStory.authorName}</strong><small>{relativeTime(activeStory.createdAt)} · expires in 24 hours</small></div><button type="button" aria-label="Close story" onClick={() => setViewingStoryId(null)}><X /></button></header>
-            {activeStory.mediaType === "VIDEO" ? <video src={activeStory.mediaUrl} controls autoPlay playsInline /> : <img src={activeStory.mediaUrl} alt={activeStory.caption || "Upper Room story"} />}
+            {activeStory.mediaType === "VIDEO" ? <video src={cachedMediaUrls[activeStory.id] || activeStory.mediaUrl} controls autoPlay playsInline /> : <img src={cachedMediaUrls[activeStory.id] || activeStory.mediaUrl} alt={activeStory.caption || "Upper Room story"} />}
             {activeStory.caption && <p>{activeStory.caption}</p>}
           </div>
         </div>
