@@ -187,6 +187,7 @@ REST_FRAMEWORK = {
     "DEFAULT_THROTTLE_RATES": {
         "auth": "10/min",
         "registration_check": "20/min",
+        "email_verification": "10/hour",
         "sync": "30/min",
         "attendance_scan": "20/min",
         "attendance_code_user": "8/min",
