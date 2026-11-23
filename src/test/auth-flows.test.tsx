@@ -87,12 +87,45 @@ describe("authentication recovery flows", () => {
     expect(screen.getByRole("alert")).toHaveTextContent(/do not match/i);
   });
 
+
+
+  it("stops registration immediately when the email already belongs to an account", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ data: { email_available: false } }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter>
+          <RegisterPage />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    await user.type(screen.getByLabelText(/your email/i), "already@cuc.edu.ng");
+    await user.type(screen.getByLabelText(/create password/i), "password-1");
+    await user.click(screen.getByRole("button", { name: /continue/i }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/account with this email already exists/i);
+    expect(screen.getByLabelText(/your email/i)).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(String(fetchMock.mock.calls[0]?.[0])).toContain("/auth/register/availability/");
+    expect(String(fetchMock.mock.calls[0]?.[0])).not.toContain("/auth/register/");
+  });
+
   it("submits registration consent fields as booleans", async () => {
     const fetchMock = vi.fn().mockImplementation((url: string) =>
       Promise.resolve(
         new Response(
           JSON.stringify(
-            url.includes("/public/communities")
+            url.includes("/auth/register/availability/")
+              ? { data: { email_available: true, matric_no_available: true } }
+              : url.includes("/public/communities")
               ? {
                   data: [
                     {
