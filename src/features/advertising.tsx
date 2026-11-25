@@ -35,9 +35,10 @@ export function SponsoredCard({ placement }: { placement: "home" | "events" }) {
     return () => { active = false; };
   }, [placement]);
   if (!ad) return null;
+  const currentAd = ad;
   async function open() {
     try {
-      const result = await api.post<{ url: string }>(`/ads/${ad.id}/click/`);
+      const result = await api.post<{ url: string }>(`/ads/${currentAd.id}/click/`);
       const target = new URL(result.url);
       if (target.protocol === "https:") window.location.assign(target.href);
     } catch {
@@ -309,8 +310,8 @@ export function AdvertisingAdminPage() {
         {ad.payment_history?.length > 0 && <details className="ads-payment-history"><summary>Payment history ({ad.payment_history.length})</summary>
           <ul>{ad.payment_history.map((payment) => <li key={payment.reference}>₦{payment.amount_ngn.toLocaleString()} · {new Date(payment.paid_at).toLocaleString()} · <code>{payment.reference}</code></li>)}</ul>
         </details>}
-        {ad.decision_history?.length > 0 && <details className="ads-payment-history"><summary>Review/audit trail ({ad.decision_history.length})</summary>
-          <ul>{ad.decision_history.map((item, index) => <li key={item.action + index}>{item.action} · {item.actor_email} · {new Date(item.created_at).toLocaleString()}{item.note ? ` — ${item.note}` : ""}</li>)}</ul>
+        {(ad.decision_history ?? []).length > 0 && <details className="ads-payment-history"><summary>Review/audit trail ({(ad.decision_history ?? []).length})</summary>
+          <ul>{(ad.decision_history ?? []).map((item, index) => <li key={item.action + index}>{item.action} · {item.actor_email} · {new Date(item.created_at).toLocaleString()}{item.note ? ` — ${item.note}` : ""}</li>)}</ul>
         </details>}
         {["PENDING", "CHANGES", "ACTIVE", "PAUSED", "APPROVED"].includes(ad.status) && <form className="ads-admin-review" onSubmit={(event) => {
           event.preventDefault();
