@@ -99,7 +99,7 @@ export function LeadershipNoticesPage() {
   const [busy, setBusy] = useState(false);
   const notices = useLoad<Notice[]>(`/leadership-channel/notices/?view=${view}`);
   const groups = useLoad<Group[]>("/leadership-channel/oversight/");
-  const branches = [...new Map((groups.data || []).map(group => [group.branch_id, group.branch_name])).entries()];
+  const branches = [...new Map<string, string>((groups.data || []).map(group => [group.branch_id, group.branch_name] as const)).entries()];
   const [branchId, setBranchId] = useState("");
   const [audience, setAudience] = useState("ALL");
   const [selected, setSelected] = useState<string[]>([]);
