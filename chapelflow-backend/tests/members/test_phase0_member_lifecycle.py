@@ -47,6 +47,11 @@ class TestPhase0MemberCreationLockdown:
 class TestSelfRegistrationPipeline:
     """Spec section 3: the ONLY normal path a Member gets created through."""
 
+    @pytest.fixture(autouse=True)
+    def reset_auth_throttle(self):
+        from django.core.cache import cache
+        cache.clear()
+
     def test_register_creates_user_and_member_together(self, api_client, branch_a):
         response = api_client.post("/api/v1/auth/register/", {
             "matric_no": "swe/2025/010",
