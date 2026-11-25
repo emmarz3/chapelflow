@@ -14,6 +14,8 @@ from apps.finance.services import PaymentProviderError, _paystack_request
 from .models import AdPayment, Campaign, PaystackPlan
 
 PRICES = {'CAMPUS': 300000, 'FEATURED': 750000}
+FOUNDING_FIRST_MONTH_KOBO = 200000
+FOUNDING_OFFER_LIMIT = 10
 logger = logging.getLogger(__name__)
 
 
@@ -45,40 +47,60 @@ def plan_code(plan):
 
 def activate_payment(campaign, data):
     reference = str(data.get('reference') or '')
-    amount = data.get('amount')
-    if not reference or amount != PRICES[campaign.plan] or data.get('currency') != 'NGN' or data.get('status') != 'success':
-        raise PaymentProviderError('Payment details did not match the advertising plan.')
     subscription = data.get('subscription') or {}
-    code = subscription.get('subscription_code') if isinstance(subscription, dict) else None
-    if not code and not campaign.subscription_code:
-        raise PaymentProviderError('Paystack has not confirmed the monthly subscription yet. Try verification again shortly.')
-    if code and campaign.subscription_code and code != campaign.subscription_code:
-        raise PaymentProviderError('Subscription does not match this campaign.')
+    if not isinstance(subscription, dict):
+        subscription = {}
+    code = data.get('subscription_code') or subscription.get('subscription_code') or campaign.subscription_code
+    amount = data.get('amount')
+    if not reference or data.get('currency') != 'NGN' or data.get('status') != 'success':
+        raise PaymentProviderError('Payment details did not match the advertising plan.')
     with transaction.atomic():
         campaign = Campaign.objects.select_for_update().get(pk=campaign.pk)
-        if campaign.reference != reference and campaign.subscription_code != code:
-            raise PaymentProviderError('Payment does not belong to this campaign.')
         if AdPayment.objects.filter(reference=reference).exists():
             return campaign
         if campaign.status not in {Campaign.Status.APPROVED, Campaign.Status.ACTIVE, Campaign.Status.PAUSED}:
             raise PaymentProviderError('This advertisement is not approved for payment.')
+        founding_first_payment = bool(campaign.founding_offer_awarded and not AdPayment.objects.filter(campaign=campaign).exists())
+        expected_amount = FOUNDING_FIRST_MONTH_KOBO if founding_first_payment else PRICES[campaign.plan]
+        if amount != expected_amount:
+            raise PaymentProviderError('The verified amount does not match the approved advertising offer.')
+        if campaign.reference != reference and campaign.subscription_code != code:
+            raise PaymentProviderError('Payment does not belong to this campaign.')
         paid_at = parse_datetime(str(data.get('paid_at') or '')) or timezone.now()
         if timezone.is_naive(paid_at):
             paid_at = timezone.make_aware(paid_at)
+        if founding_first_payment and not code:
+            customer, authorization = data.get('customer') or {}, data.get('authorization') or {}
+            customer_code = customer.get('customer_code') if isinstance(customer, dict) else None
+            authorization_code = authorization.get('authorization_code') if isinstance(authorization, dict) else None
+            reusable = authorization.get('reusable') if isinstance(authorization, dict) else False
+            if not customer_code or not authorization_code or not reusable:
+                raise PaymentProviderError('Founding payment verified, but no reusable card authorization was returned. Contact the chapel office before another payment attempt.')
+            recurring_code = plan_code(campaign.plan)
+            from dateutil.relativedelta import relativedelta
+            subscription_data = _paystack_request('/subscription', method='POST', payload={
+                'customer': customer_code, 'plan': recurring_code, 'authorization': authorization_code,
+                'start_date': (paid_at + relativedelta(months=1)).isoformat(),
+            })
+            code = subscription_data.get('subscription_code')
+            if not code:
+                raise PaymentProviderError('Paystack did not confirm the regular monthly renewal subscription.')
+            subscription = subscription_data
+        if not code:
+            raise PaymentProviderError('Paystack has not confirmed the monthly subscription yet. Try verification again shortly.')
+        if campaign.subscription_code and code != campaign.subscription_code:
+            raise PaymentProviderError('Subscription does not match this campaign.')
         AdPayment.objects.create(reference=reference, campaign=campaign, amount_kobo=amount, paid_at=paid_at)
-        # Use a bounded paid period even if Paystack's next invoice has not arrived yet.
         from dateutil.relativedelta import relativedelta
         campaign.paid_until = max(campaign.paid_until or paid_at, paid_at) + relativedelta(months=1)
-        if code:
-            campaign.subscription_code = code
-            campaign.subscription_email_token = subscription.get('email_token') or campaign.subscription_email_token
+        campaign.subscription_code = code
+        campaign.subscription_email_token = subscription.get('email_token') or campaign.subscription_email_token
         if campaign.status == Campaign.Status.APPROVED:
             campaign.status = Campaign.Status.ACTIVE
         campaign.save()
         if campaign.scendey_opt_in and not campaign.scendey_synced_at:
             transaction.on_commit(lambda: queue_scendey_sync(campaign.id))
     return campaign
-
 
 def process_ad_webhook(request):
     secret = settings.PAYSTACK_SECRET_KEY
@@ -106,10 +128,12 @@ def process_ad_webhook(request):
         # Verify independently; never trust an event body to grant advertising time.
         verified = _paystack_request(f"/transaction/verify/{quote(str(data.get('reference')), safe='')}")
         activate_payment(campaign, verified)
-    elif event in {'subscription.disable', 'invoice.payment_failed'}:
+    elif event == 'invoice.payment_failed':
         campaign.status = Campaign.Status.PAUSED
         campaign.save(update_fields=['status'])
-    elif event == 'subscription.not_renew':
+    elif event in {'subscription.disable', 'subscription.not_renew'}:
         campaign.cancel_at_period_end = True
-        campaign.save(update_fields=['cancel_at_period_end'])
+        if not campaign.paid_until or campaign.paid_until <= timezone.now():
+            campaign.status = Campaign.Status.PAUSED
+        campaign.save(update_fields=['status', 'cancel_at_period_end'])
     return True

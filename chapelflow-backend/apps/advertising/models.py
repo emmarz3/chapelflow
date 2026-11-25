@@ -9,6 +9,7 @@ class Campaign(models.Model):
         CHANGES = 'CHANGES', 'Changes requested'
         APPROVED = 'APPROVED', 'Approved, awaiting payment'
         REJECTED = 'REJECTED', 'Rejected'
+        REVOKED = 'REVOKED', 'Revoked'
         ACTIVE = 'ACTIVE', 'Active'
         PAUSED = 'PAUSED', 'Paused'
         CANCELLED = 'CANCELLED', 'Cancelled'
@@ -25,6 +26,9 @@ class Campaign(models.Model):
     destination_url = models.URLField(max_length=1000)
     contact_email = models.EmailField()
     plan = models.CharField(max_length=12, choices=Plan.choices)
+    ad_category = models.CharField(max_length=80, blank=True, default='')
+    applicant_community = models.CharField(max_length=10, choices=[('STUDENT', 'Student'), ('STAFF', 'Staff')], default='STUDENT')
+    founding_offer_awarded = models.BooleanField(default=False)
     status = models.CharField(max_length=12, choices=Status.choices, default=Status.PENDING)
     review_note = models.TextField(blank=True)
     reviewed_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name='+')
@@ -51,7 +55,7 @@ class Campaign(models.Model):
 
 class AdPayment(models.Model):
     reference = models.CharField(max_length=100, primary_key=True)
-    campaign = models.ForeignKey(Campaign, on_delete=models.CASCADE, related_name='payments')
+    campaign = models.ForeignKey(Campaign, on_delete=models.PROTECT, related_name='payments')
     amount_kobo = models.PositiveIntegerField()
     paid_at = models.DateTimeField()
     provider_payload = models.JSONField(default=dict, blank=True)
@@ -69,3 +73,21 @@ class AdDecision(models.Model):
     action = models.CharField(max_length=24)
     note = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+
+
+class AdvertisingSettings(models.Model):
+    """Singleton controls for emergency display pause and founding-offer availability."""
+    id = models.PositiveSmallIntegerField(primary_key=True, default=1, editable=False)
+    emergency_paused = models.BooleanField(default=False)
+    emergency_pause_reason = models.TextField(blank=True)
+    emergency_paused_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name='advertising_pause_actions')
+    emergency_paused_at = models.DateTimeField(null=True, blank=True)
+    founding_offer_enabled = models.BooleanField(default=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Advertising settings'
+        verbose_name_plural = 'Advertising settings'
+
+    def __str__(self):
+        return 'ChapelFlow advertising settings'

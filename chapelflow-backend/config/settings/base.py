@@ -197,6 +197,9 @@ REST_FRAMEWORK = {
         "community_comment": "20/min",
         "public": "20/min",
         "ads_public": "30/min",
+        "ads_application": "3/hour",
+        "ads_checkout": "5/hour",
+        "ads_image": "10/hour",
         "admin_destructive": "5/hour",
     },
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
@@ -312,6 +315,8 @@ ALLOWED_UPLOAD_EXTENSIONS = env.list(
 # Payments
 # --------------------------------------------------------------------------
 PAYSTACK_SECRET_KEY = env("PAYSTACK_SECRET_KEY", default="")
+# Fail closed until chapel leadership approves revenue ownership, refunds and permitted categories.
+ADVERTISING_POLICY_APPROVED = env.bool("ADVERTISING_POLICY_APPROVED", default=False)
 FRONTEND_URL = env("FRONTEND_URL", default="")
 SCENDEY_WAITLIST_URL = env("SCENDEY_WAITLIST_URL", default="")
 PAYSTACK_CALLBACK_URL = env("PAYSTACK_CALLBACK_URL", default="")

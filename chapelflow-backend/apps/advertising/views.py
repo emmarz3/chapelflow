@@ -6,6 +6,7 @@ from urllib.parse import quote
 
 from django.conf import settings
 from django.core.cache import cache
+from django.db import transaction
 from django.db.models import F
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -19,26 +20,50 @@ from rest_framework.views import APIView
 
 from apps.audit.services import write_audit_log
 from apps.finance.services import PaymentProviderError, _paystack_request
+from apps.members.models import CommunityClassification, Member
 from common.permissions.rbac import IsSuperAdmin
 from apps.uploads.storage import get_storage_service, generate_storage_filename
-from .models import AdDecision, Campaign
+from .models import AdDecision, AdvertisingSettings, Campaign
 from .serializers import CampaignSerializer, CONSENT
-from .services import PRICES, activate_payment, plan_code, process_ad_webhook
+from .services import FOUNDING_FIRST_MONTH_KOBO, FOUNDING_OFFER_LIMIT, PRICES, activate_payment, plan_code, process_ad_webhook
+
+
+def _ads_settings():
+    return AdvertisingSettings.objects.get_or_create(pk=1)[0]
+
+
+def _ads_display_allowed():
+    if not getattr(settings, 'ADVERTISING_POLICY_APPROVED', False):
+        return False
+    return not AdvertisingSettings.objects.filter(pk=1, emergency_paused=True).exists()
 
 
 class PlansView(APIView):
     permission_classes = [AllowAny]
     authentication_classes = []
-
     def get(self, request):
-        return Response({'plans': [{'code': key, 'name': Campaign.Plan(key).label, 'price_ngn': value // 100, 'interval': 'monthly'} for key, value in PRICES.items()], 'consent_text': CONSENT, 'checkout_available': bool(settings.PAYSTACK_SECRET_KEY)})
-
+        config = AdvertisingSettings.objects.filter(pk=1).first()
+        awarded = Campaign.objects.filter(founding_offer_awarded=True).count()
+        enabled = config.founding_offer_enabled if config else True
+        remaining = max(0, FOUNDING_OFFER_LIMIT - awarded) if enabled else 0
+        approved = bool(getattr(settings, 'ADVERTISING_POLICY_APPROVED', False))
+        checkout = bool(settings.PAYSTACK_SECRET_KEY and approved and not (config and config.emergency_paused))
+        return Response({
+            'plans': [{'code': key, 'name': Campaign.Plan(key).label, 'price_ngn': value // 100, 'interval': 'monthly'} for key, value in PRICES.items()],
+            'consent_text': CONSENT, 'checkout_available': checkout,
+            'checkout_reason': '' if checkout else 'Checkout opens after chapel policy approval and Paystack configuration.',
+            'founding_offer': {'enabled': bool(remaining), 'remaining': remaining, 'limit': FOUNDING_OFFER_LIMIT,
+                'first_month_price_ngn': FOUNDING_FIRST_MONTH_KOBO // 100,
+                'renewal_note': 'First month ₦2,000, then the selected plan renews at its regular monthly price.'},
+        })
 
 class MyCampaignsView(APIView):
     permission_classes = [IsAuthenticated]
+    throttle_scope = 'ads_application'
 
     def get(self, request):
-        return Response(CampaignSerializer(Campaign.objects.filter(owner=request.user), many=True).data)
+        campaigns = Campaign.objects.filter(owner=request.user).prefetch_related('payments')
+        return Response(CampaignSerializer(campaigns, many=True).data)
 
     def post(self, request):
         serializer = CampaignSerializer(data=request.data, context={'request': request})
@@ -64,17 +89,21 @@ class MyCampaignDetailView(APIView):
 
 class AdminCampaignsView(APIView):
     permission_classes = [IsSuperAdmin]
-
     def get(self, request):
-        campaigns = Campaign.objects.select_related('owner').all()[:200]
-        return Response([dict(CampaignSerializer(campaign).data, owner_email=campaign.owner.email or '') for campaign in campaigns])
+        campaigns = Campaign.objects.select_related('owner', 'reviewed_by').prefetch_related('payments', 'decisions__actor').all()[:200]
+        results = []
+        for campaign in campaigns:
+            history = [{'action': d.action, 'note': d.note, 'actor_email': d.actor.email if d.actor else '', 'created_at': d.created_at}
+                for d in campaign.decisions.all().order_by('-created_at')[:30]]
+            results.append(dict(CampaignSerializer(campaign).data, owner_email=campaign.owner.email or '',
+                reviewed_by_email=campaign.reviewed_by.email if campaign.reviewed_by else '',
+                decision_history=history, placements=['home', 'events']))
+        return Response(results)
 
 
 class ReviewView(APIView):
     permission_classes = [IsSuperAdmin]
-
     def post(self, request, pk):
-        campaign = get_object_or_404(Campaign, pk=pk)
         decision = request.data.get('action')
         note = str(request.data.get('note') or '').strip()[:2000]
         transitions = {
@@ -83,28 +112,77 @@ class ReviewView(APIView):
             'changes': ({Campaign.Status.PENDING}, Campaign.Status.CHANGES),
             'pause': ({Campaign.Status.ACTIVE}, Campaign.Status.PAUSED),
             'resume': ({Campaign.Status.PAUSED}, Campaign.Status.ACTIVE),
+            'revoke': ({Campaign.Status.APPROVED, Campaign.Status.ACTIVE, Campaign.Status.PAUSED}, Campaign.Status.REVOKED),
         }
-        if decision not in transitions or campaign.status not in transitions[decision][0]:
-            raise serializers.ValidationError('This review action is unavailable for the current campaign.')
-        if decision in {'reject', 'changes', 'pause'} and not note:
+        if decision not in transitions:
+            raise serializers.ValidationError('Choose a valid advertising decision.')
+        if decision in {'reject', 'changes', 'pause', 'revoke'} and not note:
             raise serializers.ValidationError('Include a reason for this decision.')
-        if decision == 'resume' and (not campaign.paid_until or campaign.paid_until <= timezone.now() or campaign.cancel_at_period_end):
-            raise serializers.ValidationError('A current subscription is required before resuming this ad.')
-        campaign.status = transitions[decision][1]
-        campaign.review_note = note
-        campaign.reviewed_by = request.user
-        campaign.reviewed_at = timezone.now()
-        campaign.save()
-        AdDecision.objects.create(campaign=campaign, actor=request.user, action=decision, note=note)
-        write_audit_log('UPDATE', 'AdCampaign', campaign.id, {'decision': decision}, user=request.user)
+        with transaction.atomic():
+            campaign = get_object_or_404(Campaign.objects.select_for_update(), pk=pk)
+            allowed, next_status = transitions[decision]
+            if campaign.status not in allowed:
+                raise serializers.ValidationError('This review action is unavailable for the current campaign.')
+            if decision == 'resume' and (not campaign.paid_until or campaign.paid_until <= timezone.now() or campaign.cancel_at_period_end):
+                raise serializers.ValidationError('A current subscription is required before resuming this ad.')
+            if decision == 'approve' and campaign.applicant_community == 'STUDENT' and not campaign.founding_offer_awarded:
+                config = _ads_settings()
+                config = AdvertisingSettings.objects.select_for_update().get(pk=config.pk)
+                if config.founding_offer_enabled and Campaign.objects.filter(founding_offer_awarded=True).count() < FOUNDING_OFFER_LIMIT:
+                    campaign.founding_offer_awarded = True
+            campaign.status = next_status
+            campaign.review_note = note
+            campaign.reviewed_by = request.user
+            campaign.reviewed_at = timezone.now()
+            campaign.save()
+            AdDecision.objects.create(campaign=campaign, actor=request.user, action=decision, note=note)
+            write_audit_log('UPDATE', 'AdCampaign', campaign.id, {'decision': decision, 'note': note}, user=request.user)
         return Response(CampaignSerializer(campaign).data)
 
+
+class AdminSettingsView(APIView):
+    permission_classes = [IsSuperAdmin]
+    def get(self, request):
+        config = _ads_settings()
+        awarded = Campaign.objects.filter(founding_offer_awarded=True).count()
+        return Response({'emergency_paused': config.emergency_paused, 'emergency_pause_reason': config.emergency_pause_reason,
+            'founding_offer_enabled': config.founding_offer_enabled, 'founding_offer_awarded': awarded,
+            'founding_offer_remaining': max(0, FOUNDING_OFFER_LIMIT - awarded) if config.founding_offer_enabled else 0,
+            'policy_approved': bool(getattr(settings, 'ADVERTISING_POLICY_APPROVED', False)),
+            'checkout_configured': bool(settings.PAYSTACK_SECRET_KEY)})
+    def post(self, request):
+        action = str(request.data.get('action') or '')
+        note = str(request.data.get('note') or '').strip()[:2000]
+        if action not in {'pause_all', 'resume_all', 'enable_founding_offer', 'disable_founding_offer'}:
+            raise serializers.ValidationError('Choose a valid advertising setting.')
+        if action == 'pause_all' and not note:
+            raise serializers.ValidationError('A reason is required for the emergency pause.')
+        with transaction.atomic():
+            config = _ads_settings()
+            config = AdvertisingSettings.objects.select_for_update().get(pk=config.pk)
+            if action == 'pause_all':
+                config.emergency_paused, config.emergency_pause_reason = True, note
+                config.emergency_paused_by, config.emergency_paused_at = request.user, timezone.now()
+            elif action == 'resume_all':
+                config.emergency_paused, config.emergency_pause_reason = False, ''
+                config.emergency_paused_by, config.emergency_paused_at = None, None
+            elif action == 'enable_founding_offer':
+                config.founding_offer_enabled = True
+            elif action == 'disable_founding_offer':
+                config.founding_offer_enabled = False
+            config.save()
+            write_audit_log('UPDATE', 'AdvertisingSettings', config.pk, {'action': action, 'note': note}, user=request.user)
+        return self.get(request)
 
 class ImageView(APIView):
     permission_classes = [IsAuthenticated]
     parser_classes = [MultiPartParser, FormParser]
+    throttle_scope = 'ads_image'
 
     def post(self, request):
+        community = Member.objects.filter(user=request.user).values_list('community', flat=True).first() or CommunityClassification.STUDENT
+        if request.user.get_role_code() != 'MEMBER' or community not in {CommunityClassification.STUDENT, CommunityClassification.STAFF}:
+            return Response({'detail': 'Only student and staff community members can upload advertising creatives.'}, status=403)
         file = request.FILES.get('file')
         if not file or file.size > 2 * 1024 * 1024 or file.content_type not in {'image/png', 'image/jpeg', 'image/webp'}:
             raise serializers.ValidationError('Upload a PNG, JPEG or WebP image under 2 MB.')
@@ -127,33 +205,42 @@ class ImageView(APIView):
 
 class CheckoutView(APIView):
     permission_classes = [IsAuthenticated]
-
+    throttle_scope = 'ads_checkout'
     def post(self, request, pk):
         campaign = get_object_or_404(Campaign, pk=pk, owner=request.user)
         if campaign.status != Campaign.Status.APPROVED or campaign.subscription_code:
             raise serializers.ValidationError('This ad needs approval and must not already have a subscription.')
+        if not getattr(settings, 'ADVERTISING_POLICY_APPROVED', False):
+            raise serializers.ValidationError('Advertising checkout is closed until chapel leadership approves revenue ownership, refunds, and permitted ad categories.')
+        config = AdvertisingSettings.objects.filter(pk=1).first()
+        if config and config.emergency_paused:
+            raise serializers.ValidationError('Advertising checkout is temporarily paused by the chapel.')
         if not settings.PAYSTACK_SECRET_KEY:
             raise serializers.ValidationError('Advertising checkout is not configured yet.')
         if not campaign.owner.email:
             raise serializers.ValidationError('Add an email address to your account before subscribing.')
         try:
-            code = plan_code(campaign.plan)
+            recurring_plan = plan_code(campaign.plan)
+            founding = campaign.founding_offer_awarded and not campaign.payments.exists()
+            amount = FOUNDING_FIRST_MONTH_KOBO if founding else PRICES[campaign.plan]
             reference = campaign.reference or f'ad-{uuid.uuid4().hex}'
-            data = _paystack_request('/transaction/initialize', method='POST', payload={
-                'email': campaign.owner.email, 'amount': PRICES[campaign.plan],
-                'currency': 'NGN', 'reference': reference, 'plan': code,
-                'channels': ['card', 'direct_debit'],
-                'metadata': {'ad_campaign_id': str(campaign.id)},
-                'callback_url': f"{settings.FRONTEND_URL.rstrip('/')}/app/advertise?campaign={campaign.id}" if getattr(settings, 'FRONTEND_URL', '') else '',
-            })
+            payload = {'email': campaign.owner.email, 'amount': amount, 'currency': 'NGN', 'reference': reference,
+                'channels': ['card'] if founding else ['card', 'direct_debit'],
+                'metadata': {'ad_campaign_id': str(campaign.id), 'billing_mode': 'FOUNDING_FIRST_MONTH' if founding else 'MONTHLY_SUBSCRIPTION',
+                    'renewal_amount_kobo': PRICES[campaign.plan]}}
+            if settings.FRONTEND_URL:
+                payload['callback_url'] = f"{settings.FRONTEND_URL.rstrip('/')}/app/advertise?campaign={campaign.id}"
+            if not founding:
+                payload['plan'] = recurring_plan
+            data = _paystack_request('/transaction/initialize', method='POST', payload=payload)
         except PaymentProviderError as exc:
             return Response({'message': str(exc)}, status=502)
         if data.get('reference') != reference or not data.get('authorization_url'):
             return Response({'message': 'Paystack did not return a valid checkout.'}, status=502)
         campaign.reference = reference
         campaign.save(update_fields=['reference'])
-        return Response({'checkout_url': data['authorization_url']})
-
+        return Response({'checkout_url': data['authorization_url'], 'founding_offer': bool(founding),
+            'first_month_amount_ngn': amount // 100, 'renewal_amount_ngn': PRICES[campaign.plan] // 100})
 
 class VerifyView(APIView):
     permission_classes = [IsAuthenticated]
@@ -220,6 +307,8 @@ class PlacementView(APIView):
     throttle_scope = 'ads_public'
 
     def get(self, request, placement):
+        if not _ads_display_allowed():
+            return Response({'ad': None})
         if placement not in {'home', 'events'}:
             return Response(status=404)
         campaigns = list(Campaign.objects.filter(status=Campaign.Status.ACTIVE, paid_until__gt=timezone.now()).order_by('id'))
@@ -228,8 +317,8 @@ class PlacementView(APIView):
         # Stable per anonymous session / day, with twice the weight for Featured.
         import hashlib
         choices = [campaign for campaign in campaigns for _ in range(2 if campaign.plan == Campaign.Plan.FEATURED else 1)]
-        key = f"{request.META.get('REMOTE_ADDR', '')}:{request.headers.get('User-Agent', '')[:60]}:{placement}:{timezone.localdate()}"
-        selected = choices[int(hashlib.sha256(key.encode()).hexdigest(), 16) % len(choices)]
+        key = f"{request.META.get('REMOTE_ADDR', '')}:{request.headers.get('User-Agent', '')[:60]}:{timezone.localdate()}"
+        selected = choices[int(hashlib.sha256(f'{key}:{placement}'.encode()).hexdigest(), 16) % len(choices)]
         viewer_key = f"ad:view:{selected.pk}:{hashlib.sha256(key.encode()).hexdigest()[:24]}"
         if cache.add(viewer_key, 1, timeout=60 * 60 * 12):
             Campaign.objects.filter(pk=selected.pk).update(impressions=F('impressions') + 1)
@@ -242,6 +331,8 @@ class ClickView(APIView):
     throttle_scope = 'ads_public'
 
     def post(self, request, pk):
+        if not _ads_display_allowed():
+            return Response({'message': 'Advertising is temporarily unavailable.'}, status=404)
         campaign = get_object_or_404(Campaign, pk=pk, status=Campaign.Status.ACTIVE, paid_until__gt=timezone.now())
         import hashlib
         key = f"{request.META.get('REMOTE_ADDR', '')}:{request.headers.get('User-Agent', '')[:60]}:{pk}"
