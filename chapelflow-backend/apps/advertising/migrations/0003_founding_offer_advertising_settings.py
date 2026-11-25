@@ -12,6 +12,24 @@ class Migration(migrations.Migration):
         migrations.AddField(model_name='campaign', name='ad_category', field=models.CharField(blank=True, default='', max_length=80)),
         migrations.AddField(model_name='campaign', name='applicant_community', field=models.CharField(choices=[('STUDENT', 'Student'), ('STAFF', 'Staff')], default='STUDENT', max_length=10)),
         migrations.AddField(model_name='campaign', name='founding_offer_awarded', field=models.BooleanField(default=False)),
+        migrations.AlterField(
+            model_name='campaign',
+            name='status',
+            field=models.CharField(
+                choices=[
+                    ('PENDING', 'Pending review'),
+                    ('CHANGES', 'Changes requested'),
+                    ('APPROVED', 'Approved, awaiting payment'),
+                    ('REJECTED', 'Rejected'),
+                    ('REVOKED', 'Revoked'),
+                    ('ACTIVE', 'Active'),
+                    ('PAUSED', 'Paused'),
+                    ('CANCELLED', 'Cancelled'),
+                ],
+                default='PENDING',
+                max_length=12,
+            ),
+        ),
         migrations.AlterField(model_name='adpayment', name='campaign', field=models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, related_name='payments', to='advertising.campaign')),
         migrations.CreateModel(name='AdvertisingSettings', fields=[
             ('id', models.PositiveSmallIntegerField(default=1, editable=False, primary_key=True, serialize=False)),
