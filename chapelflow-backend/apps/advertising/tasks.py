@@ -25,7 +25,7 @@ def sync_scendey_waitlist(self, campaign_id):
     try:
         response = requests.post(endpoint, json={
             'role': 'BRAND', 'email': campaign.owner.email,
-            'brandName': campaign.brand_name[:100], 'category': 'Campus brand',
+            'brandName': campaign.brand_name[:100], 'category': (campaign.ad_category or 'Campus brand')[:60],
             'handleOrUrl': campaign.destination_url[:200],
             'consent': True, 'source': 'ChapelFlow advertising',
         }, timeout=10)

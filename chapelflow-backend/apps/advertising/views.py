@@ -156,7 +156,7 @@ class ReviewView(APIView):
         # never leaves the advertiser paying for an already-revoked campaign.
         current = get_object_or_404(Campaign, pk=pk)
         cancellation_token = None
-        if decision == 'revoke' and current.subscription_code and not current.cancel_at_period_end:
+        if decision == 'revoke' and current.status in transitions['revoke'][0] and current.subscription_code and not current.cancel_at_period_end:
             try:
                 cancellation_token = _disable_paystack_subscription(current)
             except PaymentProviderError as exc:
