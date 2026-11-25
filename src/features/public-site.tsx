@@ -50,6 +50,7 @@ import { KJV_DAILY_VERSES } from "../lib/daily-verses";
 import { homepageService, publicService } from "../services/chapelflow";
 import type { EventSummary } from "../types/domain";
 import { LivePublicDetailPage, LivePublicPage } from "./live-public";
+import { SponsoredCard } from "./advertising";
 import "./mobile-menu.css";
 
 const publicNav = [
@@ -212,6 +213,7 @@ function SiteFooter() {
             <Link to="/events">Events</Link>
             <Link to="/sermons">Sermons</Link>
             <Link to="/gallery">Gallery</Link>
+            <Link to="/app/advertise">Advertise your brand</Link>
           </div>
           <div>
             <h3>Community</h3>
@@ -377,6 +379,7 @@ function DemoHomePage() {
         <HomeHeroSlideshow />
       </section>
       <DailyVerseOfTheDay />
+      <SponsoredCard placement="home" />
       <section className="cuc-home__worship" aria-labelledby="cuc-home-worship-title">
         <div>
           <p className="cuc-home__eyebrow">Worship with us</p>

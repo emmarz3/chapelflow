@@ -15,6 +15,7 @@ import { CHAPEL_PROGRAMMES } from "../lib/chapel-programmes";
 import { CalendarDays, Clock3, MapPin } from "lucide-react";
 import type { EventSummary } from "../types/domain";
 import { useTodayDateKey } from "../lib/use-today-date";
+import { SponsoredCard } from "./advertising";
 
 export function LivePublicPage({ slug }: { slug: string }) {
   if (slug === "events") return <LivePublicEventsPage />;
@@ -117,6 +118,7 @@ function LivePublicEventsPage() {
   return (
     <div className="content-page">
       <PageHeader eyebrow="Chrisland University Chapel" title="Events and programmes" description="Gather with us for worship, fellowship, and special chapel programmes." />
+      <SponsoredCard placement="events" />
       <section className="public-programmes section" aria-labelledby="public-programmes-title">
         <div className="public-programmes__heading"><p className="event-type">UPCOMING PROGRAMMES</p><h2 id="public-programmes-title">Save the dates</h2><p>Programme details will be updated as they are confirmed.</p></div>
         {query.isError && <p className="public-programmes__note">Some published event details may be temporarily unavailable. The chapel schedule below is still available.</p>}

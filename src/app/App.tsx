@@ -30,6 +30,7 @@ import { UpperRoomPage } from "../features/upper-room";
 import { CommunitySafetyPage } from "../features/moderation";
 import { NotificationSettingsPage } from "../features/notification-settings";
 import { GalleryPage } from "../features/gallery-page";
+import { AdvertisePage, AdvertisingAdminPage } from "../features/advertising";
 import {
   StudentAttendanceHistoryPage,
   StudentAnnouncementsPage,
@@ -316,6 +317,7 @@ export function App() {
                 <Route path="/app/account" element={<AccountProfilePage />} />
                 <Route path="/app/giving" element={<GivingPage />} />
                 <Route path="/app/upper-room" element={<UpperRoomPage />} />
+                <Route path="/app/advertise" element={<AdvertisePage />} />
                 <Route path="/app/community-safety" element={<CommunitySafetyPage />} />
                 <Route path="/app/notifications" element={<StudentNotificationsPage />} />
                 <Route path="/app/notification-settings" element={<NotificationSettingsPage />} />
@@ -402,6 +404,7 @@ export function App() {
                     path="/app/admin/accounts"
                     element={<InstitutionalAccountsPage />}
                   />
+                  <Route path="/app/admin/advertising" element={<AdvertisingAdminPage />} />
                   <Route
                     path="/app/admin/launch-reset"
                     element={<LaunchResetPage />}

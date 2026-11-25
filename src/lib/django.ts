@@ -328,6 +328,7 @@ export async function djangoRequest(
 ): Promise<unknown> {
   const url = new URL(path, "http://chapelflow.local");
   const route = url.pathname;
+  if (route.startsWith("/ads/")) return request(route + url.search, init);
   const method = init.method ?? "GET";
   const body = typeof init.body === "string" ? row(JSON.parse(init.body)) : {};
   const call = async (target: string, options = init) =>

@@ -56,6 +56,7 @@ LOCAL_APPS = [
     "apps.events",
     "apps.attendance",
     "apps.finance",
+    "apps.advertising",
     "apps.communications",
     "apps.notifications",
     "apps.prayer",
@@ -195,6 +196,7 @@ REST_FRAMEWORK = {
         "community_post": "10/min",
         "community_comment": "20/min",
         "public": "20/min",
+        "ads_public": "30/min",
         "admin_destructive": "5/hour",
     },
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
@@ -310,6 +312,8 @@ ALLOWED_UPLOAD_EXTENSIONS = env.list(
 # Payments
 # --------------------------------------------------------------------------
 PAYSTACK_SECRET_KEY = env("PAYSTACK_SECRET_KEY", default="")
+FRONTEND_URL = env("FRONTEND_URL", default="")
+SCENDEY_WAITLIST_URL = env("SCENDEY_WAITLIST_URL", default="")
 PAYSTACK_CALLBACK_URL = env("PAYSTACK_CALLBACK_URL", default="")
 FLUTTERWAVE_SECRET_KEY = env("FLUTTERWAVE_SECRET_KEY", default="")
 

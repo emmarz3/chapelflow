@@ -510,6 +510,13 @@ class PaymentWebhookView(APIView):
     authentication_classes = []
 
     def post(self, request, provider):
+        if provider == "paystack":
+            from apps.advertising.services import process_ad_webhook
+            try:
+                if process_ad_webhook(request):
+                    return success_response({"handled": "advertising"})
+            except PaymentProviderError as exc:
+                return error_response(str(exc), status=400)
         try:
             payment = process_webhook(provider, request)
         except WebhookVerificationError as exc:
