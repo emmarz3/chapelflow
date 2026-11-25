@@ -231,6 +231,7 @@ function studentNavGroups(communities: { type: string }[]): { label: string; ite
       label: "My chapel",
       items: [
         { label: "Overview", path: "/app", icon: <Gauge />, roles: ["member"] },
+        { label: "Advertise your brand", path: "/app/advertise", icon: <Megaphone />, roles: ["member"] },
         { label: "Scan attendance", path: "/app/chapel-pass", icon: <Camera />, roles: ["member"] },
         { label: "My attendance", path: "/app/my-attendance", icon: <ClipboardCheck />, roles: ["member"] },
         { label: "Chapel schedule & events", path: "/app/events", icon: <CalendarDays />, roles: ["member"] },
@@ -263,6 +264,7 @@ function memberAccountNavGroups(): { label: string; items: NavItem[] }[] {
       label: "My account",
       items: [
         { label: "Overview", path: "/app", icon: <Gauge />, roles: ["member"] },
+        { label: "Advertise your brand", path: "/app/advertise", icon: <Megaphone />, roles: ["member"] },
         { label: "Service times", path: "/service-times", icon: <CalendarDays />, roles: ["member"] },
         { label: "Chapel events", path: "/events", icon: <CalendarDays />, roles: ["member"] },
         { label: "The Upper Room", path: "/app/upper-room", icon: <MessagesSquare />, roles: ["member"] },

@@ -4,17 +4,29 @@ import { useSearchParams } from "react-router-dom";
 import { api } from "../lib/api";
 import "./advertising.css";
 
+type PaymentRecord = { reference: string; amount_ngn: number; paid_at: string };
+type DecisionRecord = { action: string; note: string; actor_email: string; created_at: string };
 type Campaign = {
-  id: string; brand_name: string; description: string; image_url: string;
+  id: string; brand_name: string; description: string; ad_category: string; image_url: string;
   destination_url: string; contact_email: string; plan: "CAMPUS" | "FEATURED";
-  status: string; review_note: string; paid_until: string | null;
+  applicant_community: "STUDENT" | "STAFF"; founding_offer_awarded: boolean;
+  status: string; review_note: string; reviewed_at: string | null; paid_until: string | null;
   cancel_at_period_end: boolean; scendey_opt_in: boolean; impressions: number; clicks: number;
-  owner_email?: string;
+  monthly_price_ngn: number; payment_history: PaymentRecord[];
+  owner_email?: string; reviewed_by_email?: string; decision_history?: DecisionRecord[]; placements?: string[];
 };
-type Plans = { plans: { code: string; name: string; price_ngn: number }[]; consent_text: string; checkout_available: boolean };
+type Plans = {
+  plans: { code: string; name: string; price_ngn: number }[];
+  consent_text: string; checkout_available: boolean; checkout_reason?: string;
+  founding_offer?: { enabled: boolean; remaining: number; limit: number; first_month_price_ngn: number; renewal_note: string };
+};
+type AdvertisingSettings = {
+  emergency_paused: boolean; emergency_pause_reason: string; founding_offer_enabled: boolean;
+  founding_offer_awarded: number; founding_offer_remaining: number; policy_approved: boolean; checkout_configured: boolean;
+};
 
 export function SponsoredCard({ placement }: { placement: "home" | "events" }) {
-  const [ad, setAd] = useState<Pick<Campaign, "id" | "brand_name" | "description" | "image_url"> | null>(null);
+  const [ad, setAd] = useState<Pick<Campaign, "id" | "brand_name" | "description" | "image_url" | "plan"> | null>(null);
   useEffect(() => {
     let active = true;
     api.get<{ ad: typeof ad }>(`/ads/placement/${placement}/`).then((result) => {
@@ -23,16 +35,17 @@ export function SponsoredCard({ placement }: { placement: "home" | "events" }) {
     return () => { active = false; };
   }, [placement]);
   if (!ad) return null;
-  const current = ad;
   async function open() {
     try {
-      const result = await api.post<{ url: string }>(`/ads/${current.id}/click/`);
-      const url = new URL(result.url);
-      if (url.protocol === "https:") window.location.assign(url.href);
-    } catch { /* Leave the page usable if click tracking fails. */ }
+      const result = await api.post<{ url: string }>(`/ads/${ad.id}/click/`);
+      const target = new URL(result.url);
+      if (target.protocol === "https:") window.location.assign(target.href);
+    } catch {
+      // Keep the public ChapelFlow page usable if click tracking is temporarily unavailable.
+    }
   }
   return <section className="sponsored-card" aria-label="Sponsored advertisement">
-    <span className="sponsored-card__label">Sponsored · Campus brand</span>
+    <span className="sponsored-card__label">Sponsored · {ad.plan === "FEATURED" ? "Featured brand" : "Campus brand"}</span>
     <div className="sponsored-card__body">
       <img src={ad.image_url} alt="" loading="lazy" />
       <div><h2>{ad.brand_name}</h2><p>{ad.description}</p><button type="button" onClick={() => void open()}>Explore brand ↗</button></div>
@@ -46,6 +59,7 @@ export function AdvertisePage() {
   const campaigns = useQuery({ queryKey: ["ads-mine"], queryFn: () => api.get<Campaign[]>("/ads/mine/") });
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+
   useEffect(() => {
     const id = params.get("campaign");
     if (!id) return;
@@ -53,29 +67,46 @@ export function AdvertisePage() {
       setMessage("Payment checked. Your campaign status has been updated.");
       void campaigns.refetch();
     }).catch((error: Error) => setMessage(error.message));
-  // The callback reference is fixed for this page load.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.get("campaign")]);
+
   async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); setBusy(true); setMessage("");
+    event.preventDefault();
+    setBusy(true);
+    setMessage("");
     const form = event.currentTarget;
     const fields = new FormData(form);
     try {
       const file = fields.get("image");
-      if (!(file instanceof File) || !file.size || file.size > 2 * 1024 * 1024) throw new Error("Choose an image under 2 MB.");
-      const upload = new FormData(); upload.append("file", file);
+      if (!(file instanceof File) || !file.size || file.size > 2 * 1024 * 1024) {
+        throw new Error("Choose a PNG, JPEG or WebP image under 2 MB.");
+      }
+      const upload = new FormData();
+      upload.append("file", file);
       const image = await api.postForm<{ image_url: string }>("/ads/image/", upload);
       await api.post("/ads/mine/", {
-        brand_name: fields.get("brand_name"), description: fields.get("description"),
-        destination_url: fields.get("destination_url"), contact_email: fields.get("contact_email"),
-        image_url: image.image_url, plan: fields.get("plan"), scendey_opt_in: fields.get("scendey_opt_in") === "on",
+        brand_name: fields.get("brand_name"),
+        ad_category: fields.get("ad_category"),
+        description: fields.get("description"),
+        destination_url: fields.get("destination_url"),
+        contact_email: fields.get("contact_email"),
+        image_url: image.image_url,
+        plan: fields.get("plan"),
+        scendey_opt_in: fields.get("scendey_opt_in") === "on",
       });
-      form.reset(); setMessage("Application submitted for Super Admin review."); void campaigns.refetch();
-    } catch (error) { setMessage(error instanceof Error ? error.message : "Could not submit your ad."); }
-    finally { setBusy(false); }
+      form.reset();
+      setMessage("Application submitted. Your advertisement is pending Super Admin review.");
+      void campaigns.refetch();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not submit your ad.");
+    } finally {
+      setBusy(false);
+    }
   }
+
   async function action(path: string, redirect = false) {
-    setBusy(true); setMessage("");
+    setBusy(true);
+    setMessage("");
     try {
       if (redirect) {
         const response = await api.post<{ checkout_url: string }>(path);
@@ -83,38 +114,219 @@ export function AdvertisePage() {
         if (target.protocol !== "https:") throw new Error("Invalid payment link.");
         window.location.assign(target.href);
       } else {
-        await api.post(path); setMessage("Subscription renewal cancelled. Your paid period remains visible until it ends.");
+        await api.post(path);
+        setMessage("Renewal has been cancelled. Your current paid period remains active until its end date.");
         void campaigns.refetch();
       }
-    } catch (error) { setMessage(error instanceof Error ? error.message : "Action failed."); }
-    finally { setBusy(false); }
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Action failed.");
+    } finally {
+      setBusy(false);
+    }
   }
-  return <div className="ads-page"><header><p className="eyebrow">ChapelFlow advertising</p><h1>Share your brand with the campus.</h1><p>Submit your ad for approval, then subscribe monthly through Paystack. Ads appear only while approved and paid.</p></header>
+
+  return <div className="ads-page">
+    <header>
+      <p className="eyebrow">ChapelFlow advertising</p>
+      <h1>Share your brand with the campus.</h1>
+      <p>Apply first, receive chapel approval, then subscribe through Paystack. Your advertisement publishes only after approval and verified payment.</p>
+      <ol className="ads-steps"><li>Submit your ad</li><li>Chapel review</li><li>Pay securely</li><li>Ad goes live</li></ol>
+    </header>
     {message && <p role="status" className="ads-notice">{message}</p>}
-    <section><h2>Monthly plans</h2><div className="ads-plans">{plans.data?.plans.map((plan) => <article key={plan.code}><h3>{plan.name}</h3><strong>₦{plan.price_ngn.toLocaleString()} / month</strong><p>{plan.code === "FEATURED" ? "Higher rotation priority on the homepage and events page." : "Rotating sponsored card on the homepage and events page."}</p></article>)}</div><p>No sales or view count is guaranteed. Your subscription starts after approval and checkout.</p></section>
-    <section><h2>Apply for an ad</h2><form onSubmit={(event) => void submit(event)} className="ads-form">
-      <label>Brand name<input name="brand_name" maxLength={120} required /></label>
-      <label>Contact email<input name="contact_email" type="email" required /></label>
-      <label>Brand description<textarea name="description" maxLength={300} required /></label>
-      <label>Website or social link (HTTPS)<input name="destination_url" type="url" pattern="https://.*" required /></label>
-      <label>Ad image (PNG, JPEG or WebP, max 2 MB)<input name="image" type="file" accept="image/png,image/jpeg,image/webp" required /></label>
-      <label>Plan<select name="plan"><option value="CAMPUS">Campus Brand · ₦3,000/month</option><option value="FEATURED">Featured Brand · ₦7,500/month</option></select></label>
-      <label className="ads-consent"><input type="checkbox" name="scendey_opt_in" />{plans.data?.consent_text || "Send me Scendey waitlist updates when Scendey launches."}</label>
-      <button disabled={busy} type="submit">{busy ? "Submitting…" : "Submit for review"}</button>
-    </form></section>
-    <section><h2>My advertisements</h2>{campaigns.isError && <p>Could not load your advertisements.</p>}{campaigns.data?.length === 0 && <p>You have not submitted an ad yet.</p>}{campaigns.data?.map((ad) => <article className="ads-entry" key={ad.id}><img src={ad.image_url} alt="" /><div><h3>{ad.brand_name}</h3><p>{ad.status.replaceAll("_", " ")} · {ad.plan}</p>{ad.review_note && <p>Review note: {ad.review_note}</p>}{ad.paid_until && <p>Paid through {new Date(ad.paid_until).toLocaleDateString()}</p>}<p>{ad.impressions} views · {ad.clicks} clicks</p>{ad.status === "CHANGES" && <form onSubmit={async (event) => { event.preventDefault(); setBusy(true); try { const form = new FormData(event.currentTarget); await api.patch(`/ads/mine/${ad.id}/`, { description: form.get("description"), destination_url: form.get("destination_url") }); setMessage("Changes submitted for review."); void campaigns.refetch(); } catch (error) { setMessage(error instanceof Error ? error.message : "Could not submit changes."); } finally { setBusy(false); } }}><label>Revised description<textarea name="description" defaultValue={ad.description} maxLength={300} required /></label><label>Revised destination<input name="destination_url" type="url" defaultValue={ad.destination_url} required /></label><button disabled={busy}>Resubmit for review</button></form>}{ad.status === "APPROVED" && <button disabled={busy || !plans.data?.checkout_available} onClick={() => void action(`/ads/${ad.id}/checkout/`, true)}>{plans.data?.checkout_available ? "Subscribe with Paystack" : "Checkout not configured yet"}</button>}{ad.status === "ACTIVE" && !ad.cancel_at_period_end && <button disabled={busy} onClick={() => void action(`/ads/${ad.id}/cancel/`)}>Cancel renewal</button>}{ad.cancel_at_period_end && <p>Renewal cancelled.</p>}</div></article>)}</section>
+    <section>
+      <h2>Monthly plans</h2>
+      <div className="ads-plans">
+        {plans.data?.plans.map((plan) => <article key={plan.code}>
+          <h3>{plan.name}</h3>
+          <strong>₦{plan.price_ngn.toLocaleString()} / month</strong>
+          <p>{plan.code === "FEATURED" ? "Higher rotation priority on the homepage and events page." : "Rotating sponsored card on the homepage and events page."}</p>
+        </article>)}
+      </div>
+      {plans.data?.founding_offer?.enabled && <p className="ads-founding-note">
+        Student founding offer: the first 10 approved student brands pay ₦{plans.data.founding_offer.first_month_price_ngn.toLocaleString()} for month one. From month two, the selected plan’s regular monthly price applies. {plans.data.founding_offer.remaining} places remain.
+      </p>}
+      <p>No sales, clicks, or view counts are guaranteed. The first-month charge and renewal price are shown before checkout.</p>
+      {!plans.data?.checkout_available && <p className="ads-policy-note">{plans.data?.checkout_reason || "Payment checkout is not open yet."}</p>}
+    </section>
+    <section>
+      <h2>Apply for an advertisement</h2>
+      <form onSubmit={(event) => void submit(event)} className="ads-form">
+        <label>Brand name<input name="brand_name" maxLength={120} required /></label>
+        <label>Proposed ad category<input name="ad_category" maxLength={80} placeholder="For example: food, fashion, services" required /></label>
+        <label>Contact email<input name="contact_email" type="email" maxLength={254} required /></label>
+        <label>Brand description<textarea name="description" maxLength={300} required /></label>
+        <label>Website or social link (HTTPS)<input name="destination_url" type="url" pattern="https://.*" required /></label>
+        <label>Ad image (PNG, JPEG or WebP, max 2 MB)<input name="image" type="file" accept="image/png,image/jpeg,image/webp" required /></label>
+        <label>Plan<select name="plan"><option value="CAMPUS">Campus Brand · ₦3,000/month</option><option value="FEATURED">Featured Brand · ₦7,500/month</option></select></label>
+        <label className="ads-consent">
+          <input type="checkbox" name="scendey_opt_in" />
+          <span>{plans.data?.consent_text || "Send me Scendey waitlist updates when Scendey launches."} This is optional and does not affect your ChapelFlow application.</span>
+        </label>
+        <button disabled={busy} type="submit">{busy ? "Submitting…" : "Submit for review"}</button>
+      </form>
+    </section>
+    <section>
+      <h2>My advertisements</h2>
+      {campaigns.isError && <p>Could not load your advertisements.</p>}
+      {campaigns.isPending && <p>Loading your advertisements…</p>}
+      {campaigns.data?.length === 0 && <p>You have not submitted an ad yet.</p>}
+      {campaigns.data?.map((ad) => <article className="ads-entry" key={ad.id}>
+        <img src={ad.image_url} alt="" />
+        <div className="ads-entry__content">
+          <h3>{ad.brand_name}</h3>
+          <p><strong>{ad.status.replaceAll("_", " ")}</strong> · {ad.plan === "FEATURED" ? "Featured Brand" : "Campus Brand"} · {ad.applicant_community === "STAFF" ? "Staff" : "Student"}</p>
+          <p>Category: {ad.ad_category}</p>
+          {ad.founding_offer_awarded && <p className="ads-founding-note">Founding offer awarded: ₦2,000 for month one, then ₦{ad.monthly_price_ngn.toLocaleString()} monthly.</p>}
+          {ad.review_note && <p>Review note: {ad.review_note}</p>}
+          {ad.paid_until && <p>{ad.cancel_at_period_end ? "Paid through" : "Next renewal date"}: <time dateTime={ad.paid_until}>{new Date(ad.paid_until).toLocaleDateString()}</time></p>}
+          {ad.cancel_at_period_end && <p>Renewal cancelled. Your paid period remains active until the date above.</p>}
+          <p>{ad.impressions.toLocaleString()} views · {ad.clicks.toLocaleString()} clicks</p>
+          {ad.status === "CHANGES" && <form className="ads-change-form" onSubmit={async (event) => {
+            event.preventDefault();
+            setBusy(true);
+            try {
+              const form = new FormData(event.currentTarget);
+              const patch: Record<string, unknown> = {
+                brand_name: form.get("brand_name"),
+                ad_category: form.get("ad_category"),
+                description: form.get("description"),
+                destination_url: form.get("destination_url"),
+                contact_email: form.get("contact_email"),
+              };
+              const file = form.get("image");
+              if (file instanceof File && file.size) {
+                if (file.size > 2 * 1024 * 1024) throw new Error("Image must be under 2 MB.");
+                const upload = new FormData();
+                upload.append("file", file);
+                const image = await api.postForm<{ image_url: string }>("/ads/image/", upload);
+                patch.image_url = image.image_url;
+              }
+              await api.patch(`/ads/mine/${ad.id}/`, patch);
+              setMessage("Changes resubmitted for chapel review.");
+              void campaigns.refetch();
+            } catch (error) {
+              setMessage(error instanceof Error ? error.message : "Could not submit changes.");
+            } finally {
+              setBusy(false);
+            }
+          }}>
+            <h4>Requested changes</h4>
+            <label>Brand name<input name="brand_name" defaultValue={ad.brand_name} maxLength={120} required /></label>
+            <label>Proposed category<input name="ad_category" defaultValue={ad.ad_category} maxLength={80} required /></label>
+            <label>Description<textarea name="description" defaultValue={ad.description} maxLength={300} required /></label>
+            <label>Destination URL<input name="destination_url" type="url" defaultValue={ad.destination_url} required /></label>
+            <label>Contact email<input name="contact_email" type="email" defaultValue={ad.contact_email} required /></label>
+            <label>Replace image (optional)<input name="image" type="file" accept="image/png,image/jpeg,image/webp" /></label>
+            <button disabled={busy}>Resubmit for review</button>
+          </form>}
+          {ad.status === "APPROVED" && <div className="ads-checkout">
+            <p>Regular renewal: ₦{ad.monthly_price_ngn.toLocaleString()} every month.</p>
+            {ad.founding_offer_awarded && <p>First month: ₦2,000. From month two: ₦{ad.monthly_price_ngn.toLocaleString()} / month.</p>}
+            <button disabled={busy || !plans.data?.checkout_available} onClick={() => void action(`/ads/${ad.id}/checkout/`, true)}>
+              {plans.data?.checkout_available ? "Continue to Paystack" : "Checkout unavailable"}
+            </button>
+          </div>}
+          {ad.status === "ACTIVE" && !ad.cancel_at_period_end && <button disabled={busy} onClick={() => void action(`/ads/${ad.id}/cancel/`)}>Cancel renewal</button>}
+          {ad.payment_history?.length > 0 && <details className="ads-payment-history">
+            <summary>Payment history ({ad.payment_history.length})</summary>
+            <ul>{ad.payment_history.map((payment) => <li key={payment.reference}>₦{payment.amount_ngn.toLocaleString()} · {new Date(payment.paid_at).toLocaleDateString()} · <code>{payment.reference}</code></li>)}</ul>
+          </details>}
+        </div>
+      </article>)}
+    </section>
   </div>;
 }
 
 export function AdvertisingAdminPage() {
   const campaigns = useQuery({ queryKey: ["ads-admin"], queryFn: () => api.get<Campaign[]>("/ads/admin/") });
+  const settings = useQuery({ queryKey: ["ads-admin-settings"], queryFn: () => api.get<AdvertisingSettings>("/ads/admin/settings/") });
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  const [pauseReason, setPauseReason] = useState("");
+
   async function review(id: string, action: string, note: string) {
-    setBusy(true); setMessage("");
-    try { await api.post(`/ads/admin/${id}/review/`, { action, note }); setMessage("Decision saved."); await campaigns.refetch(); }
-    catch (error) { setMessage(error instanceof Error ? error.message : "Decision failed."); }
-    finally { setBusy(false); }
+    setBusy(true);
+    setMessage("");
+    try {
+      await api.post(`/ads/admin/${id}/review/`, { action, note });
+      setMessage("Decision saved and audit record created.");
+      await campaigns.refetch();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Decision failed.");
+    } finally { setBusy(false); }
   }
-  return <div className="ads-page"><header><p className="eyebrow">Super Admin</p><h1>Advertising review</h1><p>Review the creative and destination before approving. Pause any live campaign immediately.</p></header>{message && <p role="status" className="ads-notice">{message}</p>}{campaigns.isError && <p>Could not load campaigns.</p>}{campaigns.data?.length === 0 && <p>No applications yet.</p>}{campaigns.data?.map((ad) => <article className="ads-entry" key={ad.id}><img src={ad.image_url} alt={`Ad submitted by ${ad.brand_name}`} /><div><h2>{ad.brand_name}</h2><p>{ad.description}</p><p>{ad.owner_email} · {ad.plan} · {ad.status}</p><a href={ad.destination_url} target="_blank" rel="noreferrer">Inspect destination ↗</a><p>{ad.impressions} views · {ad.clicks} clicks</p>{ad.paid_until && <p>Paid through {new Date(ad.paid_until).toLocaleDateString()}</p>}{["PENDING", "CHANGES", "ACTIVE", "PAUSED"].includes(ad.status) && <form onSubmit={(event) => { event.preventDefault(); const data = new FormData(event.currentTarget); void review(ad.id, String(data.get("action")), String(data.get("note") || "")); }}><label>Decision<select name="action">{["PENDING", "CHANGES"].includes(ad.status) && <><option value="approve">Approve</option><option value="reject">Reject</option><option value="changes">Request changes</option></>}{ad.status === "ACTIVE" && <option value="pause">Pause</option>}{ad.status === "PAUSED" && <option value="resume">Resume</option>}</select></label><label>Reason for rejection, changes or pause<textarea name="note" maxLength={2000} /></label><button disabled={busy}>Save decision</button></form>}</div></article>)}</div>;
+
+  async function control(action: string) {
+    setBusy(true);
+    setMessage("");
+    try {
+      await api.post("/ads/admin/settings/", { action, note: pauseReason });
+      setMessage("Advertising controls updated.");
+      setPauseReason("");
+      await settings.refetch();
+      await campaigns.refetch();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not update advertising controls.");
+    } finally { setBusy(false); }
+  }
+
+  return <div className="ads-page">
+    <header><p className="eyebrow">Super Admin</p><h1>Advertising review</h1><p>Review creative, proposed category and destination before approval. Payment does not override rejection, pause or revocation.</p></header>
+    {message && <p role="status" className="ads-notice">{message}</p>}
+    <section className="ads-admin-controls">
+      <h2>Program controls</h2>
+      <p>Policy approval: {settings.data?.policy_approved ? "Approved in server configuration" : "Not approved — checkout stays closed"}</p>
+      <p>Paystack: {settings.data?.checkout_configured ? "Backend key configured" : "Not configured"}</p>
+      <p>Founding places awarded: {settings.data?.founding_offer_awarded ?? 0} / 10 · Remaining: {settings.data?.founding_offer_remaining ?? 10}</p>
+      <div className="ads-admin-control-actions">
+        {settings.data?.emergency_paused
+          ? <button type="button" disabled={busy} onClick={() => void control("resume_all")}>Resume all advertising</button>
+          : <form onSubmit={(event) => { event.preventDefault(); void control("pause_all"); }}>
+              <label>Emergency pause reason<textarea value={pauseReason} onChange={(event) => setPauseReason(event.target.value)} maxLength={2000} required /></label>
+              <button type="submit" disabled={busy}>Pause all advertising now</button>
+            </form>}
+        <button type="button" className="button-secondary" disabled={busy} onClick={() => void control(settings.data?.founding_offer_enabled ? "disable_founding_offer" : "enable_founding_offer")}>
+          {settings.data?.founding_offer_enabled ? "Close founding offer to new approvals" : "Enable founding offer"}
+        </button>
+      </div>
+      {settings.data?.emergency_paused && <p className="ads-admin-warning">All ads are hidden. Reason: {settings.data.emergency_pause_reason}</p>}
+    </section>
+    {campaigns.isError && <p>Could not load campaigns.</p>}
+    {campaigns.data?.length === 0 && <p>No applications yet.</p>}
+    {campaigns.data?.map((ad) => <article className="ads-entry ads-admin-entry" key={ad.id}>
+      <div className="ads-admin-preview-grid">
+        <div className="ads-preview ads-preview--desktop"><span>Desktop preview</span><img src={ad.image_url} alt="" /><strong>Sponsored · {ad.brand_name}</strong><p>{ad.description}</p></div>
+        <div className="ads-preview ads-preview--mobile"><span>Mobile preview</span><img src={ad.image_url} alt="" /><strong>Sponsored · {ad.brand_name}</strong><p>{ad.description}</p></div>
+      </div>
+      <div className="ads-entry__content">
+        <h2>{ad.brand_name}</h2>
+        <p>{ad.owner_email} · {ad.applicant_community} · {ad.plan} · {ad.status}</p>
+        <p>Proposed category: {ad.ad_category} · Placements: {(ad.placements || ["home", "events"]).join(", ")}</p>
+        <p>Destination: <a href={ad.destination_url} target="_blank" rel="noreferrer">Inspect HTTPS destination ↗</a></p>
+        <p>{ad.impressions.toLocaleString()} views · {ad.clicks.toLocaleString()} clicks</p>
+        {ad.reviewed_by_email && <p>Last reviewed by {ad.reviewed_by_email}{ad.reviewed_at ? ` on ${new Date(ad.reviewed_at).toLocaleString()}` : ""}</p>}
+        {ad.paid_until && <p>Paid through {new Date(ad.paid_until).toLocaleDateString()}</p>}
+        {ad.payment_history?.length > 0 && <details className="ads-payment-history"><summary>Payment history ({ad.payment_history.length})</summary>
+          <ul>{ad.payment_history.map((payment) => <li key={payment.reference}>₦{payment.amount_ngn.toLocaleString()} · {new Date(payment.paid_at).toLocaleString()} · <code>{payment.reference}</code></li>)}</ul>
+        </details>}
+        {ad.decision_history?.length > 0 && <details className="ads-payment-history"><summary>Review/audit trail ({ad.decision_history.length})</summary>
+          <ul>{ad.decision_history.map((item, index) => <li key={item.action + index}>{item.action} · {item.actor_email} · {new Date(item.created_at).toLocaleString()}{item.note ? ` — ${item.note}` : ""}</li>)}</ul>
+        </details>}
+        {["PENDING", "CHANGES", "ACTIVE", "PAUSED", "APPROVED"].includes(ad.status) && <form className="ads-admin-review" onSubmit={(event) => {
+          event.preventDefault();
+          const data = new FormData(event.currentTarget);
+          void review(ad.id, String(data.get("action")), String(data.get("note") || ""));
+        }}>
+          <label>Decision<select name="action">
+            {["PENDING", "CHANGES"].includes(ad.status) && <><option value="approve">Approve</option><option value="reject">Reject</option><option value="changes">Request changes</option></>}
+            {ad.status === "ACTIVE" && <option value="pause">Pause this ad</option>}
+            {ad.status === "PAUSED" && <option value="resume">Resume this ad</option>}
+            {["APPROVED", "ACTIVE", "PAUSED"].includes(ad.status) && <option value="revoke">Revoke this ad</option>}
+          </select></label>
+          <label>Reason (required for rejection, changes, pause or revocation)<textarea name="note" maxLength={2000} /></label>
+          <button disabled={busy}>Save decision</button>
+        </form>}
+      </div>
+    </article>)}
+  </div>;
 }
