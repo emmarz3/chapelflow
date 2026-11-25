@@ -12,6 +12,7 @@ from rest_framework.test import APIClient
 from apps.accounts.models import User
 from apps.advertising.models import AdvertisingSettings, Campaign, AdPayment
 from apps.advertising.services import FOUNDING_FIRST_MONTH_KOBO, PRICES, activate_payment
+from apps.finance.services import PaymentProviderError
 
 
 @pytest.fixture
