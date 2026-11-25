@@ -227,7 +227,7 @@ export function AdvertisePage() {
               {plans.data?.checkout_available ? "Continue to Paystack" : "Checkout unavailable"}
             </button>
           </div>}
-          {ad.status === "ACTIVE" && !ad.cancel_at_period_end && <button disabled={busy} onClick={() => void action(`/ads/${ad.id}/cancel/`)}>Cancel renewal</button>}
+          {["ACTIVE", "PAUSED"].includes(ad.status) && !ad.cancel_at_period_end && <button disabled={busy} onClick={() => void action(`/ads/${ad.id}/cancel/`)}>Cancel renewal</button>}
           {ad.payment_history?.length > 0 && <details className="ads-payment-history">
             <summary>Payment history ({ad.payment_history.length})</summary>
             <ul>{ad.payment_history.map((payment) => <li key={payment.reference}>₦{payment.amount_ngn.toLocaleString()} · {new Date(payment.paid_at).toLocaleDateString()} · <code>{payment.reference}</code></li>)}</ul>
