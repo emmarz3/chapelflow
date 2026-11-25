@@ -139,7 +139,8 @@ class LeadershipNoticeListView(APIView):
             notices = _notice_scope(request.user).filter(created_by=request.user).select_related("branch", "created_by").order_by("-created_at")[:100]
             return success_response([_notice_data(row) for row in notices])
         deliveries = LeadershipDelivery.objects.filter(recipient=request.user).select_related("notice", "notice__branch", "notice__created_by").order_by("-notice__created_at")[:100]
-        return success_response([_notice_data(row.notice, row) for row in deliveries])
+        return success_response([_notice_data(row.notice, row) for row in deliveries
+                                 if request.user.id in set(_recipients(list(row.notice.target_groups.all())).values_list("id", flat=True))])
 
     def post(self, request):
         if _role(request.user) not in SENDER_ROLES or not request.user.is_active:
