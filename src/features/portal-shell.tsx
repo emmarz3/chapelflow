@@ -116,6 +116,8 @@ const navGroups: { label: string; items: NavItem[] }[] = [
         icon: <ShieldCheck />,
         permission: "leadership:view",
       },
+      { label: "Community oversight", path: "/app/community-oversight", icon: <Building2 />, roles: ["super_admin"] },
+      { label: "Leadership announcements", path: "/app/leadership-notices", icon: <Megaphone />, roles: ["super_admin"] },
       {
         label: "Manage communities",
         path: "/app/admin/communities",
@@ -223,7 +225,7 @@ const navGroups: { label: string; items: NavItem[] }[] = [
   },
 ];
 
-function studentNavGroups(communities: { type: string }[]): { label: string; items: NavItem[] }[] {
+function studentNavGroups(communities: { type: string; is_leader?: boolean }[]): { label: string; items: NavItem[] }[] {
   const hasUnit = communities.some((community) => community.type === "unit");
   const hasFellowship = communities.some((community) => community.type !== "unit");
   return [
@@ -249,6 +251,7 @@ function studentNavGroups(communities: { type: string }[]): { label: string; ite
         { label: "Offerings & tithes", path: "/app/giving", icon: <Coins />, roles: ["member"] },
         { label: "Announcements", path: "/app/announcements", icon: <MessageSquareText />, roles: ["member"] },
         { label: "Notifications", path: "/app/notifications", icon: <Bell />, roles: ["member"] },
+        ...(communities.some(community => community.is_leader) ? [{ label: "Leadership inbox", path: "/app/leadership-notices", icon: <Megaphone />, roles: ["member"] as Role[] }] : []),
         { label: "Notification settings", path: "/app/notification-settings", icon: <Settings />, roles: ["member"] },
         { label: "Profile and security", path: "/app/profile/edit", icon: <UserRound />, roles: ["member"] },
         { label: "Help and support", path: "/contact", icon: <MessageSquareText />, roles: ["member"] },
@@ -294,8 +297,8 @@ function operationalNavGroups(user: User): { label: string; items: NavItem[] }[]
   const giving: NavItem = { label: "Offerings & tithes", path: "/app/giving", icon: <Coins />, roles: [role] };
   const inventory: NavItem = { label: "Inventory", path: "/app/assets", icon: <Package />, permission: "assets:read", roles: [role] };
   const inventoryItems = hasPermission(user, "assets:read") ? [inventory] : [];
-  if (role === "chaplain") return [{ label: "Chapel oversight", items: [overview, operations, care, upperRoom, safety, inbox, notificationSettings, giving, ...mediaItems, ...inventoryItems, members, events] }];
-  if (role === "student_chaplain") return [{ label: "Student operations", items: [overview, operations, care, upperRoom, safety, inbox, notificationSettings, giving, ...mediaItems, ...inventoryItems, members, { ...events, label: "Chapel services" }] }];
+  if (role === "chaplain") return [{ label: "Chapel oversight", items: [overview, { label: "Community oversight", path: "/app/community-oversight", icon: <Building2 />, roles: [role] }, { label: "Leadership announcements", path: "/app/leadership-notices", icon: <Megaphone />, roles: [role] }, operations, care, upperRoom, safety, inbox, notificationSettings, giving, ...mediaItems, ...inventoryItems, members, events] }];
+  if (role === "student_chaplain") return [{ label: "Student operations", items: [overview, { label: "Community oversight", path: "/app/community-oversight", icon: <Building2 />, roles: [role] }, { label: "Leadership announcements", path: "/app/leadership-notices", icon: <Megaphone />, roles: [role] }, operations, care, upperRoom, safety, inbox, notificationSettings, giving, ...mediaItems, ...inventoryItems, members, { ...events, label: "Chapel services" }] }];
   if (role === "assistant_student_chaplain" || role === "hostel_coordinator") {
     return [{
       label: role === "hostel_coordinator" ? "Hostel fellowship coordination" : "Student Chapel support",
@@ -304,7 +307,7 @@ function operationalNavGroups(user: User): { label: string; items: NavItem[] }[]
   }
   if (role === "unit_leader" || role === "fellowship_leader") {
     const label = role === "unit_leader" ? "Unit" : "Fellowship";
-    return [{ label: `${label} workspace`, items: [overview, { label: "My community", path: "/app/communities", icon: <Users />, roles: [role], permission: "community:view" }, operations, care, upperRoom, safety, inbox, notificationSettings, giving, ...mediaItems, ...inventoryItems, { ...members, label: "Members" }, { ...events, label: "Meetings and programmes" }] }];
+    return [{ label: `${label} workspace`, items: [overview, { label: "Leadership inbox", path: "/app/leadership-notices", icon: <Megaphone />, roles: [role] }, { label: "My community", path: "/app/communities", icon: <Users />, roles: [role], permission: "community:view" }, operations, care, upperRoom, safety, inbox, notificationSettings, giving, ...mediaItems, ...inventoryItems, { ...members, label: "Members" }, { ...events, label: "Meetings and programmes" }] }];
   }
   return null;
 }

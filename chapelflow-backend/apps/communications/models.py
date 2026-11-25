@@ -177,3 +177,55 @@ class CommunicationPreference(models.Model):
     
     def __str__(self):
         return f"Preferences for {self.member}"
+
+
+class LeadershipNotice(models.Model):
+    """Private instructions to a snapshot of active chapel leaders."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    branch = models.ForeignKey("organizations.Branch", on_delete=models.CASCADE, related_name="leadership_notices")
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name="sent_leadership_notices")
+    title = models.CharField(max_length=180)
+    body = models.TextField(max_length=5000)
+    audience = models.CharField(max_length=12, choices=[
+        ("ALL", "All unit and fellowship leaders"),
+        ("UNIT", "Unit heads"),
+        ("FELLOWSHIP", "Fellowship leaders"),
+        ("SELECTED", "Selected communities"),
+    ])
+    target_groups = models.ManyToManyField("ministries.Group", blank=True, related_name="leadership_notices")
+    email_requested = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "communications_leadership_notice"
+        indexes = [models.Index(fields=["branch", "-created_at"], name="comm_lead_branch_created_idx")]
+
+
+class LeadershipDelivery(models.Model):
+    """One private inbox entry per recipient; never exposed by the public feed."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    notice = models.ForeignKey(LeadershipNotice, on_delete=models.CASCADE, related_name="deliveries")
+    recipient = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="leadership_deliveries")
+    read_at = models.DateTimeField(null=True, blank=True)
+    acknowledged_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "communications_leadership_delivery"
+        constraints = [models.UniqueConstraint(fields=["notice", "recipient"], name="unique_leadership_notice_recipient")]
+
+
+class LeadershipReply(models.Model):
+    """Private thread between a notice sender and one recipient."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    delivery = models.ForeignKey(LeadershipDelivery, on_delete=models.CASCADE, related_name="replies")
+    author = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="+")
+    body = models.TextField(max_length=2000)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "communications_leadership_reply"
+        ordering = ["created_at", "id"]

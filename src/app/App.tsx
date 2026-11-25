@@ -31,6 +31,7 @@ import { CommunitySafetyPage } from "../features/moderation";
 import { NotificationSettingsPage } from "../features/notification-settings";
 import { GalleryPage } from "../features/gallery-page";
 import { AdvertisePage, AdvertisingAdminPage } from "../features/advertising";
+import { CommunityOversightPage, LeadershipNoticesPage, LeadershipNoticePage } from "../features/leadership-channel";
 import {
   StudentAttendanceHistoryPage,
   StudentAnnouncementsPage,
@@ -321,6 +322,14 @@ export function App() {
                 <Route path="/app/community-safety" element={<CommunitySafetyPage />} />
                 <Route path="/app/notifications" element={<StudentNotificationsPage />} />
                 <Route path="/app/notification-settings" element={<NotificationSettingsPage />} />
+                <Route element={<ProtectedRoute roles={["super_admin", "chaplain", "student_chaplain"]} />}>
+                  <Route path="/app/community-oversight" element={<CommunityOversightPage />} />
+                  <Route path="/app/community-oversight/:groupId" element={<CommunityOversightPage />} />
+                </Route>
+                <Route element={<ProtectedRoute roles={["super_admin", "chaplain", "student_chaplain", "unit_leader", "fellowship_leader", "member"]} />}>
+                  <Route path="/app/leadership-notices" element={<LeadershipNoticesPage />} />
+                  <Route path="/app/leadership-notices/:noticeId" element={<LeadershipNoticePage />} />
+                </Route>
                 <Route element={<ProtectedRoute roles={["chaplain", "student_chaplain", "unit_leader", "fellowship_leader"]} />}>
                   <Route path="/app/operations" element={<RoleOperationsPage />} />
                 </Route>
