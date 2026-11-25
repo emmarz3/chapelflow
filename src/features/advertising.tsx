@@ -28,7 +28,7 @@ export function SponsoredCard({ placement }: { placement: "home" | "events" }) {
     try {
       const result = await api.post<{ url: string }>(`/ads/${current.id}/click/`);
       const url = new URL(result.url);
-      if (url.protocol === "https:") window.open(url.href, "_blank", "noopener,noreferrer");
+      if (url.protocol === "https:") window.location.assign(url.href);
     } catch { /* Leave the page usable if click tracking fails. */ }
   }
   return <section className="sponsored-card" aria-label="Sponsored advertisement">
