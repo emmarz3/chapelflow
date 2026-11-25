@@ -35,8 +35,11 @@ it("starts attendance with the selected chapel and time window", async () => {
   renderPage();
   await screen.findByRole("option", { name: "Chrisland Chapel" });
   await user.type(screen.getByLabelText("Service name"), "Sunday worship");
-  fireEvent.change(screen.getByLabelText("Opens"), { target: { value: "2026-11-15T09:00" } });
-  fireEvent.change(screen.getByLabelText("Closes"), { target: { value: "2026-11-15T11:00" } });
+  const opens = new Date(Date.now() + 60 * 60 * 1000);
+  const closes = new Date(Date.now() + 3 * 60 * 60 * 1000);
+  const localTime = (date: Date) => new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
+  fireEvent.change(screen.getByLabelText("Opens"), { target: { value: localTime(opens) } });
+  fireEvent.change(screen.getByLabelText("Closes"), { target: { value: localTime(closes) } });
   await user.click(screen.getByRole("button", { name: "Start attendance" }));
   await waitFor(() => expect(adminAttendanceService.createSession).toHaveBeenCalledWith(expect.objectContaining({
     branch: "chapel-1", label: "Sunday worship", window_opens_at: expect.any(String), window_closes_at: expect.any(String),

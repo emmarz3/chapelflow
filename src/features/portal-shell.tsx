@@ -1,5 +1,6 @@
 import {
   Activity,
+  Megaphone,
   BarChart3,
   Bell,
   Building2,
@@ -64,6 +65,7 @@ const navGroups: { label: string; items: NavItem[] }[] = [
         permission: "dashboard:view",
       },
       { label: "The Upper Room", path: "/app/upper-room", icon: <MessagesSquare /> },
+      { label: "Advertise your brand", path: "/app/advertise", icon: <Megaphone /> },
       { label: "Community safety", path: "/app/community-safety", icon: <ShieldCheck /> },
       { label: "Notifications", path: "/app/notifications", icon: <Bell /> },
       { label: "Notification settings", path: "/app/notification-settings", icon: <Settings /> },
@@ -132,6 +134,7 @@ const navGroups: { label: string; items: NavItem[] }[] = [
         icon: <UserRound />,
         roles: ["super_admin"],
       },
+      { label: "Advertising review", path: "/app/admin/advertising", icon: <Megaphone />, roles: ["super_admin"] },
       {
         label: "Launch reset",
         path: "/app/admin/launch-reset",

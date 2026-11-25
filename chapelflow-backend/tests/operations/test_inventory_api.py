@@ -71,7 +71,9 @@ def test_unassigned_super_admin_can_create_inventory_in_canonical_chapel(api_cli
         organization=organization, name="Chrisland University Chapel", branch_type="CHAPEL"
     )
     api_client.force_authenticate(super_admin)
-    created = api_client.post("/api/v1/operations/assets/", {"title": "Chapel microphone"}, format="json")
+    created = api_client.post("/api/v1/operations/assets/", {
+        "title": "Chapel microphone", "detail": "Main chapel", "asset_tag": "CUC-MIC-001",
+    }, format="json")
     assert created.status_code == 201, created.data
     assert created.data["data"]["primary"] == "Chapel microphone"
     assert Asset.objects.filter(branch=branch, name="Chapel microphone").exists()
