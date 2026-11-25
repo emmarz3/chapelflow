@@ -17,7 +17,7 @@ class CampaignSerializer(serializers.ModelSerializer):
         return PRICES[campaign.plan] // 100
 
     def get_payment_history(self, campaign):
-        payments = sorted(campaign.payments.all(), key=lambda payment: payment.paid_at, reverse=True)[:24]
+        payments = sorted(campaign.payments.all(), key=lambda payment: payment.paid_at, reverse=True)
         return [{'reference': p.reference, 'amount_ngn': p.amount_kobo // 100, 'paid_at': p.paid_at} for p in payments]
 
     class Meta:
