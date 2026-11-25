@@ -166,3 +166,52 @@ def test_revoke_is_an_admin_decision(users):
     assert response.status_code == 200
     campaign.refresh_from_db()
     assert campaign.status == Campaign.Status.REVOKED
+
+
+@pytest.mark.django_db
+def test_admin_revoke_cancels_paystack_subscription_before_revoke(users):
+    owner, _, admin = users
+    campaign = Campaign.objects.create(
+        owner=owner, brand_name='Studio', description='Pictures', ad_category='Services',
+        image_url='https://example.com/ad.jpg', destination_url='https://example.com',
+        contact_email=owner.email, plan='CAMPUS', status=Campaign.Status.ACTIVE,
+        subscription_code='SUB_revoke', subscription_email_token='email-token',
+        paid_until=timezone.now() + timedelta(days=15),
+    )
+    client = APIClient()
+    client.force_authenticate(admin)
+    with patch('apps.advertising.views._disable_paystack_subscription', return_value='email-token') as disable:
+        response = client.post(
+            f'/api/v1/ads/admin/{campaign.pk}/review/',
+            {'action': 'revoke', 'note': 'Policy violation'},
+            format='json',
+        )
+    assert response.status_code == 200, response.data
+    disable.assert_called_once()
+    campaign.refresh_from_db()
+    assert campaign.status == Campaign.Status.REVOKED
+    assert campaign.cancel_at_period_end is True
+
+
+@pytest.mark.django_db
+def test_revoke_is_blocked_when_paystack_cancellation_fails(users):
+    owner, _, admin = users
+    campaign = Campaign.objects.create(
+        owner=owner, brand_name='Studio', description='Pictures', ad_category='Services',
+        image_url='https://example.com/ad.jpg', destination_url='https://example.com',
+        contact_email=owner.email, plan='CAMPUS', status=Campaign.Status.ACTIVE,
+        subscription_code='SUB_revoke', subscription_email_token='email-token',
+        paid_until=timezone.now() + timedelta(days=15),
+    )
+    client = APIClient()
+    client.force_authenticate(admin)
+    with patch('apps.advertising.views._disable_paystack_subscription', side_effect=PaymentProviderError('Paystack offline')):
+        response = client.post(
+            f'/api/v1/ads/admin/{campaign.pk}/review/',
+            {'action': 'revoke', 'note': 'Policy violation'},
+            format='json',
+        )
+    assert response.status_code == 502
+    campaign.refresh_from_db()
+    assert campaign.status == Campaign.Status.ACTIVE
+    assert campaign.cancel_at_period_end is False

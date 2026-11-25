@@ -101,6 +101,38 @@ class AdminCampaignsView(APIView):
         return Response(results)
 
 
+def _disable_paystack_subscription(campaign):
+    """Stop future billing using Paystack's server-side subscription code and email token."""
+    if not campaign.subscription_code:
+        return campaign.subscription_email_token
+    token = campaign.subscription_email_token
+    if not token:
+        subscription = _paystack_request(f"/subscription/{quote(campaign.subscription_code, safe='')}")
+        token = subscription.get('email_token') or ''
+    if not token:
+        raise PaymentProviderError('Paystack did not provide the subscription cancellation token.')
+
+    request_body = json.dumps({'code': campaign.subscription_code, 'token': token}).encode()
+    provider_request = Request(
+        'https://api.paystack.co/subscription/disable',
+        data=request_body,
+        headers={
+            'Authorization': f'Bearer {settings.PAYSTACK_SECRET_KEY}',
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+        },
+        method='POST',
+    )
+    try:
+        with urlopen(provider_request, timeout=15) as provider_response:
+            payload = json.loads(provider_response.read())
+            if not payload.get('status'):
+                raise ValueError('Paystack did not confirm cancellation.')
+    except (HTTPError, URLError, TimeoutError, ValueError) as exc:
+        raise PaymentProviderError('Could not cancel future Paystack renewals. Try again shortly.') from exc
+    return token
+
+
 class ReviewView(APIView):
     permission_classes = [IsSuperAdmin]
     def post(self, request, pk):
@@ -118,6 +150,18 @@ class ReviewView(APIView):
             raise serializers.ValidationError('Choose a valid advertising decision.')
         if decision in {'reject', 'changes', 'pause', 'revoke'} and not note:
             raise serializers.ValidationError('Include a reason for this decision.')
+
+        # Revoke must stop future billing as well as hide the creative. Cancel
+        # with Paystack before changing the campaign state so a provider error
+        # never leaves the advertiser paying for an already-revoked campaign.
+        current = get_object_or_404(Campaign, pk=pk)
+        cancellation_token = None
+        if decision == 'revoke' and current.subscription_code and not current.cancel_at_period_end:
+            try:
+                cancellation_token = _disable_paystack_subscription(current)
+            except PaymentProviderError as exc:
+                return Response({'message': str(exc)}, status=502)
+
         with transaction.atomic():
             campaign = get_object_or_404(Campaign.objects.select_for_update(), pk=pk)
             allowed, next_status = transitions[decision]
@@ -131,6 +175,10 @@ class ReviewView(APIView):
                 if config.founding_offer_enabled and Campaign.objects.filter(founding_offer_awarded=True).count() < FOUNDING_OFFER_LIMIT:
                     campaign.founding_offer_awarded = True
             campaign.status = next_status
+            if decision == 'revoke' and campaign.subscription_code:
+                campaign.cancel_at_period_end = True
+                if cancellation_token:
+                    campaign.subscription_email_token = cancellation_token
             campaign.review_note = note
             campaign.reviewed_by = request.user
             campaign.reviewed_at = timezone.now()
@@ -268,20 +316,10 @@ class CancelView(APIView):
             raise serializers.ValidationError('No monthly subscription is attached to this ad.')
         if campaign.cancel_at_period_end:
             return Response(CampaignSerializer(campaign).data)
-        if not campaign.subscription_email_token:
-            data = _paystack_request(f"/subscription/{quote(campaign.subscription_code, safe='')}")
-            campaign.subscription_email_token = data.get('email_token') or ''
-        if not campaign.subscription_email_token:
-            return Response({'message': 'Contact the chapel office to cancel this subscription.'}, status=502)
-        request_body = json.dumps({'code': campaign.subscription_code, 'token': campaign.subscription_email_token}).encode()
-        provider_request = Request('https://api.paystack.co/subscription/disable', data=request_body,
-            headers={'Authorization': f'Bearer {settings.PAYSTACK_SECRET_KEY}', 'Content-Type': 'application/json'}, method='POST')
         try:
-            with urlopen(provider_request, timeout=15) as provider_response:
-                if not json.loads(provider_response.read()).get('status'):
-                    raise ValueError('Paystack did not confirm cancellation.')
-        except (HTTPError, URLError, TimeoutError, ValueError):
-            return Response({'message': 'Could not cancel renewal with Paystack. Try again shortly.'}, status=502)
+            campaign.subscription_email_token = _disable_paystack_subscription(campaign) or campaign.subscription_email_token
+        except PaymentProviderError as exc:
+            return Response({'message': str(exc)}, status=502)
         campaign.cancel_at_period_end = True
         campaign.save(update_fields=['cancel_at_period_end', 'subscription_email_token'])
         write_audit_log('UPDATE', 'AdCampaign', campaign.id, {'decision': 'cancel_renewal'}, user=request.user)
