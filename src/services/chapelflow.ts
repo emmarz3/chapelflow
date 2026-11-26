@@ -930,11 +930,16 @@ export const attendanceService = {
       data: { result: "recorded" | "duplicate"; record: AttendanceRecord };
       message?: string;
     }>("/attendance/student-scan", { token }),
-  studentCode: (sessionId: string, code: string) =>
-    api.post<{ data: { result: "recorded" | "duplicate"; record: AttendanceRecord }; message?: string }>(
-      "/attendance/student-code/",
-      { session_id: sessionId, code },
-    ),
+  studentCode: (sessionId: string, code: string) => {
+    const normalizedCode = code.replace(/\\D/g, "").slice(0, 6);
+    if (!sessionId || !/^\\d{6}$/.test(normalizedCode)) {
+      throw new Error("Enter the current 6-digit attendance code shown by your usher.");
+    }
+    return api.post<{ data: { result: "recorded" | "duplicate"; record: AttendanceRecord }; message?: string }>(
+      "/attendance/student-code",
+      { sessionId, code: normalizedCode },
+    );
+  },
   qrCheckIn: (payload: { token: string; sessionId: string }) =>
     api.post<{
       data: AttendanceRecord;
