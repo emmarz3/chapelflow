@@ -315,9 +315,10 @@ ALLOWED_UPLOAD_EXTENSIONS = env.list(
 # --------------------------------------------------------------------------
 # Payments
 # --------------------------------------------------------------------------
-PAYSTACK_SECRET_KEY = env("PAYSTACK_SECRET_KEY", default="")
-# Fail closed until chapel leadership approves revenue ownership, refunds and permitted categories.
-ADVERTISING_POLICY_APPROVED = env.bool("ADVERTISING_POLICY_APPROVED", default=False)
+PAYSTACK_SECRET_KEY = env("PAYSTACK_SECRET_KEY", default="")  # Chapel giving account only
+ADS_PAYSTACK_SECRET_KEY = env("ADS_PAYSTACK_SECRET_KEY", default="")  # Super Admin advertising account only
+# Fail closed until the Super Admin records revenue ownership, refund/dispute handling and permitted ad categories.
+ADS_POLICY_APPROVED = env.bool("ADS_POLICY_APPROVED", default=env.bool("ADVERTISING_POLICY_APPROVED", default=False))
 FRONTEND_URL = env("FRONTEND_URL", default="")
 SCENDEY_WAITLIST_URL = env("SCENDEY_WAITLIST_URL", default="")
 PAYSTACK_CALLBACK_URL = env("PAYSTACK_CALLBACK_URL", default="")
