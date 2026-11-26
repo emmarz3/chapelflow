@@ -81,6 +81,41 @@ class TestAuditLogBranchIsolation:
         assert str(entry_a.id) in ids
         assert str(entry_b.id) in ids
 
+
+    def test_audit_pdf_export_contains_all_records_in_the_callers_branch_only(
+        self, api_client, chapel_admin_a, chapel_admin_b, monkeypatch
+    ):
+        from apps.audit.models import AuditAction, AuditLog
+        from common.constants.roles import Roles
+
+        self._grant_audit_view(Roles.CHAPEL_ADMIN)
+        branch_a_entry = AuditLog.objects.create(
+            user=chapel_admin_a, action=AuditAction.LOGIN,
+            resource_type="session", resource_id="branch-a-entry",
+        )
+        branch_b_entry = AuditLog.objects.create(
+            user=chapel_admin_b, action=AuditAction.MFA_RESET,
+            resource_type="user", resource_id="branch-b-entry",
+        )
+        captured = {}
+
+        def fake_pdf(rows, title):
+            captured["rows"] = rows
+            captured["title"] = title
+            return b"%PDF-test"
+
+        monkeypatch.setattr("apps.reports.services.export_rows_pdf", fake_pdf)
+        api_client.force_authenticate(user=chapel_admin_a)
+        response = api_client.get("/api/v1/audit/logs/export-pdf/")
+
+        assert response.status_code == 200
+        assert response["Content-Type"] == "application/pdf"
+        assert response["Cache-Control"] == "private, no-store"
+        assert response.content == b"%PDF-test"
+        resource_ids = {row["resource_id"] for row in captured["rows"]}
+        assert "branch-a-entry" in resource_ids
+        assert "branch-b-entry" not in resource_ids
+
     def test_audit_log_entry_with_no_user_is_invisible_to_branch_scoped_admin(
         self, api_client, chapel_admin_a
     ):
