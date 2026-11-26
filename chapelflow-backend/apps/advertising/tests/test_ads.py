@@ -127,6 +127,39 @@ def test_founding_student_offer_charges_discount_then_schedules_full_price_subsc
 
 
 @pytest.mark.django_db
+@override_settings(
+    ADS_PAYSTACK_SECRET_KEY='test-api-key',
+    ADS_PAYSTACK_WEBHOOK_SECRET='whsec_test_signing_secret',
+)
+def test_webhook_accepts_current_paystack_signature(users):
+    owner, _, _ = users
+    campaign = Campaign.objects.create(
+        owner=owner, brand_name='Signed Studio', description='Pictures',
+        image_url='https://example.com/ad.jpg', destination_url='https://example.com',
+        contact_email=owner.email, plan='CAMPUS', status=Campaign.Status.ACTIVE,
+        subscription_code='SUB_signed', paid_until=timezone.now() + timedelta(days=20),
+    )
+    body = json.dumps({
+        'event': 'invoice.payment_failed',
+        'data': {'subscription': {'subscription_code': 'SUB_signed'}},
+    }).encode()
+    timestamp = int(timezone.now().timestamp())
+    digest = hmac.new(
+        b'whsec_test_signing_secret',
+        str(timestamp).encode('ascii') + b'.' + body,
+        hashlib.sha512,
+    ).hexdigest()
+    header = f't={timestamp},v1=whk_test:{digest}'
+    response = APIClient().post(
+        '/api/v1/ads/paystack/webhook/', data=body,
+        content_type='application/json', HTTP_PAYSTACK_SIGNATURE=header,
+    )
+    assert response.status_code == 200, response.data
+    campaign.refresh_from_db()
+    assert campaign.status == Campaign.Status.PAUSED
+
+
+@pytest.mark.django_db
 @override_settings(ADS_POLICY_APPROVED=True)
 def test_emergency_pause_hides_placements_until_resumed(users):
     owner, _, admin = users
