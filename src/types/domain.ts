@@ -35,6 +35,7 @@ export type Permission =
   | "media:write"
   | "cms:write"
   | "analytics:read"
+  | "reports:export"
   | "branches:manage"
   | "audit:read"
   | "settings:manage"
