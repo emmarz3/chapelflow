@@ -81,22 +81,27 @@ export function useQrScanner(onScan: (text: string) => void, scanning: boolean) 
         controlsRef.current = controls;
 
         // Device labels are normally hidden until camera permission is granted.
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        if (cancelled) return;
-        const available = devices
-          .filter((device) => device.kind === "videoinput" && device.deviceId)
-          .map((device, index) => ({
-            deviceId: device.deviceId,
-            label: device.label.trim() || `Camera ${index + 1}`,
-          }));
-        setCameras(available);
+        try {
+          const devices = await navigator.mediaDevices.enumerateDevices();
+          if (cancelled) return;
+          const available = devices
+            .filter((device) => device.kind === "videoinput" && device.deviceId)
+            .map((device, index) => ({
+              deviceId: device.deviceId,
+              label: device.label.trim() || `Camera ${index + 1}`,
+            }));
+          setCameras(available);
 
-        // Keep the rear camera as the default on phones, but allow selecting
-        // every enumerated lens (macro, ultra-wide, telephoto, front, etc.).
-        if (!selectedCameraId && available.length > 1) {
-          const rearCamera = available.find((camera) => /back|rear|environment|world/i.test(camera.label));
-          const preferredCamera = rearCamera || available[available.length - 1];
-          if (preferredCamera) setSelectedCameraId(preferredCamera.deviceId);
+          // Keep the rear camera as the default on phones, but allow selecting
+          // every enumerated lens (macro, ultra-wide, telephoto, front, etc.).
+          if (!selectedCameraId && available.length > 1) {
+            const rearCamera = available.find((camera) => /back|rear|environment|world/i.test(camera.label));
+            const preferredCamera = rearCamera || available[available.length - 1];
+            if (preferredCamera) setSelectedCameraId(preferredCamera.deviceId);
+          }
+        } catch {
+          // Scanning still works if a browser denies camera device enumeration.
+          if (!cancelled) setCameras([]);
         }
       } catch {
         if (!cancelled) {
