@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 vi.mock("../lib/backend", () => ({ isDjangoBackend: true }));
 import { apiRequest } from "../lib/api";
-import { adminAccountService, communityAdminService, communityService, studentContentService } from "../services/chapelflow";
+import { adminAccountService, attendanceService, communityAdminService, communityService, studentContentService } from "../services/chapelflow";
 
 const response = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { "Content-Type": "application/json" } });
@@ -453,6 +453,22 @@ describe("Django API integration", () => {
       data: { token: "signed-live-token", code: "104258", rotation_seconds: 20, successful_scans: 3, session: { id: "session-1" } },
     });
     expect(fetch.mock.calls[0]?.[0]).toBe("/api/v1/attendance/checkpoint/token/");
+  });
+
+  it("submits a normalized six-digit code through the attendance service", async () => {
+    const fetch = vi.fn().mockResolvedValue(response({
+      data: { result: "recorded", record: { id: "attendance-record" } },
+      message: "Attendance recorded.",
+    }, 201));
+    vi.stubGlobal("fetch", fetch);
+
+    await attendanceService.studentCode("session-1", "1 0 4 2 5 8");
+
+    expect(fetch.mock.calls[0]?.[0]).toBe("/api/v1/attendance/student-code/");
+    expect(JSON.parse(String(fetch.mock.calls[0]?.[1]?.body))).toEqual({
+      session_id: "session-1",
+      code: "104258",
+    });
   });
 
   it("normalizes a live student attendance code and session before submitting to Django", async () => {
