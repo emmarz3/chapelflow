@@ -832,10 +832,10 @@ export function FellowshipPage() {
 }
 
 const chapelUnits: { name: string; description: string; leaders: { role: string; name: string; phone?: string; image?: string }[] }[] = [
-  { name: "Choir", description: "Leads the congregation in praise and worship through song.", leaders: [{ role: "Choir Leader", name: "Olaoti Fiyinfoluwa", phone: "+234 810 612 5345", image: "/units/choir-leader.jpg" }, { role: "Assistant Choir Leader", name: "Agu Mary" }] },
+  { name: "Choir", description: "Leads the congregation in praise and worship through song.", leaders: [{ role: "Choir Leader", name: "Olaoti Fiyinfoluwa", phone: "+234 810 612 5345", image: "/units/choir-leader.jpg" }, { role: "Assistant Music Director", name: "Agu Mary", image: "/units/music-assistant-director.jpg" }] },
   { name: "Instrumentalist", description: "Supports chapel worship with live instrumental music.", leaders: [{ role: "Head of Instrumentalists", name: "Edafe George", image: "/units/instrumentalist-leader.jpg" }] },
-  { name: "Ushering", description: "Welcomes and seats worshippers and helps services run smoothly.", leaders: [{ role: "Head Usher", name: "Munachi Okeke", phone: "+234 701 224 6260", image: "/units/ushering-leader.jpg" }, { role: "Assistant Head Usher", name: "Obehioye Samuel", phone: "08125637947" }] },
-  { name: "Sanctuary", description: "Cares for the chapel sanctuary and prepares it for worship.", leaders: [{ role: "Head of Sanctuary", name: "Egbeyemi Iwalola", phone: "09020145551", image: "/units/sanctuary-leader.jpg" }, { role: "Assistant Head of Sanctuary", name: "Ogunrinde Ayobami" }] },
+  { name: "Ushering", description: "Welcomes and seats worshippers and helps services run smoothly.", leaders: [{ role: "Head Usher", name: "Munachi Okeke", phone: "+234 701 224 6260", image: "/units/ushering-leader.jpg" }, { role: "Assistant Head Usher", name: "Obeshinoye Samuel", phone: "08125637947", image: "/units/ushering-assistant-leader.jpg" }] },
+  { name: "Sanctuary", description: "Cares for the chapel sanctuary and prepares it for worship.", leaders: [{ role: "Head of Sanctuary", name: "Egbeyemi Iwalola", phone: "09020145551", image: "/units/sanctuary-leader.jpg" }, { role: "Assistant Head of Sanctuary", name: "Ogunrinde Ayobami Emmanuel", image: "/units/sanctuary-assistant-leader.jpg" }] },
   { name: "Media / ICT", description: "Supports chapel communication and information technology.", leaders: [{ role: "Media Head", name: "Oluwayinka Godslove", phone: "08118367510", image: "/units/media-ict-leader.jpg" }] },
   { name: "Social Media", description: "Shares chapel news and updates across social platforms.", leaders: [{ role: "Social Media Head", name: "Adebayo Ephraim", phone: "+234 810 846 1463", image: "/units/social-media-leader.jpg" }] },
   { name: "Sound and Technical", description: "Manages sound and technical support for chapel services.", leaders: [{ role: "Unit Leader", name: "Akintunde Jesuntundun", phone: "+234 701 202 2321", image: "/units/sound-technical-leader.jpg" }] },
@@ -880,13 +880,13 @@ const studentLeaders = [
   },
   {
     name: "Ajayi Elizabeth",
-    role: "",
+    role: "Female Hostel Devotion Coordinator",
     photo: "/student-leaders/ajayi-elizabeth.jpg",
     duty: "",
   },
   {
     name: "Olarewanju Christopher",
-    role: "",
+    role: "Male Hostel Devotion Coordinator",
     photo: "/student-leaders/olarewanju-christopher.jpg",
     duty: "",
   },
