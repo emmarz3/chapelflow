@@ -25,7 +25,7 @@ def users(db):
 
 
 @pytest.mark.django_db
-@override_settings(ADVERTISING_POLICY_APPROVED=True)
+@override_settings(ADS_POLICY_APPROVED=True)
 def test_approval_payment_and_placement(users):
     owner, other, admin = users
     client = APIClient()
@@ -48,7 +48,7 @@ def test_approval_payment_and_placement(users):
     campaign.reference = 'ad-first'
     campaign.save()
     client.force_authenticate(owner)
-    with patch('apps.advertising.views._paystack_request', return_value={
+    with patch('apps.advertising.views.ads_paystack_request', return_value={
         'reference': 'ad-first', 'amount': PRICES['CAMPUS'], 'currency': 'NGN',
         'status': 'success', 'subscription': {'subscription_code': 'SUB_test', 'email_token': 'token'},
     }):
@@ -65,7 +65,7 @@ def test_approval_payment_and_placement(users):
 
 
 @pytest.mark.django_db
-@override_settings(PAYSTACK_SECRET_KEY='test-secret')
+@override_settings(ADS_PAYSTACK_SECRET_KEY='test-secret')
 def test_webhook_rejects_unsigned_or_mismatched_payment(users):
     owner, _, admin = users
     campaign = Campaign.objects.create(owner=owner, brand_name='Studio', description='Pictures',
@@ -76,7 +76,7 @@ def test_webhook_rejects_unsigned_or_mismatched_payment(users):
     body = json.dumps(data).encode()
     assert client.post('/api/v1/ads/paystack/webhook/', data=body, content_type='application/json').status_code == 400
     signature = hmac.new(b'test-secret', body, hashlib.sha512).hexdigest()
-    with patch('apps.advertising.services._paystack_request', return_value={
+    with patch('apps.advertising.services.ads_paystack_request', return_value={
         'reference': 'ad-first', 'amount': 1, 'currency': 'NGN', 'status': 'success',
         'subscription': {'subscription_code': 'SUB_test'},
     }):
@@ -86,7 +86,7 @@ def test_webhook_rejects_unsigned_or_mismatched_payment(users):
 
 
 @pytest.mark.django_db
-@override_settings(PAYSTACK_SECRET_KEY='test-secret')
+@override_settings(ADS_PAYSTACK_SECRET_KEY='test-secret')
 def test_failed_renewal_pauses_ad_even_before_paid_until(users):
     owner, _, _ = users
     campaign = Campaign.objects.create(owner=owner, brand_name='Studio', description='Pictures',
@@ -95,7 +95,7 @@ def test_failed_renewal_pauses_ad_even_before_paid_until(users):
         subscription_code='SUB_test', paid_until=timezone.now() + timedelta(days=20))
     body = json.dumps({'event': 'invoice.payment_failed', 'data': {'subscription': {'subscription_code': 'SUB_test'}}}).encode()
     signature = hmac.new(b'test-secret', body, hashlib.sha512).hexdigest()
-    response = APIClient().post('/api/v1/payments/webhook/paystack/', data=body,
+    response = APIClient().post('/api/v1/ads/paystack/webhook/', data=body,
         content_type='application/json', HTTP_X_PAYSTACK_SIGNATURE=signature)
     assert response.status_code == 200, response.data
     campaign.refresh_from_db()
@@ -104,7 +104,7 @@ def test_failed_renewal_pauses_ad_even_before_paid_until(users):
 
 
 @pytest.mark.django_db
-@override_settings(PAYSTACK_SECRET_KEY='test-secret', ADVERTISING_POLICY_APPROVED=True)
+@override_settings(ADS_PAYSTACK_SECRET_KEY='test-secret', ADS_POLICY_APPROVED=True)
 def test_founding_student_offer_charges_discount_then_schedules_full_price_subscription(users):
     owner, _, _ = users
     campaign = Campaign.objects.create(owner=owner, brand_name='Student Studio', description='Campus portraits',
@@ -115,7 +115,7 @@ def test_founding_student_offer_charges_discount_then_schedules_full_price_subsc
         'paid_at':timezone.now().isoformat(),'customer':{'customer_code':'CUS_test'},
         'authorization':{'authorization_code':'AUTH_test','reusable':True}}
     with patch('apps.advertising.services.plan_code', return_value='PLN_CAMPUS'), patch(
-        'apps.advertising.services._paystack_request',
+        'apps.advertising.services.ads_paystack_request',
         return_value={'subscription_code':'SUB_founding','email_token':'email-token'},
     ) as paystack:
         activated = activate_payment(campaign, verified)
@@ -127,7 +127,40 @@ def test_founding_student_offer_charges_discount_then_schedules_full_price_subsc
 
 
 @pytest.mark.django_db
-@override_settings(ADVERTISING_POLICY_APPROVED=True)
+@override_settings(
+    ADS_PAYSTACK_SECRET_KEY='test-api-key',
+    ADS_PAYSTACK_WEBHOOK_SECRET='whsec_test_signing_secret',
+)
+def test_webhook_accepts_current_paystack_signature(users):
+    owner, _, _ = users
+    campaign = Campaign.objects.create(
+        owner=owner, brand_name='Signed Studio', description='Pictures',
+        image_url='https://example.com/ad.jpg', destination_url='https://example.com',
+        contact_email=owner.email, plan='CAMPUS', status=Campaign.Status.ACTIVE,
+        subscription_code='SUB_signed', paid_until=timezone.now() + timedelta(days=20),
+    )
+    body = json.dumps({
+        'event': 'invoice.payment_failed',
+        'data': {'subscription': {'subscription_code': 'SUB_signed'}},
+    }).encode()
+    timestamp = int(timezone.now().timestamp())
+    digest = hmac.new(
+        b'whsec_test_signing_secret',
+        str(timestamp).encode('ascii') + b'.' + body,
+        hashlib.sha512,
+    ).hexdigest()
+    header = f't={timestamp},v1=whk_test:{digest}'
+    response = APIClient().post(
+        '/api/v1/ads/paystack/webhook/', data=body,
+        content_type='application/json', HTTP_PAYSTACK_SIGNATURE=header,
+    )
+    assert response.status_code == 200, response.data
+    campaign.refresh_from_db()
+    assert campaign.status == Campaign.Status.PAUSED
+
+
+@pytest.mark.django_db
+@override_settings(ADS_POLICY_APPROVED=True)
 def test_emergency_pause_hides_placements_until_resumed(users):
     owner, _, admin = users
     Campaign.objects.create(owner=owner, brand_name='Studio', description='Pictures', ad_category='Services',
@@ -259,7 +292,7 @@ def test_super_admin_can_create_and_manage_subscription_programs(users):
 
 
 @pytest.mark.django_db
-@override_settings(PAYSTACK_SECRET_KEY='test-secret', ADVERTISING_POLICY_APPROVED=True)
+@override_settings(ADS_PAYSTACK_SECRET_KEY='test-secret', ADS_POLICY_APPROVED=True)
 def test_program_price_is_snapshotted_for_existing_campaigns(users):
     owner, _, admin = users
     program = AdSubscriptionProgram.objects.create(
@@ -298,7 +331,7 @@ def test_program_price_is_snapshotted_for_existing_campaigns(users):
 
 
 @pytest.mark.django_db
-@override_settings(PAYSTACK_SECRET_KEY='test-secret', ADVERTISING_POLICY_APPROVED=True)
+@override_settings(ADS_PAYSTACK_SECRET_KEY='test-secret', ADS_POLICY_APPROVED=True)
 def test_ad_application_notifies_super_admin_and_checkout_waits_for_approval(users):
     owner, _, admin = users
     from apps.communications.models import CommunicationPreference
@@ -334,7 +367,7 @@ def test_ad_application_notifies_super_admin_and_checkout_waits_for_approval(use
     assert admin_notice.href == f'/app/admin/advertising?campaign={campaign.pk}'
 
     # A pending creative cannot initialize Paystack or record a reference.
-    with patch('apps.advertising.views._paystack_request') as paystack:
+    with patch('apps.advertising.views.ads_paystack_request') as paystack:
         blocked = client.post(f'/api/v1/ads/{campaign.pk}/checkout/')
     assert blocked.status_code == 400
     paystack.assert_not_called()
@@ -362,7 +395,7 @@ def test_ad_application_notifies_super_admin_and_checkout_waits_for_approval(use
         }
 
     with patch('apps.advertising.views.plan_code', return_value='PLN_FEATURED_CUSTOM') as create_plan, patch(
-        'apps.advertising.views._paystack_request',
+        'apps.advertising.views.ads_paystack_request',
         side_effect=initialize_checkout,
     ) as paystack:
         checkout = client.post(f'/api/v1/ads/{campaign.pk}/checkout/')

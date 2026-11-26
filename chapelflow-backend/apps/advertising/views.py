@@ -19,7 +19,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.audit.services import write_audit_log
-from apps.finance.services import PaymentProviderError, _paystack_request
+from apps.finance.services import PaymentProviderError
 from apps.members.models import CommunityClassification, Member
 from common.permissions.rbac import IsSuperAdmin
 from apps.uploads.storage import get_storage_service, generate_storage_filename
@@ -27,7 +27,7 @@ from .models import AdDecision, AdSubscriptionProgram, AdvertisingSettings, Camp
 from .serializers import CampaignSerializer, SubscriptionProgramSerializer, CONSENT
 from .services import (
     FOUNDING_FIRST_MONTH_KOBO, FOUNDING_OFFER_LIMIT, PRICES,
-    activate_payment, campaign_monthly_price_kobo, notify_advertiser_of_review,
+    activate_payment, ads_paystack_request, campaign_monthly_price_kobo, notify_advertiser_of_review,
     notify_super_admins_about_campaign, plan_code, process_ad_webhook,
 )
 
@@ -37,7 +37,7 @@ def _ads_settings():
 
 
 def _ads_display_allowed():
-    if not getattr(settings, 'ADVERTISING_POLICY_APPROVED', False):
+    if not getattr(settings, 'ADS_POLICY_APPROVED', False):
         return False
     return not AdvertisingSettings.objects.filter(pk=1, emergency_paused=True).exists()
 
@@ -51,8 +51,8 @@ class PlansView(APIView):
         awarded = Campaign.objects.filter(founding_offer_awarded=True).count()
         enabled = config.founding_offer_enabled if config else True
         remaining = max(0, FOUNDING_OFFER_LIMIT - awarded) if enabled else 0
-        approved = bool(getattr(settings, 'ADVERTISING_POLICY_APPROVED', False))
-        checkout = bool(settings.PAYSTACK_SECRET_KEY and approved and not (config and config.emergency_paused))
+        approved = bool(getattr(settings, 'ADS_POLICY_APPROVED', False))
+        checkout = bool(settings.ADS_PAYSTACK_SECRET_KEY and approved and not (config and config.emergency_paused))
         programs = AdSubscriptionProgram.objects.filter(is_active=True).order_by('sort_order', 'name')
         return Response({
             'plans': [{
@@ -61,7 +61,7 @@ class PlansView(APIView):
                 'base_plan': program.base_plan, 'placements': program.placements, 'interval': 'monthly',
             } for program in programs],
             'consent_text': CONSENT, 'checkout_available': checkout,
-            'checkout_reason': '' if checkout else 'Checkout opens after chapel policy approval and Paystack configuration.',
+            'checkout_reason': '' if checkout else 'Checkout opens after Super Admin advertising policy approval and Super Admin Paystack configuration.',
             'founding_offer': {'enabled': bool(remaining), 'remaining': remaining, 'limit': FOUNDING_OFFER_LIMIT,
                 'first_month_price_ngn': FOUNDING_FIRST_MONTH_KOBO // 100,
                 'renewal_note': 'First month ₦2,000, then the selected program renews at its regular monthly price.'},
@@ -127,7 +127,7 @@ def _disable_paystack_subscription(campaign):
         return campaign.subscription_email_token
     token = campaign.subscription_email_token
     if not token:
-        subscription = _paystack_request(f"/subscription/{quote(campaign.subscription_code, safe='')}")
+        subscription = ads_paystack_request(f"/subscription/{quote(campaign.subscription_code, safe='')}")
         token = subscription.get('email_token') or ''
     if not token:
         raise PaymentProviderError('Paystack did not provide the subscription cancellation token.')
@@ -137,7 +137,7 @@ def _disable_paystack_subscription(campaign):
         'https://api.paystack.co/subscription/disable',
         data=request_body,
         headers={
-            'Authorization': f'Bearer {settings.PAYSTACK_SECRET_KEY}',
+            'Authorization': f'Bearer {settings.ADS_PAYSTACK_SECRET_KEY}',
             'Content-Type': 'application/json',
             'Accept': 'application/json',
         },
@@ -263,8 +263,8 @@ class AdminSettingsView(APIView):
         return Response({'emergency_paused': config.emergency_paused, 'emergency_pause_reason': config.emergency_pause_reason,
             'founding_offer_enabled': config.founding_offer_enabled, 'founding_offer_awarded': awarded,
             'founding_offer_remaining': max(0, FOUNDING_OFFER_LIMIT - awarded) if config.founding_offer_enabled else 0,
-            'policy_approved': bool(getattr(settings, 'ADVERTISING_POLICY_APPROVED', False)),
-            'checkout_configured': bool(settings.PAYSTACK_SECRET_KEY)})
+            'policy_approved': bool(getattr(settings, 'ADS_POLICY_APPROVED', False)),
+            'checkout_configured': bool(settings.ADS_PAYSTACK_SECRET_KEY)})
     def post(self, request):
         action = str(request.data.get('action') or '')
         note = str(request.data.get('note') or '').strip()[:2000]
@@ -325,12 +325,12 @@ class CheckoutView(APIView):
         campaign = get_object_or_404(Campaign, pk=pk, owner=request.user)
         if campaign.status != Campaign.Status.APPROVED or campaign.subscription_code:
             raise serializers.ValidationError('This ad needs approval and must not already have a subscription.')
-        if not getattr(settings, 'ADVERTISING_POLICY_APPROVED', False):
-            raise serializers.ValidationError('Advertising checkout is closed until chapel leadership approves revenue ownership, refunds, and permitted ad categories.')
+        if not getattr(settings, 'ADS_POLICY_APPROVED', False):
+            raise serializers.ValidationError('Advertising checkout is closed until the Super Admin confirms revenue ownership, refund/dispute handling, and permitted ad categories.')
         config = AdvertisingSettings.objects.filter(pk=1).first()
         if config and config.emergency_paused:
-            raise serializers.ValidationError('Advertising checkout is temporarily paused by the chapel.')
-        if not settings.PAYSTACK_SECRET_KEY:
+            raise serializers.ValidationError('Advertising checkout is temporarily paused by the Super Admin.')
+        if not settings.ADS_PAYSTACK_SECRET_KEY:
             raise serializers.ValidationError('Advertising checkout is not configured yet.')
         if not campaign.owner.email:
             raise serializers.ValidationError('Add an email address to your account before subscribing.')
@@ -351,7 +351,7 @@ class CheckoutView(APIView):
                 payload['callback_url'] = f"{settings.FRONTEND_URL.rstrip('/')}/app/advertise?campaign={campaign.id}"
             if not founding:
                 payload['plan'] = recurring_plan
-            data = _paystack_request('/transaction/initialize', method='POST', payload=payload)
+            data = ads_paystack_request('/transaction/initialize', method='POST', payload=payload)
         except PaymentProviderError as exc:
             return Response({'message': str(exc)}, status=502)
         if data.get('reference') != reference or not data.get('authorization_url'):
@@ -369,7 +369,7 @@ class VerifyView(APIView):
         if not campaign.reference:
             raise serializers.ValidationError('Start checkout first.')
         try:
-            data = _paystack_request(f"/transaction/verify/{quote(campaign.reference, safe='')}")
+            data = ads_paystack_request(f"/transaction/verify/{quote(campaign.reference, safe='')}")
             if data.get('status') == 'success':
                 activate_payment(campaign, data)
         except PaymentProviderError as exc:
