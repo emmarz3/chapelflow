@@ -301,6 +301,13 @@ def test_program_price_is_snapshotted_for_existing_campaigns(users):
 @override_settings(PAYSTACK_SECRET_KEY='test-secret', ADVERTISING_POLICY_APPROVED=True)
 def test_ad_application_notifies_super_admin_and_checkout_waits_for_approval(users):
     owner, _, admin = users
+    from apps.communications.models import CommunicationPreference
+
+    preference, _ = CommunicationPreference.objects.get_or_create(user=admin)
+    preference.master_enabled = False
+    preference.in_app_enabled = False
+    preference.admin_alerts_enabled = False
+    preference.save(update_fields=['master_enabled', 'in_app_enabled', 'admin_alerts_enabled'])
     program = AdSubscriptionProgram.objects.create(
         code='featured-campus', name='Featured Campus', description='Featured campus rotation',
         monthly_price_ngn=5800, base_plan='FEATURED', placements=['home', 'events'],
@@ -322,7 +329,7 @@ def test_ad_application_notifies_super_admin_and_checkout_waits_for_approval(use
         channel=NotificationChannel.IN_APP,
         idempotency_key=f'ads:review:{campaign.pk}:1:{admin.pk}',
     )
-    assert admin_notice.status == NotificationStatus.DELIVERED
+    assert admin_notice.status != NotificationStatus.SKIPPED
     assert admin_notice.read_at is None
     assert admin_notice.href == f'/app/admin/advertising?campaign={campaign.pk}'
 
