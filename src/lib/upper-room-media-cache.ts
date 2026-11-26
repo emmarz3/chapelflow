@@ -121,6 +121,11 @@ export async function saveRecentUpperRoomPost(
     media.push(item);
     bytes += item.bytes;
   }
+  if (saveEpoch !== cacheEpoch) {
+    database.close();
+    return { cachedCount: 0, mediaCount: post.media.length, bytes: 0 };
+  }
+
   const record: CachedUpperRoomPost = {
     key: userId + ":" + post.id,
     userId,
