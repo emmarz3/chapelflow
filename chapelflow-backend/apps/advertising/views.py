@@ -80,9 +80,9 @@ class MyCampaignsView(APIView):
         serializer.is_valid(raise_exception=True)
         campaign = serializer.save()
         write_audit_log('CREATE', 'AdCampaign', campaign.id, user=request.user)
-        transaction.on_commit(lambda campaign_id=campaign.pk: notify_super_admins_about_campaign(
-            Campaign.objects.select_related('owner', 'program').get(pk=campaign_id)
-        ))
+        notify_super_admins_about_campaign(
+            Campaign.objects.select_related('owner', 'program').get(pk=campaign.pk)
+        )
         return Response(CampaignSerializer(campaign).data, status=201)
 
 
@@ -101,9 +101,9 @@ class MyCampaignDetailView(APIView):
             submission_revision=campaign.submission_revision + 1,
         )
         write_audit_log('UPDATE', 'AdCampaign', campaign.id, {'decision': 'resubmitted'}, user=request.user)
-        transaction.on_commit(lambda campaign_id=campaign.pk: notify_super_admins_about_campaign(
-            Campaign.objects.select_related('owner', 'program').get(pk=campaign_id)
-        ))
+        notify_super_admins_about_campaign(
+            Campaign.objects.select_related('owner', 'program').get(pk=campaign.pk)
+        )
         return Response(CampaignSerializer(campaign).data)
 
 
@@ -206,9 +206,9 @@ class ReviewView(APIView):
             AdDecision.objects.create(campaign=campaign, actor=request.user, action=decision, note=note)
             write_audit_log('UPDATE', 'AdCampaign', campaign.id, {'decision': decision, 'note': note}, user=request.user)
         if decision in {'approve', 'reject', 'changes'}:
-            transaction.on_commit(lambda campaign_id=campaign.pk: notify_advertiser_of_review(
-                Campaign.objects.select_related('owner').prefetch_related('decisions').get(pk=campaign_id)
-            ))
+            notify_advertiser_of_review(
+                Campaign.objects.select_related('owner').prefetch_related('decisions').get(pk=campaign.pk)
+            )
         return Response(CampaignSerializer(campaign).data)
 
 
