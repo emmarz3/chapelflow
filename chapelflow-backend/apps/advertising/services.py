@@ -23,7 +23,7 @@ FOUNDING_OFFER_LIMIT = 10
 logger = logging.getLogger(__name__)
 
 
-def adsads_paystack_request(path: str, *, method: str = 'GET', payload: dict | None = None) -> dict:
+def ads_paystack_request(path: str, *, method: str = 'GET', payload: dict | None = None) -> dict:
     """Use the Super Admin-owned Paystack account, isolated from Chapel giving."""
     secret = settings.ADS_PAYSTACK_SECRET_KEY
     if not secret:
