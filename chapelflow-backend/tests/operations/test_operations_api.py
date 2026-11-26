@@ -129,6 +129,57 @@ def test_analytics_and_privacy_requests(api_client, chapel_admin_a):
     assert export_request.deletion_due_at is None
 
 
+
+def test_analytics_pdf_export_includes_full_authorized_members_and_attendance(
+    api_client, chapel_admin_a, member_in_branch_a, branch_a, monkeypatch
+):
+    from apps.attendance.models import AttendanceRecord, AttendanceSession
+    from django.utils import timezone
+
+    session = AttendanceSession.objects.create(branch=branch_a, label="Sunday worship")
+    AttendanceRecord.objects.create(
+        session=session,
+        member=member_in_branch_a,
+        method="QR_CODE",
+        checked_in_at=timezone.now(),
+    )
+    captured = {}
+
+    def fake_pdf(rows, title):
+        captured["rows"] = rows
+        captured["title"] = title
+        return b"%PDF-test"
+
+    monkeypatch.setattr("apps.reports.services.export_rows_pdf", fake_pdf)
+    api_client.force_authenticate(chapel_admin_a)
+    response = api_client.get("/api/v1/analytics/overview/?export=pdf&range=semester")
+
+    assert response.status_code == 200, getattr(response, "data", None)
+    assert response["Content-Type"] == "application/pdf"
+    assert response["Cache-Control"] == "private, no-store"
+    assert response.content == b"%PDF-test"
+    rows = captured["rows"]
+    assert any(row["section"] == "Membership records" and "Ada Lovelace" in row["record"] for row in rows)
+    assert any(row["section"] == "Attendance records" and row["record"] == "Ada Lovelace" for row in rows)
+    assert any(row["record"] == "Total members" and row["value"] >= 1 for row in rows)
+
+
+def test_analytics_pdf_export_requires_report_export_permission(
+    api_client, chapel_admin_a, monkeypatch
+):
+    from apps.accounts.models import Permission, RolePermission
+    from common.constants.roles import PermissionCodes, Roles
+
+    export_permission = Permission.objects.get(code=PermissionCodes.REPORTS_EXPORT)
+    RolePermission.objects.filter(
+        legacy_role_code=Roles.CHAPEL_ADMIN,
+        permission=export_permission,
+    ).delete()
+    api_client.force_authenticate(chapel_admin_a)
+    response = api_client.get("/api/v1/analytics/overview/?export=pdf&range=semester")
+    assert response.status_code == 403
+
+
 def test_branch_operations_are_super_admin_only(api_client, super_admin, branch_a):
     super_admin.branch = branch_a
     super_admin.save(update_fields=["branch"])
