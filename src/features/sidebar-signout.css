@@ -1,0 +1,32 @@
+.sidebar nav { flex: 1; min-height: 0; }
+.sidebar__footer { display: grid; gap: 6px; flex: 0 0 auto; padding: 8px 12px 16px; }
+.sidebar__footer .sidebar__theme,
+.sidebar__footer .sidebar__collapse,
+.sidebar__signout {
+  width: 100%;
+  min-height: 42px;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 11px;
+  border: 0;
+  border-radius: 8px;
+  background: rgb(255 255 255 / 0.06);
+  color: rgb(255 255 255 / 0.75);
+  text-align: left;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.sidebar__footer .sidebar__theme { display: none; }
+.sidebar__signout svg { width: 19px; height: 19px; flex: 0 0 19px; }
+.sidebar__footer button:hover,
+.sidebar__footer button:focus-visible { background: rgb(255 255 255 / 0.12); color: #fff; }
+.portal-shell--collapsed .sidebar__signout span { display: none; }
+@media(max-width:900px) {
+  .sidebar__footer .sidebar__collapse { display: none; }
+  .sidebar__footer .sidebar__theme { display: flex; }
+}
