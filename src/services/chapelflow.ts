@@ -1119,6 +1119,14 @@ export const adminAttendanceService = {
 
 export const securityService = {
   auditLogs: () => api.get<{ data: AdminAuditLog[] }>("/admin/audit-logs"),
+  exportAuditPdf: (params: { search?: string } = {}) => {
+    const search = new URLSearchParams();
+    if (params.search) search.set("search", params.search);
+    return downloadAuthenticatedPdf(
+      `/audit/logs/export-pdf/${search.size ? `?${search.toString()}` : ""}`,
+      "chapelflow-audit.pdf",
+    );
+  },
   sessions: () =>
     api.get<{
       data: Array<{ id: string; device: string; lastActiveAt: string; current: boolean }>;
@@ -1212,6 +1220,13 @@ export const analyticsService = {
     api.get<{ data: AnalyticsPayload }>(
       `/analytics/overview${queryString(params)}`,
     ),
+  exportPdf: (params: { range: "semester" | "previous_semester" | "year" }) => {
+    const search = new URLSearchParams({ export: "pdf", range: params.range });
+    return downloadAuthenticatedPdf(
+      `/analytics/overview?${search.toString()}`,
+      "chapelflow-analytics.pdf",
+    );
+  },
 };
 export const publicService = {
   events: (params: QueryParams = {}) =>
