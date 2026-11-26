@@ -2846,9 +2846,9 @@ export function LiveAnalyticsPage() {
             value={range}
             onChange={(event) => setRange(event.target.value as typeof range)}
           >
-            <option value="semester">This semester</option>
-            <option value="previous_semester">Last semester</option>
-            <option value="year">Academic year</option>
+            <option value="semester">Last 6 months</option>
+            <option value="previous_semester">Previous 6 months</option>
+            <option value="year">Last 12 months</option>
           </select>
         </label>
       </div>
