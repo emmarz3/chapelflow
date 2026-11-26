@@ -317,6 +317,7 @@ ALLOWED_UPLOAD_EXTENSIONS = env.list(
 # --------------------------------------------------------------------------
 PAYSTACK_SECRET_KEY = env("PAYSTACK_SECRET_KEY", default="")  # Chapel giving account only
 ADS_PAYSTACK_SECRET_KEY = env("ADS_PAYSTACK_SECRET_KEY", default="")  # Super Admin advertising account only
+ADS_PAYSTACK_WEBHOOK_SECRET = env("ADS_PAYSTACK_WEBHOOK_SECRET", default="")  # Paystack whsec_ signing secret (test/live matched)
 # Fail closed until the Super Admin records revenue ownership, refund/dispute handling and permitted ad categories.
 ADS_POLICY_APPROVED = env.bool("ADS_POLICY_APPROVED", default=env.bool("ADVERTISING_POLICY_APPROVED", default=False))
 FRONTEND_URL = env("FRONTEND_URL", default="")
