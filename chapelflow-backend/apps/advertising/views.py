@@ -37,7 +37,7 @@ def _ads_settings():
 
 
 def _ads_display_allowed():
-    if not getattr(settings, 'ADVERTISING_POLICY_APPROVED', False):
+    if not getattr(settings, 'ADS_POLICY_APPROVED', False):
         return False
     return not AdvertisingSettings.objects.filter(pk=1, emergency_paused=True).exists()
 
@@ -51,7 +51,7 @@ class PlansView(APIView):
         awarded = Campaign.objects.filter(founding_offer_awarded=True).count()
         enabled = config.founding_offer_enabled if config else True
         remaining = max(0, FOUNDING_OFFER_LIMIT - awarded) if enabled else 0
-        approved = bool(getattr(settings, 'ADVERTISING_POLICY_APPROVED', False))
+        approved = bool(getattr(settings, 'ADS_POLICY_APPROVED', False))
         checkout = bool(settings.ADS_PAYSTACK_SECRET_KEY and approved and not (config and config.emergency_paused))
         programs = AdSubscriptionProgram.objects.filter(is_active=True).order_by('sort_order', 'name')
         return Response({
@@ -263,7 +263,7 @@ class AdminSettingsView(APIView):
         return Response({'emergency_paused': config.emergency_paused, 'emergency_pause_reason': config.emergency_pause_reason,
             'founding_offer_enabled': config.founding_offer_enabled, 'founding_offer_awarded': awarded,
             'founding_offer_remaining': max(0, FOUNDING_OFFER_LIMIT - awarded) if config.founding_offer_enabled else 0,
-            'policy_approved': bool(getattr(settings, 'ADVERTISING_POLICY_APPROVED', False)),
+            'policy_approved': bool(getattr(settings, 'ADS_POLICY_APPROVED', False)),
             'checkout_configured': bool(settings.ADS_PAYSTACK_SECRET_KEY)})
     def post(self, request):
         action = str(request.data.get('action') or '')
@@ -325,7 +325,7 @@ class CheckoutView(APIView):
         campaign = get_object_or_404(Campaign, pk=pk, owner=request.user)
         if campaign.status != Campaign.Status.APPROVED or campaign.subscription_code:
             raise serializers.ValidationError('This ad needs approval and must not already have a subscription.')
-        if not getattr(settings, 'ADVERTISING_POLICY_APPROVED', False):
+        if not getattr(settings, 'ADS_POLICY_APPROVED', False):
             raise serializers.ValidationError('Advertising checkout is closed until the Super Admin confirms revenue ownership, refund/dispute handling, and permitted ad categories.')
         config = AdvertisingSettings.objects.filter(pk=1).first()
         if config and config.emergency_paused:
