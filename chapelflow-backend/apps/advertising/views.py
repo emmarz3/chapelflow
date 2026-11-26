@@ -23,9 +23,13 @@ from apps.finance.services import PaymentProviderError, _paystack_request
 from apps.members.models import CommunityClassification, Member
 from common.permissions.rbac import IsSuperAdmin
 from apps.uploads.storage import get_storage_service, generate_storage_filename
-from .models import AdDecision, AdvertisingSettings, Campaign
-from .serializers import CampaignSerializer, CONSENT
-from .services import FOUNDING_FIRST_MONTH_KOBO, FOUNDING_OFFER_LIMIT, PRICES, activate_payment, plan_code, process_ad_webhook
+from .models import AdDecision, AdSubscriptionProgram, AdvertisingSettings, Campaign
+from .serializers import CampaignSerializer, SubscriptionProgramSerializer, CONSENT
+from .services import (
+    FOUNDING_FIRST_MONTH_KOBO, FOUNDING_OFFER_LIMIT, PRICES,
+    activate_payment, campaign_monthly_price_kobo, notify_advertiser_of_review,
+    notify_super_admins_about_campaign, plan_code, process_ad_webhook,
+)
 
 
 def _ads_settings():
@@ -41,6 +45,7 @@ def _ads_display_allowed():
 class PlansView(APIView):
     permission_classes = [AllowAny]
     authentication_classes = []
+
     def get(self, request):
         config = AdvertisingSettings.objects.filter(pk=1).first()
         awarded = Campaign.objects.filter(founding_offer_awarded=True).count()
@@ -48,13 +53,18 @@ class PlansView(APIView):
         remaining = max(0, FOUNDING_OFFER_LIMIT - awarded) if enabled else 0
         approved = bool(getattr(settings, 'ADVERTISING_POLICY_APPROVED', False))
         checkout = bool(settings.PAYSTACK_SECRET_KEY and approved and not (config and config.emergency_paused))
+        programs = AdSubscriptionProgram.objects.filter(is_active=True).order_by('sort_order', 'name')
         return Response({
-            'plans': [{'code': key, 'name': Campaign.Plan(key).label, 'price_ngn': value // 100, 'interval': 'monthly'} for key, value in PRICES.items()],
+            'plans': [{
+                'id': str(program.pk), 'code': program.code, 'name': program.name,
+                'description': program.description, 'price_ngn': program.monthly_price_ngn,
+                'base_plan': program.base_plan, 'placements': program.placements, 'interval': 'monthly',
+            } for program in programs],
             'consent_text': CONSENT, 'checkout_available': checkout,
             'checkout_reason': '' if checkout else 'Checkout opens after chapel policy approval and Paystack configuration.',
             'founding_offer': {'enabled': bool(remaining), 'remaining': remaining, 'limit': FOUNDING_OFFER_LIMIT,
                 'first_month_price_ngn': FOUNDING_FIRST_MONTH_KOBO // 100,
-                'renewal_note': 'First month ₦2,000, then the selected plan renews at its regular monthly price.'},
+                'renewal_note': 'First month ₦2,000, then the selected program renews at its regular monthly price.'},
         })
 
 class MyCampaignsView(APIView):
@@ -62,7 +72,7 @@ class MyCampaignsView(APIView):
     throttle_scope = 'ads_application'
 
     def get(self, request):
-        campaigns = Campaign.objects.filter(owner=request.user).prefetch_related('payments')
+        campaigns = Campaign.objects.filter(owner=request.user).select_related('program').prefetch_related('payments')
         return Response(CampaignSerializer(campaigns, many=True).data)
 
     def post(self, request):
@@ -70,6 +80,9 @@ class MyCampaignsView(APIView):
         serializer.is_valid(raise_exception=True)
         campaign = serializer.save()
         write_audit_log('CREATE', 'AdCampaign', campaign.id, user=request.user)
+        transaction.on_commit(lambda campaign_id=campaign.pk: notify_super_admins_about_campaign(
+            Campaign.objects.select_related('owner', 'program').get(pk=campaign_id)
+        ))
         return Response(CampaignSerializer(campaign).data, status=201)
 
 
@@ -82,15 +95,22 @@ class MyCampaignDetailView(APIView):
             raise serializers.ValidationError('Changes can only be submitted when requested by the reviewer.')
         serializer = CampaignSerializer(campaign, data=request.data, partial=True, context={'request': request})
         serializer.is_valid(raise_exception=True)
-        serializer.save(status=Campaign.Status.PENDING, review_note='')
+        campaign = serializer.save(
+            status=Campaign.Status.PENDING,
+            review_note='',
+            submission_revision=campaign.submission_revision + 1,
+        )
         write_audit_log('UPDATE', 'AdCampaign', campaign.id, {'decision': 'resubmitted'}, user=request.user)
+        transaction.on_commit(lambda campaign_id=campaign.pk: notify_super_admins_about_campaign(
+            Campaign.objects.select_related('owner', 'program').get(pk=campaign_id)
+        ))
         return Response(CampaignSerializer(campaign).data)
 
 
 class AdminCampaignsView(APIView):
     permission_classes = [IsSuperAdmin]
     def get(self, request):
-        campaigns = Campaign.objects.select_related('owner', 'reviewed_by').prefetch_related('payments', 'decisions__actor').all()[:200]
+        campaigns = Campaign.objects.select_related('owner', 'reviewed_by', 'program').prefetch_related('payments', 'decisions__actor').all()[:200]
         results = []
         for campaign in campaigns:
             history = [{'action': d.action, 'note': d.note, 'actor_email': d.actor.email if d.actor else '', 'created_at': d.created_at}
@@ -185,7 +205,54 @@ class ReviewView(APIView):
             campaign.save()
             AdDecision.objects.create(campaign=campaign, actor=request.user, action=decision, note=note)
             write_audit_log('UPDATE', 'AdCampaign', campaign.id, {'decision': decision, 'note': note}, user=request.user)
+        if decision in {'approve', 'reject', 'changes'}:
+            transaction.on_commit(lambda campaign_id=campaign.pk: notify_advertiser_of_review(
+                Campaign.objects.select_related('owner').prefetch_related('decisions').get(pk=campaign_id)
+            ))
         return Response(CampaignSerializer(campaign).data)
+
+
+class AdminProgramsView(APIView):
+    permission_classes = [IsSuperAdmin]
+
+    def get(self, request):
+        programs = AdSubscriptionProgram.objects.all().order_by('sort_order', 'name')
+        return Response(SubscriptionProgramSerializer(programs, many=True).data)
+
+    def post(self, request):
+        serializer = SubscriptionProgramSerializer(data=request.data, context={'request': request})
+        serializer.is_valid(raise_exception=True)
+        program = serializer.save(created_by=request.user, updated_by=request.user)
+        write_audit_log('CREATE', 'AdSubscriptionProgram', program.id, {'code': program.code}, user=request.user)
+        return Response(SubscriptionProgramSerializer(program).data, status=201)
+
+
+class AdminProgramDetailView(APIView):
+    permission_classes = [IsSuperAdmin]
+
+    def patch(self, request, pk):
+        program = get_object_or_404(AdSubscriptionProgram, pk=pk)
+        serializer = SubscriptionProgramSerializer(
+            program, data=request.data, partial=True, context={'request': request},
+        )
+        serializer.is_valid(raise_exception=True)
+        program = serializer.save(updated_by=request.user)
+        write_audit_log(
+            'UPDATE', 'AdSubscriptionProgram', program.id,
+            {'is_active': program.is_active, 'monthly_price_ngn': program.monthly_price_ngn},
+            user=request.user,
+        )
+        return Response(SubscriptionProgramSerializer(program).data)
+
+    def delete(self, request, pk):
+        # Programs are soft-deactivated so campaigns and payment history keep
+        # their foreign-key references and existing subscribers are untouched.
+        program = get_object_or_404(AdSubscriptionProgram, pk=pk)
+        program.is_active = False
+        program.updated_by = request.user
+        program.save(update_fields=['is_active', 'updated_by', 'updated_at'])
+        write_audit_log('UPDATE', 'AdSubscriptionProgram', program.id, {'is_active': False}, user=request.user)
+        return Response(status=204)
 
 
 class AdminSettingsView(APIView):
@@ -268,14 +335,18 @@ class CheckoutView(APIView):
         if not campaign.owner.email:
             raise serializers.ValidationError('Add an email address to your account before subscribing.')
         try:
-            recurring_plan = plan_code(campaign.plan)
+            recurring_amount = campaign_monthly_price_kobo(campaign)
+            recurring_plan = plan_code(
+                campaign.plan, program=campaign.program, amount_kobo=recurring_amount,
+            )
             founding = campaign.founding_offer_awarded and not campaign.payments.exists()
-            amount = FOUNDING_FIRST_MONTH_KOBO if founding else PRICES[campaign.plan]
+            amount = FOUNDING_FIRST_MONTH_KOBO if founding else recurring_amount
             reference = campaign.reference or f'ad-{uuid.uuid4().hex}'
             payload = {'email': campaign.owner.email, 'amount': amount, 'currency': 'NGN', 'reference': reference,
                 'channels': ['card'] if founding else ['card', 'direct_debit'],
-                'metadata': {'ad_campaign_id': str(campaign.id), 'billing_mode': 'FOUNDING_FIRST_MONTH' if founding else 'MONTHLY_SUBSCRIPTION',
-                    'renewal_amount_kobo': PRICES[campaign.plan]}}
+                'metadata': {'ad_campaign_id': str(campaign.id), 'program_id': str(campaign.program_id or ''),
+                    'billing_mode': 'FOUNDING_FIRST_MONTH' if founding else 'MONTHLY_SUBSCRIPTION',
+                    'renewal_amount_kobo': recurring_amount}}
             if settings.FRONTEND_URL:
                 payload['callback_url'] = f"{settings.FRONTEND_URL.rstrip('/')}/app/advertise?campaign={campaign.id}"
             if not founding:
@@ -288,7 +359,7 @@ class CheckoutView(APIView):
         campaign.reference = reference
         campaign.save(update_fields=['reference'])
         return Response({'checkout_url': data['authorization_url'], 'founding_offer': bool(founding),
-            'first_month_amount_ngn': amount // 100, 'renewal_amount_ngn': PRICES[campaign.plan] // 100})
+            'first_month_amount_ngn': amount // 100, 'renewal_amount_ngn': recurring_amount // 100})
 
 class VerifyView(APIView):
     permission_classes = [IsAuthenticated]
@@ -349,10 +420,17 @@ class PlacementView(APIView):
             return Response({'ad': None})
         if placement not in {'home', 'events'}:
             return Response(status=404)
-        campaigns = list(Campaign.objects.filter(status=Campaign.Status.ACTIVE, paid_until__gt=timezone.now()).order_by('id'))
+        campaigns = list(Campaign.objects.filter(
+            status=Campaign.Status.ACTIVE, paid_until__gt=timezone.now(),
+        ).select_related('program').order_by('id'))
+        campaigns = [
+            campaign for campaign in campaigns
+            if placement in (campaign.program.placements if campaign.program_id else ['home', 'events'])
+        ]
         if not campaigns:
             return Response({'ad': None})
-        # Stable per anonymous session / day, with twice the weight for Featured.
+        # Stable per anonymous session / day, with the existing Featured tier
+        # receiving twice the placement weight.
         import hashlib
         choices = [campaign for campaign in campaigns for _ in range(2 if campaign.plan == Campaign.Plan.FEATURED else 1)]
         key = f"{request.META.get('REMOTE_ADDR', '')}:{request.headers.get('User-Agent', '')[:60]}:{timezone.localdate()}"
