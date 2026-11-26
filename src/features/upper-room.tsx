@@ -55,7 +55,9 @@ export function UpperRoomPage() {
   const [caption, setCaption] = useState("");
   const [files, setFiles] = useState<File[]>([]);
   const [selectedBranch, setSelectedBranch] = useState("");
-  const [showIntro, setShowIntro] = useState(true);
+  const [showIntro, setShowIntro] = useState(() => {
+    try { return sessionStorage.getItem("chapelflow:upper-room-intro") !== "1"; } catch { return true; }
+  });
   const [storyFile, setStoryFile] = useState<File | null>(null);
   const [activeStory, setActiveStory] = useState<UpperRoomPost | null>(null);
   const [search, setSearch] = useState("");
@@ -80,9 +82,13 @@ export function UpperRoomPage() {
   }
   const publishStory = useMutation({ mutationFn: async () => upperRoomService.createStory((await prepareSocialMedia([storyFile!]))[0]!, "", selectedBranch || undefined), onSuccess: () => { setStoryFile(null); toast("Your story is live for 24 hours."); void client.invalidateQueries({ queryKey: ["upper-room-stories"] }); }, onError: (error) => toast(failureMessage(error), "error") });
   useEffect(() => {
-    const timer = window.setTimeout(() => setShowIntro(false), reduceMotion ? 500 : 1700);
+    if (!showIntro) return;
+    const timer = window.setTimeout(() => {
+      try { sessionStorage.setItem("chapelflow:upper-room-intro", "1"); } catch { /* Storage may be unavailable. */ }
+      setShowIntro(false);
+    }, reduceMotion ? 0 : 850);
     return () => window.clearTimeout(timer);
-  }, [reduceMotion]);
+  }, [reduceMotion, showIntro]);
   const publish = useMutation({
     mutationFn: async () => upperRoomService.createPost(caption.trim(), await prepareSocialMedia(files), selectedBranch || undefined),
     onSuccess: () => {
@@ -111,10 +117,13 @@ export function UpperRoomPage() {
     publish.mutate();
   }
 
-  if (feed.isPending) return <LoadingState label="Opening The Upper Room" />;
-  if (feed.isError) return <ErrorState description={failureMessage(feed.error)} onRetry={() => void feed.refetch()} />;
   const posts = feed.data?.items ?? [];
   const shownPosts = posts.filter((post) => `${post.authorName} ${post.caption}`.toLowerCase().includes(search.toLowerCase()));
+  function goHome() {
+    setPage(1);
+    setRecentOpen(false);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
   return (
     <div className="upper-room">
       <AnimatePresence>
@@ -127,13 +136,13 @@ export function UpperRoomPage() {
       <header className="upper-room__topbar">
         <div className="upper-room__brand"><span className="upper-room__brand-mark" aria-hidden="true"><Sparkles /></span><strong>The Upper Room</strong></div>
         <label className="upper-room__search"><Search /><input aria-label="Search The Upper Room" placeholder="Search" value={search} onChange={(event) => setSearch(event.target.value)} /></label>
-        <nav aria-label="Upper Room actions"><button type="button" aria-label="Home" onClick={() => { setPage(1); setRecentOpen(false); }}><Home /></button><button type="button" aria-label="Create a post" onClick={() => document.getElementById("upper-room-caption")?.focus()}><PlusSquare /></button><button type="button" onClick={() => setRecentOpen((open) => !open)}>Recent media</button></nav>
+        <nav aria-label="Upper Room actions"><button type="button" aria-label="Home" onClick={goHome}><Home /></button><button type="button" aria-label="Create a post" onClick={() => document.getElementById("upper-room-caption")?.focus()}><PlusSquare /></button><button type="button" onClick={() => setRecentOpen((open) => !open)}>Recent media</button></nav>
       </header>
       <div className="upper-room__layout">
         <main className="upper-room__main">
           <section className="upper-room__stories" aria-label="Upper Room stories"><label className="upper-room__story"><span className="upper-room__story-ring"><span><ImagePlus /></span></span><small>Add story</small><input type="file" accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/quicktime,video/webm" hidden onChange={(event) => { const file = event.target.files?.[0]; if (!file) return; const invalid = mediaFileError(file); if (invalid) toast(invalid, "error"); else setStoryFile(file); event.target.value = ""; }} /></label>{stories.data?.items.map((story, index) => <button type="button" key={story.id} className="upper-room__story" onClick={() => setActiveStory(story)}><span className={`upper-room__story-ring upper-room__story-ring--${index % 3}`}><span>{initials(story.authorName)}</span></span><small>{story.authorName.split(" ")[0]}</small></button>)}</section>
           {stories.isError && <p role="alert">Stories could not be loaded. <button type="button" onClick={() => void stories.refetch()}>Try again</button></p>}
-          {storyFile && <section className="panel"><p>Share {storyFile.name} as a 24-hour story?</p>{user?.role === "super_admin" && <label>Branch <select value={selectedBranch} onChange={(event) => setSelectedBranch(event.target.value)}><option value="">Select branch</option>{feed.data?.branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}</select></label>}<Button disabled={publishStory.isPending || (user?.role === "super_admin" && !selectedBranch)} onClick={() => publishStory.mutate()}>Post story</Button><Button variant="ghost" onClick={() => setStoryFile(null)}>Cancel</Button></section>}
+          {storyFile && <section className="panel"><p>Share {storyFile.name} as a 24-hour story?</p>{user?.role === "super_admin" && <label>Branch <select value={selectedBranch} onChange={(event) => setSelectedBranch(event.target.value)}><option value="">Select branch</option>{feed.data?.branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}</select></label>}{publishStory.isPending && <p role="status">Uploading your story… Keep this page open; mobile video uploads can take a minute.</p>}<Button loading={publishStory.isPending} disabled={publishStory.isPending || (user?.role === "super_admin" && !selectedBranch)} onClick={() => publishStory.mutate()}>Post story</Button><Button variant="ghost" disabled={publishStory.isPending} onClick={() => setStoryFile(null)}>Cancel</Button></section>}
           {activeStory && <section className="upper-room__story-view panel" role="dialog" aria-label="Story"><Button variant="ghost" onClick={() => setActiveStory(null)}>Close story</Button><h2>{activeStory.authorName}</h2>{activeStory.media[0]?.mediaType === "VIDEO" ? <video controls playsInline src={activeStory.media[0].url} /> : <img src={activeStory.media[0]?.url} alt={`Story by ${activeStory.authorName}`} />}</section>}
           {sharedId && <section className="panel"><Button variant="ghost" onClick={() => { params.delete("post"); setParams(params); }}>Close shared post</Button>{shared.isPending ? <LoadingState label="Opening shared post" /> : shared.isError ? <ErrorState description="This post is unavailable or outside your chapel branch." /> : shared.data && <PostCard post={shared.data} onOpen={remember} />}</section>}
           {recentOpen && <section className="panel"><h2>Recently opened media</h2><p>Saved on this device for your account. Private media is fetched again when opened.</p>{recentPosts.isPending ? <LoadingState label="Loading recent media" /> : recentPosts.data?.length ? recentPosts.data.map((post) => <PostCard key={post.id} post={post} onOpen={remember} />) : <EmptyState title="No recent media" description="Media you open will appear here." />}</section>}
@@ -170,13 +179,13 @@ export function UpperRoomPage() {
             </form>
           </section>
           <section className="upper-room__feed" aria-label="Upper Room posts">
-            {shownPosts.length ? shownPosts.map((post) => <PostCard key={post.id} post={post} onOpen={remember} />) : <EmptyState icon={<MessageCircle />} title={search ? "No matching posts" : "The room is ready"} description="Try another search or share a moment with your chapel community." />}
-            <div className="upper-room__pagination"><Button variant="ghost" disabled={page === 1} onClick={() => setPage((current) => current - 1)}>Previous</Button><span>Page {page}</span><Button variant="ghost" disabled={!feed.data?.hasMore} onClick={() => setPage((current) => current + 1)}>Load more</Button></div>
+            {feed.isPending ? <LoadingState label="Loading Upper Room posts" /> : feed.isError ? <ErrorState description={failureMessage(feed.error)} onRetry={() => void feed.refetch()} /> : shownPosts.length ? shownPosts.map((post) => <PostCard key={post.id} post={post} onOpen={remember} />) : <EmptyState icon={<MessageCircle />} title={search ? "No matching posts" : "The room is ready"} description="Try another search or share a moment with your chapel community." />}
+            {!feed.isPending && !feed.isError && <div className="upper-room__pagination"><Button variant="ghost" disabled={page === 1} onClick={() => setPage((current) => current - 1)}>Previous</Button><span>Page {page}</span><Button variant="ghost" disabled={!feed.data?.hasMore} onClick={() => setPage((current) => current + 1)}>Load more</Button></div>}
           </section>
         </main>
         <aside className="upper-room__sidebar"><div className="upper-room__profile"><div className="upper-room__avatar">{user?.photoUrl ? <img src={user.photoUrl} alt="" /> : initials(user?.name || "")}</div><div><strong>{user?.name || "Chapel member"}</strong><small>Chrisland University Chapel</small></div></div><div className="upper-room__suggestions"><header><strong>Recently opened</strong><button type="button" onClick={() => setRecentOpen(true)}>See all</button></header><p>Revisit media you opened on this device.</p><span><Sparkles /> Share with care. Keep the grace.</span></div></aside>
       </div>
-      <nav className="upper-room__mobile-nav" aria-label="Upper Room mobile navigation"><button type="button" aria-label="Home" onClick={() => { setPage(1); setRecentOpen(false); }}><Home /></button><button type="button" aria-label="Search" onClick={() => document.querySelector<HTMLInputElement>(".upper-room__search input")?.focus()}><Search /></button><button type="button" aria-label="Create a post" onClick={() => document.getElementById("upper-room-caption")?.focus()}><PlusSquare /></button><button type="button" onClick={() => setRecentOpen((open) => !open)}>Recent</button><span className="upper-room__avatar" aria-hidden="true">{user?.photoUrl ? <img src={user.photoUrl} alt="" /> : initials(user?.name || "")}</span></nav>
+      <nav className="upper-room__mobile-nav" aria-label="Upper Room mobile navigation"><button type="button" aria-label="Home" onClick={goHome}><Home /></button><button type="button" aria-label="Search" onClick={() => document.querySelector<HTMLInputElement>(".upper-room__search input")?.focus()}><Search /></button><button type="button" aria-label="Create a post" onClick={() => document.getElementById("upper-room-caption")?.focus()}><PlusSquare /></button><button type="button" onClick={() => setRecentOpen((open) => !open)}>Recent</button><span className="upper-room__avatar" aria-hidden="true">{user?.photoUrl ? <img src={user.photoUrl} alt="" /> : initials(user?.name || "")}</span></nav>
     </div>
   );
 }

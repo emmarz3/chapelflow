@@ -153,7 +153,10 @@ describe("authentication recovery flows", () => {
       "300",
     );
     await user.click(screen.getByRole("button", { name: /continue/i }));
-    await user.click(await screen.findByLabelText(/read and accept/i));
+    const terms = await screen.findByLabelText(/read and accept/i);
+    fireEvent.invalid(terms);
+    expect(screen.getByRole("alert")).toHaveTextContent(/accept the Privacy Policy and Terms of Use/i);
+    await user.click(terms);
     await user.click(
       screen.getByRole("button", { name: /submit registration/i }),
     );

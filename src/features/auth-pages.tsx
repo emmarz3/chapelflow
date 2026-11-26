@@ -619,6 +619,15 @@ export function RegisterPage() {
         <motion.form
           key={step}
           onSubmit={(event) => void next(event)}
+          onInvalid={(event) => {
+            const field = event.target as HTMLInputElement | HTMLSelectElement;
+            setError(field.name === "acceptedPolicies"
+              ? "Please read and accept the Privacy Policy and Terms of Use to register."
+              : field.type === "email" && field.validity.typeMismatch
+                ? "Enter a valid email address."
+                : "Complete the highlighted field before continuing.");
+          }}
+          onChangeCapture={() => { if (error) setError(""); }}
           initial={{ opacity: 0, x: 16 }}
           animate={{ opacity: 1, x: 0 }}
           exit={{ opacity: 0, x: -16 }}
