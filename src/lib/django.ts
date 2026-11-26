@@ -416,6 +416,8 @@ export async function djangoRequest(
     );
   if (route === "/account/profile/photo" && method === "POST")
     return call("/auth/profile/photo/", init);
+  if (route === "/account/profile/bio")
+    return call("/auth/profile/bio/", method === "PATCH" ? json("PATCH", body) : init);
   if (route === "/account/profile")
     return call("/auth/profile/", method === "PATCH" ? json("PATCH", body) : undefined);
   if (route === "/uploads" && method === "POST")

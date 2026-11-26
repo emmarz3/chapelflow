@@ -845,6 +845,25 @@ class StudentProfileView(APIView):
         return self.get(request)
 
 
+class ProfileBioView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        return success_response({"bio": request.user.bio})
+
+    def patch(self, request):
+        from rest_framework import serializers
+
+        class BioSerializer(serializers.Serializer):
+            bio = serializers.CharField(max_length=300, allow_blank=True, trim_whitespace=True)
+
+        serializer = BioSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        request.user.bio = serializer.validated_data["bio"]
+        request.user.save(update_fields=["bio"])
+        return success_response({"bio": request.user.bio})
+
+
 class ProfilePhotoUploadView(APIView):
     """Stores the authenticated account's image, for every role."""
     permission_classes = [IsAuthenticated]

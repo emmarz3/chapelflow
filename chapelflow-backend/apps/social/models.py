@@ -21,6 +21,8 @@ class SocialPost(models.Model):
     branch = models.ForeignKey("organizations.Branch", on_delete=models.PROTECT, related_name="upper_room_posts")
     author = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="upper_room_posts")
     caption = models.CharField(max_length=1_000, blank=True)
+    is_story = models.BooleanField(default=False, db_index=True)
+    expires_at = models.DateTimeField(null=True, blank=True)
     status = models.CharField(max_length=12, choices=SocialPostStatus.choices, default=SocialPostStatus.PUBLISHED)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

@@ -119,7 +119,7 @@ export function UsherAttendancePage() {
       } else setMessage(reason || "Check-in failed.");
     }
   }, [scanning, user]);
-  const { videoRef, permissionError } = useQrScanner((token) => { void onScan(token); }, scanning);
+  const { videoRef, permissionError, cameraCount, switchLens } = useQrScanner((token) => { void onScan(token); }, scanning);
   return (
     <main className="usher-checkpoint">
       <header className="usher-checkpoint__header">
@@ -138,6 +138,7 @@ export function UsherAttendancePage() {
         <Button icon={<Camera />} onClick={() => { setMessage(""); setScanning((value) => !value); }}>
           {scanning ? "Stop scanner" : "Scan identity QR"}
         </Button>
+        {scanning && cameraCount > 1 && <Button variant="secondary" icon={<RefreshCw />} onClick={switchLens}>Switch camera</Button>}
       </section>
     </main>
   );

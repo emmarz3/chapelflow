@@ -44,7 +44,7 @@ class SocialPostSerializer(serializers.ModelSerializer):
     class Meta:
         model = SocialPost
         fields = [
-            "id", "caption", "status", "created_at", "updated_at", "author_name", "branch_name",
+            "id", "caption", "status", "created_at", "updated_at", "author_name", "branch_name", "is_story", "expires_at",
             "media", "like_count", "comment_count", "is_liked",
         ]
 

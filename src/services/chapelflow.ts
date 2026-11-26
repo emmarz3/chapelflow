@@ -339,6 +339,8 @@ export const authService = {
     body.set("file", file);
     return api.postForm<{ data: { photo_url: string } }>("/account/profile/photo", body);
   },
+  profileBio: () => api.get<{ data: { bio: string } }>("/account/profile/bio"),
+  updateProfileBio: (bio: string) => api.patch<{ data: { bio: string } }>("/account/profile/bio", { bio }),
 };
 
 export interface StudentProfile {

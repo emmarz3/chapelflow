@@ -15,6 +15,8 @@ export function useQrScanner(onScan: (text: string) => void, scanning: boolean) 
   const controlsRef = useRef<IScannerControls | null>(null);
   const lastValue = useRef("");
   const [permissionError, setPermissionError] = useState<string | null>(null);
+  const [facingMode, setFacingMode] = useState<"environment" | "user">("environment");
+  const [cameraCount, setCameraCount] = useState(0);
 
   const stop = useCallback(() => {
     controlsRef.current?.stop();
@@ -35,7 +37,7 @@ export function useQrScanner(onScan: (text: string) => void, scanning: boolean) 
       try {
         const reader = new BrowserQRCodeReader();
         const controls = await reader.decodeFromConstraints(
-          { video: { facingMode: { ideal: "environment" } }, audio: false },
+          { video: { facingMode: { ideal: facingMode } }, audio: false },
           videoRef.current,
           (result) => {
             const text = result?.getText().trim();
@@ -45,7 +47,12 @@ export function useQrScanner(onScan: (text: string) => void, scanning: boolean) 
           },
         );
         if (cancelled) controls.stop();
-        else controlsRef.current = controls;
+        else {
+          controlsRef.current = controls;
+          void navigator.mediaDevices.enumerateDevices().then((devices) => {
+            if (!cancelled) setCameraCount(devices.filter((device) => device.kind === "videoinput").length);
+          }).catch(() => {});
+        }
       } catch {
         if (!cancelled) {
           setPermissionError(
@@ -59,7 +66,7 @@ export function useQrScanner(onScan: (text: string) => void, scanning: boolean) 
       cancelled = true;
       stop();
     };
-  }, [onScan, scanning, stop]);
+  }, [onScan, scanning, stop, facingMode]);
 
-  return { videoRef, permissionError, stop };
+  return { videoRef, permissionError, stop, cameraCount, switchLens: () => setFacingMode((current) => current === "environment" ? "user" : "environment") };
 }

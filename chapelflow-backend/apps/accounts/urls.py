@@ -13,6 +13,7 @@ urlpatterns = [
     path("change-password/", views.ChangePasswordView.as_view(), name="auth-change-password"),
     path("profile/", views.StudentProfileView.as_view(), name="auth-student-profile"),
     path("profile/photo/", views.ProfilePhotoUploadView.as_view(), name="auth-profile-photo-upload"),
+    path("profile/bio/", views.ProfileBioView.as_view(), name="auth-profile-bio"),
     path("mfa/enroll/", views.MFAEnrollView.as_view(), name="auth-mfa-enroll"),
     path("mfa/confirm/", views.MFAConfirmView.as_view(), name="auth-mfa-confirm"),
     path("mfa/reset/", views.MFAResetView.as_view(), name="auth-mfa-reset"),
