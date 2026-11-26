@@ -92,7 +92,7 @@ function user(value: Row): User {
     "communications.send": ["communication:write", "chapel:announce"],
     "audit.view": ["audit:read"],
     "reports.view": ["analytics:read"],
-    "reports.export": ["analytics:read"],
+    "reports.export": ["reports:export"],
     "groups.view": ["community:view"],
     "groups.create": ["community:manage"],
     "groups.update": ["community:manage"],
