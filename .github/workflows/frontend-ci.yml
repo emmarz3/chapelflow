@@ -7,6 +7,12 @@ on:
       - "package.json"
       - "package-lock.json"
       - ".github/workflows/frontend-ci.yml"
+  push:
+    paths:
+      - "src/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/frontend-ci.yml"
   workflow_dispatch:
 
 permissions:
