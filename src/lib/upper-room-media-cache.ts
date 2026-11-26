@@ -107,16 +107,18 @@ export async function saveRecentUpperRoomPost(
     downloadedBytes += blob.size;
   }
   const mediaById = new Map<string, { id: string; blob: Blob; bytes: number; contentType: string }>();
-  let cachedBytes = 0;
-  for (const item of [...(existing?.media || []), ...downloaded]) {
-    if (!post.media.some((source) => source.id === item.id)) continue;
-    mediaById.delete(item.id);
-    if (cachedBytes + item.bytes > MAX_POST_BYTES) continue;
-    mediaById.set(item.id, item);
-    cachedBytes += item.bytes;
+  for (const item of existing?.media || []) {
+    if (post.media.some((source) => source.id === item.id)) mediaById.set(item.id, item);
   }
-  const media = Array.from(mediaById.values());
-  const bytes = media.reduce((total, item) => total + item.bytes, 0);
+  for (const item of downloaded) mediaById.set(item.id, item);
+
+  const media: Array<{ id: string; blob: Blob; bytes: number; contentType: string }> = [];
+  let bytes = 0;
+  for (const item of mediaById.values()) {
+    if (bytes + item.bytes > MAX_POST_BYTES) continue;
+    media.push(item);
+    bytes += item.bytes;
+  }
   const record: CachedUpperRoomPost = {
     key: userId + ":" + post.id,
     userId,
