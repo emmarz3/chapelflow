@@ -10,6 +10,7 @@ import { ReportContentButton } from "./moderation";
 import { prepareSocialMedia } from "../lib/media-compress";
 import { getRecentUpperRoomPosts, saveRecentUpperRoomPost } from "../lib/upper-room-media-cache";
 import { createUpperRoomShareFile, downloadShareImage } from "../lib/upper-room-share";
+import { createUpperRoomMediaFiles, downloadUpperRoomMediaFiles, formatShareFileSize } from "../lib/upper-room-media-share";
 
 function failureMessage(error: unknown) {
   return error instanceof Error ? error.message : "The Upper Room could not complete that action. Try again.";
@@ -260,10 +261,14 @@ function PostCard({ post, onOpen }: { post: UpperRoomPost; onOpen?: (post: Upper
   const [shareOpen, setShareOpen] = useState(false);
   const [comment, setComment] = useState("");
   const [shareImageUrl, setShareImageUrl] = useState("");
+  const [shareAttachments, setShareAttachments] = useState<Array<{ file: File; previewUrl: string }>>([]);
   const [shareBusy, setShareBusy] = useState(false);
   useEffect(() => () => {
     if (shareImageUrl) URL.revokeObjectURL(shareImageUrl);
   }, [shareImageUrl]);
+  useEffect(() => () => {
+    shareAttachments.forEach((attachment) => URL.revokeObjectURL(attachment.previewUrl));
+  }, [shareAttachments]);
   const comments = useQuery({ queryKey: ["upper-room-comments", post.id], queryFn: async () => (await upperRoomService.comments(post.id)).data, enabled: showComments });
   const like = useMutation({ mutationFn: () => upperRoomService.toggleLike(post.id), onSuccess: () => void client.invalidateQueries({ queryKey: ["upper-room"] }), onError: (error) => toast(failureMessage(error), "error") });
   const remove = useMutation({ mutationFn: () => upperRoomService.deletePost(post.id), onSuccess: () => { toast("Post removed."); void client.invalidateQueries({ queryKey: ["upper-room"] }); }, onError: (error) => toast(failureMessage(error), "error") });
@@ -286,29 +291,55 @@ function PostCard({ post, onOpen }: { post: UpperRoomPost; onOpen?: (post: Upper
   async function share() {
     setShareBusy(true);
     try {
-      const file = await createUpperRoomShareFile(post);
-      setShareImageUrl(URL.createObjectURL(file));
+      const files = post.media.length
+        ? await createUpperRoomMediaFiles(post)
+        : [await createUpperRoomShareFile(post)];
+
+      if (!post.media.length) {
+        setShareImageUrl(URL.createObjectURL(files[0]));
+      } else {
+        setShareAttachments(files.map((file) => ({ file, previewUrl: URL.createObjectURL(file) })));
+      }
+
       const shareData = {
         title: `${post.authorName} · The Upper Room`,
-        text: (post.caption || "A chapel moment") + `\n\nOpen in ChapelFlow: ${postUrl}`,
-        url: postUrl,
-        files: [file],
+        text: (post.caption || "A moment from our chapel community.") + `\n\nOpen in ChapelFlow: ${postUrl}`,
+        files,
       };
-      const canShareFile = typeof navigator.share === "function" &&
-        typeof navigator.canShare === "function" && navigator.canShare({ files: [file] });
-      if (canShareFile) {
+      const canShareFiles = typeof navigator.share === "function" &&
+        typeof navigator.canShare === "function" && navigator.canShare({ files });
+
+      if (canShareFiles) {
         await navigator.share(shareData);
       } else {
-        downloadShareImage(file);
+        if (post.media.length) downloadUpperRoomMediaFiles(files);
+        else downloadShareImage(files[0]);
         try {
           await navigator.clipboard.writeText(postUrl);
-          toast("Image card downloaded and the private post link copied.");
+          toast(post.media.length
+            ? `${files.length} media ${files.length === 1 ? "file was" : "files were"} downloaded and the private post link was copied.`
+            : "Share image downloaded and the private post link copied.");
         } catch {
-          toast("Image card downloaded. Copy the post link from the Share panel to send it with the image.");
+          toast(post.media.length
+            ? "Media files downloaded. Copy the private post link from this panel to share them."
+            : "Share image downloaded. Copy the private post link from this panel to share it.");
         }
       }
     } catch (error) {
       if ((error as DOMException).name !== "AbortError") toast(failureMessage(error), "error");
+    } finally {
+      setShareBusy(false);
+    }
+  }
+  async function downloadMediaFiles() {
+    setShareBusy(true);
+    try {
+      const files = await createUpperRoomMediaFiles(post);
+      setShareAttachments(files.map((file) => ({ file, previewUrl: URL.createObjectURL(file) })));
+      downloadUpperRoomMediaFiles(files);
+      toast(`${files.length} media ${files.length === 1 ? "file is" : "files are"} downloading.`);
+    } catch (error) {
+      toast(failureMessage(error), "error");
     } finally {
       setShareBusy(false);
     }
@@ -332,7 +363,44 @@ function PostCard({ post, onOpen }: { post: UpperRoomPost; onOpen?: (post: Upper
     {post.media.length > 0 && <div className={`upper-room-post__media upper-room-post__media--${Math.min(post.media.length, 4)}`} onClick={() => onOpen?.(post)}>{post.media.map((media) => !media.url ? <div key={media.id} className="upper-room-post__offline-placeholder" role="img" aria-label="This media was not saved for offline viewing">Not saved offline</div> : media.mediaType === "VIDEO" ? <video key={media.id} controls preload="metadata" playsInline onPlay={() => onOpen?.(post)}><source src={media.url} /></video> : <img key={media.id} src={media.url} alt="Shared Upper Room post" loading="lazy" />)}</div>}
     <div className="upper-room-post__counts"><span>{post.likeCount ? `${post.likeCount} ${post.likeCount === 1 ? "like" : "likes"}` : "Be the first to like this"}</span><button type="button" onClick={() => setShowComments((open) => !open)}>{post.commentCount ? `${post.commentCount} ${post.commentCount === 1 ? "comment" : "comments"}` : "Comment"}</button></div>
     <div className="upper-room-post__actions"><button type="button" className={post.isLiked ? "is-liked" : ""} disabled={like.isPending} onClick={() => like.mutate()}><Heart fill={post.isLiked ? "currentColor" : "none"} /> {post.isLiked ? "Liked" : "Like"}</button><button type="button" onClick={() => setShowComments((open) => !open)}><MessageCircle /> Comment</button><button type="button" onClick={() => setShareOpen((open) => !open)}><Share2 /> Share</button><ReportContentButton targetKind="POST" targetId={post.id} label="Report post" /></div>
-    {shareOpen && <div className="upper-room__share-panel"><div className="upper-room__share-card">{post.media.find((item) => item.mediaType === "IMAGE")?.url && <img src={post.media.find((item) => item.mediaType === "IMAGE")!.url} alt="Shared post preview" />}<div><small>CHAPELFLOW · THE UPPER ROOM</small><strong>{post.caption || "A chapel moment"}</strong><span>{post.authorName} · {post.branchName}</span></div></div>{shareImageUrl && <img className="upper-room__share-image-preview" src={shareImageUrl} alt="Generated ChapelFlow share image card" />}<p>The generated image can be shared as a picture. Its link opens the original post, which is available to signed-in chapel members only.</p><div className="upper-room__share-actions"><Button variant="secondary" disabled={shareBusy} loading={shareBusy} onClick={() => void generateShareImage()}>{shareImageUrl ? "Regenerate image card" : "Generate image card"}</Button><Button disabled={shareBusy} loading={shareBusy} onClick={() => void share()}><Share2 /> Share image card</Button><Button variant="ghost" disabled={shareBusy} onClick={() => void downloadCard()}>Download image</Button><Button variant="ghost" onClick={() => void navigator.clipboard.writeText(postUrl).then(() => toast("Private post link copied."), () => toast("Could not copy the post link.", "error"))}>Copy post link</Button></div></div>}
+    {shareOpen && <div className="upper-room__share-panel">
+      <div className="upper-room__share-card">
+        <div><small>CHAPELFLOW · THE UPPER ROOM</small><strong>{post.caption || "A moment from our chapel community."}</strong><span>{post.authorName} · {post.branchName || "The Upper Room"}</span></div>
+      </div>
+      {post.media.length > 0 ? <section className="upper-room__share-media" aria-label="Files attached to this post">
+        <div className="upper-room__share-section-heading"><strong>Files in this post</strong><span>{post.media.length} {post.media.length === 1 ? "file" : "files"}</span></div>
+        <div className="upper-room__share-media-grid">
+          {post.media.map((media, index) => <article className="upper-room__share-media-item" key={media.id}>
+            {media.url ? media.mediaType === "VIDEO"
+              ? <video controls playsInline preload="metadata" aria-label={`Video attachment ${index + 1}`}><source src={media.url} /></video>
+              : <img src={media.url} alt={`Image attachment ${index + 1}`} loading="lazy" />
+              : <div className="upper-room__share-media-unavailable">Media is not available on this device</div>}
+            <div className="upper-room__share-media-meta"><strong>{media.mediaType === "VIDEO" ? "Video" : "Photo"} {index + 1}</strong><span>{media.mediaType === "VIDEO" ? "Video file" : "Image file"} · Included when you share</span></div>
+          </article>)}
+        </div>
+      </section> : <p className="upper-room__share-empty">This post has no attached media. You can share it as a ChapelFlow image card.</p>}
+      {shareAttachments.length > 0 && <section className="upper-room__share-ready" aria-live="polite">
+        <div className="upper-room__share-section-heading"><strong>Files ready to share</strong><span>{shareAttachments.length} prepared</span></div>
+        <div className="upper-room__share-ready-list">
+          {shareAttachments.map(({ file, previewUrl }) => <div className="upper-room__share-ready-file" key={file.name}>
+            {file.type.startsWith("video/") ? <video src={previewUrl} muted playsInline preload="metadata" /> : <img src={previewUrl} alt="" />}
+            <span><strong>{file.name}</strong><small>{file.type.startsWith("video/") ? "Video" : "Image"} · {formatShareFileSize(file.size)}</small></span>
+          </div>)}
+        </div>
+      </section>}
+      {shareImageUrl && <img className="upper-room__share-image-preview" src={shareImageUrl} alt="Generated ChapelFlow share image card" />}
+      <p className="upper-room__share-help">{post.media.length
+        ? "Share sends the original photo and video files as attachments. The post link is included in the message so recipients can open the original ChapelFlow conversation when signed in."
+        : "Generate a branded image card or share the post link. The original post is available to signed-in chapel members."}</p>
+      <div className="upper-room__share-actions">
+        <Button variant="secondary" disabled={shareBusy} loading={shareBusy} onClick={() => void generateShareImage()}>{shareImageUrl ? "Regenerate image card" : "Generate image card"}</Button>
+        <Button disabled={shareBusy} loading={shareBusy} onClick={() => void share()}><Share2 /> {post.media.length ? `Share ${post.media.length} ${post.media.length === 1 ? "file" : "files"}` : "Share image card"}</Button>
+        {post.media.length > 0
+          ? <Button variant="ghost" disabled={shareBusy} onClick={() => void downloadMediaFiles()}>Download media files</Button>
+          : <Button variant="ghost" disabled={shareBusy} onClick={() => void downloadCard()}>Download image card</Button>}
+        <Button variant="ghost" onClick={() => void navigator.clipboard.writeText(postUrl).then(() => toast("Private post link copied."), () => toast("Could not copy the post link.", "error"))}>Copy post link</Button>
+      </div>
+    </div>}
     {showComments && <div className="upper-room-post__comments">{comments.isPending ? <p>Loading conversation…</p> : comments.isError ? <p>Comments could not be loaded. Try again.</p> : comments.data?.length ? comments.data.map((item) => <article key={item.id}><span>{initials(item.authorName)}</span><p><strong>{item.authorName}</strong>{item.body}</p><ReportContentButton targetKind="COMMENT" targetId={item.id} label="Report comment" /></article>) : <p>Start the conversation with kindness.</p>}<form onSubmit={(event) => { event.preventDefault(); if (comment.trim()) addComment.mutate(); }}><input value={comment} onChange={(event) => setComment(event.target.value)} maxLength={750} placeholder="Add a thoughtful comment…" aria-label="Add a comment" /><Button type="submit" variant="ghost" loading={addComment.isPending} icon={<Send />}>Post</Button></form></div>}
   </article>;
 }
