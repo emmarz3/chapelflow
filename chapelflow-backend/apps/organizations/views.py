@@ -110,6 +110,76 @@ class PublicContentView(APIView):
             .first()
         )
         if not page:
+            # Help & Support must remain available even before an administrator
+            # publishes a CMS contact page. These are the same official contact
+            # channels already displayed in the ChapelFlow site footer.
+            if slug == "contact":
+                return success_response({
+                    "slug": "contact",
+                    "eyebrow": "CHAPELFLOW HELP & SUPPORT",
+                    "title": "How can we help?",
+                    "description": (
+                        "Get help with your ChapelFlow account or contact "
+                        "Chrisland University Chapel directly."
+                    ),
+                    "sections": [
+                        {
+                            "id": "chapelflow-account-support",
+                            "heading": "ChapelFlow account support",
+                            "body": (
+                                "For help signing in, updating your profile, managing "
+                                "notifications, or accessing ChapelFlow features, email "
+                                "the Chapel Office. Briefly describe the issue and the "
+                                "page where it happened. Never send your password or "
+                                "one-time verification code."
+                            ),
+                            "action": {
+                                "label": "Email the Chapel Office",
+                                "href": (
+                                    "mailto:chapel@chrislanduniversity.edu"
+                                    "?subject=ChapelFlow%20Help%20and%20Support"
+                                ),
+                            },
+                        },
+                        {
+                            "id": "chapel-office-phone",
+                            "heading": "Call the Chapel Office",
+                            "body": (
+                                "For direct enquiries, call the Chapel Office using "
+                                "the published contact number."
+                            ),
+                            "action": {
+                                "label": "Call +234 803 606 3523",
+                                "href": "tel:+2348036063523",
+                            },
+                        },
+                        {
+                            "id": "chapel-office-visit",
+                            "heading": "Visit the Chapel",
+                            "body": (
+                                "Chrisland University, Km 5, Ajebo Road, Owode, "
+                                "near Federal Medical Centre, Abeokuta, Ogun State, Nigeria."
+                            ),
+                        },
+                        {
+                            "id": "pastoral-support",
+                            "heading": "Pastoral support",
+                            "body": (
+                                "For personal pastoral support, contact the Chapel Office "
+                                "directly. Please do not share private or sensitive details "
+                                "in public comments or community spaces."
+                            ),
+                            "action": {
+                                "label": "Request support by email",
+                                "href": (
+                                    "mailto:chapel@chrislanduniversity.edu"
+                                    "?subject=Pastoral%20Support%20Request"
+                                ),
+                            },
+                        },
+                    ],
+                    "updatedAt": timezone.now().isoformat(),
+                })
             return error_response("Published page content was not found.", status=404)
         children = published.filter(parent=page).order_by("sort_order", "published_at")
         sections = [{
