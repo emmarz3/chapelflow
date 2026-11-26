@@ -83,7 +83,7 @@ export function UpperRoomPage() {
     catch { setRecentIds([]); }
   }, [recentKey]);
   useEffect(() => {
-    const userId = recentUserId;
+    const userId = recentUserId ?? "";
     if (!recentOpen || !userId) {
       setRecentCachedPosts([]);
       return;
@@ -131,7 +131,7 @@ export function UpperRoomPage() {
     };
   }, [recentOpen, recentUserId, recentIds]);
   function remember(post: UpperRoomPost) {
-    const userId = recentUserId;
+    const userId = recentUserId ?? "";
     if (!post.media.length || post.isStory || !userId) return;
     const updated = [post.id, ...recentIds.filter((id) => id !== post.id)].slice(0, 12);
     setRecentIds(updated);
