@@ -71,7 +71,8 @@ export function UpperRoomPage() {
   const stories = useQuery({ queryKey: ["upper-room-stories"], queryFn: async () => (await upperRoomService.stories()).data });
   const sharedId = params.get("post") || "";
   const shared = useQuery({ queryKey: ["upper-room-shared", sharedId], queryFn: async () => (await upperRoomService.post(sharedId)).data, enabled: Boolean(sharedId), retry: false });
-  const recentKey = `chapelflow:recent-media:${user?.id ?? "anonymous"}`;
+  const recentUserId = user?.id;
+  const recentKey = `chapelflow:recent-media:${recentUserId ?? "anonymous"}`;
   const [recentIds, setRecentIds] = useState<string[]>(() => {
     try { return JSON.parse(localStorage.getItem(recentKey) || "[]") as string[]; } catch { return []; }
   });
@@ -82,7 +83,8 @@ export function UpperRoomPage() {
     catch { setRecentIds([]); }
   }, [recentKey]);
   useEffect(() => {
-    if (!recentOpen || !user?.id) {
+    const userId = recentUserId;
+    if (!recentOpen || !userId) {
       setRecentCachedPosts([]);
       return;
     }
@@ -91,19 +93,19 @@ export function UpperRoomPage() {
     async function loadRecentMedia() {
       setRecentLoading(true);
       try {
-        let cached = await getRecentUpperRoomPosts(user.id);
+        let cached = await getRecentUpperRoomPosts(userId);
         const cachedIds = new Set(cached.map((item) => item.post.id));
         if (navigator.onLine) {
           for (const id of recentIds.slice(0, 12)) {
             if (cachedIds.has(id)) continue;
             try {
               const post = (await upperRoomService.post(id)).data;
-              await saveRecentUpperRoomPost(user.id, post);
+              await saveRecentUpperRoomPost(userId, post);
             } catch {
               // Older recent-media entries may no longer be accessible.
             }
           }
-          cached = await getRecentUpperRoomPosts(user.id);
+          cached = await getRecentUpperRoomPosts(userId);
         }
         const posts = cached.map((record) => ({
           ...record.post,
@@ -127,13 +129,14 @@ export function UpperRoomPage() {
       active = false;
       objectUrls.forEach((url) => URL.revokeObjectURL(url));
     };
-  }, [recentOpen, user?.id, recentIds]);
+  }, [recentOpen, recentUserId, recentIds]);
   function remember(post: UpperRoomPost) {
-    if (!post.media.length || post.isStory || !user?.id) return;
+    const userId = recentUserId;
+    if (!post.media.length || post.isStory || !userId) return;
     const updated = [post.id, ...recentIds.filter((id) => id !== post.id)].slice(0, 12);
     setRecentIds(updated);
     try { localStorage.setItem(recentKey, JSON.stringify(updated)); } catch { /* Recent IDs are optional; media caching still works. */ }
-    void saveRecentUpperRoomPost(user.id, post).then((result) => {
+    void saveRecentUpperRoomPost(userId, post).then((result) => {
       if (result.cachedCount > 0) toast(result.cachedCount === result.mediaCount
         ? "This post is saved for offline viewing."
         : "Some media could not be saved for offline viewing.");
