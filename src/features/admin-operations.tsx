@@ -16,6 +16,7 @@ import {
   ErrorState,
   LoadingState,
   PageHeader,
+  useToast,
 } from "../components/ui";
 import {
   adminAttendanceService,
@@ -41,6 +42,8 @@ function sessionStatus(session: AdminAttendanceSession) {
 
 export function AdminOperationsPage() {
   const [tab, setTab] = useState<Tab>("attendance");
+  const [auditExporting, setAuditExporting] = useState(false);
+  const toast = useToast();
   const [selectedBranch, setSelectedBranch] = useState("");
   const [sessionError, setSessionError] = useState("");
   const [initialWindow] = useState(() => {
@@ -437,6 +440,18 @@ export function AdminOperationsPage() {
                 <h2>Audit trail</h2>
                 <p>Security and administrative actions are append-only.</p>
               </div>
+              <Button
+                loading={auditExporting}
+                disabled={auditExporting}
+                onClick={() => {
+                  setAuditExporting(true);
+                  void securityService.exportAuditPdf()
+                    .catch((error) => toast(error instanceof Error ? error.message : "Could not export the audit trail.", "error"))
+                    .finally(() => setAuditExporting(false));
+                }}
+              >
+                Export full audit PDF
+              </Button>
             </div>
           </header>
           {audit.isPending ? (
