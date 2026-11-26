@@ -931,8 +931,8 @@ export const attendanceService = {
       message?: string;
     }>("/attendance/student-scan", { token }),
   studentCode: (sessionId: string, code: string) => {
-    const normalizedCode = code.replace(/\\D/g, "").slice(0, 6);
-    if (!sessionId || !/^\\d{6}$/.test(normalizedCode)) {
+    const normalizedCode = code.replace(/\D/g, "").slice(0, 6);
+    if (!sessionId || !/^\d{6}$/.test(normalizedCode)) {
       throw new Error("Enter the current 6-digit attendance code shown by your usher.");
     }
     return api.post<{ data: { result: "recorded" | "duplicate"; record: AttendanceRecord }; message?: string }>(
