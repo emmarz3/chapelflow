@@ -2807,7 +2807,7 @@ function LiveSecurityPanel() {
 
 export function LiveAnalyticsPage() {
   const { user } = useAuth();
-  const canExport = hasPermission(user, "analytics:read");
+  const canExport = hasPermission(user, "reports:export");
   const [range, setRange] = useState<"semester" | "previous_semester" | "year">("semester");
   const [exporting, setExporting] = useState(false);
   const toast = useToast();
