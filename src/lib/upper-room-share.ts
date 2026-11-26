@@ -12,18 +12,23 @@ function wrapText(
   const words = value.trim().split(/\s+/).filter(Boolean);
   const lines: string[] = [];
   let line = "";
+  let truncated = false;
   for (const word of words) {
     const candidate = line ? line + " " + word : word;
     if (line && context.measureText(candidate).width > maxWidth) {
       lines.push(line);
       line = word;
-      if (lines.length === maxLines) break;
+      if (lines.length === maxLines) {
+        truncated = true;
+        break;
+      }
     } else {
       line = candidate;
     }
   }
   if (line && lines.length < maxLines) lines.push(line);
-  if (lines.length === maxLines && words.length > 0) {
+  else if (line) truncated = true;
+  if (truncated && lines.length > 0) {
     const last = lines[maxLines - 1] || "";
     lines[maxLines - 1] = last.length > 3 ? last.replace(/[.,;:!?]?$/, "…") : last + "…";
   }
@@ -103,16 +108,13 @@ export async function createUpperRoomShareCard(post: UpperRoomPost): Promise<Blo
   context.fillRect(665, 88, 56, 5);
   context.fillStyle = "#f3d989";
   context.font = "700 22px Arial, sans-serif";
-  context.letterSpacing = "3px";
   context.fillText("CHAPELFLOW", 665, 135);
   context.fillStyle = "#ffffff";
   context.font = "700 40px Arial, sans-serif";
-  context.letterSpacing = "1px";
   context.fillText("THE UPPER ROOM", 665, 190);
 
   context.fillStyle = "#f6eef9";
   context.font = "600 31px Arial, sans-serif";
-  context.letterSpacing = "0px";
   const caption = post.caption || "A moment from our chapel community.";
   const lines = wrapText(context, caption, 455, 5);
   let captionY = 285;
