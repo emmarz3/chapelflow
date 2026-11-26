@@ -95,7 +95,7 @@ def test_failed_renewal_pauses_ad_even_before_paid_until(users):
         subscription_code='SUB_test', paid_until=timezone.now() + timedelta(days=20))
     body = json.dumps({'event': 'invoice.payment_failed', 'data': {'subscription': {'subscription_code': 'SUB_test'}}}).encode()
     signature = hmac.new(b'test-secret', body, hashlib.sha512).hexdigest()
-    response = APIClient().post('/api/v1/payments/webhook/paystack/', data=body,
+    response = APIClient().post('/api/v1/ads/paystack/webhook/', data=body,
         content_type='application/json', HTTP_X_PAYSTACK_SIGNATURE=signature)
     assert response.status_code == 200, response.data
     campaign.refresh_from_db()
