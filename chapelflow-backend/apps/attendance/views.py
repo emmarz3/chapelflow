@@ -635,8 +635,15 @@ class MemberAttendancePassView(APIView):
         member = Member.objects.select_related("department").filter(user=request.user).first()
         if request.user.get_role_code() != Roles.MEMBER or not is_student_community_member(member):
             return error_response("This pass is available only to student accounts.", status=403)
+        # Match the usher checkpoint selector exactly. A paused session may
+        # retain is_open=True for administration, but it must never be offered
+        # as the target for a rotating attendance code.
         session = (
-            AttendanceSession.objects.filter(branch=member.branch, is_open=True)
+            AttendanceSession.objects.filter(
+                branch=member.branch,
+                is_open=True,
+                state=AttendanceSessionState.OPEN,
+            )
             .order_by("-opened_at")
             .first()
         )
@@ -652,6 +659,8 @@ class MemberAttendancePassView(APIView):
             session_state = session.state.lower()
             if session.window_opens_at and session.window_opens_at > now:
                 session_state = "upcoming"
+            elif session.window_closes_at and session.window_closes_at <= now:
+                session_state = "closed"
         return success_response({
             "student": {
                 "name": member.full_name,
