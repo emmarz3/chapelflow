@@ -135,7 +135,7 @@ export async function apiRequest<T>(
 async function rawRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
   const controller = new AbortController();
   const timeout = window.setTimeout(() => controller.abort(),
-    ["/social/posts/", "/uploads/upload/"].includes(path) && init.body instanceof FormData ? 115_000 : 60_000);
+    ["/social/posts/", "/social/stories/", "/uploads/upload/"].includes(path) && init.body instanceof FormData ? 115_000 : 60_000);
   try {
     const signal = init.signal
       ? AbortSignal.any([init.signal, controller.signal])

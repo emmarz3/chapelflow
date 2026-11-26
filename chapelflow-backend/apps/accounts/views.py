@@ -2,6 +2,8 @@ from django.contrib.auth import get_user_model
 from django.conf import settings
 from django.db import transaction
 from django.core.signing import BadSignature, SignatureExpired
+from django.core import signing
+from django.core.mail import send_mail
 from django.db.models import Q
 from django.utils import timezone
 import secrets
@@ -157,7 +159,17 @@ class RegisterView(APIView):
         serializer = RegisterSerializer(data=request.data)
         if not serializer.is_valid():
             return error_response("Validation failed.", serializer.errors, status=400)
+        verify = settings.EMAIL_VERIFICATION_REQUIRED
+        if verify and not (settings.EMAIL_HOST and settings.EMAIL_HOST_USER and settings.EMAIL_HOST_PASSWORD and settings.FRONTEND_URL):
+            return error_response("Email verification is temporarily unavailable. Please try again later.", status=503)
+        if verify and not serializer.validated_data.get("email"):
+            return error_response("An email address is required to verify your account.", {"email": ["Enter your email address."]}, status=400)
         user = serializer.save()
+        if verify:
+            user.is_active = False
+            user.save(update_fields=["is_active"])
+            _send_verification(user)
+            return success_response({"verification_required": True, "approval_required": False}, message="Check your email for a verification link.", status=201)
         tokens = RefreshToken.for_user(user)
         response = success_response(
             {"access": str(tokens.access_token), "refresh": str(tokens), "user": UserPublicSerializer(user).data},
@@ -165,6 +177,45 @@ class RegisterView(APIView):
             status=201,
         )
         return _set_auth_cookies(response, str(tokens.access_token), str(tokens))
+
+
+def _send_verification(user):
+    from django.db import transaction
+    from .tasks import send_registration_verification_email
+    token = signing.dumps({"id": str(user.pk), "email": user.email}, salt="chapelflow-email-verification")
+    transaction.on_commit(lambda: send_registration_verification_email.delay(str(user.pk), token))
+
+
+class VerifyEmailView(APIView):
+    permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "auth"
+
+    def post(self, request):
+        try:
+            payload = signing.loads(str(request.data.get("token") or ""), salt="chapelflow-email-verification", max_age=24 * 3600)
+            user = User.objects.get(pk=payload["id"], email__iexact=payload["email"])
+        except (BadSignature, SignatureExpired, User.DoesNotExist, KeyError, ValueError, TypeError):
+            return error_response("This verification link has expired or was already used.", status=400)
+        if user.is_active:
+            return error_response("This verification link has already been used.", status=400)
+        user.is_active = True
+        user.save(update_fields=["is_active"])
+        return success_response({"verified": True})
+
+
+class ResendVerificationView(APIView):
+    permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "auth"
+
+    def post(self, request):
+        email = str(request.data.get("email") or "").strip()
+        if email:
+            user = User.objects.filter(email__iexact=email, is_active=False).first()
+            if user and settings.EMAIL_VERIFICATION_REQUIRED:
+                _send_verification(user)
+        return success_response(message="If this email has a pending registration, a new link will arrive shortly.")
 
 
 class LocalSuperAdminSetupView(APIView):
@@ -843,6 +894,25 @@ class StudentProfileView(APIView):
             if member_fields:
                 member.save(update_fields=list(set(member_fields)))
         return self.get(request)
+
+
+class ProfileBioView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        return success_response({"bio": request.user.bio})
+
+    def patch(self, request):
+        from rest_framework import serializers
+
+        class BioSerializer(serializers.Serializer):
+            bio = serializers.CharField(max_length=300, allow_blank=True, trim_whitespace=True)
+
+        serializer = BioSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        request.user.bio = serializer.validated_data["bio"]
+        request.user.save(update_fields=["bio"])
+        return success_response({"bio": request.user.bio})
 
 
 class ProfilePhotoUploadView(APIView):

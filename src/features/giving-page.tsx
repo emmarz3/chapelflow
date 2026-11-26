@@ -9,6 +9,13 @@ const givingOptions: { value: PersonalGivingType; title: string; description: st
   { value: "OFFERING", title: "Offering", description: "A personal gift in support of chapel ministry." },
   { value: "TITHE", title: "Tithe", description: "A personal tithe given through the chapel." },
 ];
+const MIN_GIVING = 100;
+const MAX_GIVING = 1_000_000;
+function formatGiving(value: string) {
+  const clean = value.replace(/[^\d.]/g, "");
+  const [whole = "", ...fraction] = clean.split(".");
+  return `${whole.slice(0, 7).replace(/\B(?=(\d{3})+(?!\d))/g, ",")}${fraction.length ? `.${fraction.join("").slice(0, 2)}` : ""}`;
+}
 
 function messageFor(error: unknown) {
   return error instanceof Error ? error.message : "We could not complete that request. Please try again.";
@@ -44,8 +51,9 @@ export function GivingPage() {
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!amount || Number(amount) <= 0) {
-      setFormNotice("Enter an amount greater than ₦0.00.");
+    const rawAmount = amount.replaceAll(",", "");
+    if (!rawAmount || Number(rawAmount) < MIN_GIVING || Number(rawAmount) > MAX_GIVING) {
+      setFormNotice("Enter an amount from ₦100 to ₦1,000,000.");
       return;
     }
     if (!confirmed) {
@@ -53,7 +61,7 @@ export function GivingPage() {
       return;
     }
     setFormNotice("");
-    checkout.mutate({ givingType, amount, note: note.trim(), termsAccepted: confirmed });
+    checkout.mutate({ givingType, amount: rawAmount, note: note.trim(), termsAccepted: confirmed });
   }
 
   const result = verification.data?.data;
@@ -79,7 +87,7 @@ export function GivingPage() {
           <div className="giving-checkout__heading"><div><p className="eyebrow">1 · Choose your giving</p><h2>Make it clear before you pay.</h2></div><span><ShieldCheck /> Secure checkout</span></div>
           <form onSubmit={submit} noValidate>
             <fieldset className="giving-type-picker"><legend>Giving type</legend><div>{givingOptions.map((option) => <label key={option.value} className={givingType === option.value ? "is-selected" : ""}><input type="radio" name="givingType" value={option.value} checked={givingType === option.value} onChange={() => setGivingType(option.value)} /><span><strong>{option.title}</strong><small>{option.description}</small></span></label>)}</div></fieldset>
-            <label className="field giving-amount"><span>Amount <em>Required</em></span><div><span aria-hidden="true">₦</span><input value={amount} onChange={(event) => setAmount(event.target.value)} inputMode="decimal" type="number" min="1" step="0.01" placeholder="0.00" required /></div><small>Payments are processed in Nigerian Naira (NGN).</small></label>
+            <label className="field giving-amount"><span>Amount <em>Required</em></span><div><span aria-hidden="true">₦</span><input aria-label="Amount in naira" value={amount} onChange={(event) => setAmount(formatGiving(event.target.value))} inputMode="decimal" type="text" pattern="[0-9,]+(\\.[0-9]{1,2})?" placeholder="0.00" required /></div><small>₦100 to ₦1,000,000 · Processed in Nigerian Naira (NGN).</small></label>
             <label className="field"><span>Private note <small>(optional)</small></span><textarea value={note} onChange={(event) => setNote(event.target.value)} maxLength={500} rows={3} placeholder="For example: September tithe" /></label>
             <label className="giving-confirmation"><input type="checkbox" checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)} /><span>I have reviewed the amount and giving type. I understand that ChapelFlow will take me to Paystack to complete this payment securely.</span></label>
             {formNotice && <p className="form-note field__error" role="alert">{formNotice}</p>}

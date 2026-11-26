@@ -84,9 +84,10 @@ def test_idempotent_delivery_and_accurate_read_counts(api_client, accounts):
         Notification.objects.create(recipient=owner, category=NotificationCategory.ADMIN_ALERT, channel=NotificationChannel.IN_APP, title=f"Alert {index}", body="Open")
     foreign = Notification.objects.create(recipient=other, category=NotificationCategory.EVENT, channel=NotificationChannel.IN_APP, title="Other", body="Private")
     api_client.force_authenticate(user=owner)
-    assert api_client.get("/api/v1/notifications/unread-count/").data["data"]["count"] == 31
+    # Email deliveries do not create unread cards in the onsite inbox.
+    assert api_client.get("/api/v1/notifications/unread-count/").data["data"]["count"] == 30
     assert api_client.post(f"/api/v1/notifications/{foreign.id}/mark-read/").status_code == 404
-    assert api_client.post(f"/api/v1/notifications/{first.id}/mark-read/").status_code == 200
+    assert api_client.post(f"/api/v1/notifications/{first.id}/mark-read/").status_code == 404
     assert api_client.get("/api/v1/notifications/unread-count/").data["data"]["count"] == 30
 
 

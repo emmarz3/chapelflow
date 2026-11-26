@@ -64,7 +64,7 @@ class UserPublicSerializer(serializers.ModelSerializer):
             "full_name", "phone_number", "role", "branch", "mfa_enabled", "mfa_required",
             "is_active", "password_change_required", "date_joined", "effective_permissions",
             "inventory_access", "media_access", "community", "institutional_office",
-            "institutional_group_name", "photo_url",
+            "institutional_group_name", "photo_url", "bio",
         ]
         read_only_fields = fields
 

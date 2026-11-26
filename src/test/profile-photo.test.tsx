@@ -48,7 +48,7 @@ describe("Profile photo upload", () => {
     mocks.upload.mockRejectedValue(new Error("Photo storage is unavailable."));
     mount();
     fireEvent.change(screen.getByLabelText("Choose profile picture"), { target: { files: [new File(["photo"], "photo.png", { type: "image/png" })] } });
-    fireEvent.click(screen.getByRole("button", { name: "Save profile picture" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Save profile picture" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Photo storage is unavailable.");
     await waitFor(() => expect(screen.getByRole("button", { name: "Save profile picture" })).toBeEnabled());
     expect(mocks.setPhoto).not.toHaveBeenCalled();

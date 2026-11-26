@@ -66,8 +66,14 @@ def _can_moderate(user):
     return _role(user) in {Roles.SUPER_ADMIN, Roles.CHAPEL_ADMIN, Roles.CHAPLAIN, Roles.STUDENT_CHAPLAIN}
 
 
-def _posts_for(user):
+def _posts_for(user, *, stories=False):
     posts = SocialPost.objects.filter(status=SocialPostStatus.PUBLISHED)
+    if stories is True:
+        posts = posts.filter(is_story=True, expires_at__gt=timezone.now())
+    elif stories is False:
+        posts = posts.filter(is_story=False)
+    else:
+        posts = posts.filter(Q(is_story=False) | Q(expires_at__gt=timezone.now()))
     if _role(user) != Roles.SUPER_ADMIN:
         posts = posts.filter(branch=_branch(user))
     return (
@@ -90,7 +96,7 @@ def _posts_for(user):
 
 
 def _post_or_404(user, pk):
-    post = _posts_for(user).filter(pk=pk).first()
+    post = _posts_for(user, stories=None).filter(pk=pk).first()
     if not post:
         raise ValidationError({"post": "This post is unavailable in your chapel feed."})
     return post
@@ -114,7 +120,7 @@ class SocialMediaView(APIView):
     def get(self, request, pk):
         upload = get_object_or_404(
             Upload, pk=pk, category=UploadCategory.SOCIAL_POST,
-            upper_room_media__post__in=_posts_for(request.user),
+            upper_room_media__post__in=_posts_for(request.user, stories=None),
         )
         if settings.AWS_S3_ENDPOINT_URL and upload.file_url.startswith(
             f"{urlparse(settings.AWS_S3_ENDPOINT_URL).scheme}://{settings.AWS_STORAGE_BUCKET_NAME}."
@@ -193,6 +199,7 @@ class SocialPostCollectionView(APIView):
 
     def post(self, request):
         branch = _branch(request.user, request.data.get("branch"))
+        is_story = request.resolver_match.url_name == "social-stories"
         caption = str(request.data.get("caption", "")).strip()
         files = request.FILES.getlist("files")
         if not caption and not files:
@@ -206,6 +213,10 @@ class SocialPostCollectionView(APIView):
             raise ValidationError({"caption": "You recently shared this post."})
         if len(files) > 4:
             raise ValidationError({"files": "Add up to four photos or videos in one post."})
+        if sum(file_obj.size for file_obj in files) > 50 * 1024 * 1024:
+            raise ValidationError({"files": "An Upper Room post may contain at most 50 MB of media in total."})
+        if is_story and len(files) != 1:
+            raise ValidationError({"files": "Choose one photo or video for a story."})
 
         media = []
         for file_obj in files:
@@ -217,7 +228,7 @@ class SocialPostCollectionView(APIView):
             else:
                 raise ValidationError({"files": "The Upper Room accepts image and video files only."})
             try:
-                validate_upload(file_obj, max_size_mb=getattr(settings, "MAX_MEDIA_UPLOAD_SIZE_MB", 100))
+                validate_upload(file_obj, max_size_mb=50)
                 validate_social_media(file_obj)
             except DjangoValidationError as exc:
                 raise ValidationError({"files": exc.messages}) from exc
@@ -232,7 +243,8 @@ class SocialPostCollectionView(APIView):
             )) else "s3"
         storage = get_storage_service(provider or None)
         with transaction.atomic():
-            post = SocialPost.objects.create(branch=branch, author=request.user, caption=caption)
+            post = SocialPost.objects.create(branch=branch, author=request.user, caption=caption, is_story=is_story,
+                                             expires_at=timezone.now() + timedelta(hours=24) if is_story else None)
             for position, (file_obj, media_type) in enumerate(media):
                 file_obj.seek(0)
                 file_url = storage.upload_fileobj(
@@ -250,12 +262,22 @@ class SocialPostCollectionView(APIView):
                     size_bytes=file_obj.size,
                 )
                 SocialPostMedia.objects.create(post=post, upload=upload, media_type=media_type, position=position)
-        post = _posts_for(request.user).get(pk=post.pk)
+        post = _posts_for(request.user, stories=is_story).get(pk=post.pk)
         return success_response(SocialPostSerializer(post, context={"request": request}).data, message="Posted to The Upper Room.", status=201)
+
+
+class SocialStoryCollectionView(SocialPostCollectionView):
+    def get(self, request):
+        stories = _posts_for(request.user, stories=True)[:40]
+        return success_response(SocialPostSerializer(stories, many=True, context={"request": request}).data)
 
 
 class SocialPostDetailView(APIView):
     permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk):
+        post = _post_or_404(request.user, pk)
+        return success_response(SocialPostSerializer(post, context={"request": request}).data)
 
     def delete(self, request, pk):
         post = _post_or_404(request.user, pk)

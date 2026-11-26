@@ -11,6 +11,7 @@ if not SECRET_KEY or SECRET_KEY in {  # noqa: F405
     )
 
 DEBUG = False
+EMAIL_VERIFICATION_REQUIRED = True
 
 SECURE_SSL_REDIRECT = True
 # Render terminates TLS at its edge proxy and forwards this header internally.

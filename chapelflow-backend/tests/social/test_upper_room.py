@@ -3,6 +3,41 @@ import pytest
 
 @pytest.mark.django_db
 class TestUpperRoom:
+    def test_story_upload_is_a_private_24_hour_media_post(self, api_client, make_user, branch_a, settings, tmp_path):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from django.utils import timezone
+        from apps.social.models import SocialPost
+
+        settings.STORAGE_PROVIDER = "local"
+        settings.UPPER_ROOM_STORAGE_PROVIDER = "local"
+        settings.MEDIA_ROOT = tmp_path
+        api_client.force_authenticate(user=make_user(email="story-publisher@chapelflow.test", branch=branch_a))
+        file = SimpleUploadedFile("short.mp4", b"\x00\x00\x00\x18ftypmp42" + b"story clip", "video/mp4")
+        response = api_client.post("/api/v1/social/stories/", {"files": file}, format="multipart")
+        assert response.status_code == 201
+        story = SocialPost.objects.get(pk=response.data["data"]["id"])
+        assert story.is_story
+        assert 23.9 < (story.expires_at - timezone.now()).total_seconds() / 3600 <= 24
+        assert len(response.data["data"]["media"]) == 1
+        assert api_client.get("/api/v1/social/posts/").data["data"]["items"] == []
+
+    def test_story_visibility_and_expiry(self, api_client, make_user, branch_a, branch_b):
+        from datetime import timedelta
+        from django.utils import timezone
+        from apps.social.models import SocialPost
+
+        author = make_user(email="story-author@chapelflow.test", branch=branch_a)
+        api_client.force_authenticate(user=author)
+        live = SocialPost.objects.create(branch=branch_a, author=author, caption="Live story", is_story=True, expires_at=timezone.now() + timedelta(hours=1))
+        expired = SocialPost.objects.create(branch=branch_a, author=author, caption="Expired story", is_story=True, expires_at=timezone.now() - timedelta(seconds=1))
+        foreign = SocialPost.objects.create(branch=branch_b, author=author, caption="Other branch", is_story=True, expires_at=timezone.now() + timedelta(hours=1))
+        stories = api_client.get("/api/v1/social/stories/")
+        assert stories.status_code == 200
+        assert [item["id"] for item in stories.data["data"]] == [str(live.id)]
+        assert api_client.get("/api/v1/social/posts/").data["data"]["items"] == []
+        assert api_client.get(f"/api/v1/social/posts/{expired.id}/").status_code == 400
+        assert api_client.get(f"/api/v1/social/posts/{foreign.id}/").status_code == 400
+
     def test_branchless_super_admin_can_view_post_and_moderate_across_branches(
         self, api_client, make_user, super_admin, branch_a, branch_b,
     ):

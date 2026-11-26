@@ -1,11 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bell, Compass, Heart, Home, ImagePlus, MessageCircle, PlusSquare, Search, Send, Sparkles, Trash2, Video, X } from "lucide-react";
+import { Heart, Home, ImagePlus, MessageCircle, PlusSquare, Search, Send, Sparkles, Trash2, Video, X, Share2 } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { useEffect, useState, type FormEvent } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Button, EmptyState, ErrorState, LoadingState, useToast } from "../components/ui";
 import { upperRoomService, type UpperRoomPost } from "../services/chapelflow";
 import { useAuth } from "./auth-context";
 import { ReportContentButton } from "./moderation";
+import { prepareSocialMedia } from "../lib/media-compress";
 
 function failureMessage(error: unknown) {
   return error instanceof Error ? error.message : "The Upper Room could not complete that action. Try again.";
@@ -40,8 +42,8 @@ function mediaFileError(file: File) {
   if (!UPPER_ROOM_MEDIA_TYPES[extension] || file.type !== UPPER_ROOM_MEDIA_TYPES[extension]) {
     return `${file.name}: use JPG, PNG, GIF, WebP, MP4, MOV, or WebM media.`;
   }
-  if (file.size > 100 * 1024 * 1024) {
-    return `${file.name}: the maximum file size is 100 MB.`;
+  if (file.size > 50 * 1024 * 1024) {
+    return `${file.name}: the maximum file size is 50 MB.`;
   }
   return null;
 }
@@ -54,14 +56,35 @@ export function UpperRoomPage() {
   const [files, setFiles] = useState<File[]>([]);
   const [selectedBranch, setSelectedBranch] = useState("");
   const [showIntro, setShowIntro] = useState(true);
+  const [storyFile, setStoryFile] = useState<File | null>(null);
+  const [activeStory, setActiveStory] = useState<UpperRoomPost | null>(null);
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [recentOpen, setRecentOpen] = useState(false);
+  const [params, setParams] = useSearchParams();
   const reduceMotion = useReducedMotion();
-  const feed = useQuery({ queryKey: ["upper-room", 1], queryFn: async () => (await upperRoomService.feed()).data });
+  const feed = useQuery({ queryKey: ["upper-room", page], queryFn: async () => (await upperRoomService.feed(page)).data });
+  const stories = useQuery({ queryKey: ["upper-room-stories"], queryFn: async () => (await upperRoomService.stories()).data });
+  const sharedId = params.get("post") || "";
+  const shared = useQuery({ queryKey: ["upper-room-shared", sharedId], queryFn: async () => (await upperRoomService.post(sharedId)).data, enabled: Boolean(sharedId), retry: false });
+  const recentKey = `chapelflow:recent-media:${user?.id ?? "anonymous"}`;
+  const [recentIds, setRecentIds] = useState<string[]>(() => {
+    try { return JSON.parse(localStorage.getItem(recentKey) || "[]") as string[]; } catch { return []; }
+  });
+  const recentPosts = useQuery({ queryKey: ["upper-room-recent", user?.id, recentIds], queryFn: async () => (await Promise.all(recentIds.slice(0, 12).map(async (id) => { try { return (await upperRoomService.post(id)).data; } catch { return null; } }))).filter((post): post is UpperRoomPost => Boolean(post)), enabled: recentOpen && recentIds.length > 0 });
+  function remember(post: UpperRoomPost) {
+    if (!post.media.length || post.isStory) return;
+    const updated = [post.id, ...recentIds.filter((id) => id !== post.id)].slice(0, 12);
+    setRecentIds(updated);
+    localStorage.setItem(recentKey, JSON.stringify(updated));
+  }
+  const publishStory = useMutation({ mutationFn: async () => upperRoomService.createStory((await prepareSocialMedia([storyFile!]))[0]!, "", selectedBranch || undefined), onSuccess: () => { setStoryFile(null); toast("Your story is live for 24 hours."); void client.invalidateQueries({ queryKey: ["upper-room-stories"] }); }, onError: (error) => toast(failureMessage(error), "error") });
   useEffect(() => {
     const timer = window.setTimeout(() => setShowIntro(false), reduceMotion ? 500 : 1700);
     return () => window.clearTimeout(timer);
   }, [reduceMotion]);
   const publish = useMutation({
-    mutationFn: () => upperRoomService.createPost(caption.trim(), files, selectedBranch || undefined),
+    mutationFn: async () => upperRoomService.createPost(caption.trim(), await prepareSocialMedia(files), selectedBranch || undefined),
     onSuccess: () => {
       setCaption("");
       setFiles([]);
@@ -81,13 +104,17 @@ export function UpperRoomPage() {
       toast("Add a caption, photo, or video before sharing.", "error");
       return;
     }
+    if (files.reduce((size, file) => size + file.size, 0) > 50 * 1024 * 1024) {
+      toast("A post can contain up to 50 MB of photos and videos in total.", "error");
+      return;
+    }
     publish.mutate();
   }
 
   if (feed.isPending) return <LoadingState label="Opening The Upper Room" />;
   if (feed.isError) return <ErrorState description={failureMessage(feed.error)} onRetry={() => void feed.refetch()} />;
   const posts = feed.data?.items ?? [];
-  const storyNames = Array.from(new Set([user?.name || "You", ...posts.map((post) => post.authorName)])).slice(0, 7);
+  const shownPosts = posts.filter((post) => `${post.authorName} ${post.caption}`.toLowerCase().includes(search.toLowerCase()));
   return (
     <div className="upper-room">
       <AnimatePresence>
@@ -99,12 +126,17 @@ export function UpperRoomPage() {
       </AnimatePresence>
       <header className="upper-room__topbar">
         <div className="upper-room__brand"><span className="upper-room__brand-mark" aria-hidden="true"><Sparkles /></span><strong>The Upper Room</strong></div>
-        <label className="upper-room__search"><Search /><input aria-label="Search The Upper Room" placeholder="Search" /></label>
-        <nav aria-label="Upper Room actions"><button type="button" aria-label="Home"><Home /></button><button type="button" aria-label="Create a post" onClick={() => document.getElementById("upper-room-caption")?.focus()}><PlusSquare /></button><button type="button" aria-label="Explore"><Compass /></button><button type="button" aria-label="Notifications"><Bell /></button><button type="button" aria-label="Messages"><MessageCircle /></button></nav>
+        <label className="upper-room__search"><Search /><input aria-label="Search The Upper Room" placeholder="Search" value={search} onChange={(event) => setSearch(event.target.value)} /></label>
+        <nav aria-label="Upper Room actions"><button type="button" aria-label="Home" onClick={() => { setPage(1); setRecentOpen(false); }}><Home /></button><button type="button" aria-label="Create a post" onClick={() => document.getElementById("upper-room-caption")?.focus()}><PlusSquare /></button><button type="button" onClick={() => setRecentOpen((open) => !open)}>Recent media</button></nav>
       </header>
       <div className="upper-room__layout">
         <main className="upper-room__main">
-          <section className="upper-room__stories" aria-label="Upper Room stories">{storyNames.map((name, index) => <button type="button" key={name} className="upper-room__story"><span className={`upper-room__story-ring upper-room__story-ring--${index % 3}`}><span>{initials(name)}</span></span><small>{name === user?.name ? "Your story" : name.split(" ")[0]}</small></button>)}</section>
+          <section className="upper-room__stories" aria-label="Upper Room stories"><label className="upper-room__story"><span className="upper-room__story-ring"><span><ImagePlus /></span></span><small>Add story</small><input type="file" accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/quicktime,video/webm" hidden onChange={(event) => { const file = event.target.files?.[0]; if (!file) return; const invalid = mediaFileError(file); if (invalid) toast(invalid, "error"); else setStoryFile(file); event.target.value = ""; }} /></label>{stories.data?.items.map((story, index) => <button type="button" key={story.id} className="upper-room__story" onClick={() => setActiveStory(story)}><span className={`upper-room__story-ring upper-room__story-ring--${index % 3}`}><span>{initials(story.authorName)}</span></span><small>{story.authorName.split(" ")[0]}</small></button>)}</section>
+          {stories.isError && <p role="alert">Stories could not be loaded. <button type="button" onClick={() => void stories.refetch()}>Try again</button></p>}
+          {storyFile && <section className="panel"><p>Share {storyFile.name} as a 24-hour story?</p>{user?.role === "super_admin" && <label>Branch <select value={selectedBranch} onChange={(event) => setSelectedBranch(event.target.value)}><option value="">Select branch</option>{feed.data?.branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}</select></label>}<Button disabled={publishStory.isPending || (user?.role === "super_admin" && !selectedBranch)} onClick={() => publishStory.mutate()}>Post story</Button><Button variant="ghost" onClick={() => setStoryFile(null)}>Cancel</Button></section>}
+          {activeStory && <section className="upper-room__story-view panel" role="dialog" aria-label="Story"><Button variant="ghost" onClick={() => setActiveStory(null)}>Close story</Button><h2>{activeStory.authorName}</h2>{activeStory.media[0]?.mediaType === "VIDEO" ? <video controls playsInline src={activeStory.media[0].url} /> : <img src={activeStory.media[0]?.url} alt={`Story by ${activeStory.authorName}`} />}</section>}
+          {sharedId && <section className="panel"><Button variant="ghost" onClick={() => { params.delete("post"); setParams(params); }}>Close shared post</Button>{shared.isPending ? <LoadingState label="Opening shared post" /> : shared.isError ? <ErrorState description="This post is unavailable or outside your chapel branch." /> : shared.data && <PostCard post={shared.data} onOpen={remember} />}</section>}
+          {recentOpen && <section className="panel"><h2>Recently opened media</h2><p>Saved on this device for your account. Private media is fetched again when opened.</p>{recentPosts.isPending ? <LoadingState label="Loading recent media" /> : recentPosts.data?.length ? recentPosts.data.map((post) => <PostCard key={post.id} post={post} onOpen={remember} />) : <EmptyState title="No recent media" description="Media you open will appear here." />}</section>}
           <section className="upper-room__composer panel" aria-label="Create an Upper Room post">
             <div className="upper-room__avatar" aria-hidden="true">{user?.photoUrl ? <img src={user.photoUrl} alt="" /> : initials(user?.name || "")}</div>
             <form onSubmit={submit}>
@@ -129,26 +161,32 @@ export function UpperRoomPage() {
                   toast(invalid, "error");
                   return;
                 }
+                if (selected.reduce((size, file) => size + file.size, 0) > 50 * 1024 * 1024) {
+                  toast("A post can contain up to 50 MB of photos and videos in total.", "error");
+                  return;
+                }
                 setFiles(selected);
-              }} /></label><small>JPG, PNG, GIF, WebP, MP4, MOV or WebM · 100 MB max</small><Button type="submit" loading={publish.isPending} icon={<Send />}>Share</Button></div>
+              }} /></label><small>JPG, PNG, GIF, WebP, MP4, MOV or WebM · 50 MB total per post</small><Button type="submit" loading={publish.isPending} icon={<Send />}>Share</Button></div>
             </form>
           </section>
           <section className="upper-room__feed" aria-label="Upper Room posts">
-            {posts.length ? posts.map((post) => <PostCard key={post.id} post={post} />) : <EmptyState icon={<MessageCircle />} title="The room is ready" description="Be the first person in your chapel community to share a photo, video, or encouraging word." />}
+            {shownPosts.length ? shownPosts.map((post) => <PostCard key={post.id} post={post} onOpen={remember} />) : <EmptyState icon={<MessageCircle />} title={search ? "No matching posts" : "The room is ready"} description="Try another search or share a moment with your chapel community." />}
+            <div className="upper-room__pagination"><Button variant="ghost" disabled={page === 1} onClick={() => setPage((current) => current - 1)}>Previous</Button><span>Page {page}</span><Button variant="ghost" disabled={!feed.data?.hasMore} onClick={() => setPage((current) => current + 1)}>Load more</Button></div>
           </section>
         </main>
-        <aside className="upper-room__sidebar"><div className="upper-room__profile"><div className="upper-room__avatar">{user?.photoUrl ? <img src={user.photoUrl} alt="" /> : initials(user?.name || "")}</div><div><strong>{user?.name || "Chapel member"}</strong><small>Chrisland University Chapel</small></div><button type="button">Switch</button></div><div className="upper-room__suggestions"><header><strong>Suggested for you</strong><button type="button">See all</button></header><p>Follow the moments and people making chapel life meaningful.</p><span><Sparkles /> Share with care. Keep the grace.</span></div></aside>
+        <aside className="upper-room__sidebar"><div className="upper-room__profile"><div className="upper-room__avatar">{user?.photoUrl ? <img src={user.photoUrl} alt="" /> : initials(user?.name || "")}</div><div><strong>{user?.name || "Chapel member"}</strong><small>Chrisland University Chapel</small></div></div><div className="upper-room__suggestions"><header><strong>Recently opened</strong><button type="button" onClick={() => setRecentOpen(true)}>See all</button></header><p>Revisit media you opened on this device.</p><span><Sparkles /> Share with care. Keep the grace.</span></div></aside>
       </div>
-      <nav className="upper-room__mobile-nav" aria-label="Upper Room mobile navigation"><button type="button" aria-label="Home"><Home /></button><button type="button" aria-label="Search"><Search /></button><button type="button" aria-label="Create a post" onClick={() => document.getElementById("upper-room-caption")?.focus()}><PlusSquare /></button><button type="button" aria-label="Notifications"><Heart /></button><span className="upper-room__avatar" aria-hidden="true">{user?.photoUrl ? <img src={user.photoUrl} alt="" /> : initials(user?.name || "")}</span></nav>
+      <nav className="upper-room__mobile-nav" aria-label="Upper Room mobile navigation"><button type="button" aria-label="Home" onClick={() => { setPage(1); setRecentOpen(false); }}><Home /></button><button type="button" aria-label="Search" onClick={() => document.querySelector<HTMLInputElement>(".upper-room__search input")?.focus()}><Search /></button><button type="button" aria-label="Create a post" onClick={() => document.getElementById("upper-room-caption")?.focus()}><PlusSquare /></button><button type="button" onClick={() => setRecentOpen((open) => !open)}>Recent</button><span className="upper-room__avatar" aria-hidden="true">{user?.photoUrl ? <img src={user.photoUrl} alt="" /> : initials(user?.name || "")}</span></nav>
     </div>
   );
 }
 
-function PostCard({ post }: { post: UpperRoomPost }) {
+function PostCard({ post, onOpen }: { post: UpperRoomPost; onOpen?: (post: UpperRoomPost) => void }) {
   const { user } = useAuth();
   const toast = useToast();
   const client = useQueryClient();
   const [showComments, setShowComments] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
   const [comment, setComment] = useState("");
   const comments = useQuery({ queryKey: ["upper-room-comments", post.id], queryFn: async () => (await upperRoomService.comments(post.id)).data, enabled: showComments });
   const like = useMutation({ mutationFn: () => upperRoomService.toggleLike(post.id), onSuccess: () => void client.invalidateQueries({ queryKey: ["upper-room"] }), onError: (error) => toast(failureMessage(error), "error") });
@@ -156,12 +194,20 @@ function PostCard({ post }: { post: UpperRoomPost }) {
   const addComment = useMutation({ mutationFn: () => upperRoomService.createComment(post.id, comment.trim()), onSuccess: () => { setComment(""); void client.invalidateQueries({ queryKey: ["upper-room-comments", post.id] }); void client.invalidateQueries({ queryKey: ["upper-room"] }); }, onError: (error) => toast(failureMessage(error), "error") });
   const isOwnPost = post.authorName === user?.name;
   const canModerate = ["super_admin", "chapel_admin", "chaplain", "student_chaplain"].includes(user?.role ?? "");
+  async function share() {
+    const url = `${window.location.origin}/app/upper-room?post=${encodeURIComponent(post.id)}`;
+    try {
+      if (navigator.share) await navigator.share({ title: `${post.authorName} · The Upper Room`, text: post.caption || "A chapel moment", url });
+      else { await navigator.clipboard.writeText(url); toast("Private post link copied. Only authorized chapel members can open it."); }
+    } catch (error) { if ((error as DOMException).name !== "AbortError") toast("Sharing is unavailable on this device.", "error"); }
+  }
   return <article className="upper-room-post panel">
     <header><div className="upper-room__avatar" aria-hidden="true">{initials(post.authorName)}</div><div><strong>{post.authorName}</strong><small>{relativeTime(post.createdAt)} · {post.branchName || "The Upper Room"}</small></div>{(isOwnPost || canModerate) && <button className="icon-button" type="button" aria-label="Remove post" disabled={remove.isPending} onClick={() => { if (window.confirm("Remove this post from The Upper Room?")) remove.mutate(); }}><Trash2 /></button>}</header>
     {post.caption && <p className="upper-room-post__caption">{post.caption}</p>}
-    {post.media.length > 0 && <div className={`upper-room-post__media upper-room-post__media--${Math.min(post.media.length, 4)}`}>{post.media.map((media) => media.mediaType === "VIDEO" ? <video key={media.id} controls preload="metadata"><source src={media.url} /></video> : <img key={media.id} src={media.url} alt="Shared Upper Room post" loading="lazy" />)}</div>}
+    {post.media.length > 0 && <div className={`upper-room-post__media upper-room-post__media--${Math.min(post.media.length, 4)}`} onClick={() => onOpen?.(post)}>{post.media.map((media) => media.mediaType === "VIDEO" ? <video key={media.id} controls preload="metadata" playsInline onPlay={() => onOpen?.(post)}><source src={media.url} /></video> : <img key={media.id} src={media.url} alt="Shared Upper Room post" loading="lazy" />)}</div>}
     <div className="upper-room-post__counts"><span>{post.likeCount ? `${post.likeCount} ${post.likeCount === 1 ? "like" : "likes"}` : "Be the first to like this"}</span><button type="button" onClick={() => setShowComments((open) => !open)}>{post.commentCount ? `${post.commentCount} ${post.commentCount === 1 ? "comment" : "comments"}` : "Comment"}</button></div>
-    <div className="upper-room-post__actions"><button type="button" className={post.isLiked ? "is-liked" : ""} disabled={like.isPending} onClick={() => like.mutate()}><Heart fill={post.isLiked ? "currentColor" : "none"} /> {post.isLiked ? "Liked" : "Like"}</button><button type="button" onClick={() => setShowComments((open) => !open)}><MessageCircle /> Comment</button><ReportContentButton targetKind="POST" targetId={post.id} label="Report post" /></div>
+    <div className="upper-room-post__actions"><button type="button" className={post.isLiked ? "is-liked" : ""} disabled={like.isPending} onClick={() => like.mutate()}><Heart fill={post.isLiked ? "currentColor" : "none"} /> {post.isLiked ? "Liked" : "Like"}</button><button type="button" onClick={() => setShowComments((open) => !open)}><MessageCircle /> Comment</button><button type="button" onClick={() => setShareOpen((open) => !open)}><Share2 /> Share</button><ReportContentButton targetKind="POST" targetId={post.id} label="Report post" /></div>
+    {shareOpen && <div className="upper-room__share-panel"><div className="upper-room__share-card">{post.media.find((item) => item.mediaType === "IMAGE")?.url && <img src={post.media.find((item) => item.mediaType === "IMAGE")!.url} alt="Shared post preview" />}<div><small>CHAPELFLOW · THE UPPER ROOM</small><strong>{post.caption || "A chapel moment"}</strong><span>{post.authorName} · {post.branchName}</span></div></div><p>This card links to a private post. Recipients must sign in with a chapel account to view it.</p><Button variant="secondary" onClick={() => void share()}><Share2 /> Share card link</Button></div>}
     {showComments && <div className="upper-room-post__comments">{comments.isPending ? <p>Loading conversation…</p> : comments.isError ? <p>Comments could not be loaded. Try again.</p> : comments.data?.length ? comments.data.map((item) => <article key={item.id}><span>{initials(item.authorName)}</span><p><strong>{item.authorName}</strong>{item.body}</p><ReportContentButton targetKind="COMMENT" targetId={item.id} label="Report comment" /></article>) : <p>Start the conversation with kindness.</p>}<form onSubmit={(event) => { event.preventDefault(); if (comment.trim()) addComment.mutate(); }}><input value={comment} onChange={(event) => setComment(event.target.value)} maxLength={750} placeholder="Add a thoughtful comment…" aria-label="Add a comment" /><Button type="submit" variant="ghost" loading={addComment.isPending} icon={<Send />}>Post</Button></form></div>}
   </article>;
 }

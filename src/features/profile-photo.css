@@ -7,3 +7,6 @@
 .public-nav__avatar > img,
 .upper-room__avatar > img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; display: block; }
 .profile-photo-editor input[type="file"] { width: 100%; min-width: 0; }
+.profile-photo-editor__controls { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); margin: 12px 0; }
+.profile-photo-editor__controls label { display: grid; gap: 6px; }
+.profile-photo-editor__controls input, .profile-photo-editor__controls select { width: 100%; }

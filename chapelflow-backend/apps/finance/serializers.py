@@ -19,7 +19,7 @@ class PaystackCheckoutSerializer(serializers.Serializer):
     """Validated, intentionally small payload accepted from a giver's dashboard."""
 
     giving_type = serializers.ChoiceField(choices=["OFFERING", "TITHE"])
-    amount = serializers.DecimalField(max_digits=14, decimal_places=2, min_value=Decimal("1.00"))
+    amount = serializers.DecimalField(max_digits=14, decimal_places=2, min_value=Decimal("100.00"), max_value=Decimal("1000000.00"))
     note = serializers.CharField(max_length=500, required=False, allow_blank=True)
     terms_accepted = serializers.BooleanField()
 
