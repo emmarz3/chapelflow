@@ -20,6 +20,7 @@ class AdSubscriptionProgram(models.Model):
     name = models.CharField(max_length=120)
     description = models.CharField(max_length=500, blank=True)
     monthly_price_ngn = models.PositiveIntegerField()
+    audience = models.CharField(max_length=10, choices=[('STUDENT', 'School students'), ('OUTSIDER', 'Outside advertisers')], default='STUDENT')
     base_plan = models.CharField(max_length=12, choices=AD_BASE_PLAN_CHOICES, default="CAMPUS")
     placements = models.JSONField(default=list)
     is_active = models.BooleanField(default=True)
@@ -76,7 +77,7 @@ class Campaign(models.Model):
     # Existing and active subscriptions are not repriced when a program changes.
     monthly_price_kobo = models.PositiveIntegerField(null=True, blank=True)
     ad_category = models.CharField(max_length=80, blank=True, default='')
-    applicant_community = models.CharField(max_length=10, choices=[('STUDENT', 'Student'), ('STAFF', 'Staff')], default='STUDENT')
+    applicant_community = models.CharField(max_length=10, choices=[('STUDENT', 'Student'), ('STAFF', 'Staff'), ('GUEST', 'Guest')], default='STUDENT')
     founding_offer_awarded = models.BooleanField(default=False)
     submission_revision = models.PositiveSmallIntegerField(default=1)
     status = models.CharField(max_length=12, choices=Status.choices, default=Status.PENDING)
@@ -152,7 +153,7 @@ class AdvertisingSettings(models.Model):
     emergency_pause_reason = models.TextField(blank=True)
     emergency_paused_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name='advertising_pause_actions')
     emergency_paused_at = models.DateTimeField(null=True, blank=True)
-    founding_offer_enabled = models.BooleanField(default=True)
+    founding_offer_enabled = models.BooleanField(default=False)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:

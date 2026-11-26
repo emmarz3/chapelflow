@@ -49,7 +49,7 @@ class PlansView(APIView):
     def get(self, request):
         config = AdvertisingSettings.objects.filter(pk=1).first()
         awarded = Campaign.objects.filter(founding_offer_awarded=True).count()
-        enabled = config.founding_offer_enabled if config else True
+        enabled = config.founding_offer_enabled if config else False
         remaining = max(0, FOUNDING_OFFER_LIMIT - awarded) if enabled else 0
         approved = bool(getattr(settings, 'ADS_POLICY_APPROVED', False))
         checkout = bool(settings.ADS_PAYSTACK_SECRET_KEY and approved and not (config and config.emergency_paused))
@@ -57,7 +57,7 @@ class PlansView(APIView):
         return Response({
             'plans': [{
                 'id': str(program.pk), 'code': program.code, 'name': program.name,
-                'description': program.description, 'price_ngn': program.monthly_price_ngn,
+                'description': program.description, 'price_ngn': program.monthly_price_ngn, 'audience': program.audience,
                 'base_plan': program.base_plan, 'placements': program.placements, 'interval': 'monthly',
             } for program in programs],
             'consent_text': CONSENT, 'checkout_available': checkout,

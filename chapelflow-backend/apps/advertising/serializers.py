@@ -58,10 +58,10 @@ class CampaignSerializer(serializers.ModelSerializer):
         if self.instance is None:
             user = self.context['request'].user
             if user.get_role_code() != Roles.MEMBER:
-                raise serializers.ValidationError('Only student and staff community members can advertise.')
-            community = Member.objects.filter(user=user).values_list('community', flat=True).first() or CommunityClassification.STUDENT
-            if community not in {CommunityClassification.STUDENT, CommunityClassification.STAFF}:
-                raise serializers.ValidationError('Advertising is available to student and staff community members only.')
+                raise serializers.ValidationError('Only community members can advertise.')
+            community = Member.objects.filter(user=user).values_list('community', flat=True).first()
+            if community not in {CommunityClassification.STUDENT, CommunityClassification.STAFF, CommunityClassification.GUEST}:
+                raise serializers.ValidationError('Complete your member profile before applying to advertise.')
             self.applicant_community = community
             if not attrs.get('ad_category', '').strip():
                 raise serializers.ValidationError({'ad_category': 'Describe the proposed advertisement category.'})
@@ -72,12 +72,16 @@ class CampaignSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError({key: 'Use a public HTTPS URL.'})
 
         if program:
+            if self.instance is None and program.audience != ('STUDENT' if self.applicant_community == CommunityClassification.STUDENT else 'OUTSIDER'):
+                raise serializers.ValidationError({'program': 'Choose the subscription program for your student or outside advertiser status.'})
             if not program.is_active and (self.instance is None or self.instance.program_id != program.pk):
                 raise serializers.ValidationError({'program': 'This subscription program is no longer available.'})
             attrs['plan'] = program.base_plan
             if self.instance is None:
                 attrs['monthly_price_kobo'] = program.monthly_price_ngn * 100
         else:
+            if self.instance is None:
+                raise serializers.ValidationError({'program': 'Choose an available monthly subscription program.'})
             plan = attrs.get('plan') or getattr(self.instance, 'plan', None)
             if plan not in Campaign.Plan.values:
                 raise serializers.ValidationError({'program': 'Choose an available monthly subscription program.'})
@@ -109,7 +113,7 @@ class SubscriptionProgramSerializer(serializers.ModelSerializer):
     class Meta:
         model = AdSubscriptionProgram
         fields = (
-            'id', 'code', 'name', 'description', 'monthly_price_ngn', 'base_plan',
+            'id', 'code', 'name', 'description', 'monthly_price_ngn', 'audience', 'base_plan',
             'placements', 'is_active', 'sort_order', 'campaign_count', 'created_at', 'updated_at',
         )
         read_only_fields = ('id', 'campaign_count', 'created_at', 'updated_at')

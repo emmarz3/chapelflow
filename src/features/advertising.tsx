@@ -10,7 +10,7 @@ type Campaign = {
   id: string; brand_name: string; description: string; ad_category: string; image_url: string;
   destination_url: string; contact_email: string; plan: "CAMPUS" | "FEATURED";
   program?: string | null; program_name?: string; program_code?: string;
-  applicant_community: "STUDENT" | "STAFF"; founding_offer_awarded: boolean;
+  applicant_community: "STUDENT" | "STAFF" | "GUEST"; founding_offer_awarded: boolean;
   status: string; review_note: string; reviewed_at: string | null; paid_until: string | null;
   cancel_at_period_end: boolean; scendey_opt_in: boolean; impressions: number; clicks: number;
   monthly_price_ngn: number; payment_history: PaymentRecord[];
@@ -18,14 +18,14 @@ type Campaign = {
 };
 type SubscriptionProgram = {
   id: string; code: string; name: string; description: string;
-  monthly_price_ngn: number; base_plan: "CAMPUS" | "FEATURED";
+  monthly_price_ngn: number; audience: "STUDENT" | "OUTSIDER"; base_plan: "CAMPUS" | "FEATURED";
   placements: ("home" | "events")[]; is_active: boolean; sort_order: number;
   campaign_count: number;
 };
 type Plans = {
   plans: {
     id: string; code: string; name: string; description: string; price_ngn: number;
-    base_plan: "CAMPUS" | "FEATURED"; placements: ("home" | "events")[];
+    audience: "STUDENT" | "OUTSIDER"; base_plan: "CAMPUS" | "FEATURED"; placements: ("home" | "events")[];
   }[];
   consent_text: string; checkout_available: boolean; checkout_reason?: string;
   founding_offer?: { enabled: boolean; remaining: number; limit: number; first_month_price_ngn: number; renewal_note: string };
@@ -140,7 +140,7 @@ export function AdvertisePage() {
     <header>
       <p className="eyebrow">ChapelFlow advertising</p>
       <h1>Share your brand with the campus.</h1>
-      <p>Apply first, receive chapel approval, then subscribe through Paystack. Your advertisement publishes only after approval and verified payment.</p>
+      <p>School students pay ₦3,500 per month; outside advertisers pay ₦5,000 per month. Apply first, receive chapel approval, then subscribe through Paystack. Your advertisement publishes only after approval and verified payment.</p>
       <ol className="ads-steps"><li>Submit your ad</li><li>Chapel review</li><li>Pay securely</li><li>Ad goes live</li></ol>
     </header>
     {message && <p role="status" className="ads-notice">{message}</p>}
@@ -149,6 +149,7 @@ export function AdvertisePage() {
       <div className="ads-plans">
         {plans.data?.plans.map((plan) => <article key={plan.id}>
           <h3>{plan.name}</h3>
+          <small>{plan.audience === "STUDENT" ? "Chrisland University students" : "Outside advertisers and staff"}</small>
           <strong>₦{plan.price_ngn.toLocaleString()} / month</strong>
           <p>{plan.description || (plan.base_plan === "FEATURED" ? "Higher rotation priority on the homepage and events page." : "Rotating sponsored card on the homepage and events page.")}</p>
           <small>Placement: {plan.placements.map((placement) => placement === "home" ? "Homepage" : "Events").join(" · ")}</small>
@@ -162,7 +163,7 @@ export function AdvertisePage() {
     </section>
     <section>
       <h2>Apply for an advertisement</h2>
-      <p className="ads-policy-note">No payment is taken when you apply. A Super Admin reviews your ad category, creative and destination first. You will receive an in-app update when a decision is made, and Paystack checkout appears only after approval.</p>
+      <p className="ads-policy-note">Choose the program matching your member profile: students use the student rate; guests and staff use the outside rate. No payment is taken when you apply. A Super Admin reviews your ad before Paystack checkout appears.</p>
       <form onSubmit={(event) => void submit(event)} className="ads-form">
         <label>Brand name<input name="brand_name" maxLength={120} required /></label>
         <label>Proposed ad category<input name="ad_category" maxLength={80} placeholder="For example: food, fashion, services" required /></label>
@@ -171,7 +172,8 @@ export function AdvertisePage() {
         <label>Website or social link (HTTPS)<input name="destination_url" type="url" pattern="https://.*" required /></label>
         <label>Ad image (PNG, JPEG or WebP, max 2 MB)<input name="image" type="file" accept="image/png,image/jpeg,image/webp" required /></label>
         <label>Subscription program<select name="program" required disabled={!plans.data?.plans.length}>
-          {plans.data?.plans.map((plan) => <option key={plan.id} value={plan.id}>{plan.name} · ₦{plan.price_ngn.toLocaleString()}/month</option>)}
+          <option value="">Choose your rate</option>
+          {plans.data?.plans.map((plan) => <option key={plan.id} value={plan.id}>{plan.name} · {plan.audience === "STUDENT" ? "Student" : "Outside"} · ₦{plan.price_ngn.toLocaleString()}/month</option>)}
         </select></label>
         <label className="ads-consent">
           <input type="checkbox" name="scendey_opt_in" />
@@ -189,7 +191,7 @@ export function AdvertisePage() {
         <img src={ad.image_url} alt="" />
         <div className="ads-entry__content">
           <h3>{ad.brand_name}</h3>
-          <p><strong>{ad.status === "PENDING" ? "Awaiting Super Admin review" : ad.status.replaceAll("_", " ")}</strong> · {ad.program_name || (ad.plan === "FEATURED" ? "Featured Brand" : "Campus Brand")} · {ad.applicant_community === "STAFF" ? "Staff" : "Student"}</p>
+          <p><strong>{ad.status === "PENDING" ? "Awaiting Super Admin review" : ad.status.replaceAll("_", " ")}</strong> · {ad.program_name || (ad.plan === "FEATURED" ? "Featured Brand" : "Campus Brand")} · {ad.applicant_community === "STUDENT" ? "Student" : ad.applicant_community === "STAFF" ? "Staff" : "Guest"}</p>
           {ad.status === "PENDING" && <p className="ads-policy-note">Your application is awaiting Chapel approval. You will be notified when a decision is made. Payment is not available yet.</p>}
           {ad.status === "APPROVED" && <p className="ads-founding-note">Approved by the Chapel. Complete payment to activate your advertisement.</p>}
           {ad.status === "REJECTED" && <p className="ads-policy-note">This application was not approved. Review the decision note below.</p>}
@@ -293,6 +295,7 @@ export function AdvertisingAdminPage() {
       code: String(form.get("code") || "").trim(),
       description: String(form.get("description") || "").trim(),
       monthly_price_ngn: Number(form.get("monthly_price_ngn")),
+      audience: String(form.get("audience") || "STUDENT"),
       base_plan: String(form.get("base_plan") || "CAMPUS"),
       placements,
       sort_order: Number(form.get("sort_order") || 0),
@@ -361,7 +364,8 @@ export function AdvertisingAdminPage() {
           <label>Program name<input name="name" defaultValue={editingProgram?.name || ""} maxLength={120} required /></label>
           <label>Program code<input name="code" defaultValue={editingProgram?.code || ""} pattern="[a-z0-9]+(?:-[a-z0-9]+)*" readOnly={Boolean(editingProgram)} required /></label>
           <label>Description<textarea name="description" defaultValue={editingProgram?.description || ""} maxLength={500} /></label>
-          <label>Monthly price (NGN)<input name="monthly_price_ngn" type="number" min={100} max={1000000} step={1} defaultValue={editingProgram?.monthly_price_ngn ?? 3000} required /></label>
+          <label>Audience<select name="audience" defaultValue={editingProgram?.audience ?? "STUDENT"}><option value="STUDENT">School students</option><option value="OUTSIDER">Outside advertisers and staff</option></select></label>
+          <label>Monthly price (NGN)<input name="monthly_price_ngn" type="number" min={100} max={1000000} step={1} defaultValue={editingProgram?.monthly_price_ngn ?? 3500} required /></label>
           <label>Placement profile<select name="base_plan" defaultValue={editingProgram?.base_plan || "CAMPUS"}>
             <option value="CAMPUS">Campus Brand rotation</option>
             <option value="FEATURED">Featured Brand rotation</option>
@@ -384,7 +388,7 @@ export function AdvertisingAdminPage() {
         {(programs.data || []).map((program) => <article key={program.id}>
           <div>
             <strong>{program.name}</strong>
-            <p>₦{program.monthly_price_ngn.toLocaleString()} / month · {program.placements.map((placement) => placement === "home" ? "Homepage" : "Events").join(" · ")}</p>
+            <p>₦{program.monthly_price_ngn.toLocaleString()} / month · {program.audience === "STUDENT" ? "School students" : "Outside advertisers"} · {program.placements.map((placement) => placement === "home" ? "Homepage" : "Events").join(" · ")}</p>
             <small>{program.campaign_count} application(s) · {program.is_active ? "Available" : "Inactive"}</small>
             {program.description && <p>{program.description}</p>}
           </div>
