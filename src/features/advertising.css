@@ -105,3 +105,12 @@
 @media(max-width:760px){.ads-steps{grid-template-columns:repeat(2,minmax(0,1fr))}.ads-form__group{grid-template-columns:minmax(0,1fr)}.ads-form__field--full{grid-column:auto}.ads-section__heading{display:grid}.ads-entry,.sponsored-card__body{flex-direction:column}.ads-entry>img,.sponsored-card img{width:100%;height:170px;max-height:none}.ads-admin-preview-grid{grid-template-columns:minmax(0,1fr)}.ads-preview--mobile{max-width:220px}.ads-admin-control-actions{display:grid}.ads-steps li{padding:.75rem}.ads-form__submit{align-items:stretch}.ads-form__submit button{width:100%}}
 @media(max-width:420px){.ads-page{padding:1rem .8rem}.ads-hero{border-radius:17px}.ads-steps{grid-template-columns:1fr}.ads-steps li{align-items:center}.ads-section{padding:1rem}.ads-form__group{padding:.9rem}}
 @media(prefers-reduced-motion:reduce){.ads-plan-card,.ads-page button{transition:none}}
+
+/* Dark theme contrast refinements for advertiser-facing content. */
+:root[data-theme="dark"] .ads-page .eyebrow{color:#d8c1e5}
+:root[data-theme="dark"] .ads-plan-card__audience{background:#493653;border:1px solid #745a80;color:#f0e4f6}
+:root[data-theme="dark"] .ads-page .ads-policy-note{color:#f5dda0}
+:root[data-theme="dark"] .ads-page .ads-founding-note,
+:root[data-theme="dark"] .ads-page .ads-notice{color:#d8f1e3}
+:root[data-theme="dark"] .ads-page .ads-admin-warning{color:#f5dda0}
+:root[data-theme="dark"] .ads-page .ads-preview>span{color:#d5c5dc}
