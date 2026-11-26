@@ -318,7 +318,9 @@ export function App() {
                 <Route path="/app/account" element={<AccountProfilePage />} />
                 <Route path="/app/giving" element={<GivingPage />} />
                 <Route path="/app/upper-room" element={<UpperRoomPage />} />
-                <Route path="/app/advertise" element={<AdvertisePage />} />
+                <Route element={<ProtectedRoute roles={["member"]} />}>
+                  <Route path="/app/advertise" element={<AdvertisePage />} />
+                </Route>
                 <Route path="/app/community-safety" element={<CommunitySafetyPage />} />
                 <Route path="/app/notifications" element={<StudentNotificationsPage />} />
                 <Route path="/app/notification-settings" element={<NotificationSettingsPage />} />
