@@ -96,6 +96,28 @@ describe("institutional account provisioning", () => {
     expect(adminAccountService.resetPassword).toHaveBeenCalledWith("student-1");
   });
 
+  it("reassigns an existing institutional account to its matching Chapel workspace", async () => {
+    const user = userEvent.setup();
+    const account = {
+      id: "leader-1", first_name: "Grace", last_name: "Leader", email: "grace@example.edu",
+      role: "UNIT_HEAD" as const, institutional_office: "HEAD_OF_MUSIC", institutional_group: "unit-4",
+      is_active: true,
+    };
+    vi.mocked(institutionalAccountService.list).mockResolvedValue({ data: [account] });
+    vi.mocked(institutionalAccountService.update).mockResolvedValue({ data: account });
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "Assign / transfer" }));
+    await user.selectOptions(screen.getByLabelText("Leadership office"), "CHIEF_USHER");
+    await user.click(screen.getByRole("button", { name: "Save assignment" }));
+
+    await waitFor(() => expect(institutionalAccountService.update).toHaveBeenCalledWith("leader-1", {
+      role: "UNIT_HEAD",
+      institutional_office: "CHIEF_USHER",
+      institutional_group: "unit-6",
+    }));
+  });
+
   it("confirms institutional account removal before sending the request", async () => {
     const user = userEvent.setup();
     vi.mocked(institutionalAccountService.list).mockResolvedValue({ data: [{
