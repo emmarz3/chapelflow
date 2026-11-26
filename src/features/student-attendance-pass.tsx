@@ -83,7 +83,7 @@ export function StudentAttendancePassPage() {
     },
     [mutateScan],
   );
-  const { videoRef, permissionError } = useQrScanner(onScan, scanning);
+  const { videoRef, permissionError, cameras, selectedCameraId, selectCamera } = useQrScanner(onScan, scanning);
   useEffect(() => {
     if (!permissionError) return;
     setScanning(false);
@@ -157,6 +157,12 @@ export function StudentAttendancePassPage() {
                   <span className="chapel-pass__aim-hint">Align QR inside frame</span>
                 </div>
               </div>
+              {cameras.length > 1 && <label className="scanner-camera-picker">
+                <span>Camera lens</span>
+                <select value={selectedCameraId} onChange={(event) => selectCamera(event.target.value)}>
+                  {cameras.map((camera, index) => <option key={camera.deviceId} value={camera.deviceId}>{camera.label || `Camera ${index + 1}`}</option>)}
+                </select>
+              </label>}
             ) : (
               <div className="chapel-pass__unavailable">
                 <Camera aria-hidden="true" />
