@@ -70,6 +70,8 @@ class Campaign(models.Model):
         AdSubscriptionProgram, null=True, blank=True, on_delete=models.PROTECT,
         related_name="campaigns",
     )
+    program_name_snapshot = models.CharField(max_length=120, blank=True, default="")
+    placements_snapshot = models.JSONField(null=True, blank=True)
     # Snapshot of the monthly price agreed when the advertiser applies.
     # Existing and active subscriptions are not repriced when a program changes.
     monthly_price_kobo = models.PositiveIntegerField(null=True, blank=True)
