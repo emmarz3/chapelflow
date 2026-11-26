@@ -82,12 +82,13 @@ export async function saveRecentUpperRoomPost(
 
   const database = await openDatabase();
   const existingTransaction = database.transaction(STORE_NAME, "readonly");
+  const existingDone = transactionDone(existingTransaction);
   const existingRequest = existingTransaction.objectStore(STORE_NAME).get(userId + ":" + post.id);
   const existing = await new Promise<CachedUpperRoomPost | undefined>((resolve, reject) => {
     existingRequest.onsuccess = () => resolve(existingRequest.result as CachedUpperRoomPost | undefined);
     existingRequest.onerror = () => reject(existingRequest.error || new Error("Could not inspect the offline copy."));
   });
-  await transactionDone(existingTransaction);
+  await existingDone;
 
   const stillFresh = existing && Date.now() - existing.savedAt < 60 * 60 * 1000 &&
     post.media.every((item) => existing.media.some((cached) => cached.id === item.id));
