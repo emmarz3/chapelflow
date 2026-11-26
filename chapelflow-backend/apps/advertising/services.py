@@ -58,7 +58,7 @@ def notify_super_admins_about_campaign(campaign):
     recipients = User.objects.filter(role=Roles.SUPER_ADMIN, is_active=True)
     created = 0
     for admin in recipients.iterator():
-        _, was_created = notify_in_app(
+        notification = notify_in_app(
             recipient=admin,
             title=title,
             body=body,
@@ -66,7 +66,7 @@ def notify_super_admins_about_campaign(campaign):
             idempotency_key=f'ads:review:{campaign.pk}:{campaign.submission_revision}:{admin.pk}',
             category=NotificationCategory.AD_REVIEW,
         )
-        created += int(bool(notification))
+        created += int(notification is not None)
     return created
 
 
