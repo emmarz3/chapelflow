@@ -1117,7 +1117,7 @@ class AnalyticsOverviewView(APIView):
                 "record": member_name,
                 "date": record.checked_in_at,
                 "branch": record.session.branch.name if record.session.branch_id else "",
-                "category": f"Session {record.session_id}",
+                "category": record.session.label or f"Session {record.session_id}",
                 "status": record.get_status_display() if hasattr(record, "get_status_display") else record.status,
                 "value": record.method,
             })
