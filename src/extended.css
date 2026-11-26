@@ -1392,3 +1392,11 @@
   .inventory-dashboard-panel .panel-heading .button { width: fit-content; }
   .inventory-dashboard-panel__steps { grid-template-columns: 1fr; }
 }
+
+.upper-room__share-image-preview { display: block; width: min(100%, 640px); height: auto; margin: 12px 0; border: 1px solid var(--border, #d8cedf); border-radius: 12px; }
+.upper-room__share-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.upper-room-post__offline-placeholder { display: grid; min-height: 180px; place-items: center; padding: 20px; border: 1px dashed var(--border, #a99bb3); background: var(--surface-subtle, #f7f2fa); color: var(--text-soft, #65596d); font-size: 13px; text-align: center; }
+@media (max-width: 640px) {
+  .upper-room__share-actions { display: grid; grid-template-columns: 1fr 1fr; }
+  .upper-room__share-actions button { width: 100%; white-space: normal; }
+}
