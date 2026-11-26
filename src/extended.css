@@ -1437,3 +1437,31 @@
 @media (max-width: 360px) {
   .upper-room__share-media-grid { grid-template-columns: 1fr; }
 }
+
+/* Attendance QR scanner camera lens selection. */
+.scanner-camera-picker {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  width: min(100%, 520px);
+  margin: 12px auto;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+}
+.scanner-camera-picker select {
+  flex: 1 1 220px;
+  min-width: 0;
+  min-height: 42px;
+  padding: 9px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  background: var(--surface-raised);
+  color: var(--text);
+  font: inherit;
+}
+.scanner-camera-picker select:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--purple-500) 36%, transparent);
+  outline-offset: 2px;
+}
