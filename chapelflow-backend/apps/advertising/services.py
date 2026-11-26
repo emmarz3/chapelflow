@@ -2,6 +2,8 @@ import hashlib
 import hmac
 import json
 import logging
+import re
+import time
 from urllib.parse import quote
 
 from django.conf import settings
@@ -226,17 +228,55 @@ def activate_payment(campaign, data):
     return campaign
 
 
+def _valid_ads_webhook_signature(request):
+    """Validate modern Paystack-Signature (whsec_) or legacy X-Paystack-Signature."""
+    signing_secret = getattr(settings, 'ADS_PAYSTACK_WEBHOOK_SECRET', '')
+    signed_header = request.headers.get('Paystack-Signature', '')
+    if signed_header and signing_secret:
+        timestamp = None
+        signatures = []
+        for part in signed_header.split(','):
+            key, separator, value = part.partition('=')
+            if not separator:
+                continue
+            key, value = key.strip(), value.strip()
+            if key == 't':
+                if timestamp is not None or not value.isdigit():
+                    return False
+                timestamp = int(value)
+            elif key == 'v1':
+                _, separator, signature = value.partition(':')
+                if separator:
+                    signatures.append(signature)
+        if timestamp is None or not signatures or abs(int(time.time()) - timestamp) > 300:
+            return False
+        expected = hmac.new(
+            signing_secret.encode(),
+            str(timestamp).encode('ascii') + b'.' + request.body,
+            hashlib.sha512,
+        ).hexdigest()
+        return any(
+            re.fullmatch(r'[0-9a-f]{128}', signature) and hmac.compare_digest(expected, signature)
+            for signature in signatures
+        )
+
+    # Backward compatibility while Paystack's deprecated X-Paystack-Signature
+    # header is still being sent alongside the new signing-secret header.
+    api_secret = settings.ADS_PAYSTACK_SECRET_KEY
+    legacy_signature = request.headers.get('X-Paystack-Signature', '')
+    if not api_secret or not legacy_signature:
+        return False
+    expected = hmac.new(api_secret.encode(), request.body, hashlib.sha512).hexdigest()
+    return hmac.compare_digest(legacy_signature, expected)
+
+
 def process_ad_webhook(request, *, allow_unmatched=False):
     """Handle events signed by the Super Admin advertising Paystack account.
 
     The shared Chapel giving webhook may call this first and fall through when
     the signature belongs to its separate Paystack account.
     """
-    secret = settings.ADS_PAYSTACK_SECRET_KEY
-    signature = request.headers.get('X-Paystack-Signature', '')
-    valid_signature = bool(secret) and hmac.compare_digest(
-        signature, hmac.new(secret.encode(), request.body, hashlib.sha512).hexdigest()
-    )
+    valid_signature = _valid_ads_webhook_signature(request)
     if not valid_signature:
         if allow_unmatched:
             return False
