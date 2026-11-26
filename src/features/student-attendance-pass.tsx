@@ -28,6 +28,8 @@ export function StudentAttendancePassPage() {
   const pass = useQuery({
     queryKey: ["attendance-pass"],
     queryFn: async () => (await attendanceService.pass()).data,
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: true,
   });
   const history = useQuery({
     queryKey: ["attendance-history", "me"],
@@ -63,8 +65,10 @@ export function StudentAttendancePassPage() {
     onSuccess: (response) => {
       setManualToken("");
       setMessage({
-        tone: response.data.result === "recorded" ? "success" : "danger",
-        text: response.message || (response.data.result === "recorded" ? "Attendance recorded." : "Attendance has already been recorded for this session."),
+        tone: "success",
+        text: response.data.result === "duplicate"
+          ? "Your attendance was already recorded for this session."
+          : response.message || "Attendance recorded.",
       });
       void history.refetch();
     },
@@ -197,8 +201,12 @@ export function StudentAttendancePassPage() {
             event.preventDefault();
             const code = manualToken.trim();
             const sessionId = pass.data.session?.id;
-            if (!/^\d{6}$/.test(code) || !sessionId) {
-              setMessage({ tone: "danger", text: sessionId ? "Enter the 6-digit code shown by your usher." : "There is no open attendance session." });
+            if (!/^\d{6}$/.test(code) || !sessionId || pass.data.session?.state !== "open") {
+              setMessage({ tone: "danger", text: !sessionId
+                ? "There is no open attendance session."
+                : pass.data.session?.state !== "open"
+                  ? "The attendance window is not open yet. Ask your usher to start the checkpoint."
+                  : "Enter the current 6-digit code shown by your usher." });
               return;
             }
             setMessage(null);
@@ -222,7 +230,8 @@ export function StudentAttendancePassPage() {
               inputMode="numeric"
               pattern="[0-9]{6}"
               maxLength={6}
-              autoComplete="off"
+              autoComplete="one-time-code"
+              required
               aria-label="6-digit usher attendance code"
             />
           </label>
@@ -230,7 +239,7 @@ export function StudentAttendancePassPage() {
             variant="secondary"
             icon={<Clipboard />}
             type="submit"
-            disabled={scan.isPending || submitCode.isPending || manualToken.length !== 6 || !pass.data.session}
+            disabled={scan.isPending || submitCode.isPending || manualToken.length !== 6 || pass.data.session?.state !== "open"}
           >
             Submit code
           </Button>
