@@ -162,7 +162,7 @@ export function AdvertisePage() {
     </section>
     <section>
       <h2>Apply for an advertisement</h2>
-      <p className="ads-policy-note">No payment is taken when you apply. A Super Admin reviews your ad category, creative and destination first. You can pay only after the Chapel approves your application.</p>
+      <p className="ads-policy-note">No payment is taken when you apply. A Super Admin reviews your ad category, creative and destination first. You will receive an in-app update when a decision is made, and Paystack checkout appears only after approval.</p>
       <form onSubmit={(event) => void submit(event)} className="ads-form">
         <label>Brand name<input name="brand_name" maxLength={120} required /></label>
         <label>Proposed ad category<input name="ad_category" maxLength={80} placeholder="For example: food, fashion, services" required /></label>
