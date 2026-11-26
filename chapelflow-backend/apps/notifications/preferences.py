@@ -19,6 +19,7 @@ CATEGORY_FIELDS = {
     NotificationCategory.FELLOWSHIP: "fellowship_enabled",
     NotificationCategory.LIVE_SERVICE: "live_service_enabled",
     NotificationCategory.ADMIN_ALERT: "admin_alerts_enabled",
+    NotificationCategory.AD_REVIEW: "admin_alerts_enabled",
     NotificationCategory.BIRTHDAY: "birthday_enabled",
 }
 CHANNEL_FIELDS = {
@@ -36,6 +37,7 @@ DEFAULT_HREFS = {
     NotificationCategory.FELLOWSHIP: "/app/communities",
     NotificationCategory.LIVE_SERVICE: "/app",
     NotificationCategory.ADMIN_ALERT: "/app",
+    NotificationCategory.AD_REVIEW: "/app/admin/advertising",
     NotificationCategory.BIRTHDAY: "/app",
     NotificationCategory.DEVOTIONAL: "/app",
     NotificationCategory.OTHER: "/app/notifications",
@@ -94,6 +96,15 @@ def quiet_until(preference, now=None):
 def delivery_eligibility(user, category, channel, now=None):
     if not user or not user.is_active:
         return False, None
+    # Advertising approval is a time-sensitive Super Admin responsibility.
+    # Keep this in-app alert mandatory even when optional notification
+    # categories or channels have been disabled in personal preferences.
+    if (
+        category == NotificationCategory.AD_REVIEW
+        and channel == NotificationChannel.IN_APP
+        and getattr(user, "role", None) == "SUPER_ADMIN"
+    ):
+        return True, None
     preference = preference_for(user)
     if preference:
         if not preference.master_enabled or not getattr(preference, CHANNEL_FIELDS[channel]):
