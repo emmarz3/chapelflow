@@ -74,6 +74,25 @@ class UsherQrAttendanceTests(TestCase):
         self.assertEqual(client.post("/api/v1/attendance/offline-usher-scan/", payload, format="json").status_code, 400)
         self.assertFalse(AttendanceRecord.objects.filter(session=self.session, member=self.student).exists())
 
+    def test_student_pass_ignores_paused_session_when_selecting_code_target(self):
+        from rest_framework.test import APIClient
+
+        paused_session = AttendanceSession.objects.create(
+            branch=self.branch,
+            label="Paused later service",
+            is_open=True,
+            state=AttendanceSessionState.PAUSED,
+            opened_at=timezone.now() + timedelta(seconds=1),
+        )
+        client = APIClient()
+        client.force_authenticate(self.student_user)
+
+        response = client.get("/api/v1/attendance/pass/")
+
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data["data"]["session"]["id"], str(self.session.id))
+        self.assertNotEqual(response.data["data"]["session"]["id"], str(paused_session.id))
+
     def test_student_can_record_attendance_with_the_rotating_code(self):
         issued = issue_checkpoint_token(self.checkpoint)
         client = APIClient()
