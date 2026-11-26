@@ -9,14 +9,24 @@ type DecisionRecord = { action: string; note: string; actor_email: string; creat
 type Campaign = {
   id: string; brand_name: string; description: string; ad_category: string; image_url: string;
   destination_url: string; contact_email: string; plan: "CAMPUS" | "FEATURED";
+  program?: string | null; program_name?: string; program_code?: string;
   applicant_community: "STUDENT" | "STAFF"; founding_offer_awarded: boolean;
   status: string; review_note: string; reviewed_at: string | null; paid_until: string | null;
   cancel_at_period_end: boolean; scendey_opt_in: boolean; impressions: number; clicks: number;
   monthly_price_ngn: number; payment_history: PaymentRecord[];
   owner_email?: string; reviewed_by_email?: string; decision_history?: DecisionRecord[]; placements?: string[];
 };
+type SubscriptionProgram = {
+  id: string; code: string; name: string; description: string;
+  monthly_price_ngn: number; base_plan: "CAMPUS" | "FEATURED";
+  placements: ("home" | "events")[]; is_active: boolean; sort_order: number;
+  campaign_count: number;
+};
 type Plans = {
-  plans: { code: string; name: string; price_ngn: number }[];
+  plans: {
+    id: string; code: string; name: string; description: string; price_ngn: number;
+    base_plan: "CAMPUS" | "FEATURED"; placements: ("home" | "events")[];
+  }[];
   consent_text: string; checkout_available: boolean; checkout_reason?: string;
   founding_offer?: { enabled: boolean; remaining: number; limit: number; first_month_price_ngn: number; renewal_note: string };
 };
@@ -92,7 +102,7 @@ export function AdvertisePage() {
         destination_url: fields.get("destination_url"),
         contact_email: fields.get("contact_email"),
         image_url: image.image_url,
-        plan: fields.get("plan"),
+        program: fields.get("program"),
         scendey_opt_in: fields.get("scendey_opt_in") === "on",
       });
       form.reset();
@@ -135,12 +145,13 @@ export function AdvertisePage() {
     </header>
     {message && <p role="status" className="ads-notice">{message}</p>}
     <section>
-      <h2>Monthly plans</h2>
+      <h2>Subscription programs</h2>
       <div className="ads-plans">
-        {plans.data?.plans.map((plan) => <article key={plan.code}>
+        {plans.data?.plans.map((plan) => <article key={plan.id}>
           <h3>{plan.name}</h3>
           <strong>₦{plan.price_ngn.toLocaleString()} / month</strong>
-          <p>{plan.code === "FEATURED" ? "Higher rotation priority on the homepage and events page." : "Rotating sponsored card on the homepage and events page."}</p>
+          <p>{plan.description || (plan.base_plan === "FEATURED" ? "Higher rotation priority on the homepage and events page." : "Rotating sponsored card on the homepage and events page.")}</p>
+          <small>Placement: {plan.placements.map((placement) => placement === "home" ? "Homepage" : "Events").join(" · ")}</small>
         </article>)}
       </div>
       {plans.data?.founding_offer?.enabled && <p className="ads-founding-note">
@@ -151,6 +162,7 @@ export function AdvertisePage() {
     </section>
     <section>
       <h2>Apply for an advertisement</h2>
+      <p className="ads-policy-note">No payment is taken when you apply. A Super Admin reviews your ad category, creative and destination first. You can pay only after the Chapel approves your application.</p>
       <form onSubmit={(event) => void submit(event)} className="ads-form">
         <label>Brand name<input name="brand_name" maxLength={120} required /></label>
         <label>Proposed ad category<input name="ad_category" maxLength={80} placeholder="For example: food, fashion, services" required /></label>
@@ -158,7 +170,9 @@ export function AdvertisePage() {
         <label>Brand description<textarea name="description" maxLength={300} required /></label>
         <label>Website or social link (HTTPS)<input name="destination_url" type="url" pattern="https://.*" required /></label>
         <label>Ad image (PNG, JPEG or WebP, max 2 MB)<input name="image" type="file" accept="image/png,image/jpeg,image/webp" required /></label>
-        <label>Plan<select name="plan"><option value="CAMPUS">Campus Brand · ₦3,000/month</option><option value="FEATURED">Featured Brand · ₦7,500/month</option></select></label>
+        <label>Subscription program<select name="program" required disabled={!plans.data?.plans.length}>
+          {plans.data?.plans.map((plan) => <option key={plan.id} value={plan.id}>{plan.name} · ₦{plan.price_ngn.toLocaleString()}/month</option>)}
+        </select></label>
         <label className="ads-consent">
           <input type="checkbox" name="scendey_opt_in" />
           <span>{plans.data?.consent_text || "Send me Scendey waitlist updates when Scendey launches."} This is optional and does not affect your ChapelFlow application.</span>
@@ -175,7 +189,10 @@ export function AdvertisePage() {
         <img src={ad.image_url} alt="" />
         <div className="ads-entry__content">
           <h3>{ad.brand_name}</h3>
-          <p><strong>{ad.status.replaceAll("_", " ")}</strong> · {ad.plan === "FEATURED" ? "Featured Brand" : "Campus Brand"} · {ad.applicant_community === "STAFF" ? "Staff" : "Student"}</p>
+          <p><strong>{ad.status === "PENDING" ? "Awaiting Super Admin review" : ad.status.replaceAll("_", " ")}</strong> · {ad.program_name || (ad.plan === "FEATURED" ? "Featured Brand" : "Campus Brand")} · {ad.applicant_community === "STAFF" ? "Staff" : "Student"}</p>
+          {ad.status === "PENDING" && <p className="ads-policy-note">Your application is awaiting Chapel approval. You will be notified when a decision is made. Payment is not available yet.</p>}
+          {ad.status === "APPROVED" && <p className="ads-founding-note">Approved by the Chapel. Complete payment to activate your advertisement.</p>}
+          {ad.status === "REJECTED" && <p className="ads-policy-note">This application was not approved. Review the decision note below.</p>}
           <p>Category: {ad.ad_category}</p>
           {ad.founding_offer_awarded && <p className="ads-founding-note">Founding offer awarded: ₦2,000 for month one, then ₦{ad.monthly_price_ngn.toLocaleString()} monthly.</p>}
           {ad.review_note && <p>Review note: {ad.review_note}</p>}
@@ -241,9 +258,12 @@ export function AdvertisePage() {
 export function AdvertisingAdminPage() {
   const campaigns = useQuery({ queryKey: ["ads-admin"], queryFn: () => api.get<Campaign[]>("/ads/admin/") });
   const settings = useQuery({ queryKey: ["ads-admin-settings"], queryFn: () => api.get<AdvertisingSettings>("/ads/admin/settings/") });
+  const programs = useQuery({ queryKey: ["ads-admin-programs"], queryFn: () => api.get<SubscriptionProgram[]>("/ads/admin/programs/") });
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [pauseReason, setPauseReason] = useState("");
+  const [programFormOpen, setProgramFormOpen] = useState(false);
+  const [editingProgram, setEditingProgram] = useState<SubscriptionProgram | null>(null);
 
   async function review(id: string, action: string, note: string) {
     setBusy(true);
@@ -255,6 +275,59 @@ export function AdvertisingAdminPage() {
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Decision failed.");
     } finally { setBusy(false); }
+  }
+
+  async function saveProgram(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setBusy(true);
+    setMessage("");
+    const form = new FormData(event.currentTarget);
+    const placements = form.getAll("placements").map(String);
+    if (!placements.length) {
+      setMessage("Choose at least one placement for this program.");
+      setBusy(false);
+      return;
+    }
+    const payload = {
+      name: String(form.get("name") || "").trim(),
+      code: String(form.get("code") || "").trim(),
+      description: String(form.get("description") || "").trim(),
+      monthly_price_ngn: Number(form.get("monthly_price_ngn")),
+      base_plan: String(form.get("base_plan") || "CAMPUS"),
+      placements,
+      sort_order: Number(form.get("sort_order") || 0),
+      is_active: form.get("is_active") === "on",
+    };
+    try {
+      if (editingProgram) {
+        await api.patch(`/ads/admin/programs/${editingProgram.id}/`, payload);
+        setMessage("Subscription program updated. Existing subscriptions keep their agreed billing price.");
+      } else {
+        await api.post("/ads/admin/programs/", payload);
+        setMessage("Subscription program created and made available to advertisers.");
+      }
+      setProgramFormOpen(false);
+      setEditingProgram(null);
+      await programs.refetch();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not save subscription program.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function toggleProgram(program: SubscriptionProgram) {
+    setBusy(true);
+    setMessage("");
+    try {
+      await api.patch(`/ads/admin/programs/${program.id}/`, { is_active: !program.is_active });
+      setMessage(program.is_active ? "Program deactivated. Current subscribers are not affected." : "Program activated for new applications.");
+      await programs.refetch();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not update subscription program.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function control(action: string) {
@@ -275,7 +348,58 @@ export function AdvertisingAdminPage() {
     <header><p className="eyebrow">Super Admin</p><h1>Advertising review</h1><p>Review creative, proposed category and destination before approval. Payment does not override rejection, pause or revocation.</p></header>
     {message && <p role="status" className="ads-notice">{message}</p>}
     <section className="ads-admin-controls">
-      <h2>Program controls</h2>
+      <h2>Subscription programs</h2>
+      <p>Create and manage the offers advertisers can choose from. Price changes apply to new applications; existing campaigns retain their agreed monthly price and Paystack renewal plan.</p>
+      <div className="ads-admin-control-actions">
+        <button type="button" disabled={busy} onClick={() => { setEditingProgram(null); setProgramFormOpen((open) => !open); }}>
+          {programFormOpen && !editingProgram ? "Close program form" : "Add subscription program"}
+        </button>
+      </div>
+      {programFormOpen && (
+        <form className="ads-admin-review" onSubmit={(event) => void saveProgram(event)}>
+          <h3>{editingProgram ? "Edit subscription program" : "New subscription program"}</h3>
+          <label>Program name<input name="name" defaultValue={editingProgram?.name || ""} maxLength={120} required /></label>
+          <label>Program code<input name="code" defaultValue={editingProgram?.code || ""} pattern="[a-z0-9]+(?:-[a-z0-9]+)*" readOnly={Boolean(editingProgram)} required /></label>
+          <label>Description<textarea name="description" defaultValue={editingProgram?.description || ""} maxLength={500} /></label>
+          <label>Monthly price (NGN)<input name="monthly_price_ngn" type="number" min={100} max={1000000} step={1} defaultValue={editingProgram?.monthly_price_ngn ?? 3000} required /></label>
+          <label>Placement profile<select name="base_plan" defaultValue={editingProgram?.base_plan || "CAMPUS"}>
+            <option value="CAMPUS">Campus Brand rotation</option>
+            <option value="FEATURED">Featured Brand rotation</option>
+          </select></label>
+          <fieldset>
+            <legend>Where can this advertisement appear?</legend>
+            <label><input type="checkbox" name="placements" value="home" defaultChecked={editingProgram ? editingProgram.placements.includes("home") : true} /> Homepage</label>
+            <label><input type="checkbox" name="placements" value="events" defaultChecked={editingProgram ? editingProgram.placements.includes("events") : true} /> Events page</label>
+          </fieldset>
+          <label>Display order<input name="sort_order" type="number" min={0} max={999} defaultValue={editingProgram?.sort_order ?? 10} /></label>
+          <label><input type="checkbox" name="is_active" defaultChecked={editingProgram?.is_active ?? true} /> Available to new advertisers</label>
+          <div className="ads-admin-control-actions">
+            <button type="submit" disabled={busy}>{busy ? "Saving…" : editingProgram ? "Save program changes" : "Create program"}</button>
+            <button type="button" className="button-secondary" disabled={busy} onClick={() => { setEditingProgram(null); setProgramFormOpen(false); }}>Cancel</button>
+          </div>
+        </form>
+      )}
+      {programs.isError && <p role="alert">Could not load subscription programs.</p>}
+      <div className="ads-program-table">
+        {(programs.data || []).map((program) => <article key={program.id}>
+          <div>
+            <strong>{program.name}</strong>
+            <p>₦{program.monthly_price_ngn.toLocaleString()} / month · {program.placements.map((placement) => placement === "home" ? "Homepage" : "Events").join(" · ")}</p>
+            <small>{program.campaign_count} application(s) · {program.is_active ? "Available" : "Inactive"}</small>
+            {program.description && <p>{program.description}</p>}
+          </div>
+          <div className="ads-admin-control-actions">
+            <button type="button" className="button-secondary" disabled={busy} onClick={() => { setEditingProgram(program); setProgramFormOpen(true); }}>Edit</button>
+            <button type="button" disabled={busy} onClick={() => void toggleProgram(program)}>
+              {program.is_active ? "Deactivate" : "Activate"}
+            </button>
+          </div>
+        </article>)}
+        {programs.data?.length === 0 && <p>No subscription programs are configured.</p>}
+      </div>
+    </section>
+    <section className="ads-admin-controls">
+      <h2>Advertising controls</h2>
       <p>Policy approval: {settings.data?.policy_approved ? "Approved in server configuration" : "Not approved — checkout stays closed"}</p>
       <p>Paystack: {settings.data?.checkout_configured ? "Backend key configured" : "Not configured"}</p>
       <p>Founding places awarded: {settings.data?.founding_offer_awarded ?? 0} / 10 · Remaining: {settings.data?.founding_offer_remaining ?? 10}</p>
