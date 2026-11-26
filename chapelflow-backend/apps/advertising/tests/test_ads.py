@@ -372,5 +372,9 @@ def test_ad_application_notifies_super_admin_and_checkout_waits_for_approval(use
     assert create_plan.call_args.kwargs['program'].pk == program.pk
     assert create_plan.call_args.kwargs['amount_kobo'] == 580000
     checkout_payload = paystack.call_args.kwargs['payload']
-    assert checkout_payload['amount'] == 580000
-    assert checkout_payload['plan'] == 'PLN_FEATURED_CUSTOM'
+    # The first ten approved student brands pay the one-off ₦2,000
+    # founding charge; the full program price is the recurring renewal.
+    assert checkout_payload['amount'] == FOUNDING_FIRST_MONTH_KOBO
+    assert checkout_payload['metadata']['renewal_amount_kobo'] == 580000
+    assert checkout_payload['metadata']['billing_mode'] == 'FOUNDING_FIRST_MONTH'
+    assert 'plan' not in checkout_payload
