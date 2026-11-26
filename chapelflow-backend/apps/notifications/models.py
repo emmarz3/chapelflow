@@ -31,6 +31,7 @@ class NotificationCategory(models.TextChoices):
     FELLOWSHIP = "FELLOWSHIP", "Fellowship update"
     LIVE_SERVICE = "LIVE_SERVICE", "Live service"
     ADMIN_ALERT = "ADMIN_ALERT", "Administrative alert"
+    AD_REVIEW = "AD_REVIEW", "Advertising review"
     BIRTHDAY = "BIRTHDAY", "Birthday"
     OTHER = "OTHER", "Other"
 
