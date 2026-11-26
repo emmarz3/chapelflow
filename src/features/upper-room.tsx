@@ -296,7 +296,9 @@ function PostCard({ post, onOpen }: { post: UpperRoomPost; onOpen?: (post: Upper
         : [await createUpperRoomShareFile(post)];
 
       if (!post.media.length) {
-        setShareImageUrl(URL.createObjectURL(files[0]));
+        const cardFile = files[0];
+        if (!cardFile) throw new Error("The share image could not be prepared.");
+        setShareImageUrl(URL.createObjectURL(cardFile));
       } else {
         setShareAttachments(files.map((file) => ({ file, previewUrl: URL.createObjectURL(file) })));
       }
@@ -313,7 +315,11 @@ function PostCard({ post, onOpen }: { post: UpperRoomPost; onOpen?: (post: Upper
         await navigator.share(shareData);
       } else {
         if (post.media.length) downloadUpperRoomMediaFiles(files);
-        else downloadShareImage(files[0]);
+        else {
+          const cardFile = files[0];
+          if (!cardFile) throw new Error("The share image could not be prepared.");
+          downloadShareImage(cardFile);
+        }
         try {
           await navigator.clipboard.writeText(postUrl);
           toast(post.media.length
