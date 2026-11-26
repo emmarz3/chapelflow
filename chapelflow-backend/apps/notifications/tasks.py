@@ -59,11 +59,11 @@ def deliver_notification(self, notification_id):
             response = sms_provider.send(to=notification.recipient.phone_number, body=notification.body)
         elif notification.channel == NotificationChannel.PUSH:
             from django.conf import settings
-            from pywebpush import WebPushException, webpush
             import json
             if not settings.WEB_PUSH_PRIVATE_KEY:
                 response = {"status": "stubbed", "reason": "VAPID keys not configured"}
             else:
+                from pywebpush import WebPushException, webpush
                 delivered = 0
                 for subscription in WebPushSubscription.objects.filter(user=notification.recipient):
                     try:

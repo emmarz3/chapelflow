@@ -5,7 +5,7 @@ import { PageHeader } from "../components/ui";
 import { authService } from "../services/chapelflow";
 import { useAuth } from "./auth-context";
 
-async function cropProfilePhoto(file: File, zoom: number, horizontal: number, vertical: number, dimension: number): Promise<File> {
+async function cropProfilePhoto(file: File, zoom: number, horizontal: number, vertical: number, dimension: number, rotation: number): Promise<File> {
   const url = URL.createObjectURL(file);
   try {
     const image = new Image();
@@ -19,7 +19,9 @@ async function cropProfilePhoto(file: File, zoom: number, horizontal: number, ve
     const side = Math.min(image.naturalWidth, image.naturalHeight) / zoom;
     const left = (image.naturalWidth - side) * (horizontal + 100) / 200;
     const top = (image.naturalHeight - side) * (vertical + 100) / 200;
-    context.drawImage(image, left, top, side, side, 0, 0, dimension, dimension);
+    context.translate(dimension / 2, dimension / 2);
+    context.rotate(rotation * Math.PI / 180);
+    context.drawImage(image, left, top, side, side, -dimension / 2, -dimension / 2, dimension, dimension);
     const blob = await new Promise<Blob>((resolve, reject) => canvas.toBlob((result) => result ? resolve(result) : reject(new Error("Could not prepare the picture.")), "image/jpeg", 0.88));
     return new File([blob], "profile-picture.jpg", { type: "image/jpeg" });
   } finally {
@@ -38,6 +40,7 @@ export function ProfilePhotoEditor() {
   const [horizontal, setHorizontal] = useState(0);
   const [vertical, setVertical] = useState(0);
   const [dimension, setDimension] = useState(512);
+  const [rotation, setRotation] = useState(0);
   const [edited, setEdited] = useState<File | null>(null);
   const [preparing, setPreparing] = useState(false);
   useEffect(() => {
@@ -50,7 +53,7 @@ export function ProfilePhotoEditor() {
     setPreparing(true);
     const timer = window.setTimeout(async () => {
       try {
-        const output = file.type === "image/gif" ? file : await cropProfilePhoto(file, zoom, horizontal, vertical, dimension);
+        const output = file.type === "image/gif" ? file : await cropProfilePhoto(file, zoom, horizontal, vertical, dimension, rotation);
         if (active) setEdited(output);
       } catch (error) {
         if (active) setValidation(error instanceof Error ? error.message : "Could not edit this picture.");
@@ -59,7 +62,7 @@ export function ProfilePhotoEditor() {
       }
     }, 180);
     return () => { active = false; window.clearTimeout(timer); };
-  }, [file, zoom, horizontal, vertical, dimension]);
+  }, [file, zoom, horizontal, vertical, dimension, rotation]);
   useEffect(() => {
     if (!edited) { setPreview(""); return; }
     const url = URL.createObjectURL(edited);
@@ -83,7 +86,7 @@ export function ProfilePhotoEditor() {
     setValidation("");
     setFile(null);
     setEdited(null);
-    setZoom(1); setHorizontal(0); setVertical(0); setDimension(512);
+    setZoom(1); setHorizontal(0); setVertical(0); setDimension(512); setRotation(0);
     if (!photo) return;
     if (
       !/^image\/(jpeg|png|webp|gif)$/.test(photo.type) ||
@@ -145,6 +148,7 @@ export function ProfilePhotoEditor() {
           <label>Move left or right <input type="range" min="-100" max="100" value={horizontal} onChange={(event) => setHorizontal(Number(event.target.value))} /></label>
           <label>Move up or down <input type="range" min="-100" max="100" value={vertical} onChange={(event) => setVertical(Number(event.target.value))} /></label>
           <label>Output size <select value={dimension} onChange={(event) => setDimension(Number(event.target.value))}><option value={256}>256 × 256</option><option value={512}>512 × 512</option><option value={1024}>1024 × 1024</option></select></label>
+          <button type="button" className="button button--secondary" onClick={() => setRotation((current) => (current + 90) % 360)}>Rotate 90°</button>
         </div>}
         {file?.type === "image/gif" && <small>Animated GIFs keep their original frames and cannot be cropped here.</small>}
         {(validation || upload.isError) && (

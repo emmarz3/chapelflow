@@ -93,6 +93,16 @@ class Notification(models.Model):
     class Meta:
         db_table = "notifications_notification"
         indexes = [models.Index(fields=["recipient", "status"])]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["source_prayer_request", "recipient"],
+                condition=models.Q(source_prayer_request__isnull=False),
+                name="unique_prayer_notification_recipient",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.channel}:{self.title} -> {self.recipient_id}"
 
 
 class WebPushSubscription(models.Model):
@@ -105,13 +115,3 @@ class WebPushSubscription(models.Model):
 
     class Meta:
         db_table = "notifications_web_push_subscription"
-        constraints = [
-            models.UniqueConstraint(
-                fields=["source_prayer_request", "recipient"],
-                condition=models.Q(source_prayer_request__isnull=False),
-                name="unique_prayer_notification_recipient",
-            ),
-        ]
-
-    def __str__(self):
-        return f"{self.channel}:{self.title} -> {self.recipient_id}"
