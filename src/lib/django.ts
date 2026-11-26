@@ -712,7 +712,7 @@ export async function djangoRequest(
     method === "POST"
   ) {
     const sessionId = str(body.sessionId ?? body.session_id).trim();
-    const code = str(body.code ?? body.token).replace(/\\s/g, "");
+    const code = str(body.code ?? body.token).replace(/\s/g, "");
     return call(
       "/attendance/student-code/",
       json("POST", { session_id: sessionId, code }),
