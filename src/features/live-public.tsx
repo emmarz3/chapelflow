@@ -79,8 +79,12 @@ function LivePublicContentPage({ slug }: { slug: string }) {
             {section.heading && <h2>{section.heading}</h2>}
             <p>{section.body}</p>
             {section.action && (
-              /^https?:\/\//.test(section.action.href) ? (
-                <a href={section.action.href} target="_blank" rel="noreferrer">
+              /^(https?:\/\/|mailto:|tel:)/i.test(section.action.href) ? (
+                <a
+                  href={section.action.href}
+                  target={/^https?:\/\//i.test(section.action.href) ? "_blank" : undefined}
+                  rel={/^https?:\/\//i.test(section.action.href) ? "noreferrer" : undefined}
+                >
                   {section.action.label} <ArrowRight />
                 </a>
               ) : (
