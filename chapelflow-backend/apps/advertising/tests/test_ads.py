@@ -1,13 +1,16 @@
 import hashlib
 import hmac
 import json
+from io import BytesIO
 from datetime import timedelta
 from unittest.mock import patch
 
 import pytest
 from django.test import override_settings
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.utils import timezone
 from rest_framework.test import APIClient
+from PIL import Image
 
 from apps.accounts.models import User
 from apps.advertising.models import AdSubscriptionProgram, AdvertisingSettings, Campaign, AdPayment
@@ -53,6 +56,29 @@ def test_new_advertisers_pay_their_verified_audience_rate(users):
         assert response.data['monthly_price_ngn'] == expected
         assert Campaign.objects.get(pk=response.data['id']).monthly_price_kobo == expected * 100
     assert not AdvertisingSettings.objects.get_or_create(pk=1)[0].founding_offer_enabled
+
+
+@pytest.mark.django_db
+@override_settings(STORAGE_PROVIDER='cloudinary')
+def test_guest_advertiser_can_upload_creative_but_unprofiled_account_cannot(users):
+    _, outsider, _ = users
+    image = BytesIO()
+    Image.new('RGB', (2, 2)).save(image, format='PNG')
+    image_bytes = image.getvalue()
+    client = APIClient()
+    client.force_authenticate(outsider)
+    with patch('apps.advertising.views.get_storage_service') as storage:
+        storage.return_value.upload_fileobj.return_value = 'https://example.com/creative.png'
+        response = client.post('/api/v1/ads/image/', {
+            'file': SimpleUploadedFile('creative.png', image_bytes, content_type='image/png'),
+        }, format='multipart')
+    assert response.status_code == 201, response.data
+    unprofiled = User.objects.create_user(email='unprofiled@example.com', password='passphrase-very-long')
+    client.force_authenticate(unprofiled)
+    rejected = client.post('/api/v1/ads/image/', {
+        'file': SimpleUploadedFile('creative.png', image_bytes, content_type='image/png'),
+    }, format='multipart')
+    assert rejected.status_code == 403
 
 
 @pytest.mark.django_db
