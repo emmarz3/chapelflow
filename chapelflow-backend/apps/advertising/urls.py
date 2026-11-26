@@ -16,5 +16,7 @@ urlpatterns = [
     path('<uuid:pk>/cancel/', views.CancelView.as_view()),
     path('paystack/webhook/', views.WebhookView.as_view()),
     path('placement/<str:placement>/', views.PlacementView.as_view()),
+    path('dashboard-placement/', views.DashboardPlacementView.as_view()),
+    path('directory/', views.AdDirectoryView.as_view()),
     path('<uuid:pk>/click/', views.ClickView.as_view()),
 ]

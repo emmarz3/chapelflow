@@ -30,7 +30,7 @@ import { UpperRoomPage } from "../features/upper-room";
 import { CommunitySafetyPage } from "../features/moderation";
 import { NotificationSettingsPage } from "../features/notification-settings";
 import { GalleryPage } from "../features/gallery-page";
-import { AdvertisePage, AdvertisingAdminPage } from "../features/advertising";
+import { AdvertisePage, AdvertisingAdminPage, AdsDirectoryPage } from "../features/advertising";
 import { CommunityOversightPage, LeadershipNoticesPage, LeadershipNoticePage } from "../features/leadership-channel";
 import {
   StudentAttendanceHistoryPage,
@@ -318,6 +318,7 @@ export function App() {
                 <Route path="/app/account" element={<AccountProfilePage />} />
                 <Route path="/app/giving" element={<GivingPage />} />
                 <Route path="/app/upper-room" element={<UpperRoomPage />} />
+                <Route path="/app/ads" element={<AdsDirectoryPage />} />
                 <Route element={<ProtectedRoute roles={["member"]} />}>
                   <Route path="/app/advertise" element={<AdvertisePage />} />
                 </Route>

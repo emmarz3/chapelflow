@@ -105,7 +105,7 @@ class CampaignSerializer(serializers.ModelSerializer):
 
 class SubscriptionProgramSerializer(serializers.ModelSerializer):
     placements = serializers.ListField(
-        child=serializers.ChoiceField(choices=['home', 'events']),
+        child=serializers.ChoiceField(choices=['home', 'events', 'dashboard']),
         allow_empty=False,
     )
     campaign_count = serializers.SerializerMethodField()

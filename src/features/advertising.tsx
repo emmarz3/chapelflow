@@ -1,8 +1,9 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { api } from "../lib/api";
 import "./advertising.css";
+import "./dashboard-ads.css";
 
 type PaymentRecord = { reference: string; amount_ngn: number; paid_at: string };
 type DecisionRecord = { action: string; note: string; actor_email: string; created_at: string };
@@ -19,13 +20,13 @@ type Campaign = {
 type SubscriptionProgram = {
   id: string; code: string; name: string; description: string;
   monthly_price_ngn: number; audience: "STUDENT" | "OUTSIDER"; base_plan: "CAMPUS" | "FEATURED";
-  placements: ("home" | "events")[]; is_active: boolean; sort_order: number;
+  placements: ("home" | "events" | "dashboard")[]; is_active: boolean; sort_order: number;
   campaign_count: number;
 };
 type Plans = {
   plans: {
     id: string; code: string; name: string; description: string; price_ngn: number;
-    audience: "STUDENT" | "OUTSIDER"; base_plan: "CAMPUS" | "FEATURED"; placements: ("home" | "events")[];
+    audience: "STUDENT" | "OUTSIDER"; base_plan: "CAMPUS" | "FEATURED"; placements: ("home" | "events" | "dashboard")[];
   }[];
   consent_text: string; checkout_available: boolean; checkout_reason?: string;
   founding_offer?: { enabled: boolean; remaining: number; limit: number; first_month_price_ngn: number; renewal_note: string };
@@ -34,6 +35,90 @@ type AdvertisingSettings = {
   emergency_paused: boolean; emergency_pause_reason: string; founding_offer_enabled: boolean;
   founding_offer_awarded: number; founding_offer_remaining: number; policy_approved: boolean; checkout_configured: boolean;
 };
+
+type ActiveAd = Pick<Campaign, "id" | "brand_name" | "description" | "image_url"> & { ad_category?: string; plan?: Campaign["plan"] };
+
+async function openAdvertiser(id: string) {
+  const result = await api.post<{ url: string }>(`/ads/${id}/click/`);
+  const target = new URL(result.url);
+  if (target.protocol !== "https:") throw new Error("The advertiser's link is unavailable.");
+  window.location.assign(target.href);
+}
+
+function localDate() {
+  const date = new Date();
+  return `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`;
+}
+
+export function DashboardAdPopup({ userId }: { userId: string }) {
+  const key = `chapelflow-dashboard-ad:${userId}`;
+  const [eligible, setEligible] = useState(() => {
+    try { return localStorage.getItem(key) !== localDate(); } catch { return true; }
+  });
+  const [visible, setVisible] = useState(false);
+  const [error, setError] = useState("");
+  const ad = useQuery({
+    queryKey: ["dashboard-sponsored-ad", userId],
+    queryFn: () => api.get<{ ad: ActiveAd | null }>("/ads/dashboard-placement/"),
+    enabled: eligible,
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
+  useEffect(() => {
+    if (!eligible || !ad.data?.ad) return;
+    const timer = window.setTimeout(() => {
+      try { localStorage.setItem(key, localDate()); } catch { /* Storage can be unavailable. */ }
+      setVisible(true);
+    }, 1800);
+    return () => window.clearTimeout(timer);
+  }, [ad.data, eligible, key]);
+  useEffect(() => {
+    if (!visible) return;
+    const dismissOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") { setVisible(false); setEligible(false); }
+    };
+    document.addEventListener("keydown", dismissOnEscape);
+    return () => document.removeEventListener("keydown", dismissOnEscape);
+  }, [visible]);
+  if (!visible || !ad.data?.ad) return null;
+  const current = ad.data.ad;
+  return <aside className="dashboard-ad-popup" aria-label="Sponsored advertisement">
+    <div className="dashboard-ad-popup__top"><span>Sponsored</span><button type="button" aria-label="Close sponsored advertisement" onClick={() => { setVisible(false); setEligible(false); }}>×</button></div>
+    <img src={current.image_url} alt="" loading="lazy" />
+    <div className="dashboard-ad-popup__body"><strong>{current.brand_name}</strong><p>{current.description}</p>
+      {error && <small role="alert">{error}</small>}
+      <div className="dashboard-ad-popup__actions"><button type="button" onClick={() => void openAdvertiser(current.id).catch(() => setError("Could not open this brand. Please try again."))}>View brand</button><Link to="/app/ads">Browse ads</Link></div>
+    </div>
+  </aside>;
+}
+
+export function AdsDirectoryPage() {
+  const [search, setSearch] = useState("");
+  const [query, setQuery] = useState("");
+  const [page, setPage] = useState(1);
+  const [error, setError] = useState("");
+  const ads = useQuery({
+    queryKey: ["ads-directory", query, page],
+    queryFn: () => api.get<{ items: ActiveAd[]; total: number; page_size: number }>(`/ads/directory/?page=${page}&q=${encodeURIComponent(query)}`),
+  });
+  return <div className="ads-page ads-directory">
+    <header><p className="eyebrow">ChapelFlow brands</p><h1>Discover our advertisers</h1><p>Explore approved brands with active subscriptions. Every listing is marked as sponsored.</p></header>
+    <form className="ads-directory__search" role="search" onSubmit={(event) => { event.preventDefault(); setPage(1); setQuery(search.trim()); }}>
+      <label htmlFor="ads-directory-search">Search brands or categories</label><div><input id="ads-directory-search" value={search} onChange={(event) => setSearch(event.target.value)} maxLength={80} placeholder="Search brands" /><button type="submit">Search</button></div>
+    </form>
+    {ads.isPending && <p role="status">Loading brands…</p>}
+    {ads.isError && <p role="alert">Could not load brands. <button type="button" onClick={() => void ads.refetch()}>Try again</button></p>}
+    {error && <p role="alert">{error}</p>}
+    {ads.isSuccess && ads.data.items.length === 0 && <p>No active ads match your search.</p>}
+    <div className="ads-directory__grid">{ads.data?.items.map((item) => <article key={item.id}>
+      <img src={item.image_url} alt="" loading="lazy" /><div><small>Sponsored{item.ad_category ? ` · ${item.ad_category}` : ""}</small><h2>{item.brand_name}</h2><p>{item.description}</p>
+        <button type="button" onClick={() => void openAdvertiser(item.id).catch(() => setError("Could not open this brand. Please try again."))}>View brand ↗</button></div>
+    </article>)}</div>
+    {ads.data && ads.data.total > ads.data.page_size && <nav className="ads-directory__pagination" aria-label="Ad directory pages">
+      <button type="button" disabled={page === 1} onClick={() => setPage((value) => value - 1)}>Previous</button><span>Page {page} of {Math.ceil(ads.data.total / ads.data.page_size)}</span><button type="button" disabled={page * ads.data.page_size >= ads.data.total} onClick={() => setPage((value) => value + 1)}>Next</button>
+    </nav>}
+  </div>;
+}
 
 export function SponsoredCard({ placement }: { placement: "home" | "events" }) {
   const [ad, setAd] = useState<Pick<Campaign, "id" | "brand_name" | "description" | "image_url" | "plan"> | null>(null);
@@ -152,7 +237,7 @@ export function AdvertisePage() {
           <small>{plan.audience === "STUDENT" ? "Chrisland University students" : "Outside advertisers and staff"}</small>
           <strong>₦{plan.price_ngn.toLocaleString()} / month</strong>
           <p>{plan.description || (plan.base_plan === "FEATURED" ? "Higher rotation priority on the homepage and events page." : "Rotating sponsored card on the homepage and events page.")}</p>
-          <small>Placement: {plan.placements.map((placement) => placement === "home" ? "Homepage" : "Events").join(" · ")}</small>
+          <small>Placement: {plan.placements.map((placement) => placement === "home" ? "Homepage" : placement === "dashboard" ? "Dashboard popup" : "Events").join(" · ")}</small>
         </article>)}
       </div>
       {plans.data?.founding_offer?.enabled && <p className="ads-founding-note">
@@ -373,7 +458,8 @@ export function AdvertisingAdminPage() {
           <fieldset>
             <legend>Where can this advertisement appear?</legend>
             <label><input type="checkbox" name="placements" value="home" defaultChecked={editingProgram ? editingProgram.placements.includes("home") : true} /> Homepage</label>
-            <label><input type="checkbox" name="placements" value="events" defaultChecked={editingProgram ? editingProgram.placements.includes("events") : true} /> Events page</label>
+            <label><input type="checkbox" name="placements" value="events" defaultChecked={editingProgram ? editingProgram.placements.includes("events") : false} /> Public events page</label>
+            <label><input type="checkbox" name="placements" value="dashboard" defaultChecked={editingProgram ? editingProgram.placements.includes("dashboard") : true} /> Dashboard popup (overview only)</label>
           </fieldset>
           <label>Display order<input name="sort_order" type="number" min={0} max={999} defaultValue={editingProgram?.sort_order ?? 10} /></label>
           <label><input type="checkbox" name="is_active" defaultChecked={editingProgram?.is_active ?? true} /> Available to new advertisers</label>
@@ -388,7 +474,7 @@ export function AdvertisingAdminPage() {
         {(programs.data || []).map((program) => <article key={program.id}>
           <div>
             <strong>{program.name}</strong>
-            <p>₦{program.monthly_price_ngn.toLocaleString()} / month · {program.audience === "STUDENT" ? "School students" : "Outside advertisers"} · {program.placements.map((placement) => placement === "home" ? "Homepage" : "Events").join(" · ")}</p>
+            <p>₦{program.monthly_price_ngn.toLocaleString()} / month · {program.audience === "STUDENT" ? "School students" : "Outside advertisers"} · {program.placements.map((placement) => placement === "home" ? "Homepage" : placement === "dashboard" ? "Dashboard popup" : "Events").join(" · ")}</p>
             <small>{program.campaign_count} application(s) · {program.is_active ? "Available" : "Inactive"}</small>
             {program.description && <p>{program.description}</p>}
           </div>

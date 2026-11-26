@@ -59,6 +59,44 @@ def test_new_advertisers_pay_their_verified_audience_rate(users):
 
 
 @pytest.mark.django_db
+@override_settings(ADS_POLICY_APPROVED=True)
+def test_dashboard_popup_and_directory_show_only_active_paid_ads(users):
+    owner, outsider, admin = users
+    program = AdSubscriptionProgram.objects.get(code='campus-brand')
+    assert program.placements == ['home', 'dashboard']
+    active = Campaign.objects.create(
+        owner=owner, brand_name='Campus Studio', description='Student portraits',
+        ad_category='Photography', image_url='https://example.com/ad.jpg',
+        destination_url='https://example.com', contact_email=owner.email,
+        program=program, plan='CAMPUS', placements_snapshot=['home', 'dashboard'],
+        status=Campaign.Status.ACTIVE, paid_until=timezone.now() + timedelta(days=10),
+    )
+    Campaign.objects.create(
+        owner=owner, brand_name='Pending Studio', description='Unapproved',
+        ad_category='Photography', image_url='https://example.com/pending.jpg',
+        destination_url='https://example.com', contact_email=owner.email,
+        program=program, plan='CAMPUS', placements_snapshot=['home', 'dashboard'],
+        status=Campaign.Status.APPROVED,
+    )
+    client = APIClient()
+    assert client.get('/api/v1/ads/dashboard-placement/').status_code in {401, 403}
+    assert client.get('/api/v1/ads/directory/').status_code in {401, 403}
+    client.force_authenticate(outsider)
+    popup = client.get('/api/v1/ads/dashboard-placement/')
+    assert popup.status_code == 200 and popup.data['ad']['brand_name'] == 'Campus Studio'
+    assert 'destination_url' not in popup.data['ad']
+    directory = client.get('/api/v1/ads/directory/?q=portrait')
+    assert directory.status_code == 200 and directory.data['total'] == 1
+    assert directory.data['items'][0]['id'] == active.id
+    assert 'destination_url' not in directory.data['items'][0]
+    assert client.get('/api/v1/ads/directory/?q=nothing').data['total'] == 0
+    client.force_authenticate(admin)
+    assert client.post('/api/v1/ads/admin/settings/', {'action': 'pause_all', 'note': 'Review'}).status_code == 200
+    assert client.get('/api/v1/ads/dashboard-placement/').data['ad'] is None
+    assert client.get('/api/v1/ads/directory/').data['items'] == []
+
+
+@pytest.mark.django_db
 @override_settings(STORAGE_PROVIDER='cloudinary')
 def test_guest_advertiser_can_upload_creative_but_unprofiled_account_cannot(users):
     _, outsider, _ = users
