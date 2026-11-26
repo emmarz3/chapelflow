@@ -47,6 +47,47 @@ def _create_page(api_client, user, **overrides):
     return api_client.post("/api/v1/operations/cms/", payload, format="json")
 
 
+def test_contact_page_has_support_fallback_until_a_cms_page_is_published(
+    api_client, cms_author, super_admin, branch_a
+):
+    api_client.force_authenticate(user=None)
+    fallback = api_client.get("/api/v1/public/content/contact/")
+    assert fallback.status_code == 200
+    assert fallback.data["data"]["slug"] == "contact"
+    assert fallback.data["data"]["title"] == "How can we help?"
+    fallback_actions = {
+        section["action"]["href"]
+        for section in fallback.data["data"]["sections"]
+        if section.get("action")
+    }
+    assert "mailto:chapel@chrislanduniversity.edu?subject=ChapelFlow%20Help%20and%20Support" in fallback_actions
+    assert "tel:+2348036063523" in fallback_actions
+
+    created = _create_page(
+        api_client,
+        cms_author,
+        slug="contact",
+        title="Contact the Chapel Office",
+        details="Published contact page maintained by the Chapel Office.",
+    )
+    assert created.status_code == 201, created.data
+    content_id = created.data["data"]["id"]
+    api_client.force_authenticate(cms_author)
+    assert api_client.post(f"/api/v1/operations/cms/{content_id}/submit/", {}).status_code == 200
+
+    super_admin.branch = branch_a
+    super_admin.save(update_fields=["branch"])
+    api_client.force_authenticate(super_admin)
+    assert api_client.post(f"/api/v1/operations/cms/{content_id}/approve/", {}).status_code == 200
+    assert api_client.post(f"/api/v1/operations/cms/{content_id}/publish/", {}).status_code == 200
+
+    api_client.force_authenticate(user=None)
+    published = api_client.get("/api/v1/public/content/contact/")
+    assert published.status_code == 200
+    assert published.data["data"]["title"] == "Contact the Chapel Office"
+    assert published.data["data"]["sections"][0]["body"] == "Published contact page maintained by the Chapel Office."
+
+
 def test_content_requires_review_before_publication(
     api_client, cms_author, super_admin, branch_a
 ):
