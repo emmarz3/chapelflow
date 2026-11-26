@@ -126,12 +126,15 @@ class UsherQrAttendanceTests(TestCase):
         self.assertEqual(AttendanceRecord.objects.filter(session=self.session, member=self.student).count(), 0)
 
     def test_student_scan_endpoint_returns_duplicate_without_creating_another_record(self):
-        token = issue_checkpoint_token(self.checkpoint)["token"]
+        issued = issue_checkpoint_token(self.checkpoint)
+        token = issued["token"]
         client = APIClient()
         client.force_authenticate(self.student_user)
 
-        first = client.post("/api/v1/attendance/student-scan/", {"token": token}, format="json")
-        second = client.post("/api/v1/attendance/student-scan/", {"token": token}, format="json")
+        # Both scans must occur inside the same rotating QR window, even on slow CI runners.
+        with patch("apps.attendance.services.time.time", return_value=issued["expires_at"].timestamp() - 1):
+            first = client.post("/api/v1/attendance/student-scan/", {"token": token}, format="json")
+            second = client.post("/api/v1/attendance/student-scan/", {"token": token}, format="json")
 
         self.assertEqual(first.status_code, 201)
         self.assertEqual(first.data["data"]["result"], "recorded")
