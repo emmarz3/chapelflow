@@ -136,7 +136,7 @@ const navGroups: { label: string; items: NavItem[] }[] = [
         icon: <UserRound />,
         roles: ["super_admin"],
       },
-      { label: "Advertising review", path: "/app/admin/advertising", icon: <Megaphone />, roles: ["super_admin"] },
+      { label: "Ads & subscription programs", path: "/app/admin/advertising", icon: <Megaphone />, roles: ["super_admin"] },
       {
         label: "Launch reset",
         path: "/app/admin/launch-reset",
@@ -233,6 +233,7 @@ function studentNavGroups(communities: { type: string; is_leader?: boolean }[]):
       label: "My chapel",
       items: [
         { label: "Overview", path: "/app", icon: <Gauge />, roles: ["member"] },
+        { label: "Ads & subscriptions", path: "/app/advertise", icon: <Megaphone />, roles: ["member"] },
         { label: "Scan attendance", path: "/app/chapel-pass", icon: <Camera />, roles: ["member"] },
         { label: "My attendance", path: "/app/my-attendance", icon: <ClipboardCheck />, roles: ["member"] },
         { label: "Chapel schedule & events", path: "/app/events", icon: <CalendarDays />, roles: ["member"] },
@@ -266,6 +267,7 @@ function memberAccountNavGroups(): { label: string; items: NavItem[] }[] {
       label: "My account",
       items: [
         { label: "Overview", path: "/app", icon: <Gauge />, roles: ["member"] },
+        { label: "Ads & subscriptions", path: "/app/advertise", icon: <Megaphone />, roles: ["member"] },
         { label: "Service times", path: "/service-times", icon: <CalendarDays />, roles: ["member"] },
         { label: "Chapel events", path: "/events", icon: <CalendarDays />, roles: ["member"] },
         { label: "The Upper Room", path: "/app/upper-room", icon: <MessagesSquare />, roles: ["member"] },
@@ -421,7 +423,8 @@ export function PortalShell() {
             : item).filter(
             (item) =>
               hasPermission(user, item.permission) &&
-              (!item.roles || Boolean(user && item.roles.includes(user.role))),
+              (!item.roles || Boolean(user && item.roles.includes(user.role))) &&
+              (item.path !== "/app/advertise" || Boolean(user && user.role === "member" && ["student", "staff"].includes(user.community ?? ""))),
           ),
         }))
         .filter((group) => group.items.length),
