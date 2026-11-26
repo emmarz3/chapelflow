@@ -22,7 +22,7 @@ class CampaignSerializer(serializers.ModelSerializer):
     payment_history = serializers.SerializerMethodField()
 
     def get_program_name(self, campaign):
-        return campaign.program.name if campaign.program_id else campaign.get_plan_display()
+        return campaign.program_name_snapshot or (campaign.program.name if campaign.program_id else campaign.get_plan_display())
 
     def get_program_code(self, campaign):
         return campaign.program.code if campaign.program_id else campaign.plan.lower()
@@ -87,7 +87,11 @@ class CampaignSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         consent = validated_data.get('scendey_opt_in', False)
+        program = validated_data.get('program')
         validated_data['applicant_community'] = getattr(self, 'applicant_community', CommunityClassification.STUDENT)
+        if program:
+            validated_data['program_name_snapshot'] = program.name
+            validated_data['placements_snapshot'] = list(program.placements)
         return Campaign.objects.create(
             **validated_data, owner=self.context['request'].user,
             scendey_consented_at=timezone.now() if consent else None,
