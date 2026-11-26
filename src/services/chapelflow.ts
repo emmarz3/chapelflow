@@ -1122,8 +1122,9 @@ export const securityService = {
   exportAuditPdf: (params: { search?: string } = {}) => {
     const search = new URLSearchParams();
     if (params.search) search.set("search", params.search);
+    const query = search.toString();
     return downloadAuthenticatedPdf(
-      `/audit/logs/export-pdf/${search.size ? `?${search.toString()}` : ""}`,
+      `/audit/logs/export-pdf/${query ? `?${query}` : ""}`,
       "chapelflow-audit.pdf",
     );
   },
