@@ -5,6 +5,8 @@ from . import views
 urlpatterns = [
     path("csrf/", views.CsrfTokenView.as_view(), name="auth-csrf"),
     path("register/", views.RegisterView.as_view(), name="auth-register"),
+    path("verify-email/", views.VerifyEmailView.as_view(), name="auth-verify-email"),
+    path("resend-verification/", views.ResendVerificationView.as_view(), name="auth-resend-verification"),
     path("setup/super-admin/", views.LocalSuperAdminSetupView.as_view(), name="auth-super-admin-setup"),
     path("login/", views.LoginView.as_view(), name="auth-login"),
     path("refresh/", views.RefreshView.as_view(), name="auth-refresh"),

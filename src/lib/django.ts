@@ -156,6 +156,8 @@ function upperRoomPost(value: Row) {
     likeCount: Number(value.like_count || 0),
     commentCount: Number(value.comment_count || 0),
     isLiked: Boolean(value.is_liked),
+    isStory: Boolean(value.is_story),
+    expiresAt: str(value.expires_at),
   };
 }
 
@@ -388,7 +390,7 @@ export async function djangoRequest(
       : registrationType === "Guest"
         ? "GUEST"
         : "STUDENT";
-    await call(
+    const registration = await call(
       "/auth/register/",
       json("POST", {
         email: body.email,
@@ -402,8 +404,13 @@ export async function djangoRequest(
           : {}),
       }),
     );
-    return { data: { verificationRequired: false, approvalRequired: false } };
+    const result = row(registration.data);
+    return { data: { verificationRequired: Boolean(result.verification_required), approvalRequired: Boolean(result.approval_required) } };
   }
+  if (route === "/auth/verify-email" && method === "POST")
+    return call("/auth/verify-email/", json("POST", { token: body.token }));
+  if (route === "/auth/resend-verification" && method === "POST")
+    return call("/auth/resend-verification/", json("POST", { email: body.email }));
   if (route === "/auth/setup/super-admin")
     return call("/auth/setup/super-admin/", json("POST", body));
   if (route === "/auth/change-password")
@@ -446,7 +453,16 @@ export async function djangoRequest(
       },
     };
   }
+  if (route === "/social/stories") {
+    const response = await call("/social/stories/", init);
+    if (method === "POST") return { data: upperRoomPost(row(response.data)) };
+    return { data: { items: list(response.data).map(upperRoomPost) } };
+  }
   const socialPost = route.match(/^\/social\/posts\/([^/]+)$/);
+  if (socialPost && method === "GET") {
+    const response = await call(`/social/posts/${encodeURIComponent(socialPost[1]!)}/`);
+    return { data: upperRoomPost(row(response.data)) };
+  }
   if (socialPost && method === "DELETE")
     return call(`/social/posts/${encodeURIComponent(socialPost[1]!)}/`, { method: "DELETE" });
   const socialLike = route.match(/^\/social\/posts\/([^/]+)\/like$/);
@@ -1112,6 +1128,12 @@ export async function djangoRequest(
   }
   if (route === "/notifications/unread-count" && method === "GET")
     return call("/notifications/unread-count/");
+  if (route === "/notifications/push-subscription" && method === "GET")
+    return call("/notifications/push-subscription/");
+  if (route === "/notifications/push-subscription" && method === "POST")
+    return call("/notifications/push-subscription/", json("POST", body));
+  if (route === "/notifications/push-subscription" && method === "DELETE")
+    return call(`/notifications/push-subscription/?endpoint=${encodeURIComponent(query.get("endpoint") || "")}`, { method: "DELETE" });
   if (/^\/notifications\/[^/]+\/read$/.test(route))
     return call(
       `/notifications/${encodeURIComponent(route.split("/")[2]!)}/mark-read/`,
@@ -1219,8 +1241,10 @@ export async function djangoRequest(
     return call(`/community-memberships/${encodeURIComponent(route.split("/").at(-1)!)}/`, json("PATCH", body));
   if (route === "/role/announcements")
     return call("/communications/announcements/", method === "POST" ? json("POST", body) : init);
-  if (route === "/role/reports")
-    return call("/reports/jobs/", method === "POST" ? json("POST", body) : init);
+  if (route === "/role/reports") {
+    const response = await call("/reports/jobs/", method === "POST" ? json("POST", body) : init);
+    return method === "GET" ? { data: list(response.data) } : response;
+  }
   if (route === "/role/assignments") return call("/volunteers/assignments/");
   if (route === "/role/follow-ups") return call("/pastoral/cases/");
   if (route === "/role/join-requests") return call("/group-join-requests/", init);

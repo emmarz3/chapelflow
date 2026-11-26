@@ -4,7 +4,7 @@ from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
 
-from .models import Notification, NotificationCategory, NotificationChannel, NotificationStatus
+from .models import Notification, NotificationCategory, NotificationChannel, NotificationStatus, WebPushSubscription
 from .preferences import delivery_eligibility, queue_notification
 from .providers import email_provider, sms_provider
 
@@ -58,9 +58,25 @@ def deliver_notification(self, notification_id):
         elif notification.channel == NotificationChannel.SMS and notification.recipient and notification.recipient.phone_number:
             response = sms_provider.send(to=notification.recipient.phone_number, body=notification.body)
         elif notification.channel == NotificationChannel.PUSH:
-            # There is no device subscription or browser permission lifecycle yet.
-            # Legacy PUSH rows must never be sent with an empty device token.
-            response = {"status": "stubbed", "reason": "no device subscription"}
+            from django.conf import settings
+            from pywebpush import WebPushException, webpush
+            import json
+            if not settings.WEB_PUSH_PRIVATE_KEY:
+                response = {"status": "stubbed", "reason": "VAPID keys not configured"}
+            else:
+                delivered = 0
+                for subscription in WebPushSubscription.objects.filter(user=notification.recipient):
+                    try:
+                        webpush(subscription_info={"endpoint": subscription.endpoint, "keys": {"p256dh": subscription.p256dh, "auth": subscription.auth}},
+                                data=json.dumps({"title": notification.title, "body": notification.body, "href": notification.href}),
+                                vapid_private_key=settings.WEB_PUSH_PRIVATE_KEY, vapid_claims={"sub": settings.WEB_PUSH_SUBJECT})
+                        delivered += 1
+                    except WebPushException as exc:
+                        if getattr(exc.response, "status_code", None) in {404, 410}:
+                            subscription.delete()
+                        else:
+                            raise
+                response = {"status": "sent", "devices": delivered} if delivered else {"status": "stubbed", "reason": "no active device"}
         elif notification.channel == NotificationChannel.IN_APP:
             # The persisted notification is the in-app delivery itself; no external
             # provider is involved and it is immediately available in the inbox.

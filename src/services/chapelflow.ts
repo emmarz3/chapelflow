@@ -301,6 +301,8 @@ export const authService = {
     }>("/auth/register", payload),
   verifyEmail: (token: string) =>
     api.post<{ data: { verified: boolean } }>("/auth/verify-email", { token }),
+  resendVerification: (email: string) =>
+    api.post<void>("/auth/resend-verification", { email }),
   verifyOtp: (identifier: string, code: string) =>
     api.post<{ data: { verified: boolean } }>("/auth/verify-otp", {
       identifier,
@@ -417,6 +419,8 @@ export interface UpperRoomPost {
   likeCount: number;
   commentCount: number;
   isLiked: boolean;
+  isStory?: boolean;
+  expiresAt?: string;
 }
 
 export interface UpperRoomComment {
@@ -438,6 +442,15 @@ export const uploadService = {
 
 export const upperRoomService = {
   feed: (page = 1) => api.get<{ data: { items: UpperRoomPost[]; page: number; hasMore: boolean; branches: { id: string; name: string }[] } }>(`/social/posts${queryString({ page, pageSize: 15 })}`),
+  stories: () => api.get<{ data: { items: UpperRoomPost[] } }>("/social/stories"),
+  post: (id: string) => api.get<{ data: UpperRoomPost }>(`/social/posts/${encodeURIComponent(id)}`),
+  createStory: (file: File, caption: string, branchId?: string) => {
+    const body = new FormData();
+    body.set("caption", caption);
+    body.set("files", file);
+    if (branchId) body.set("branch", branchId);
+    return api.postForm<{ data: UpperRoomPost }>("/social/stories", body);
+  },
   createPost: (caption: string, files: File[], branchId?: string) => {
     const body = new FormData();
     body.set("caption", caption);
@@ -644,6 +657,9 @@ export interface NotificationItem {
 }
 
 export const notificationService = {
+  pushConfig: () => api.get<{ data: { enabled: boolean; public_key: string } }>("/notifications/push-subscription"),
+  subscribePush: (subscription: PushSubscriptionJSON) => api.post<void>("/notifications/push-subscription", subscription),
+  unsubscribePush: (endpoint: string) => api.delete<void>(`/notifications/push-subscription?endpoint=${encodeURIComponent(endpoint)}`),
   list: (page = 1) =>
     isDemoMode
       ? Promise.resolve({

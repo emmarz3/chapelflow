@@ -6,7 +6,7 @@ from django.utils import timezone
 
 from apps.communications.models import CommunicationPreference
 
-from .models import Notification, NotificationCategory, NotificationChannel
+from .models import Notification, NotificationCategory, NotificationChannel, WebPushSubscription
 
 
 CATEGORY_FIELDS = {
@@ -109,8 +109,8 @@ def delivery_eligibility(user, category, channel, now=None):
 
 
 def create_notification(*, recipient, category, channel, title, body, href="", idempotency_key=None, **kwargs):
-    if channel == NotificationChannel.PUSH:
-        return None  # There is no registered device-token lifecycle in this application yet.
+    if channel == NotificationChannel.PUSH and not WebPushSubscription.objects.filter(user=recipient).exists():
+        return None
     allowed, scheduled_for = delivery_eligibility(recipient, category, channel)
     if not allowed:
         return None
@@ -137,4 +137,9 @@ def queue_notification(**kwargs):
     notification = create_notification(**kwargs)
     if notification and notification.status in {NotificationStatus.PENDING, NotificationStatus.FAILED}:
         transaction.on_commit(lambda notification_id=str(notification.id): deliver_notification.delay(notification_id))
+    if notification and kwargs.get("channel") == NotificationChannel.IN_APP:
+        push = create_notification(**{**kwargs, "channel": NotificationChannel.PUSH,
+                                      "idempotency_key": f"{kwargs['idempotency_key']}:push" if kwargs.get("idempotency_key") else None})
+        if push and push.status in {NotificationStatus.PENDING, NotificationStatus.FAILED}:
+            transaction.on_commit(lambda notification_id=str(push.id): deliver_notification.delay(notification_id))
     return notification

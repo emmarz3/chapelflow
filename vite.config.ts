@@ -70,6 +70,7 @@ export default defineConfig(({ mode }) => {
           ],
         },
         workbox: {
+          importScripts: ["/chapelflow-push.js"],
           clientsClaim: true,
           skipWaiting: true,
           navigateFallback: "/index.html",

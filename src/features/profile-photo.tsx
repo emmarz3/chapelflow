@@ -10,6 +10,7 @@ async function cropProfilePhoto(file: File, zoom: number, horizontal: number, ve
   try {
     const image = new Image();
     image.src = url;
+    if (typeof image.decode !== "function") return file;
     await image.decode();
     const canvas = document.createElement("canvas");
     canvas.width = canvas.height = dimension;

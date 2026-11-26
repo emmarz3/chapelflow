@@ -3,6 +3,7 @@ import { Bell } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { Button, ErrorState, LoadingState, PageHeader, useToast } from "../components/ui";
 import { notificationService, type NotificationPreferences } from "../services/chapelflow";
+import { enableBrowserPush, disableBrowserPush } from "../lib/push";
 
 const categories: { key: keyof NotificationPreferences; label: string; detail: string }[] = [
   { key: "announcementsEnabled", label: "Chapel announcements", detail: "Updates from your chapel branch." },
@@ -26,6 +27,7 @@ export function NotificationSettingsPage() {
   const toast = useToast();
   const [quietOverride, setQuietOverride] = useState<boolean | null>(null);
   const query = useQuery({ queryKey: ["notification-preferences"], queryFn: async () => (await notificationService.preferences()).data });
+  const pushConfig = useQuery({ queryKey: ["web-push-config"], queryFn: async () => (await notificationService.pushConfig()).data, retry: false });
   const save = useMutation({
     mutationFn: notificationService.savePreferences,
     onSuccess: () => { toast("Notification preferences saved."); void client.invalidateQueries({ queryKey: ["notification-preferences"] }); },
@@ -56,10 +58,10 @@ export function NotificationSettingsPage() {
     <section className="panel">
       <form className="form-grid" onSubmit={submit}>
         <label className="field field--full checkbox-field"><input type="checkbox" name="masterEnabled" defaultChecked={preference.masterEnabled} /><span><strong>Allow ordinary notifications</strong><small>Turn off to pause all ordinary updates. Your category choices are kept for later.</small></span></label>
-        <div className="field--full"><h2>Delivery channels</h2><p>Email requires a valid address on your account. In-app updates appear when you sign in. SMS and push are coming later.</p></div>
+        <div className="field--full"><h2>Delivery channels</h2><p>Email requires a valid address on your account. In-app updates appear when you sign in.</p></div>
         <label className="field checkbox-field"><input type="checkbox" name="inAppEnabled" defaultChecked={preference.inAppEnabled} /><span>In-app</span></label>
         <label className="field checkbox-field"><input type="checkbox" name="emailEnabled" defaultChecked={preference.emailEnabled} /><span>Email</span></label>
-        <p className="field--full">Browser push is unavailable until device registration is configured. ChapelFlow does not request browser notification permission.</p>
+        <div className="field--full"><p>Browser push: {pushConfig.data?.enabled ? "available on supported devices" : "not configured"}.</p>{pushConfig.data?.enabled && <><Button type="button" variant="secondary" onClick={() => { void enableBrowserPush().then(() => toast("Push enabled on this device.")).catch((reason: unknown) => toast(errorMessage(reason), "error")); }}>Enable on this device</Button><Button type="button" variant="ghost" onClick={() => { void disableBrowserPush().then(() => toast("Push disabled on this device.")).catch((reason: unknown) => toast(errorMessage(reason), "error")); }}>Disable on this device</Button></>}</div>
         <div className="field--full"><h2>Topics</h2><p>Choose each kind of update independently.</p></div>
         {categories.map(({ key, label, detail }) => <label key={key} className="field field--full checkbox-field"><input type="checkbox" name={key} defaultChecked={Boolean(preference[key])} /><span><strong>{label}</strong><small>{detail}</small></span></label>)}
         <div className="field--full"><h2>Quiet hours</h2><p>External messages wait until quiet hours end. In-app updates remain available when you open ChapelFlow.</p></div>

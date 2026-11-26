@@ -3,6 +3,23 @@ import pytest
 
 @pytest.mark.django_db
 class TestUpperRoom:
+    def test_story_visibility_and_expiry(self, api_client, make_user, branch_a, branch_b):
+        from datetime import timedelta
+        from django.utils import timezone
+        from apps.social.models import SocialPost
+
+        author = make_user(email="story-author@chapelflow.test", branch=branch_a)
+        api_client.force_authenticate(user=author)
+        live = SocialPost.objects.create(branch=branch_a, author=author, caption="Live story", is_story=True, expires_at=timezone.now() + timedelta(hours=1))
+        expired = SocialPost.objects.create(branch=branch_a, author=author, caption="Expired story", is_story=True, expires_at=timezone.now() - timedelta(seconds=1))
+        foreign = SocialPost.objects.create(branch=branch_b, author=author, caption="Other branch", is_story=True, expires_at=timezone.now() + timedelta(hours=1))
+        stories = api_client.get("/api/v1/social/stories/")
+        assert stories.status_code == 200
+        assert [item["id"] for item in stories.data["data"]] == [str(live.id)]
+        assert api_client.get("/api/v1/social/posts/").data["data"]["items"] == []
+        assert api_client.get(f"/api/v1/social/posts/{expired.id}/").status_code == 400
+        assert api_client.get(f"/api/v1/social/posts/{foreign.id}/").status_code == 400
+
     def test_branchless_super_admin_can_view_post_and_moderate_across_branches(
         self, api_client, make_user, super_admin, branch_a, branch_b,
     ):

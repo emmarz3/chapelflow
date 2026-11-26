@@ -12,6 +12,7 @@ import { api, ApiError } from "../lib/api";
 import { buildDemoUser, hasPermission } from "../lib/permissions";
 import { isDemoMode } from "../lib/fixtures";
 import { useQueryClient } from "@tanstack/react-query";
+import { disableBrowserPush } from "../lib/push";
 
 interface AuthContextValue {
   user: User | null;
@@ -127,6 +128,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
       async logout() {
         authRevision.current += 1;
+        if (!isDemoMode) await disableBrowserPush().catch(() => undefined);
+        for (const key of Object.keys(window.localStorage)) if (key.startsWith("chapelflow:recent-media:")) window.localStorage.removeItem(key);
         if (isDemoMode)
           window.sessionStorage.removeItem("chapelflow-demo-role");
         queryClient.clear();

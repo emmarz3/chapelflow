@@ -539,6 +539,14 @@ export function RegisterPage() {
       setComplete(true);
     } catch (caught) {
       setError(registrationError(caught));
+      if (caught instanceof ApiError && caught.fieldErrors) {
+        const firstField = Object.keys(caught.fieldErrors)[0] || "";
+        const fieldName = firstField === "matric_no" ? "identifier" : firstField === "academic_level" ? "level" : firstField === "first_name" ? "firstName" : firstField === "last_name" ? "lastName" : firstField;
+        if (["email", "password"].includes(fieldName)) setStep(0);
+        else if (["identifier", "firstName", "lastName", "phone"].includes(fieldName)) setStep(1);
+        else if (["programme", "level"].includes(fieldName)) setStep(2);
+        window.setTimeout(() => document.querySelector<HTMLInputElement | HTMLSelectElement>(`[name="${fieldName}"]`)?.focus(), 80);
+      }
     } finally {
       setSubmitting(false);
     }
@@ -573,7 +581,7 @@ export function RegisterPage() {
               <>
                 We sent a verification link to{" "}
                 <strong>{values.email || "your email address"}</strong>. The link
-                expires in 30 minutes.
+                expires in 24 hours.
               </>
             ) : (
               memberType === "Student"
@@ -581,6 +589,8 @@ export function RegisterPage() {
                 : "Sign in with the email address you registered to open your ChapelFlow account."
             )}
           </p>
+          {verificationRequired && values.email && !isDemoMode && <Button type="button" variant="ghost" onClick={() => { void authService.resendVerification(values.email || "").then(() => setError("A new link has been requested. Check your inbox.")).catch((caught: unknown) => setError(registrationError(caught))); }}>Resend verification email</Button>}
+          {error && <p role="status">{error}</p>}
           <Link className="button button--primary full-button" to="/login">
             Return to sign in
           </Link>
@@ -825,7 +835,7 @@ export function RegisterPage() {
           )}
           {error && (
             <div className="form-error" role="alert">
-              {error}
+              {error} {/already exists|already in use/i.test(error) && <Link to="/login">Sign in to your existing account</Link>}
             </div>
           )}
           <div className="step-actions">
