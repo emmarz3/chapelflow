@@ -119,7 +119,7 @@ export function UsherAttendancePage() {
       } else setMessage(reason || "Check-in failed.");
     }
   }, [scanning, user]);
-  const { videoRef, permissionError, cameraCount, switchLens } = useQrScanner((token) => { void onScan(token); }, scanning);
+  const { videoRef, permissionError, cameras, selectedCameraId, selectCamera } = useQrScanner((token) => { void onScan(token); }, scanning);
   return (
     <main className="usher-checkpoint">
       <header className="usher-checkpoint__header">
@@ -133,12 +133,18 @@ export function UsherAttendancePage() {
         <p>Open this page online during the service. If the connection drops, scan students' personal ChapelFlow QR codes here and keep this tab open until they synchronize.</p>
         <p>{pending} scan{pending === 1 ? "" : "s"} awaiting synchronization on this device.</p>
         {scanning && <video ref={videoRef} muted playsInline aria-label="Student identity QR scanner camera" className="kiosk__camera" />}
+        {scanning && cameras.length > 1 && <label className="scanner-camera-picker">
+          <span>Camera lens</span>
+          <select value={selectedCameraId} onChange={(event) => selectCamera(event.target.value)}>
+            {cameras.map((camera, index) => <option key={camera.deviceId} value={camera.deviceId}>{camera.label || `Camera ${index + 1}`}</option>)}
+          </select>
+        </label>}
         {permissionError && <p role="alert">{permissionError}</p>}
         {message && <p role="status">{message}</p>}
         <Button icon={<Camera />} onClick={() => { setMessage(""); setScanning((value) => !value); }}>
           {scanning ? "Stop scanner" : "Scan identity QR"}
         </Button>
-        {scanning && cameraCount > 1 && <Button variant="secondary" icon={<RefreshCw />} onClick={switchLens}>Switch camera</Button>}
+        {scanning && cameras.length > 1 && <Button variant="secondary" icon={<RefreshCw />} onClick={() => selectCamera(cameras[(cameras.findIndex((camera) => camera.deviceId === selectedCameraId) + 1) % cameras.length]?.deviceId || "")}>Switch lens</Button>}
       </section>
     </main>
   );
