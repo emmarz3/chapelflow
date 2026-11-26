@@ -221,8 +221,8 @@ export function InstitutionalAccountsPage() {
     <div className="motion-feature">
       <PageHeader
         eyebrow="Super administration"
-        title="Institutional accounts"
-        description="Create accounts for every Chapel leadership office, including assistant heads and hostel fellowship coordinators. No names are preloaded."
+        title="Leadership and accounts"
+        description="Provision Chapel leadership accounts, assign Unit and Fellowship leaders to their matching workspaces, and manage institutional account access. This page shows current account assignments."
         actions={
           <div className="button-row">
             <Button variant="secondary" loading={addUnits.isPending} onClick={() => addUnits.mutate()}>
@@ -394,7 +394,7 @@ export function InstitutionalAccountsPage() {
         <header>
           <div className="panel-heading">
             <div>
-              <h2>Chapel accounts</h2>
+              <h2>Current leadership accounts</h2>
               <p>
                 Only Super Admins can make changes. Existing passwords are
                 never visible; temporary passwords appear once after a reset.
