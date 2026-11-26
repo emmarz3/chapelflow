@@ -1,8 +1,11 @@
 import json
+from datetime import timedelta
 
 from django.core.serializers.json import DjangoJSONEncoder
 from django.db import transaction
 from django.db.models import Count, F, Max, Q
+from django.db.models.functions import TruncWeek
+from django.http import HttpResponse
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from rest_framework.exceptions import PermissionDenied, ValidationError
@@ -979,14 +982,37 @@ class WorkerLeaveRequestView(APIView):
         return success_response(WorkerLeaveRequestSerializer(instance).data, message="Leave request submitted.", status=201)
 
 
+def _analytics_range_bounds(range_name, now=None):
+    now = now or timezone.now()
+    if range_name == "semester":
+        return now - timedelta(days=180), now
+    if range_name == "previous_semester":
+        return now - timedelta(days=360), now - timedelta(days=180)
+    if range_name == "year":
+        return now - timedelta(days=365), now
+    raise ValidationError({"range": "Choose semester, previous_semester, or year."})
+
+
 class AnalyticsOverviewView(APIView):
     permission_classes = [IsAuthenticated]
 
-    def get(self, request):
-        _require_permission(request.user, PermissionCodes.REPORTS_VIEW)
+    def _authorized_data(self, request):
+        start, end = _analytics_range_bounds(request.query_params.get("range", "semester"))
         branch_ids = get_accessible_branch_ids(request.user)
         members = Member.objects.filter(branch_id__in=branch_ids)
-        attendance = AttendanceRecord.objects.filter(session__branch_id__in=branch_ids)
+        attendance = AttendanceRecord.objects.filter(
+            session__branch_id__in=branch_ids,
+            checked_in_at__gte=start,
+            checked_in_at__lt=end,
+        )
+        return start, end, members, attendance
+
+    def get(self, request):
+        if request.query_params.get("export") == "pdf":
+            return self.export_pdf(request)
+
+        _require_permission(request.user, PermissionCodes.REPORTS_VIEW)
+        start, end, members, attendance = self._authorized_data(request)
         total = members.count()
         active = members.filter(membership_status=MembershipStatus.ACTIVE).count()
         scans = attendance.count()
@@ -995,15 +1021,138 @@ class AnalyticsOverviewView(APIView):
             .values("academic_level").annotate(value=Count("id"))
             .order_by("academic_level")
         )
+        trend = (
+            attendance.annotate(week_start=TruncWeek("checked_in_at"))
+            .values("week_start")
+            .annotate(attendance=Count("id"))
+            .order_by("week_start")
+        )
         return success_response({
             "metrics": [
                 {"label": "Total members", "value": str(total), "note": "Current authorized scope"},
                 {"label": "Active members", "value": str(active), "note": "Active membership records"},
-                {"label": "Attendance records", "value": str(scans), "note": "All recorded sessions"},
+                {"label": "Attendance records", "value": str(scans), "note": f"{start:%d %b %Y} – {end:%d %b %Y}"},
             ],
-            "attendanceTrend": [],
+            "attendanceTrend": [
+                {"week": row["week_start"].strftime("%d %b"), "attendance": row["attendance"]}
+                for row in trend if row["week_start"]
+            ],
             "byLevel": [{"name": row["academic_level"], "value": row["value"]} for row in by_level],
         })
+
+    def export_pdf(self, request):
+        """Generate a full authorized analytics report on the server."""
+        _require_permission(request.user, PermissionCodes.REPORTS_EXPORT)
+        start, end, members, attendance = self._authorized_data(request)
+        total_members = members.count()
+        active_members = members.filter(membership_status=MembershipStatus.ACTIVE).count()
+        attendance_count = attendance.count()
+        from apps.reports.services import export_rows_pdf
+
+        rows = [
+            {
+                "section": "Summary",
+                "record": "Total members",
+                "date": "",
+                "branch": "Authorized scope",
+                "category": "Membership",
+                "status": "",
+                "value": total_members,
+            },
+            {
+                "section": "Summary",
+                "record": "Active members",
+                "date": "",
+                "branch": "Authorized scope",
+                "category": "Membership",
+                "status": "",
+                "value": active_members,
+            },
+            {
+                "section": "Summary",
+                "record": "Attendance records",
+                "date": f"{start:%Y-%m-%d} to {end:%Y-%m-%d}",
+                "branch": "Authorized scope",
+                "category": "Attendance",
+                "status": "",
+                "value": attendance_count,
+            },
+        ]
+
+        level_counts = (
+            members.exclude(academic_level="")
+            .values("academic_level")
+            .annotate(value=Count("id"))
+            .order_by("academic_level")
+        )
+        for item in level_counts:
+            rows.append({
+                "section": "Membership breakdown",
+                "record": item["academic_level"],
+                "date": "",
+                "branch": "Authorized scope",
+                "category": "Members by academic level",
+                "status": "",
+                "value": item["value"],
+            })
+
+        for member in members.select_related("branch").order_by("branch__name", "last_name", "first_name").iterator(chunk_size=1000):
+            rows.append({
+                "section": "Membership records",
+                "record": f"{member.first_name} {member.last_name}".strip(),
+                "date": member.membership_date or "",
+                "branch": member.branch.name if member.branch_id else "",
+                "category": member.academic_level or "Not recorded",
+                "status": member.get_membership_status_display(),
+                "value": str(member.id),
+            })
+
+        for record in attendance.select_related("session__branch", "member").order_by("checked_in_at").iterator(chunk_size=1000):
+            member_name = (
+                f"{record.member.first_name} {record.member.last_name}".strip()
+                if record.member_id else "Visitor"
+            )
+            rows.append({
+                "section": "Attendance records",
+                "record": member_name,
+                "date": record.checked_in_at,
+                "branch": record.session.branch.name if record.session.branch_id else "",
+                "category": f"Session {record.session_id}",
+                "status": record.get_status_display() if hasattr(record, "get_status_display") else record.status,
+                "value": record.method,
+            })
+
+        for item in attendance.values("status").annotate(value=Count("id")).order_by("status"):
+            rows.append({
+                "section": "Attendance breakdown",
+                "record": item["status"],
+                "date": f"{start:%Y-%m-%d} to {end:%Y-%m-%d}",
+                "branch": "Authorized scope",
+                "category": "Attendance status",
+                "status": "",
+                "value": item["value"],
+            })
+
+        content = export_rows_pdf(
+            rows,
+            title=f"ChapelFlow Analytics ({start:%d %b %Y} – {end:%d %b %Y})",
+        )
+        write_audit_log(
+            AuditAction.REPORT_EXPORT,
+            "analytics.overview",
+            metadata={
+                "export_format": "PDF",
+                "range": request.query_params.get("range", "semester"),
+                "record_count": len(rows),
+                "member_count": total_members,
+                "attendance_count": attendance_count,
+            },
+            user=request.user,
+        )
+        response = HttpResponse(content, content_type="application/pdf")
+        response["Content-Disposition"] = 'attachment; filename="chapelflow-analytics.pdf"'
+        response["Cache-Control"] = "private, no-store"
+        return response
 
 
 class PrivacyRequestCreateView(APIView):
