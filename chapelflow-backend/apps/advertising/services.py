@@ -103,7 +103,7 @@ def notify_advertiser_of_review(campaign):
     }
     body_by_action = {
         'approve': 'Your advertisement is approved. Return to Ads & subscriptions to continue to secure payment.',
-        'reject': campaign.review_note or 'Your advertisement was not approved by the Chapel.',
+        'reject': campaign.review_note or 'Your advertisement was not approved by the Super Admin.',
         'changes': campaign.review_note or 'Please update your advertisement and resubmit it for review.',
     }
     notify_in_app(
@@ -196,7 +196,7 @@ def activate_payment(campaign, data):
             authorization_code = authorization.get('authorization_code') if isinstance(authorization, dict) else None
             reusable = authorization.get('reusable') if isinstance(authorization, dict) else False
             if not customer_code or not authorization_code or not reusable:
-                raise PaymentProviderError('Founding payment verified, but no reusable card authorization was returned. Contact the chapel office before another payment attempt.')
+                raise PaymentProviderError('Founding payment verified, but no reusable card authorization was returned. Contact the Super Admin before another payment attempt.')
             recurring_code = plan_code(
                 campaign.plan, program=campaign.program, amount_kobo=recurring_amount,
             )
