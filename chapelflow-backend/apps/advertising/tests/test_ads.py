@@ -10,7 +10,8 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 
 from apps.accounts.models import User
-from apps.advertising.models import AdvertisingSettings, Campaign, AdPayment
+from apps.advertising.models import AdSubscriptionProgram, AdvertisingSettings, Campaign, AdPayment
+from apps.notifications.models import Notification, NotificationChannel, NotificationStatus
 from apps.advertising.services import FOUNDING_FIRST_MONTH_KOBO, PRICES, activate_payment
 from apps.finance.services import PaymentProviderError
 
@@ -216,3 +217,146 @@ def test_revoke_is_blocked_when_paystack_cancellation_fails(users):
     campaign.refresh_from_db()
     assert campaign.status == Campaign.Status.ACTIVE
     assert campaign.cancel_at_period_end is False
+
+
+@pytest.mark.django_db
+def test_super_admin_can_create_and_manage_subscription_programs(users):
+    _, _, admin = users
+    client = APIClient()
+    client.force_authenticate(admin)
+    response = client.post('/api/v1/ads/admin/programs/', {
+        'code': 'student-spotlight',
+        'name': 'Student Spotlight',
+        'description': 'A dedicated student brand placement.',
+        'monthly_price_ngn': 5200,
+        'base_plan': 'FEATURED',
+        'placements': ['home'],
+        'is_active': True,
+        'sort_order': 5,
+    }, format='json')
+    assert response.status_code == 201, response.data
+    program_id = response.data['id']
+    assert response.data['monthly_price_ngn'] == 5200
+    assert response.data['placements'] == ['home']
+
+    public_programs = APIClient().get('/api/v1/ads/plans/')
+    assert public_programs.status_code == 200
+    assert any(item['id'] == program_id for item in public_programs.data['plans'])
+
+    updated = client.patch(f'/api/v1/ads/admin/programs/{program_id}/', {
+        'monthly_price_ngn': 6500,
+        'placements': ['home', 'events'],
+    }, format='json')
+    assert updated.status_code == 200, updated.data
+    assert updated.data['monthly_price_ngn'] == 6500
+
+    deactivated = client.patch(f'/api/v1/ads/admin/programs/{program_id}/', {
+        'is_active': False,
+    }, format='json')
+    assert deactivated.status_code == 200
+    assert deactivated.data['is_active'] is False
+    assert all(item['id'] != program_id for item in APIClient().get('/api/v1/ads/plans/').data['plans'])
+
+
+@pytest.mark.django_db
+@override_settings(PAYSTACK_SECRET_KEY='test-secret', ADVERTISING_POLICY_APPROVED=True)
+def test_program_price_is_snapshotted_for_existing_campaigns(users):
+    owner, _, admin = users
+    program = AdSubscriptionProgram.objects.create(
+        code='campus-plus', name='Campus Plus', description='Campus placement',
+        monthly_price_ngn=4200, base_plan='CAMPUS', placements=['home', 'events'],
+    )
+    client = APIClient()
+    client.force_authenticate(owner)
+    first = client.post('/api/v1/ads/mine/', {
+        'brand_name': 'First Brand', 'description': 'First campaign',
+        'image_url': 'https://example.com/first.png', 'destination_url': 'https://example.com/first',
+        'contact_email': owner.email, 'ad_category': 'Retail', 'program': str(program.pk),
+    }, format='json')
+    assert first.status_code == 201, first.data
+    first_campaign = Campaign.objects.get(pk=first.data['id'])
+    assert first_campaign.monthly_price_kobo == 420000
+
+    client.force_authenticate(admin)
+    changed = client.patch(f'/api/v1/ads/admin/programs/{program.pk}/', {
+        'monthly_price_ngn': 6100,
+    }, format='json')
+    assert changed.status_code == 200, changed.data
+    first_campaign.refresh_from_db()
+    assert first_campaign.monthly_price_kobo == 420000
+
+    client.force_authenticate(owner)
+    second = client.post('/api/v1/ads/mine/', {
+        'brand_name': 'Second Brand', 'description': 'Second campaign',
+        'image_url': 'https://example.com/second.png', 'destination_url': 'https://example.com/second',
+        'contact_email': owner.email, 'ad_category': 'Retail', 'program': str(program.pk),
+    }, format='json')
+    assert second.status_code == 201, second.data
+    second_campaign = Campaign.objects.get(pk=second.data['id'])
+    assert second_campaign.monthly_price_kobo == 610000
+    assert first_campaign.monthly_price_kobo != second_campaign.monthly_price_kobo
+
+
+@pytest.mark.django_db
+@override_settings(PAYSTACK_SECRET_KEY='test-secret', ADVERTISING_POLICY_APPROVED=True)
+def test_ad_application_notifies_super_admin_and_checkout_waits_for_approval(users):
+    owner, _, admin = users
+    program = AdSubscriptionProgram.objects.create(
+        code='featured-campus', name='Featured Campus', description='Featured campus rotation',
+        monthly_price_ngn=5800, base_plan='FEATURED', placements=['home', 'events'],
+    )
+    client = APIClient()
+    client.force_authenticate(owner)
+    submitted = client.post('/api/v1/ads/mine/', {
+        'brand_name': 'Campus Creator', 'description': 'Student creative work',
+        'image_url': 'https://example.com/creative.png', 'destination_url': 'https://example.com/creator',
+        'contact_email': owner.email, 'ad_category': 'Creative services', 'program': str(program.pk),
+    }, format='json')
+    assert submitted.status_code == 201, submitted.data
+    campaign = Campaign.objects.get(pk=submitted.data['id'])
+    assert campaign.status == Campaign.Status.PENDING
+    assert campaign.monthly_price_kobo == 580000
+
+    admin_notice = Notification.objects.get(
+        recipient=admin,
+        channel=NotificationChannel.IN_APP,
+        idempotency_key=f'ads:review:{campaign.pk}:1:{admin.pk}',
+    )
+    assert admin_notice.status == NotificationStatus.DELIVERED
+    assert admin_notice.read_at is None
+    assert admin_notice.href == f'/app/admin/advertising?campaign={campaign.pk}'
+
+    # A pending creative cannot initialize Paystack or record a reference.
+    with patch('apps.advertising.views._paystack_request') as paystack:
+        blocked = client.post(f'/api/v1/ads/{campaign.pk}/checkout/')
+    assert blocked.status_code == 400
+    paystack.assert_not_called()
+    campaign.refresh_from_db()
+    assert campaign.reference is None
+
+    client.force_authenticate(admin)
+    approved = client.post(
+        f'/api/v1/ads/admin/{campaign.pk}/review/',
+        {'action': 'approve'},
+        format='json',
+    )
+    assert approved.status_code == 200, approved.data
+    assert Notification.objects.filter(
+        recipient=owner, channel=NotificationChannel.IN_APP,
+        title='Your advertisement was approved',
+    ).exists()
+
+    client.force_authenticate(owner)
+    with patch('apps.advertising.views.plan_code', return_value='PLN_FEATURED_CUSTOM') as create_plan, patch(
+        'apps.advertising.views._paystack_request',
+        return_value={'reference': 'ad-program-reference', 'authorization_url': 'https://checkout.paystack.com/ad-program-reference'},
+    ) as paystack:
+        checkout = client.post(f'/api/v1/ads/{campaign.pk}/checkout/')
+    assert checkout.status_code == 200, checkout.data
+    assert checkout.data['renewal_amount_ngn'] == 5800
+    create_plan.assert_called_once()
+    assert create_plan.call_args.kwargs['program'].pk == program.pk
+    assert create_plan.call_args.kwargs['amount_kobo'] == 580000
+    checkout_payload = paystack.call_args.kwargs['payload']
+    assert checkout_payload['amount'] == 580000
+    assert checkout_payload['plan'] == 'PLN_FEATURED_CUSTOM'
