@@ -513,7 +513,7 @@ class PaymentWebhookView(APIView):
         if provider == "paystack":
             from apps.advertising.services import process_ad_webhook
             try:
-                if process_ad_webhook(request):
+                if process_ad_webhook(request, allow_unmatched=True):
                     return success_response({"handled": "advertising"})
             except PaymentProviderError as exc:
                 return error_response(str(exc), status=400)
