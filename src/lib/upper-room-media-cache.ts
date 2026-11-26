@@ -5,6 +5,7 @@ const DATABASE_VERSION = 1;
 const STORE_NAME = "recent-posts";
 const MAX_RECENT_POSTS = 12;
 const MAX_CACHED_BYTES = 150 * 1024 * 1024;
+const MAX_POST_BYTES = 50 * 1024 * 1024;
 const MAX_MEDIA_BYTES = 50 * 1024 * 1024;
 
 export interface CachedUpperRoomPost {
@@ -97,15 +98,24 @@ export async function saveRecentUpperRoomPost(
     return { cachedCount: existing.media.length, mediaCount: post.media.length, bytes: existing.bytes };
   }
 
-  const downloaded = await Promise.all(
-    post.media.map(async (item) => {
-      const blob = await fetchMediaBlob(item.url);
-      return blob ? { id: item.id, blob, bytes: blob.size, contentType: blob.type } : null;
-    }),
-  );
-  const mediaById = new Map((existing?.media || []).map((item) => [item.id, item]));
-  for (const item of downloaded) if (item) mediaById.set(item.id, item);
-  const media = Array.from(mediaById.values()).filter((item) => post.media.some((source) => source.id === item.id));
+  const downloaded: Array<{ id: string; blob: Blob; bytes: number; contentType: string }> = [];
+  let downloadedBytes = 0;
+  for (const item of post.media) {
+    const blob = await fetchMediaBlob(item.url);
+    if (!blob || downloadedBytes + blob.size > MAX_POST_BYTES) continue;
+    downloaded.push({ id: item.id, blob, bytes: blob.size, contentType: blob.type });
+    downloadedBytes += blob.size;
+  }
+  const mediaById = new Map<string, { id: string; blob: Blob; bytes: number; contentType: string }>();
+  let cachedBytes = 0;
+  for (const item of [...(existing?.media || []), ...downloaded]) {
+    if (!post.media.some((source) => source.id === item.id)) continue;
+    mediaById.delete(item.id);
+    if (cachedBytes + item.bytes > MAX_POST_BYTES) continue;
+    mediaById.set(item.id, item);
+    cachedBytes += item.bytes;
+  }
+  const media = Array.from(mediaById.values());
   const bytes = media.reduce((total, item) => total + item.bytes, 0);
   const record: CachedUpperRoomPost = {
     key: userId + ":" + post.id,
