@@ -12,7 +12,8 @@ from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 
 from apps.finance.services import PaymentProviderError, _paystack_request
-from apps.notifications.models import Notification, NotificationCategory, NotificationChannel, NotificationStatus
+from apps.notifications.models import NotificationCategory, NotificationChannel
+from apps.notifications.preferences import queue_notification
 from common.constants.roles import Roles
 from .models import AdPayment, AdSubscriptionProgram, Campaign, PaystackPlan
 
@@ -31,24 +32,17 @@ def campaign_monthly_price_kobo(campaign):
     return PRICES[campaign.plan]
 
 
-def notify_in_app(*, recipient, title, body, href, idempotency_key):
-    """Persist a high-priority in-app notice without an external provider dependency."""
-    now = timezone.now()
-    notification, created = Notification.objects.get_or_create(
+def notify_in_app(*, recipient, title, body, href, idempotency_key, category):
+    """Queue an in-app notification through ChapelFlow's standard delivery pipeline."""
+    return queue_notification(
+        recipient=recipient,
+        category=category,
+        channel=NotificationChannel.IN_APP,
+        title=title[:255],
+        body=body,
+        href=href,
         idempotency_key=idempotency_key,
-        defaults={
-            'recipient': recipient,
-            'channel': NotificationChannel.IN_APP,
-            'category': NotificationCategory.ADMIN_ALERT,
-            'title': title[:255],
-            'body': body,
-            'href': href,
-            'status': NotificationStatus.DELIVERED,
-            'provider_response': {'status': 'delivered', 'provider': 'in_app'},
-            'sent_at': now,
-        },
     )
-    return notification, created
 
 
 def notify_super_admins_about_campaign(campaign):
@@ -70,8 +64,9 @@ def notify_super_admins_about_campaign(campaign):
             body=body,
             href=f'/app/admin/advertising?campaign={campaign.pk}',
             idempotency_key=f'ads:review:{campaign.pk}:{campaign.submission_revision}:{admin.pk}',
+            category=NotificationCategory.AD_REVIEW,
         )
-        created += int(was_created)
+        created += int(bool(notification))
     return created
 
 
@@ -94,6 +89,7 @@ def notify_advertiser_of_review(campaign):
         body=body_by_action.get(action, 'Your advertising application status has changed.'),
         href='/app/advertise',
         idempotency_key=f'ads:decision:{campaign.pk}:{campaign.reviewed_at.isoformat() if campaign.reviewed_at else campaign.updated_at.isoformat()}',
+        category=NotificationCategory.ADMIN_ALERT,
     )
 
 
