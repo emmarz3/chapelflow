@@ -1223,7 +1223,7 @@ export const analyticsService = {
   exportPdf: (params: { range: "semester" | "previous_semester" | "year" }) => {
     const search = new URLSearchParams({ export: "pdf", range: params.range });
     return downloadAuthenticatedPdf(
-      `/analytics/overview?${search.toString()}`,
+      `/analytics/overview/?${search.toString()}`,
       "chapelflow-analytics.pdf",
     );
   },
