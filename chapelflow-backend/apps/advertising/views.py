@@ -117,7 +117,7 @@ class AdminCampaignsView(APIView):
                 for d in campaign.decisions.all().order_by('-created_at')[:30]]
             results.append(dict(CampaignSerializer(campaign).data, owner_email=campaign.owner.email or '',
                 reviewed_by_email=campaign.reviewed_by.email if campaign.reviewed_by else '',
-                decision_history=history, placements=['home', 'events']))
+                decision_history=history, placements=campaign.placements_snapshot or (campaign.program.placements if campaign.program_id else ['home', 'events'])))
         return Response(results)
 
 
@@ -425,7 +425,7 @@ class PlacementView(APIView):
         ).select_related('program').order_by('id'))
         campaigns = [
             campaign for campaign in campaigns
-            if placement in (campaign.program.placements if campaign.program_id else ['home', 'events'])
+            if placement in (campaign.placements_snapshot or (campaign.program.placements if campaign.program_id else ['home', 'events']))
         ]
         if not campaigns:
             return Response({'ad': None})
