@@ -21,9 +21,10 @@ export async function enableBrowserPush() {
 
 export async function disableBrowserPush() {
   if (!("serviceWorker" in navigator)) return;
-  const worker = await navigator.serviceWorker.ready;
+  const worker = await navigator.serviceWorker.getRegistration();
+  if (!worker) return;
   const subscription = await worker.pushManager.getSubscription();
   if (!subscription) return;
-  await notificationService.unsubscribePush(subscription.endpoint);
-  await subscription.unsubscribe();
+  try { await notificationService.unsubscribePush(subscription.endpoint); }
+  finally { await subscription.unsubscribe(); }
 }
