@@ -149,24 +149,26 @@ export function StudentAttendancePassPage() {
           </div>
           <div className="chapel-pass__qr">
             {scanning ? (
-              <div className="chapel-pass__camera">
-                <video
-                  ref={videoRef}
-                  muted
-                  playsInline
-                  aria-label="Camera preview for usher QR scanner"
-                />
-                <div className="chapel-pass__aim" aria-hidden="true">
-                  <span className="chapel-pass__aim-frame" />
-                  <span className="chapel-pass__aim-hint">Align QR inside frame</span>
+              <>
+                <div className="chapel-pass__camera">
+                  <video
+                    ref={videoRef}
+                    muted
+                    playsInline
+                    aria-label="Camera preview for usher QR scanner"
+                  />
+                  <div className="chapel-pass__aim" aria-hidden="true">
+                    <span className="chapel-pass__aim-frame" />
+                    <span className="chapel-pass__aim-hint">Align QR inside frame</span>
+                  </div>
                 </div>
-              </div>
-              {cameras.length > 1 && <label className="scanner-camera-picker">
-                <span>Camera lens</span>
-                <select value={selectedCameraId} onChange={(event) => selectCamera(event.target.value)}>
-                  {cameras.map((camera, index) => <option key={camera.deviceId} value={camera.deviceId}>{camera.label || `Camera ${index + 1}`}</option>)}
-                </select>
-              </label>}
+                {cameras.length > 1 && <label className="scanner-camera-picker">
+                  <span>Camera lens</span>
+                  <select value={selectedCameraId} onChange={(event) => selectCamera(event.target.value)}>
+                    {cameras.map((camera, index) => <option key={camera.deviceId} value={camera.deviceId}>{camera.label || `Camera ${index + 1}`}</option>)}
+                  </select>
+                </label>}
+              </>
             ) : (
               <div className="chapel-pass__unavailable">
                 <Camera aria-hidden="true" />
