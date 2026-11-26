@@ -14,6 +14,7 @@ import {
   HeartHandshake,
   House,
   Image,
+  LogOut,
   MessagesSquare,
   Menu,
   MessageSquareText,
@@ -47,6 +48,7 @@ import {
 import type { Permission, Role, User } from "../types/domain";
 import { authService, communityService, notificationService } from "../services/chapelflow";
 import { DashboardAdPopup } from "./advertising";
+import "./sidebar-signout.css";
 
 interface NavItem {
   label: string;
@@ -485,21 +487,33 @@ export function PortalShell() {
             </div>
           ))}
         </nav>
-        <button
-          className="sidebar__theme"
-          aria-label={`Switch to ${theme === "light" ? "dark" : "light"} theme`}
-          onClick={() => setTheme(theme === "light" ? "dark" : "light")}
-        >
-          {theme === "light" ? <Moon /> : <Sun />}
-          <span>{theme === "light" ? "Dark theme" : "Light theme"}</span>
-        </button>
-        <button
-          className="sidebar__collapse"
-          onClick={() => setCollapsed((value) => !value)}
-        >
-          {collapsed ? <PanelLeftOpen /> : <PanelLeftClose />}
-          <span>{collapsed ? "" : "Collapse sidebar"}</span>
-        </button>
+        <div className="sidebar__footer">
+          <button
+            className="sidebar__theme"
+            aria-label={`Switch to ${theme === "light" ? "dark" : "light"} theme`}
+            onClick={() => setTheme(theme === "light" ? "dark" : "light")}
+          >
+            {theme === "light" ? <Moon /> : <Sun />}
+            <span>{theme === "light" ? "Dark theme" : "Light theme"}</span>
+          </button>
+          <button
+            className="sidebar__signout"
+            type="button"
+            aria-label="Sign out"
+            title={collapsed ? "Sign out" : undefined}
+            onClick={() => { setMobileOpen(false); void logout(); }}
+          >
+            <LogOut aria-hidden="true" />
+            <span>Sign out</span>
+          </button>
+          <button
+            className="sidebar__collapse"
+            onClick={() => setCollapsed((value) => !value)}
+          >
+            {collapsed ? <PanelLeftOpen /> : <PanelLeftClose />}
+            <span>{collapsed ? "" : "Collapse sidebar"}</span>
+          </button>
+        </div>
       </aside>
       {mobileOpen && (
         <button
