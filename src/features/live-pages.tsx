@@ -2806,6 +2806,8 @@ function LiveSecurityPanel() {
 }
 
 export function LiveAnalyticsPage() {
+  const { user } = useAuth();
+  const canExport = hasPermission(user, "reports:export");
   const [range, setRange] = useState<"semester" | "previous_semester" | "year">("semester");
   const [exporting, setExporting] = useState(false);
   const toast = useToast();
@@ -2820,7 +2822,7 @@ export function LiveAnalyticsPage() {
         title="Chapel insights"
         description="Backend-generated summaries with privacy-respecting decision support."
         actions={
-          query.data && (
+          query.data && canExport && (
             <Button
               variant="secondary"
               icon={<Download />}
