@@ -125,14 +125,8 @@ const navGroups: { label: string; items: NavItem[] }[] = [
         permission: "community:manage",
       },
       {
-        label: "Manage leadership",
+        label: "Leadership and accounts",
         path: "/app/admin/leadership",
-        icon: <UserRound />,
-        permission: "leadership:manage",
-      },
-      {
-        label: "Institutional accounts",
-        path: "/app/admin/accounts",
         icon: <UserRound />,
         roles: ["super_admin"],
       },
