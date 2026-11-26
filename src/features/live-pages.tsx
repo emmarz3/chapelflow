@@ -61,6 +61,7 @@ import {
   memberService,
   operationsService,
   privacyService,
+  securityService,
   uploadService,
   communityService,
   chapelGroupService,
@@ -1712,6 +1713,7 @@ function LiveModuleOperationsPage({
     (module === "cms" && hasPermission(user, "cms:write")) ||
     (module === "media" && hasPermission(user, "media:write"));
   const [search, setSearch] = useState("");
+  const [exportingAudit, setExportingAudit] = useState(false);
   const [contentTypeFilter, setContentTypeFilter] = useState(safeUrlContentType);
   const [selectedContentType, setSelectedContentType] = useState(safeUrlContentType || "GALLERY");
   const [open, setOpen] = useState(false);
@@ -1937,16 +1939,16 @@ function LiveModuleOperationsPage({
           module === "audit" ? (
             <Button
               icon={<Download />}
-              disabled={!rows.length}
-              onClick={() =>
-                void downloadPdf(
-                  "chapelflow-audit.pdf",
-                  rows as unknown as Record<string, unknown>[],
-                  { title: "Audit log" },
-                )
-              }
+              loading={exportingAudit}
+              disabled={exportingAudit}
+              onClick={() => {
+                setExportingAudit(true);
+                void securityService.exportAuditPdf({ search })
+                  .catch((error) => toast(message(error), "error"))
+                  .finally(() => setExportingAudit(false));
+              }}
             >
-              {meta.action}
+              Export full audit PDF
             </Button>
           ) : canCreate ? (
             <Button icon={<Plus />} onClick={() => {
@@ -2804,7 +2806,9 @@ function LiveSecurityPanel() {
 }
 
 export function LiveAnalyticsPage() {
-  const [range, setRange] = useState("semester");
+  const [range, setRange] = useState<"semester" | "previous_semester" | "year">("semester");
+  const [exporting, setExporting] = useState(false);
+  const toast = useToast();
   const query = useQuery({
     queryKey: queryKeys.analytics({ range }),
     queryFn: async () => (await analyticsService.get({ range })).data,
@@ -2820,13 +2824,14 @@ export function LiveAnalyticsPage() {
             <Button
               variant="secondary"
               icon={<Download />}
-              onClick={() =>
-                void downloadPdf(
-                  "chapelflow-analytics.pdf",
-                  query.data.metrics as unknown as Record<string, unknown>[],
-                  { title: "Chapel insights" },
-                )
-              }
+              loading={exporting}
+              disabled={exporting}
+              onClick={() => {
+                setExporting(true);
+                void analyticsService.exportPdf({ range })
+                  .catch((error) => toast(message(error), "error"))
+                  .finally(() => setExporting(false));
+              }}
             >
               Export report
             </Button>
@@ -2839,7 +2844,7 @@ export function LiveAnalyticsPage() {
           <span>Date range</span>
           <select
             value={range}
-            onChange={(event) => setRange(event.target.value)}
+            onChange={(event) => setRange(event.target.value as typeof range)}
           >
             <option value="semester">This semester</option>
             <option value="previous_semester">Last semester</option>
