@@ -16,6 +16,7 @@ import {
   chapelGroupService,
   institutionalAccountService,
 } from "../services/chapelflow";
+import type { InstitutionalAccount } from "../services/chapelflow";
 import { ApiError } from "../lib/api";
 
 const roles = [
@@ -82,6 +83,10 @@ export function InstitutionalAccountsPage() {
   const [selectedRole, setSelectedRole] = useState<InstitutionalRole>("CHAPLAIN");
   const [selectedGroup, setSelectedGroup] = useState("");
   const [selectedOffice, setSelectedOffice] = useState("CHAPLAIN");
+  const [assignmentAccount, setAssignmentAccount] = useState<InstitutionalAccount | null>(null);
+  const [assignmentRole, setAssignmentRole] = useState<InstitutionalRole>("CHAPLAIN");
+  const [assignmentOffice, setAssignmentOffice] = useState("CHAPLAIN");
+  const [assignmentGroup, setAssignmentGroup] = useState("");
   const [resetAccount, setResetAccount] = useState<{ id: string; name: string; scope: "institutional" | "all" } | null>(null);
   const [deleteAccount, setDeleteAccount] = useState<{ id: string; name: string } | null>(null);
   const [eraseAccount, setEraseAccount] = useState<{ id: string; name: string; identifier: string } | null>(null);
@@ -109,6 +114,14 @@ export function InstitutionalAccountsPage() {
         group.name === fixedUnit && group.group_type === "UNIT" && group.is_active,
       )?.id ?? "")
     : selectedGroup;
+  const assignmentOfficeDetails = offices.find((office) => office.code === assignmentOffice);
+  const assignmentFixedUnit = assignmentOfficeDetails?.unit;
+  const assignmentGroupType = roleGroupType(assignmentRole);
+  const assignmentResolvedGroup = assignmentFixedUnit
+    ? (groups.data?.find((group) =>
+        group.name === assignmentFixedUnit && group.group_type === "UNIT" && group.is_active,
+      )?.id ?? "")
+    : assignmentGroup;
   const refresh = () =>
     void Promise.all([
       client.invalidateQueries({ queryKey: ["institutional-accounts"] }),
@@ -133,6 +146,15 @@ export function InstitutionalAccountsPage() {
     mutationFn: ({ id, is_active }: { id: string; is_active: boolean }) =>
       institutionalAccountService.update(id, { is_active }),
     onSuccess: refresh,
+  });
+  const updateAssignment = useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: Partial<InstitutionalAccount> }) =>
+      institutionalAccountService.update(id, payload),
+    onSuccess: () => {
+      setAssignmentAccount(null);
+      toast("Leadership assignment updated.");
+      refresh();
+    },
   });
   const reset = useMutation({
     mutationFn: ({ id, scope }: { id: string; scope: "institutional" | "all" }) =>
@@ -208,6 +230,34 @@ export function InstitutionalAccountsPage() {
     });
   }
 
+  function openAssignmentEditor(account: InstitutionalAccount) {
+    setAssignmentAccount(account);
+    setAssignmentRole(account.role);
+    setAssignmentOffice(
+      account.institutional_office || offices.find((office) => office.role === account.role)?.code || "",
+    );
+    setAssignmentGroup(account.institutional_group || "");
+    updateAssignment.reset();
+  }
+
+  function submitAssignment(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!assignmentAccount) return;
+    const office = assignmentRole === "FELLOWSHIP_LEADER" ? "FELLOWSHIP_LEADER" : assignmentOffice;
+    if (assignmentGroupType && !assignmentResolvedGroup) {
+      toast("Select an active Chapel Unit or Fellowship before saving.", "error");
+      return;
+    }
+    updateAssignment.mutate({
+      id: assignmentAccount.id,
+      payload: {
+        role: assignmentRole,
+        institutional_office: office,
+        institutional_group: assignmentGroupType ? assignmentResolvedGroup : null,
+      },
+    });
+  }
+
   if (accounts.isPending)
     return <LoadingState label="Loading institutional accounts" />;
   if (accounts.isError)
@@ -222,14 +272,14 @@ export function InstitutionalAccountsPage() {
       <PageHeader
         eyebrow="Super administration"
         title="Leadership and accounts"
-        description="Provision Chapel leadership accounts, assign Unit and Fellowship leaders to their matching workspaces, and manage institutional account access. This page shows current account assignments."
+        description="Provision Chapel leadership accounts, assign or transfer offices, and connect Unit and Fellowship leaders to the correct workspaces. This view shows current assignments, not a historical appointment timeline."
         actions={
           <div className="button-row">
             <Button variant="secondary" loading={addUnits.isPending} onClick={() => addUnits.mutate()}>
               Add chapel units & fellowships
             </Button>
             <Button icon={<Plus />} onClick={() => setOpen((value) => !value)}>
-              Create account
+              Provision account
             </Button>
           </div>
         }
@@ -396,8 +446,8 @@ export function InstitutionalAccountsPage() {
             <div>
               <h2>Current leadership accounts</h2>
               <p>
-                Only Super Admins can make changes. Existing passwords are
-                never visible; temporary passwords appear once after a reset.
+                Only Super Admins can make changes. Use Assign / transfer to update an
+                existing office holder's role and workspace. Temporary passwords appear once after a reset.
               </p>
             </div>
           </div>
@@ -440,6 +490,12 @@ export function InstitutionalAccountsPage() {
                   )}
                 </td>
                 <td className="button-row">
+                  <Button
+                    variant="secondary"
+                    onClick={() => openAssignmentEditor(account)}
+                  >
+                    Assign / transfer
+                  </Button>
                   <Button
                     variant="secondary"
                     icon={<UserRoundCheck />}
@@ -511,6 +567,88 @@ export function InstitutionalAccountsPage() {
         <p>The reset confirmation form is on its own Super Admin page.</p>
         <Link className="button button--secondary" to="/app/admin/launch-reset">Open launch reset</Link>
       </section>
+      <Modal
+        open={Boolean(assignmentAccount)}
+        onClose={() => {
+          if (!updateAssignment.isPending) {
+            setAssignmentAccount(null);
+            updateAssignment.reset();
+          }
+        }}
+        title="Assign or transfer leadership"
+        description={assignmentAccount ? "Update the office and workspace assigned to " + assignmentAccount.first_name + " " + assignmentAccount.last_name + ". The backend validates that the workspace matches the selected role." : "Update an institutional leadership assignment."}
+      >
+        {assignmentAccount && (
+          <form className="modal-form" onSubmit={submitAssignment}>
+            <label className="field">
+              <span>Role</span>
+              <select
+                value={assignmentRole}
+                onChange={(event) => {
+                  const nextRole = event.target.value as InstitutionalRole;
+                  setAssignmentRole(nextRole);
+                  setAssignmentOffice(offices.find((office) => office.role === nextRole)?.code ?? "");
+                  setAssignmentGroup("");
+                  updateAssignment.reset();
+                }}
+              >
+                {roles.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+              </select>
+            </label>
+            {assignmentRole !== "FELLOWSHIP_LEADER" && (
+              <label className="field">
+                <span>Leadership office</span>
+                <select
+                  value={assignmentOffice}
+                  onChange={(event) => {
+                    setAssignmentOffice(event.target.value);
+                    setAssignmentGroup("");
+                    updateAssignment.reset();
+                  }}
+                >
+                  {offices.filter((office) => office.role === assignmentRole).map((office) => (
+                    <option key={office.code} value={office.code}>{office.label}</option>
+                  ))}
+                </select>
+              </label>
+            )}
+            {assignmentGroupType && (
+              <label className="field">
+                <span>Unit or fellowship</span>
+                <select
+                  value={assignmentResolvedGroup}
+                  onChange={(event) => setAssignmentGroup(event.target.value)}
+                  disabled={groups.isPending || Boolean(assignmentFixedUnit)}
+                  required
+                >
+                  <option value="">
+                    {assignmentFixedUnit ? "Assigned to " + assignmentFixedUnit : "Select an assignment"}
+                  </option>
+                  {groups.data?.filter((group) =>
+                    group.is_active &&
+                    group.group_type === assignmentGroupType &&
+                    (!assignmentFixedUnit || group.name === assignmentFixedUnit),
+                  ).map((group) => (
+                    <option key={group.id} value={group.id}>{group.name}</option>
+                  ))}
+                </select>
+                <small>
+                  {assignmentFixedUnit
+                    ? "This office is tied to " + assignmentFixedUnit + "."
+                    : "The selected account will be scoped to this active Chapel workspace."}
+                </small>
+              </label>
+            )}
+            {updateAssignment.isError && (
+              <p className="form-error" role="alert">{updateAssignment.error.message}</p>
+            )}
+            <div className="button-row">
+              <Button type="button" variant="ghost" onClick={() => setAssignmentAccount(null)} disabled={updateAssignment.isPending}>Cancel</Button>
+              <Button type="submit" loading={updateAssignment.isPending} disabled={groups.isPending}>Save assignment</Button>
+            </div>
+          </form>
+        )}
+      </Modal>
       <Modal open={Boolean(eraseAccount)} onClose={() => { if (!erase.isPending) { setEraseAccount(null); erase.reset(); } }}
         title="Delete account and member data" description={`Delete ${eraseAccount?.name || "this account"}? Their linked member profile and Upper Room posts will be removed. Financial, audit and shared public records remain.`}>
         <form className="form-grid" onSubmit={(event) => {
