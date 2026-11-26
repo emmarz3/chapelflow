@@ -80,15 +80,31 @@ export async function saveRecentUpperRoomPost(
     return { cachedCount: 0, mediaCount: post.media.length, bytes: 0 };
   }
 
+  const database = await openDatabase();
+  const existingTransaction = database.transaction(STORE_NAME, "readonly");
+  const existingRequest = existingTransaction.objectStore(STORE_NAME).get(userId + ":" + post.id);
+  const existing = await new Promise<CachedUpperRoomPost | undefined>((resolve, reject) => {
+    existingRequest.onsuccess = () => resolve(existingRequest.result as CachedUpperRoomPost | undefined);
+    existingRequest.onerror = () => reject(existingRequest.error || new Error("Could not inspect the offline copy."));
+  });
+  await transactionDone(existingTransaction);
+
+  const stillFresh = existing && Date.now() - existing.savedAt < 60 * 60 * 1000 &&
+    post.media.every((item) => existing.media.some((cached) => cached.id === item.id));
+  if (stillFresh) {
+    database.close();
+    return { cachedCount: existing.media.length, mediaCount: post.media.length, bytes: existing.bytes };
+  }
+
   const downloaded = await Promise.all(
     post.media.map(async (item) => {
       const blob = await fetchMediaBlob(item.url);
       return blob ? { id: item.id, blob, bytes: blob.size, contentType: blob.type } : null;
     }),
   );
-  const media = downloaded.filter(
-    (item): item is NonNullable<typeof item> => item !== null,
-  );
+  const mediaById = new Map((existing?.media || []).map((item) => [item.id, item]));
+  for (const item of downloaded) if (item) mediaById.set(item.id, item);
+  const media = Array.from(mediaById.values()).filter((item) => post.media.some((source) => source.id === item.id));
   const bytes = media.reduce((total, item) => total + item.bytes, 0);
   const record: CachedUpperRoomPost = {
     key: userId + ":" + post.id,
@@ -99,7 +115,6 @@ export async function saveRecentUpperRoomPost(
     bytes,
   };
 
-  const database = await openDatabase();
   const transaction = database.transaction(STORE_NAME, "readwrite");
   const store = transaction.objectStore(STORE_NAME);
   store.put(record);
@@ -130,15 +145,20 @@ export async function getRecentUpperRoomPosts(userId: string): Promise<CachedUpp
   if (!userId) return [];
   const database = await openDatabase();
   const transaction = database.transaction(STORE_NAME, "readonly");
+  const done = transactionDone(transaction);
   const records = await readUserRecords(transaction.objectStore(STORE_NAME), userId);
-  await transactionDone(transaction);
+  await done;
   database.close();
   return records.sort((left, right) => right.savedAt - left.savedAt).slice(0, MAX_RECENT_POSTS);
 }
 
 export async function clearRecentUpperRoomMedia(): Promise<void> {
-  for (const key of Object.keys(window.localStorage)) {
-    if (key.startsWith("chapelflow:recent-media:")) window.localStorage.removeItem(key);
+  try {
+    for (const key of Object.keys(window.localStorage)) {
+      if (key.startsWith("chapelflow:recent-media:")) window.localStorage.removeItem(key);
+    }
+  } catch {
+    // Private browsing modes may disable local storage.
   }
   if (typeof indexedDB === "undefined") return;
   try {
