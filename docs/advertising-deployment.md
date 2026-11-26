@@ -18,11 +18,13 @@ Programs are deactivated rather than deleted. A campaign snapshots the program n
 
 ## Billing and approvals
 
-Checkout remains disabled until the chapel documents approval of revenue ownership, refund/dispute responsibility and permitted ad categories, and the Paystack secret is configured on `chapelflow-api` in Railway. Set `ADVERTISING_POLICY_APPROVED=true` only after that agreement is documented. Never commit `PAYSTACK_SECRET_KEY`.
+Advertising revenue belongs to the Super Admin, not the Chapel. Advertiser charges, monthly subscriptions, refunds and settlement are processed through the Super Admin's own Paystack account. Configure `ADS_PAYSTACK_SECRET_KEY` on the Railway `chapelflow-api` service with the Super Admin account's secret key; do not reuse the Chapel giving `PAYSTACK_SECRET_KEY`. The ads code uses this dedicated key for plan creation, checkout initialization, transaction verification, subscription creation/cancellation and webhook verification. Never commit either secret or expose either in frontend code.
+
+Checkout remains fail-closed until the Super Admin records approval of the advertising policy covering revenue ownership, refund/dispute handling and permitted ad categories. The confirmed revenue owner is the Super Admin. Set `ADS_POLICY_APPROVED=true` only after refund/dispute handling and permitted categories are also documented. Never use the Chapel giving account for ads.
 
 Campus Brand starter pricing is ₦3,000/month and Featured Brand is ₦7,500/month. The first 10 approved student advertisers can pay ₦2,000 for month one; later months use the selected program's monthly price. The founding charge is a one-time card payment. After Paystack verifies it, the backend requires a reusable card authorization and creates the full-price monthly subscription with the first renewal one month later. The ad activates only after both steps succeed. If the discounted charge succeeds but Paystack does not return reusable authorization or subscription creation fails, reconcile the charge before asking the advertiser to pay again.
 
-Keep the shared giving webhook at `https://chapelflow-api-production.up.railway.app/api/v1/payments/webhook/paystack/`. `FRONTEND_URL` must be the public ChapelFlow origin; callback is `/app/advertise?campaign=<campaign-id>`. Keep Paystack secrets backend-only.
+Keep the Chapel giving webhook at `https://chapelflow-api-production.up.railway.app/api/v1/payments/webhook/paystack/` configured in the Chapel giving Paystack dashboard. Configure the Super Admin advertising Paystack account's webhook separately at `https://chapelflow-api-production.up.railway.app/api/v1/ads/paystack/webhook/`. This separation ensures ads settle into the Super Admin's Paystack account and Chapel giving events remain isolated. `FRONTEND_URL` must be the public ChapelFlow origin; callback is `/app/advertise?campaign=<campaign-id>`. Keep both Paystack secrets backend-only.
 
 ## Delivery, placements and audit
 
