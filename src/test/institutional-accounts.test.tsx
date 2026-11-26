@@ -71,6 +71,12 @@ beforeEach(() => {
 });
 
 describe("institutional account provisioning", () => {
+  it("renders the leadership and accounts control panel", async () => {
+    renderPage();
+    expect(await screen.findByRole("heading", { name: "Leadership and accounts" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Current leadership accounts" })).toBeInTheDocument();
+  });
+
   it("lists student accounts and issues a one-time password from the directory", async () => {
     const user = userEvent.setup();
     vi.mocked(adminAccountService.list).mockResolvedValue({ data: {
