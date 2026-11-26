@@ -134,7 +134,7 @@ const navGroups: { label: string; items: NavItem[] }[] = [
         icon: <UserRound />,
         roles: ["super_admin"],
       },
-      { label: "Advertising review", path: "/app/admin/advertising", icon: <Megaphone />, roles: ["super_admin"] },
+      { label: "Ads & subscription programs", path: "/app/admin/advertising", icon: <Megaphone />, roles: ["super_admin"] },
       {
         label: "Launch reset",
         path: "/app/admin/launch-reset",
