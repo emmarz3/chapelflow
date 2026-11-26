@@ -37,6 +37,8 @@ def seed_subscription_programs(apps, schema_editor):
         amount_kobo = values["monthly_price_ngn"] * 100
         Campaign.objects.filter(plan=values["base_plan"]).update(
             program=program,
+            program_name_snapshot=values["name"],
+            placements_snapshot=["home", "events"],
             monthly_price_kobo=amount_kobo,
         )
 
@@ -87,6 +89,16 @@ class Migration(migrations.Migration):
                 blank=True, null=True, on_delete=django.db.models.deletion.PROTECT,
                 related_name="campaigns", to="advertising.adsubscriptionprogram",
             ),
+        ),
+        migrations.AddField(
+            model_name="campaign",
+            name="program_name_snapshot",
+            field=models.CharField(blank=True, default="", max_length=120),
+        ),
+        migrations.AddField(
+            model_name="campaign",
+            name="placements_snapshot",
+            field=models.JSONField(blank=True, null=True),
         ),
         migrations.AddField(
             model_name="campaign",
