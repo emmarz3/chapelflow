@@ -39,7 +39,7 @@ export function NotificationSettingsPage() {
     const current = query.data;
     if (!current) return;
     const values: NotificationPreferences = { ...current };
-    for (const key of ["masterEnabled", "emailEnabled", "inAppEnabled", ...categories.map((item) => item.key), "quietHoursEnabled"] as (keyof NotificationPreferences)[]) {
+    for (const key of ["masterEnabled", "emailEnabled", "inAppEnabled", "pushEnabled", ...categories.map((item) => item.key), "quietHoursEnabled"] as (keyof NotificationPreferences)[]) {
       (values as unknown as Record<string, unknown>)[key] = form.has(key);
     }
     values.smsEnabled = false;
@@ -61,7 +61,7 @@ export function NotificationSettingsPage() {
         <div className="field--full"><h2>Delivery channels</h2><p>Email requires a valid address on your account. In-app updates appear when you sign in.</p></div>
         <label className="field checkbox-field"><input type="checkbox" name="inAppEnabled" defaultChecked={preference.inAppEnabled} /><span>In-app</span></label>
         <label className="field checkbox-field"><input type="checkbox" name="emailEnabled" defaultChecked={preference.emailEnabled} /><span>Email</span></label>
-        <div className="field--full"><p>Browser push: {pushConfig.data?.enabled ? "available on supported devices" : "not configured"}.</p>{pushConfig.data?.enabled && <><Button type="button" variant="secondary" onClick={() => { void enableBrowserPush().then(() => toast("Push enabled on this device.")).catch((reason: unknown) => toast(errorMessage(reason), "error")); }}>Enable on this device</Button><Button type="button" variant="ghost" onClick={() => { void disableBrowserPush().then(() => toast("Push disabled on this device.")).catch((reason: unknown) => toast(errorMessage(reason), "error")); }}>Disable on this device</Button></>}</div>
+        <div className="field--full"><p>Browser push: {pushConfig.data?.enabled ? "available on supported devices" : "not configured"}.</p>{pushConfig.data?.enabled && <><label className="field checkbox-field"><input type="checkbox" name="pushEnabled" defaultChecked={preference.pushEnabled} /><span>Allow browser push</span></label><Button type="button" variant="secondary" onClick={() => { void enableBrowserPush().then(() => toast("Push enabled on this device. Save your channel preference below.")).catch((reason: unknown) => toast(errorMessage(reason), "error")); }}>Enable on this device</Button><Button type="button" variant="ghost" onClick={() => { void disableBrowserPush().then(() => toast("Push disabled on this device.")).catch((reason: unknown) => toast(errorMessage(reason), "error")); }}>Disable on this device</Button></>}</div>
         <div className="field--full"><h2>Topics</h2><p>Choose each kind of update independently.</p></div>
         {categories.map(({ key, label, detail }) => <label key={key} className="field field--full checkbox-field"><input type="checkbox" name={key} defaultChecked={Boolean(preference[key])} /><span><strong>{label}</strong><small>{detail}</small></span></label>)}
         <div className="field--full"><h2>Quiet hours</h2><p>External messages wait until quiet hours end. In-app updates remain available when you open ChapelFlow.</p></div>

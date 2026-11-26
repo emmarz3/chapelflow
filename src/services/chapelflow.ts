@@ -692,6 +692,7 @@ export interface NotificationPreferences {
   emailEnabled: boolean;
   smsEnabled: boolean;
   inAppEnabled: boolean;
+  pushEnabled: boolean;
   announcementsEnabled: boolean;
   eventsEnabled: boolean;
   serviceRemindersEnabled: boolean;
