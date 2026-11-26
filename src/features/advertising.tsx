@@ -191,7 +191,7 @@ export function AdvertisePage() {
         scendey_opt_in: fields.get("scendey_opt_in") === "on",
       });
       form.reset();
-      setMessage("Application submitted. Your advertisement is pending Super Admin review.");
+      setMessage("Application submitted. Your advertisement is awaiting review.");
       void campaigns.refetch();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not submit your ad.");
@@ -222,53 +222,97 @@ export function AdvertisePage() {
   }
 
   return <div className="ads-page">
-    <header>
-      <p className="eyebrow">ChapelFlow advertising</p>
-      <h1>Share your brand with the campus.</h1>
-      <p>School students pay ₦3,500 per month; outside advertisers pay ₦5,000 per month. Apply first, receive chapel approval, then subscribe through Paystack. Your advertisement publishes only after approval and verified payment.</p>
-      <ol className="ads-steps"><li>Submit your ad</li><li>Chapel review</li><li>Pay securely</li><li>Ad goes live</li></ol>
+    <header className="ads-hero">
+      <p className="eyebrow">CHAPELFLOW ADVERTISING</p>
+      <h1>Bring your brand to the ChapelFlow community.</h1>
+      <p className="ads-hero__intro">Reach students, staff and guests through approved placements across ChapelFlow. Choose a subscription program, submit your advertisement and pay securely after approval.</p>
+      <ol className="ads-steps" aria-label="How advertising works">
+        <li><span>01</span><div><strong>Choose a program</strong><small>Compare rates and placements.</small></div></li>
+        <li><span>02</span><div><strong>Submit your ad</strong><small>Share your brand and creative.</small></div></li>
+        <li><span>03</span><div><strong>Get approval</strong><small>We will review your submission.</small></div></li>
+        <li><span>04</span><div><strong>Pay and publish</strong><small>Complete checkout to go live.</small></div></li>
+      </ol>
     </header>
     {message && <p role="status" className="ads-notice">{message}</p>}
-    <section>
-      <h2>Subscription programs</h2>
+    <section className="ads-section ads-section--plans">
+      <div className="ads-section__heading">
+        <div>
+          <p className="eyebrow">Find the right fit</p>
+          <h2>Subscription programs</h2>
+          <p>Compare the available audiences, monthly rates and placements before you apply.</p>
+        </div>
+      </div>
+      {plans.isPending && <p role="status" className="ads-empty-state">Loading subscription programs…</p>}
+      {plans.isError && <p role="alert" className="ads-empty-state">We could not load subscription programs. Please refresh the page and try again.</p>}
       <div className="ads-plans">
-        {plans.data?.plans.map((plan) => <article key={plan.id}>
+        {plans.data?.plans.map((plan) => <article className="ads-plan-card" key={plan.id}>
+          <div className="ads-plan-card__top">
+            <span className="ads-plan-card__audience">{plan.audience === "STUDENT" ? "Chrisland University students" : "Staff and guests"}</span>
+            <span className="ads-plan-card__billing">Monthly plan</span>
+          </div>
           <h3>{plan.name}</h3>
-          <small>{plan.audience === "STUDENT" ? "Chrisland University students" : "Outside advertisers and staff"}</small>
-          <strong>₦{plan.price_ngn.toLocaleString()} / month</strong>
-          <p>{plan.description || (plan.base_plan === "FEATURED" ? "Higher rotation priority on the homepage and events page." : "Rotating sponsored card on the homepage and events page.")}</p>
-          <small>Placement: {plan.placements.map((placement) => placement === "home" ? "Homepage" : placement === "dashboard" ? "Dashboard popup" : "Events").join(" · ")}</small>
+          <p className="ads-plan-card__description">{plan.description || (plan.base_plan === "FEATURED" ? "A higher-visibility rotation across selected ChapelFlow placements." : "A rotating sponsored placement across selected ChapelFlow pages.")}</p>
+          <p className="ads-plan-card__price"><strong>₦{plan.price_ngn.toLocaleString()}</strong><span>/ month</span></p>
+          <div className="ads-plan-card__placements">
+            <span>Included placements</span>
+            <div>{plan.placements.map((placement) => <span key={placement}>{placement === "home" ? "Homepage" : placement === "dashboard" ? "Dashboard" : "Events"}</span>)}</div>
+          </div>
         </article>)}
       </div>
+      {plans.data?.plans.length === 0 && <p className="ads-empty-state">There are no subscription programs available right now.</p>}
       {plans.data?.founding_offer?.enabled && <p className="ads-founding-note">
-        Student founding offer: the first 10 approved student brands pay ₦{plans.data.founding_offer.first_month_price_ngn.toLocaleString()} for month one. From month two, the selected plan’s regular monthly price applies. {plans.data.founding_offer.remaining} places remain.
+        Student launch offer: the first 10 approved student advertisers pay ₦{plans.data.founding_offer.first_month_price_ngn.toLocaleString()} for the first month. The selected program’s regular monthly rate applies from month two. {plans.data.founding_offer.remaining} places remain.
       </p>}
-      <p>No sales, clicks, or view counts are guaranteed. The first-month charge and renewal price are shown before checkout.</p>
-      {!plans.data?.checkout_available && <p className="ads-policy-note">{plans.data?.checkout_reason || "Payment checkout is not open yet."}</p>}
+      <p className="ads-section__footnote">Advertising results are not guaranteed. Your selected rate, any first-month offer and the renewal price will be shown before checkout.</p>
+      {!plans.data?.checkout_available && <p className="ads-policy-note">{plans.data?.checkout_reason || "Online checkout is not available yet. You can still submit an application; payment will open when checkout is enabled."}</p>}
     </section>
-    <section>
-      <h2>Apply for an advertisement</h2>
-      <p className="ads-policy-note">Choose the program matching your member profile: students use the student rate; guests and staff use the outside rate. No payment is taken when you apply. A Super Admin reviews your ad before Paystack checkout appears.</p>
+    <section className="ads-section ads-section--apply">
+      <div className="ads-section__heading">
+        <div>
+          <p className="eyebrow">Start here</p>
+          <h2>Apply to advertise</h2>
+          <p>Tell us about your brand and choose the subscription program that suits your audience.</p>
+        </div>
+      </div>
+      <div className="ads-policy-note" role="note">
+        <strong>Before you apply</strong>
+        <p>Select the rate that matches your affiliation. Chrisland University students use the student rate; staff and guests use the outside rate. Submitting an application is free. Your advertisement will be reviewed, and Paystack checkout will become available after approval.</p>
+      </div>
       <form onSubmit={(event) => void submit(event)} className="ads-form">
-        <label>Brand name<input name="brand_name" maxLength={120} required /></label>
-        <label>Proposed ad category<input name="ad_category" maxLength={80} placeholder="For example: food, fashion, services" required /></label>
-        <label>Contact email<input name="contact_email" type="email" maxLength={254} required /></label>
-        <label>Brand description<textarea name="description" maxLength={300} required /></label>
-        <label>Website or social link (HTTPS)<input name="destination_url" type="url" pattern="https://.*" required /></label>
-        <label>Ad image (PNG, JPEG or WebP, max 2 MB)<input name="image" type="file" accept="image/png,image/jpeg,image/webp" required /></label>
-        <label>Subscription program<select name="program" required disabled={!plans.data?.plans.length}>
-          <option value="">Choose your rate</option>
-          {plans.data?.plans.map((plan) => <option key={plan.id} value={plan.id}>{plan.name} · {plan.audience === "STUDENT" ? "Student" : "Outside"} · ₦{plan.price_ngn.toLocaleString()}/month</option>)}
-        </select></label>
-        <label className="ads-consent">
-          <input type="checkbox" name="scendey_opt_in" />
-          <span>{plans.data?.consent_text || "Send me Scendey waitlist updates when Scendey launches."} This is optional and does not affect your ChapelFlow application.</span>
-        </label>
-        <button disabled={busy} type="submit">{busy ? "Submitting…" : "Submit for review"}</button>
+        <div className="ads-form__group">
+          <div className="ads-form__group-heading">
+            <h3>Brand details</h3>
+            <p>Provide accurate information so people can recognise and contact your brand.</p>
+          </div>
+          <label>Brand or business name<input name="brand_name" maxLength={120} placeholder="Enter your brand name" autoComplete="organization" required /></label>
+          <label>Ad category<input name="ad_category" maxLength={80} placeholder="For example: food, fashion or services" required /></label>
+          <label>Contact email<input name="contact_email" type="email" maxLength={254} placeholder="name@example.com" autoComplete="email" required /></label>
+          <label className="ads-form__field--full">Brand description<textarea name="description" maxLength={300} placeholder="Briefly describe what you offer (up to 300 characters)." required /></label>
+          <label className="ads-form__field--full">Website or social media link <span className="ads-field-hint">Use a secure link beginning with https://.</span><input name="destination_url" type="url" pattern="https://.*" placeholder="https://example.com" required /></label>
+          <label className="ads-form__field--full">Advertisement image <span className="ads-field-hint">PNG, JPEG or WebP. Maximum file size: 2 MB.</span><input name="image" type="file" accept="image/png,image/jpeg,image/webp" required /></label>
+        </div>
+        <div className="ads-form__group">
+          <div className="ads-form__group-heading">
+            <h3>Subscription and updates</h3>
+            <p>Choose the program you want to apply for. You will review the price again before payment.</p>
+          </div>
+          <label className="ads-form__field--full">Subscription program<select name="program" required disabled={!plans.data?.plans.length}>
+            <option value="">Select a subscription program</option>
+            {plans.data?.plans.map((plan) => <option key={plan.id} value={plan.id}>{plan.name} · {plan.audience === "STUDENT" ? "Student rate" : "Outside rate"} · ₦{plan.price_ngn.toLocaleString()} per month</option>)}
+          </select></label>
+          <label className="ads-consent">
+            <input type="checkbox" name="scendey_opt_in" />
+            <span>{plans.data?.consent_text || "Send me Scendey waitlist updates when Scendey launches."} This is optional and will not affect your ChapelFlow application.</span>
+          </label>
+        </div>
+        <div className="ads-form__submit">
+          <p>No payment is collected with this application.</p>
+          <button disabled={busy || !plans.data?.plans.length} type="submit">{busy ? "Submitting application…" : "Submit application"}</button>
+        </div>
       </form>
     </section>
-    <section>
-      <h2>My advertisements</h2>
+    <section className="ads-section ads-section--campaigns">
+      <div className="ads-section__heading"><div><p className="eyebrow">Your account</p><h2>My advertisements</h2><p>Check each application’s review status, payment details and performance.</p></div></div>
       {campaigns.isError && <p>Could not load your advertisements.</p>}
       {campaigns.isPending && <p>Loading your advertisements…</p>}
       {campaigns.data?.length === 0 && <p>You have not submitted an ad yet.</p>}
@@ -276,12 +320,12 @@ export function AdvertisePage() {
         <img src={ad.image_url} alt="" />
         <div className="ads-entry__content">
           <h3>{ad.brand_name}</h3>
-          <p><strong>{ad.status === "PENDING" ? "Awaiting Super Admin review" : ad.status.replaceAll("_", " ")}</strong> · {ad.program_name || (ad.plan === "FEATURED" ? "Featured Brand" : "Campus Brand")} · {ad.applicant_community === "STUDENT" ? "Student" : ad.applicant_community === "STAFF" ? "Staff" : "Guest"}</p>
-          {ad.status === "PENDING" && <p className="ads-policy-note">Your application is awaiting Chapel approval. You will be notified when a decision is made. Payment is not available yet.</p>}
-          {ad.status === "APPROVED" && <p className="ads-founding-note">Approved by the Chapel. Complete payment to activate your advertisement.</p>}
+          <p><strong>{ad.status === "PENDING" ? "Awaiting review" : ad.status.replaceAll("_", " ")}</strong> · {ad.program_name || (ad.plan === "FEATURED" ? "Featured Brand" : "Campus Brand")} · {ad.applicant_community === "STUDENT" ? "Student" : ad.applicant_community === "STAFF" ? "Staff" : "Guest"}</p>
+          {ad.status === "PENDING" && <p className="ads-policy-note">Your application is being reviewed. You will be notified when a decision is made. Payment becomes available after approval.</p>}
+          {ad.status === "APPROVED" && <p className="ads-founding-note">Your advertisement has been approved. Complete payment to activate it.</p>}
           {ad.status === "REJECTED" && <p className="ads-policy-note">This application was not approved. Review the decision note below.</p>}
           <p>Category: {ad.ad_category}</p>
-          {ad.founding_offer_awarded && <p className="ads-founding-note">Founding offer awarded: ₦2,000 for month one, then ₦{ad.monthly_price_ngn.toLocaleString()} monthly.</p>}
+          {ad.founding_offer_awarded && <p className="ads-founding-note">Launch offer awarded: ₦{(plans.data?.founding_offer?.first_month_price_ngn ?? 2000).toLocaleString()} for the first month, then ₦{ad.monthly_price_ngn.toLocaleString()} per month.</p>}
           {ad.review_note && <p>Review note: {ad.review_note}</p>}
           {ad.paid_until && <p>{ad.cancel_at_period_end ? "Paid through" : "Next renewal date"}: <time dateTime={ad.paid_until}>{new Date(ad.paid_until).toLocaleDateString()}</time></p>}
           {ad.cancel_at_period_end && <p>Renewal cancelled. Your paid period remains active until the date above.</p>}
@@ -307,7 +351,7 @@ export function AdvertisePage() {
                 patch.image_url = image.image_url;
               }
               await api.patch(`/ads/mine/${ad.id}/`, patch);
-              setMessage("Changes resubmitted for chapel review.");
+              setMessage("Your changes have been resubmitted for review.");
               void campaigns.refetch();
             } catch (error) {
               setMessage(error instanceof Error ? error.message : "Could not submit changes.");
@@ -325,8 +369,8 @@ export function AdvertisePage() {
             <button disabled={busy}>Resubmit for review</button>
           </form>}
           {ad.status === "APPROVED" && <div className="ads-checkout">
-            <p>Regular renewal: ₦{ad.monthly_price_ngn.toLocaleString()} every month.</p>
-            {ad.founding_offer_awarded && <p>First month: ₦2,000. From month two: ₦{ad.monthly_price_ngn.toLocaleString()} / month.</p>}
+            <p>Monthly renewal: ₦{ad.monthly_price_ngn.toLocaleString()} per month.</p>
+            {ad.founding_offer_awarded && <p>First month: ₦{(plans.data?.founding_offer?.first_month_price_ngn ?? 2000).toLocaleString()}. From month two: ₦{ad.monthly_price_ngn.toLocaleString()} per month.</p>}
             <button disabled={busy || !plans.data?.checkout_available} onClick={() => void action(`/ads/${ad.id}/checkout/`, true)}>
               {plans.data?.checkout_available ? "Continue to Paystack" : "Checkout unavailable"}
             </button>
