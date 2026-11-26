@@ -67,7 +67,7 @@ async function fetchMediaFile(
     throw new Error(`Media file ${index + 1} exceeds the 50 MB sharing limit.`);
   }
 
-  const mimeType = (blob.type || response.headers.get("content-type") || "").split(";")[0].trim().toLowerCase();
+  const mimeType = (blob.type || response.headers.get("content-type") || "").split(";")[0]?.trim().toLowerCase() || "";
   const expectedPrefix = expectedMediaPrefix(media.mediaType);
   if (!mimeType.startsWith(expectedPrefix)) {
     throw new Error(`Media file ${index + 1} is not a valid ${media.mediaType.toLowerCase()} file.`);
@@ -85,7 +85,9 @@ export async function createUpperRoomMediaFiles(post: UpperRoomPost): Promise<Fi
   const files: File[] = [];
   let totalBytes = 0;
   for (let index = 0; index < post.media.length; index += 1) {
-    const file = await fetchMediaFile(post, post.media[index], index);
+    const media = post.media[index];
+    if (!media) throw new Error("An attached media file is missing from this post.");
+    const file = await fetchMediaFile(post, media, index);
     if (totalBytes + file.size > MAX_TOTAL_SHARE_BYTES) {
       throw new Error("The combined media files exceed the 150 MB sharing limit. Share fewer files at a time.");
     }
