@@ -707,8 +707,17 @@ export async function djangoRequest(
       "/attendance/student-scan/",
       json("POST", { token: body.token }),
     );
-  if (route === "/attendance/student-code/" && method === "POST")
-    return call("/attendance/student-code/", json("POST", { session_id: body.session_id, code: body.code }));
+  if (
+    (route === "/attendance/student-code" || route === "/attendance/student-code/") &&
+    method === "POST"
+  ) {
+    const sessionId = str(body.sessionId ?? body.session_id).trim();
+    const code = str(body.code ?? body.token).replace(/\\s/g, "");
+    return call(
+      "/attendance/student-code/",
+      json("POST", { session_id: sessionId, code }),
+    );
+  }
   if (route === "/attendance/qr-check-in" && method === "POST")
     return call(
       "/attendance/qr-check-in/",
