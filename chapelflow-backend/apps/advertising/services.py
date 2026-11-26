@@ -11,7 +11,7 @@ from django.db.models import F
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 
-from apps.finance.services import PaymentProviderError, _paystack_request
+from apps.finance.services import PaymentProviderError
 from apps.notifications.models import NotificationCategory, NotificationChannel
 from apps.notifications.preferences import queue_notification
 from common.constants.roles import Roles
@@ -21,6 +21,29 @@ PRICES = {'CAMPUS': 300000, 'FEATURED': 750000}
 FOUNDING_FIRST_MONTH_KOBO = 200000
 FOUNDING_OFFER_LIMIT = 10
 logger = logging.getLogger(__name__)
+
+
+def adsads_paystack_request(path: str, *, method: str = 'GET', payload: dict | None = None) -> dict:
+    """Use the Super Admin-owned Paystack account, isolated from Chapel giving."""
+    secret = settings.ADS_PAYSTACK_SECRET_KEY
+    if not secret:
+        raise PaymentProviderError('Advertising payments are not configured. Contact the Super Admin.')
+    body = json.dumps(payload).encode('utf-8') if payload is not None else None
+    from urllib.error import HTTPError, URLError
+    from urllib.request import Request, urlopen
+    request = Request(
+        f'https://api.paystack.co{path}', data=body, method=method,
+        headers={'Authorization': f'Bearer {secret}', 'Content-Type': 'application/json', 'Accept': 'application/json'},
+    )
+    try:
+        with urlopen(request, timeout=15) as response:
+            decoded = json.loads(response.read().decode('utf-8'))
+    except (HTTPError, URLError, TimeoutError, json.JSONDecodeError) as exc:
+        logger.warning('ads_paystack_request_failed path=%s error=%s', path, type(exc).__name__)
+        raise PaymentProviderError('Advertising payments are temporarily unavailable. Please try again shortly.') from exc
+    if not decoded.get('status') or not isinstance(decoded.get('data'), dict):
+        raise PaymentProviderError('Paystack could not complete this advertising payment request.')
+    return decoded['data']
 
 
 def campaign_monthly_price_kobo(campaign):
@@ -112,7 +135,7 @@ def plan_code(plan, *, program=None, amount_kobo=None):
             ).first()
             if saved:
                 return saved.code
-            data = _paystack_request('/plan', method='POST', payload={
+            data = ads_paystack_request('/plan', method='POST', payload={
                 'name': f'ChapelFlow {locked_program.name} - NGN {amount // 100}',
                 'amount': amount,
                 'interval': 'monthly',
@@ -131,7 +154,7 @@ def plan_code(plan, *, program=None, amount_kobo=None):
             return saved.code
         if saved:
             raise PaymentProviderError('The advertising plan needs administrator review before checkout.')
-        data = _paystack_request('/plan', method='POST', payload={
+        data = ads_paystack_request('/plan', method='POST', payload={
             'name': f'ChapelFlow {Campaign.Plan(plan).label}', 'amount': amount,
             'interval': 'monthly', 'currency': 'NGN',
         })
@@ -178,7 +201,7 @@ def activate_payment(campaign, data):
                 campaign.plan, program=campaign.program, amount_kobo=recurring_amount,
             )
             from dateutil.relativedelta import relativedelta
-            subscription_data = _paystack_request('/subscription', method='POST', payload={
+            subscription_data = ads_paystack_request('/subscription', method='POST', payload={
                 'customer': customer_code, 'plan': recurring_code, 'authorization': authorization_code,
                 'start_date': (paid_at + relativedelta(months=1)).isoformat(),
             })
@@ -203,11 +226,21 @@ def activate_payment(campaign, data):
     return campaign
 
 
-def process_ad_webhook(request):
-    secret = settings.PAYSTACK_SECRET_KEY
+def process_ad_webhook(request, *, allow_unmatched=False):
+    """Handle events signed by the Super Admin advertising Paystack account.
+
+    The shared Chapel giving webhook may call this first and fall through when
+    the signature belongs to its separate Paystack account.
+    """
+    secret = settings.ADS_PAYSTACK_SECRET_KEY
     signature = request.headers.get('X-Paystack-Signature', '')
-    if not secret or not hmac.compare_digest(signature, hmac.new(secret.encode(), request.body, hashlib.sha512).hexdigest()):
-        raise PaymentProviderError('Invalid Paystack signature.')
+    valid_signature = bool(secret) and hmac.compare_digest(
+        signature, hmac.new(secret.encode(), request.body, hashlib.sha512).hexdigest()
+    )
+    if not valid_signature:
+        if allow_unmatched:
+            return False
+        raise PaymentProviderError('Invalid advertising Paystack webhook signature.')
     payload = json.loads(request.body)
     event, data = payload.get('event'), payload.get('data') or {}
     if not isinstance(data, dict):
@@ -227,7 +260,7 @@ def process_ad_webhook(request):
         campaign.save(update_fields=['subscription_code', 'subscription_email_token'])
     elif event == 'charge.success':
         # Verify independently; never trust an event body to grant advertising time.
-        verified = _paystack_request(f"/transaction/verify/{quote(str(data.get('reference')), safe='')}")
+        verified = ads_paystack_request(f"/transaction/verify/{quote(str(data.get('reference')), safe='')}")
         activate_payment(campaign, verified)
     elif event == 'invoice.payment_failed':
         campaign.status = Campaign.Status.PAUSED
