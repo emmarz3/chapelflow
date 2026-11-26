@@ -111,7 +111,7 @@ export function AttendanceKioskPage() {
     },
     [state, submit],
   );
-  const { videoRef, permissionError } = useQrScanner(onScan, scanning);
+  const { videoRef, permissionError, cameras, selectedCameraId, selectCamera } = useQrScanner(onScan, scanning);
   useEffect(() => {
     if (!permissionError) return;
     setState("error");
@@ -189,6 +189,12 @@ export function AttendanceKioskPage() {
                 <i />
               </span>
             </div>
+            {cameras.length > 1 && <label className="scanner-camera-picker">
+              <span>Camera lens</span>
+              <select value={selectedCameraId} onChange={(event) => selectCamera(event.target.value)}>
+                {cameras.map((camera, index) => <option key={camera.deviceId} value={camera.deviceId}>{camera.label || `Camera ${index + 1}`}</option>)}
+              </select>
+            </label>}
             <h1>Hold the ChapelFlow identity QR inside the frame</h1>
             <p>If scanning is unavailable, return and use a matric number.</p>
             <Button variant="secondary" onClick={reset}>
