@@ -37,7 +37,7 @@ class AdSubscriptionProgram(models.Model):
 
     class Meta:
         ordering = ["sort_order", "name"]
-        indexes = [models.Index(fields=["is_active", "sort_order"])]
+        indexes = [models.Index(fields=["is_active", "sort_order"], name="advertising_is_acti_2bcff2_idx")]
 
     def __str__(self):
         return f"{self.name} (₦{self.monthly_price_ngn:,}/month)"
