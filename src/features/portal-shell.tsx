@@ -46,6 +46,7 @@ import {
 } from "../lib/permissions";
 import type { Permission, Role, User } from "../types/domain";
 import { authService, communityService, notificationService } from "../services/chapelflow";
+import { DashboardAdPopup } from "./advertising";
 
 interface NavItem {
   label: string;
@@ -416,6 +417,9 @@ export function PortalShell() {
           ? studentNavGroups(studentCommunities.data ?? [])
           : memberAccountNavGroups()
         : user ? operationalNavGroups(user) ?? navGroups : navGroups)
+        .map((group, index) => index === 0 ? {
+          ...group, items: [...group.items, { label: "Discover brands", path: "/app/ads", icon: <Megaphone /> } as NavItem],
+        } : group)
         .map((group) => ({
           ...group,
           items: group.items.map((item) => user?.role === "super_admin" && item.path === "/app"
@@ -424,7 +428,7 @@ export function PortalShell() {
             (item) =>
               hasPermission(user, item.permission) &&
               (!item.roles || Boolean(user && item.roles.includes(user.role))) &&
-              (item.path !== "/app/advertise" || Boolean(user && user.role === "member" && ["student", "staff"].includes(user.community ?? ""))),
+              (item.path !== "/app/advertise" || Boolean(user && user.role === "member" && ["student", "staff", "guest"].includes(user.community ?? ""))),
           ),
         }))
         .filter((group) => group.items.length),
@@ -632,6 +636,7 @@ export function PortalShell() {
           </button>
         </nav>
         {user.role === "member" && location.pathname === "/app" && !isDemoMode && <BirthdayPrompt userId={user.id} />}
+        {(location.pathname === "/app" || location.pathname === "/app/admin/dashboard") && !isDemoMode && online && <DashboardAdPopup userId={user.id} />}
       </div>
       {user.role !== "member" && <SearchModal open={searchOpen} onClose={() => setSearchOpen(false)} />}
     </div>

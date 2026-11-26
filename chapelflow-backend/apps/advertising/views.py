@@ -8,6 +8,7 @@ from django.conf import settings
 from django.core.cache import cache
 from django.db import transaction
 from django.db.models import F
+from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.utils.decorators import method_decorator
@@ -439,6 +440,59 @@ class PlacementView(APIView):
         if cache.add(viewer_key, 1, timeout=60 * 60 * 12):
             Campaign.objects.filter(pk=selected.pk).update(impressions=F('impressions') + 1)
         return Response({'ad': {'id': selected.id, 'brand_name': selected.brand_name, 'description': selected.description, 'image_url': selected.image_url, 'plan': selected.plan}})
+
+
+class DashboardPlacementView(APIView):
+    permission_classes = [IsAuthenticated]
+    throttle_scope = 'ads_public'
+
+    def get(self, request):
+        if not _ads_display_allowed():
+            return Response({'ad': None})
+        campaigns = list(Campaign.objects.filter(
+            status=Campaign.Status.ACTIVE, paid_until__gt=timezone.now(),
+        ).select_related('program').order_by('id'))
+        campaigns = [campaign for campaign in campaigns if 'dashboard' in (
+            campaign.placements_snapshot or (campaign.program.placements if campaign.program_id else [])
+        )]
+        if not campaigns:
+            return Response({'ad': None})
+        import hashlib
+        choices = [campaign for campaign in campaigns for _ in range(2 if campaign.plan == Campaign.Plan.FEATURED else 1)]
+        key = f'{request.user.pk}:{timezone.localdate().isoformat()}'
+        selected = choices[int(hashlib.sha256(f'{key}:dashboard'.encode()).hexdigest(), 16) % len(choices)]
+        if cache.add(f'ad:dashboard:view:{selected.pk}:{key}', 1, timeout=60 * 60 * 24):
+            Campaign.objects.filter(pk=selected.pk).update(impressions=F('impressions') + 1)
+        return Response({'ad': {
+            'id': selected.id, 'brand_name': selected.brand_name, 'description': selected.description,
+            'image_url': selected.image_url, 'plan': selected.plan,
+        }})
+
+
+class AdDirectoryView(APIView):
+    permission_classes = [IsAuthenticated]
+    throttle_scope = 'ads_public'
+
+    def get(self, request):
+        if not _ads_display_allowed():
+            return Response({'items': [], 'total': 0})
+        search = request.query_params.get('q', '').strip()[:80]
+        try:
+            page = max(1, min(int(request.query_params.get('page', '1')), 1000))
+        except (TypeError, ValueError):
+            page = 1
+        campaigns = Campaign.objects.filter(
+            status=Campaign.Status.ACTIVE, paid_until__gt=timezone.now(),
+        )
+        if search:
+            campaigns = campaigns.filter(Q(brand_name__icontains=search) | Q(description__icontains=search) | Q(ad_category__icontains=search))
+        total = campaigns.count()
+        items = campaigns.order_by('brand_name', 'id')[(page - 1) * 24:page * 24]
+        return Response({'items': [{
+            'id': campaign.id, 'brand_name': campaign.brand_name,
+            'description': campaign.description, 'ad_category': campaign.ad_category,
+            'image_url': campaign.image_url,
+        } for campaign in items], 'total': total, 'page': page, 'page_size': 24})
 
 
 class ClickView(APIView):

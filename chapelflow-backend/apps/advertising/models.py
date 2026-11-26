@@ -3,7 +3,7 @@ from django.conf import settings
 from django.db import models
 
 
-AD_PLACEMENT_CHOICES = (("home", "Homepage"), ("events", "Events page"))
+AD_PLACEMENT_CHOICES = (("home", "Homepage"), ("events", "Events page"), ("dashboard", "Dashboard popup"))
 AD_BASE_PLAN_CHOICES = (("CAMPUS", "Campus Brand"), ("FEATURED", "Featured Brand"))
 
 
