@@ -425,8 +425,8 @@ export function AdvertisingAdminPage() {
       </div>
       <div className="ads-entry__content">
         <h2>{ad.brand_name}</h2>
-        <p>{ad.owner_email} · {ad.applicant_community} · {ad.plan} · {ad.status}</p>
-        <p>Proposed category: {ad.ad_category} · Placements: {(ad.placements || ["home", "events"]).join(", ")}</p>
+        <p>{ad.owner_email} · {ad.applicant_community} · {ad.program_name || ad.plan} · {ad.status}</p>
+        <p>Proposed category: {ad.ad_category} · Placements: {(ad.placements || ["home", "events"]).map((placement) => placement === "home" ? "Homepage" : "Events").join(", ")}</p>
         <p>Destination: <a href={ad.destination_url} target="_blank" rel="noreferrer">Inspect HTTPS destination ↗</a></p>
         <p>{ad.impressions.toLocaleString()} views · {ad.clicks.toLocaleString()} clicks</p>
         {ad.reviewed_by_email && <p>Last reviewed by {ad.reviewed_by_email}{ad.reviewed_at ? ` on ${new Date(ad.reviewed_at).toLocaleString()}` : ""}</p>}
