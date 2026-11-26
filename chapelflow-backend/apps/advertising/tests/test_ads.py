@@ -347,9 +347,16 @@ def test_ad_application_notifies_super_admin_and_checkout_waits_for_approval(use
     ).exists()
 
     client.force_authenticate(owner)
+    def initialize_checkout(*args, **kwargs):
+        reference = kwargs['payload']['reference']
+        return {
+            'reference': reference,
+            'authorization_url': f'https://checkout.paystack.com/{reference}',
+        }
+
     with patch('apps.advertising.views.plan_code', return_value='PLN_FEATURED_CUSTOM') as create_plan, patch(
         'apps.advertising.views._paystack_request',
-        return_value={'reference': 'ad-program-reference', 'authorization_url': 'https://checkout.paystack.com/ad-program-reference'},
+        side_effect=initialize_checkout,
     ) as paystack:
         checkout = client.post(f'/api/v1/ads/{campaign.pk}/checkout/')
     assert checkout.status_code == 200, checkout.data
