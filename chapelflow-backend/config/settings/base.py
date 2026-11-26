@@ -85,6 +85,7 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "common.middleware.audit_middleware.AuditContextMiddleware",
     "common.middleware.request_id.RequestIDMiddleware",
+    "common.middleware.slow_requests.SlowRequestMiddleware",
 ]
 
 ROOT_URLCONF = "config.urls"
@@ -197,9 +198,6 @@ REST_FRAMEWORK = {
         "community_comment": "20/min",
         "public": "20/min",
         "ads_public": "30/min",
-        "ads_application": "3/hour",
-        "ads_checkout": "5/hour",
-        "ads_image": "10/hour",
         "admin_destructive": "5/hour",
     },
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
@@ -331,7 +329,11 @@ EMAIL_TIMEOUT = env.int("EMAIL_TIMEOUT", default=15)
 EMAIL_HOST_USER = env("EMAIL_HOST_USER", default="")
 EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", default="")
 EMAIL_USE_TLS = env.bool("EMAIL_USE_TLS", default=True)
-DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="no-reply@chapelflow.app")
+DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default=EMAIL_HOST_USER or "no-reply@chapelflow.app")
+EMAIL_VERIFICATION_REQUIRED = env.bool("EMAIL_VERIFICATION_REQUIRED", default=False)
+WEB_PUSH_PUBLIC_KEY = env("WEB_PUSH_PUBLIC_KEY", default="")
+WEB_PUSH_PRIVATE_KEY = env("WEB_PUSH_PRIVATE_KEY", default="")
+WEB_PUSH_SUBJECT = env("WEB_PUSH_SUBJECT", default="mailto:" + DEFAULT_FROM_EMAIL)
 
 SMS_API_KEY = env("SMS_API_KEY", default="")
 SMS_CHANNEL_ENABLED = env.bool("SMS_CHANNEL_ENABLED", default=False)
