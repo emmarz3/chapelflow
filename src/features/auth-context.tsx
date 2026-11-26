@@ -13,6 +13,7 @@ import { buildDemoUser, hasPermission } from "../lib/permissions";
 import { isDemoMode } from "../lib/fixtures";
 import { useQueryClient } from "@tanstack/react-query";
 import { disableBrowserPush } from "../lib/push";
+import { clearRecentUpperRoomMedia } from "../lib/upper-room-media-cache";
 
 interface AuthContextValue {
   user: User | null;
@@ -118,6 +119,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             password,
             ...(otp ? { otp } : {}),
           });
+          if (user && user.id !== response.data.id) await clearRecentUpperRoomMedia().catch(() => undefined);
           queryClient.clear();
           setAuthError(null);
           setUser(response.data);
@@ -129,7 +131,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       async logout() {
         authRevision.current += 1;
         if (!isDemoMode) await disableBrowserPush().catch(() => undefined);
-        for (const key of Object.keys(window.localStorage)) if (key.startsWith("chapelflow:recent-media:")) window.localStorage.removeItem(key);
+        await clearRecentUpperRoomMedia().catch(() => undefined);
         if (isDemoMode)
           window.sessionStorage.removeItem("chapelflow-demo-role");
         queryClient.clear();
