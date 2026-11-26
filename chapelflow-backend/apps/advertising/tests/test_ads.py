@@ -13,6 +13,8 @@ from apps.accounts.models import User
 from apps.advertising.models import AdSubscriptionProgram, AdvertisingSettings, Campaign, AdPayment
 from apps.notifications.models import Notification, NotificationChannel, NotificationStatus
 from apps.advertising.services import FOUNDING_FIRST_MONTH_KOBO, PRICES, activate_payment
+from apps.members.models import Member
+from apps.organizations.models import Organization, Branch
 from apps.finance.services import PaymentProviderError
 
 
@@ -21,19 +23,49 @@ def users(db):
     owner = User.objects.create_user(email='brand@example.com', password='passphrase-very-long')
     other = User.objects.create_user(email='other@example.com', password='passphrase-very-long')
     admin = User.objects.create_superuser(email='admin@example.com', password='passphrase-very-long')
+    organization = Organization.objects.create(name='Test chapel', slug='test-chapel-ads')
+    branch = Branch.objects.create(organization=organization, name='Test branch')
+    Member.objects.create(user=owner, branch=branch, community='STUDENT', first_name='Brand', last_name='Owner')
+    Member.objects.create(user=other, branch=branch, community='GUEST', first_name='Outside', last_name='Owner')
     return owner, other, admin
+
+
+@pytest.mark.django_db
+def test_new_advertisers_pay_their_verified_audience_rate(users):
+    student, outsider, _ = users
+    programs = {program.audience: program for program in AdSubscriptionProgram.objects.filter(code__in=['campus-brand', 'featured-brand'])}
+    assert programs['STUDENT'].monthly_price_ngn == 3500
+    assert programs['OUTSIDER'].monthly_price_ngn == 5000
+    client = APIClient()
+    payload = {
+        'brand_name': 'Brand', 'description': 'Campus service', 'ad_category': 'Retail',
+        'image_url': 'https://example.com/ad.png', 'destination_url': 'https://example.com',
+        'contact_email': 'brand@example.com',
+    }
+    for owner, allowed, denied, expected in (
+        (student, programs['STUDENT'], programs['OUTSIDER'], 3500),
+        (outsider, programs['OUTSIDER'], programs['STUDENT'], 5000),
+    ):
+        client.force_authenticate(owner)
+        assert client.post('/api/v1/ads/mine/', {**payload, 'program': str(denied.pk)}, format='json').status_code == 400
+        response = client.post('/api/v1/ads/mine/', {**payload, 'program': str(allowed.pk)}, format='json')
+        assert response.status_code == 201, response.data
+        assert response.data['monthly_price_ngn'] == expected
+        assert Campaign.objects.get(pk=response.data['id']).monthly_price_kobo == expected * 100
+    assert not AdvertisingSettings.objects.get_or_create(pk=1)[0].founding_offer_enabled
 
 
 @pytest.mark.django_db
 @override_settings(ADS_POLICY_APPROVED=True)
 def test_approval_payment_and_placement(users):
     owner, other, admin = users
+    program = AdSubscriptionProgram.objects.get(code='campus-brand')
     client = APIClient()
     client.force_authenticate(owner)
     response = client.post('/api/v1/ads/mine/', {
         'brand_name': 'Campus Studio', 'description': 'Portrait sessions',
         'image_url': 'https://example.com/ad.png', 'destination_url': 'https://example.com',
-        'contact_email': 'brand@example.com', 'plan': 'CAMPUS', 'ad_category': 'Retail', 'scendey_opt_in': True,
+        'contact_email': 'brand@example.com', 'program': str(program.pk), 'ad_category': 'Retail', 'scendey_opt_in': True,
     }, format='json')
     assert response.status_code == 201, response.data
     campaign = Campaign.objects.get(pk=response.data['id'])
@@ -179,6 +211,7 @@ def test_emergency_pause_hides_placements_until_resumed(users):
 @pytest.mark.django_db
 def test_first_ten_approved_student_campaigns_receive_founding_offer(users):
     owner, _, admin = users
+    AdvertisingSettings.objects.create(pk=1, founding_offer_enabled=True)
     client=APIClient(); client.force_authenticate(admin); awarded=[]
     for index in range(11):
         campaign=Campaign.objects.create(owner=owner,brand_name=f'Student brand {index}',description='Campus service',
@@ -405,9 +438,8 @@ def test_ad_application_notifies_super_admin_and_checkout_waits_for_approval(use
     assert create_plan.call_args.kwargs['program'].pk == program.pk
     assert create_plan.call_args.kwargs['amount_kobo'] == 580000
     checkout_payload = paystack.call_args.kwargs['payload']
-    # The first ten approved student brands pay the one-off ₦2,000
-    # founding charge; the full program price is the recurring renewal.
-    assert checkout_payload['amount'] == FOUNDING_FIRST_MONTH_KOBO
+    # New approvals pay the stated monthly rate; existing awarded offers retain their discount.
+    assert checkout_payload['amount'] == 580000
     assert checkout_payload['metadata']['renewal_amount_kobo'] == 580000
-    assert checkout_payload['metadata']['billing_mode'] == 'FOUNDING_FIRST_MONTH'
-    assert 'plan' not in checkout_payload
+    assert checkout_payload['metadata']['billing_mode'] == 'MONTHLY_SUBSCRIPTION'
+    assert checkout_payload['plan'] == 'PLN_FEATURED_CUSTOM'

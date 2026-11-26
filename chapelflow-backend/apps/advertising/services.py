@@ -19,7 +19,7 @@ from apps.notifications.preferences import queue_notification
 from common.constants.roles import Roles
 from .models import AdPayment, AdSubscriptionProgram, Campaign, PaystackPlan
 
-PRICES = {'CAMPUS': 300000, 'FEATURED': 750000}
+PRICES = {'CAMPUS': 350000, 'FEATURED': 500000}
 FOUNDING_FIRST_MONTH_KOBO = 200000
 FOUNDING_OFFER_LIMIT = 10
 logger = logging.getLogger(__name__)
@@ -74,7 +74,7 @@ def notify_super_admins_about_campaign(campaign):
     """Notify every active Super Admin when an ad awaits review, including resubmissions."""
     User = get_user_model()
     program_name = campaign.program.name if campaign.program_id else campaign.get_plan_display()
-    community = 'staff' if campaign.applicant_community == 'STAFF' else 'student'
+    community = {'STAFF': 'staff', 'GUEST': 'guest'}.get(campaign.applicant_community, 'student')
     title = 'Advertisement awaiting review'
     body = (
         f'{campaign.brand_name} submitted a {community} advertisement and selected '
