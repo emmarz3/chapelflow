@@ -420,7 +420,8 @@ export function PortalShell() {
             : item).filter(
             (item) =>
               hasPermission(user, item.permission) &&
-              (!item.roles || Boolean(user && item.roles.includes(user.role))),
+              (!item.roles || Boolean(user && item.roles.includes(user.role))) &&
+              (item.path !== "/app/advertise" || Boolean(user && user.role === "member" && ["student", "staff"].includes(user.community))),
           ),
         }))
         .filter((group) => group.items.length),
