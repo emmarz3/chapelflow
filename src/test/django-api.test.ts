@@ -455,14 +455,33 @@ describe("Django API integration", () => {
     expect(fetch.mock.calls[0]?.[0]).toBe("/api/v1/attendance/checkpoint/token/");
   });
 
-  it("routes the live student attendance code to Django", async () => {
+  it("normalizes a live student attendance code and session before submitting to Django", async () => {
     const fetch = vi.fn().mockImplementation(() => Promise.resolve(response({ data: { result: "recorded", record: { id: "record-1" } } }, 201)));
     vi.stubGlobal("fetch", fetch);
-    await apiRequest("/attendance/student-code/", { method: "POST", body: JSON.stringify({ session_id: "session-1", code: "104258" }) });
+    await apiRequest("/attendance/student-code", {
+      method: "POST",
+      body: JSON.stringify({ sessionId: "session-1", code: "104258" }),
+    });
     expect(fetch.mock.calls.map(([url]) => url)).toEqual([
       "/api/v1/attendance/student-code/",
     ]);
-    expect(JSON.parse(String(fetch.mock.calls[0]?.[1]?.body))).toEqual({ session_id: "session-1", code: "104258" });
+    expect(JSON.parse(String(fetch.mock.calls[0]?.[1]?.body))).toEqual({
+      session_id: "session-1",
+      code: "104258",
+    });
+  });
+
+  it("accepts the token-named legacy attendance code payload", async () => {
+    const fetch = vi.fn().mockImplementation(() => Promise.resolve(response({ data: { result: "recorded", record: { id: "record-2" } } }, 201)));
+    vi.stubGlobal("fetch", fetch);
+    await apiRequest("/attendance/student-code/", {
+      method: "POST",
+      body: JSON.stringify({ session_id: "session-1", token: "104258" }),
+    });
+    expect(JSON.parse(String(fetch.mock.calls[0]?.[1]?.body))).toEqual({
+      session_id: "session-1",
+      code: "104258",
+    });
   });
 
   it("maps kiosk identity QR check-in to the staff QR endpoint", async () => {
