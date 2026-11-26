@@ -1,4 +1,4 @@
-import { ProfilePhotoEditor } from "./profile-photo";
+import { ProfileBioEditor, ProfilePhotoEditor } from "./profile-photo";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type FormEvent } from "react";
 
@@ -60,6 +60,7 @@ export function StudentProfileEditorPage() {
         }
       />
       <ProfilePhotoEditor />
+      <ProfileBioEditor />
       <section className="panel student-profile-editor">
         <form className="student-password-form" onSubmit={submit}>
           <label>

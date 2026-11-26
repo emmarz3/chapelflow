@@ -40,8 +40,8 @@ function mediaFileError(file: File) {
   if (!UPPER_ROOM_MEDIA_TYPES[extension] || file.type !== UPPER_ROOM_MEDIA_TYPES[extension]) {
     return `${file.name}: use JPG, PNG, GIF, WebP, MP4, MOV, or WebM media.`;
   }
-  if (file.size > 100 * 1024 * 1024) {
-    return `${file.name}: the maximum file size is 100 MB.`;
+  if (file.size > 50 * 1024 * 1024) {
+    return `${file.name}: the maximum file size is 50 MB.`;
   }
   return null;
 }
@@ -79,6 +79,10 @@ export function UpperRoomPage() {
     }
     if (!caption.trim() && !files.length) {
       toast("Add a caption, photo, or video before sharing.", "error");
+      return;
+    }
+    if (files.reduce((size, file) => size + file.size, 0) > 50 * 1024 * 1024) {
+      toast("A post can contain up to 50 MB of photos and videos in total.", "error");
       return;
     }
     publish.mutate();
@@ -129,8 +133,12 @@ export function UpperRoomPage() {
                   toast(invalid, "error");
                   return;
                 }
+                if (selected.reduce((size, file) => size + file.size, 0) > 50 * 1024 * 1024) {
+                  toast("A post can contain up to 50 MB of photos and videos in total.", "error");
+                  return;
+                }
                 setFiles(selected);
-              }} /></label><small>JPG, PNG, GIF, WebP, MP4, MOV or WebM · 100 MB max</small><Button type="submit" loading={publish.isPending} icon={<Send />}>Share</Button></div>
+              }} /></label><small>JPG, PNG, GIF, WebP, MP4, MOV or WebM · 50 MB total per post</small><Button type="submit" loading={publish.isPending} icon={<Send />}>Share</Button></div>
             </form>
           </section>
           <section className="upper-room__feed" aria-label="Upper Room posts">
