@@ -39,7 +39,7 @@ async function loadShareImage(post: UpperRoomPost): Promise<ImageBitmap | null> 
   const media = post.media.find((item) => item.mediaType === "IMAGE");
   if (!media?.url) return null;
   try {
-    const response = await fetch(media.url, { credentials: "include", mode: "cors", cache: "no-store" });
+    const response = await fetch(media.url, { credentials: "same-origin", mode: "cors", cache: "no-store" });
     if (!response.ok) return null;
     const blob = await response.blob();
     if (!blob.type.startsWith("image/")) return null;
