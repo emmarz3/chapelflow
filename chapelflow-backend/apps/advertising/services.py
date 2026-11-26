@@ -156,7 +156,7 @@ def activate_payment(campaign, data):
     if not reference or data.get('currency') != 'NGN' or data.get('status') != 'success':
         raise PaymentProviderError('Payment details did not match the advertising plan.')
     with transaction.atomic():
-        campaign = Campaign.objects.select_for_update().select_related('program', 'owner').get(pk=campaign.pk)
+        campaign = Campaign.objects.select_for_update(of=('self',)).select_related('program', 'owner').get(pk=campaign.pk)
         if AdPayment.objects.filter(reference=reference).exists():
             return campaign
         if campaign.status not in {Campaign.Status.APPROVED, Campaign.Status.ACTIVE, Campaign.Status.PAUSED}:
