@@ -295,9 +295,9 @@ class ImageView(APIView):
     throttle_scope = 'ads_image'
 
     def post(self, request):
-        community = Member.objects.filter(user=request.user).values_list('community', flat=True).first() or CommunityClassification.STUDENT
-        if request.user.get_role_code() != 'MEMBER' or community not in {CommunityClassification.STUDENT, CommunityClassification.STAFF}:
-            return Response({'detail': 'Only student and staff community members can upload advertising creatives.'}, status=403)
+        community = Member.objects.filter(user=request.user).values_list('community', flat=True).first()
+        if request.user.get_role_code() != 'MEMBER' or community not in {CommunityClassification.STUDENT, CommunityClassification.STAFF, CommunityClassification.GUEST}:
+            return Response({'detail': 'Complete your member profile before uploading an advertising creative.'}, status=403)
         file = request.FILES.get('file')
         if not file or file.size > 2 * 1024 * 1024 or file.content_type not in {'image/png', 'image/jpeg', 'image/webp'}:
             raise serializers.ValidationError('Upload a PNG, JPEG or WebP image under 2 MB.')
