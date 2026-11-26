@@ -7,6 +7,7 @@ const MAX_RECENT_POSTS = 12;
 const MAX_CACHED_BYTES = 150 * 1024 * 1024;
 const MAX_POST_BYTES = 50 * 1024 * 1024;
 const MAX_MEDIA_BYTES = 50 * 1024 * 1024;
+let cacheEpoch = 0;
 
 export interface CachedUpperRoomPost {
   key: string;
@@ -59,7 +60,7 @@ async function fetchMediaBlob(url: string): Promise<Blob | null> {
     if (resolved.protocol !== "https:" && resolved.origin !== window.location.origin) return null;
     const response = await fetch(resolved.href, {
       method: "GET",
-      credentials: "include",
+      credentials: "same-origin",
       mode: "cors",
       cache: "no-store",
     });
@@ -80,6 +81,7 @@ export async function saveRecentUpperRoomPost(
   if (!userId || !post.media.length || post.isStory) {
     return { cachedCount: 0, mediaCount: post.media.length, bytes: 0 };
   }
+  const saveEpoch = cacheEpoch;
 
   const database = await openDatabase();
   const existingTransaction = database.transaction(STORE_NAME, "readonly");
@@ -166,6 +168,7 @@ export async function getRecentUpperRoomPosts(userId: string): Promise<CachedUpp
 }
 
 export async function clearRecentUpperRoomMedia(): Promise<void> {
+  cacheEpoch += 1;
   try {
     for (const key of Object.keys(window.localStorage)) {
       if (key.startsWith("chapelflow:recent-media:")) window.localStorage.removeItem(key);
