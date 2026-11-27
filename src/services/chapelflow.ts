@@ -217,7 +217,9 @@ export interface PublicContentPayload {
     body: string;
     imageUrl?: string;
     imageAlt?: string;
-    mediaType?: "image" | "video" | "file";
+    mediaUrl?: string;
+    authorName?: string;
+    mediaType?: "image" | "video" | "audio" | "file" | "pdf";
     itemCount?: number;
     photoCount?: number;
     videoCount?: number;
