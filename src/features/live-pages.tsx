@@ -45,6 +45,7 @@ import {
   useToast,
 } from "../components/ui";
 import { ApiError } from "../lib/api";
+import { markAppPerformance } from "../lib/performance";
 import { downloadPdf } from "../lib/export";
 import { BRAND_ASSETS } from "../lib/brand-assets";
 import {
@@ -126,6 +127,9 @@ export function LiveDashboardPage() {
     queryFn: async () => (await communityService.mine()).data,
     enabled: Boolean(user?.permissions.includes("community:view")),
   });
+  useEffect(() => {
+    if (query.isSuccess) markAppPerformance("dashboard_data_ready");
+  }, [query.isSuccess]);
   if (query.isPending) return <LoadingState label="Loading dashboard" />;
   if (query.isError)
     return (
