@@ -336,7 +336,10 @@ export const api = {
 export async function downloadAuthenticatedPdf(path: string, filename: string) {
   const request = () => fetch(`${API_BASE_URL}${path}`, {
     credentials: "include",
-    headers: { Accept: "application/pdf" },
+    // These are DRF views returning a raw HttpResponse PDF. Requesting
+    // application/pdf makes DRF reject the request with 406 unless a PDF
+    // renderer is registered; wildcard negotiation lets the view return its PDF.
+    headers: { Accept: "*/*" },
   });
   let response = await request();
   if (response.status === 401 && await refreshSession()) response = await request();
