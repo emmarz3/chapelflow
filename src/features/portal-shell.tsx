@@ -623,7 +623,7 @@ export function PortalShell() {
         </header>
         <main id="portal-content" className="portal-content">
           {user.role === "member" && location.pathname === "/app" && !isDemoMode && <ApprovedAdPaymentNotice />}
-          {location.pathname === "/app" && <ScendeyWaitlistPromo variant="dashboard" />}
+          {(location.pathname === "/app" || location.pathname === "/app/admin/dashboard") && <ScendeyWaitlistPromo variant="dashboard" />}
           <Outlet />
         </main>
         <nav
