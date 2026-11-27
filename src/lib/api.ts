@@ -75,6 +75,27 @@ function bootstrapCsrfToken() {
   return csrfBootstrapRequest;
 }
 
+/**
+ * Establish the cookie-bound CSRF token before an unsafe authentication request.
+ * Safe GET requests such as /auth/me do not need to pay this extra round trip.
+ */
+export async function ensureCsrfToken() {
+  if (!isDjangoBackend || csrfCookie()) return;
+  let established = false;
+  try {
+    established = await bootstrapCsrfToken();
+  } catch {
+    established = false;
+  }
+  if (!established) {
+    throw new ApiError({
+      code: "CSRF_BOOTSTRAP_FAILED",
+      message: "ChapelFlow could not initialise secure sign-in. Please try again.",
+      status: 503,
+    });
+  }
+}
+
 let refreshRequest: Promise<boolean> | null = null;
 
 function refreshSession() {
