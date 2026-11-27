@@ -58,6 +58,34 @@ describe("authentication startup performance", () => {
     ]);
   });
 
+  it("tries refresh for a protected app session even before the session hint exists", async () => {
+    window.history.replaceState({}, "", "/app");
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(jsonResponse({ detail: "Expired access token." }, 401))
+      .mockResolvedValueOnce(jsonResponse({ data: { csrf_token: "rotated-csrf" } }))
+      .mockResolvedValueOnce(jsonResponse({
+        data: {
+          id: "legacy-member",
+          email: "legacy@example.edu.ng",
+          first_name: "Legacy",
+          last_name: "Member",
+          role: "MEMBER",
+          community: "STUDENT",
+          effective_permissions: [],
+        },
+      }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(api.get("/auth/me")).resolves.toMatchObject({
+      data: { id: "legacy-member" },
+    });
+    expect(fetchMock.mock.calls.map(([url]) => String(url))).toEqual([
+      "/api/v1/auth/me/",
+      "/api/v1/auth/refresh/",
+      "/api/v1/auth/me/",
+    ]);
+  });
+
   it("establishes CSRF before the first login mutation", async () => {
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(jsonResponse({ data: { csrf_token: "initial-csrf" } }))
