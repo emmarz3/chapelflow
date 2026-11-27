@@ -21,7 +21,7 @@ test("register, sign in, restore the session, and load a real chapel pass", asyn
   await page.getByRole("button", { name: "Continue" }).click();
   await page.getByRole("checkbox", { name: /I have read and accept/ }).check();
   await page.getByRole("button", { name: "Submit registration" }).click();
-  await expect(page.getByRole("heading", { name: "Your account is ready." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Your registration was successful." })).toBeVisible();
   await page.getByRole("link", { name: "Return to sign in" }).click();
   await page.getByLabel("Email, matric number, or staff ID").fill(email);
   await page.getByLabel(/^Password/).fill(password);
