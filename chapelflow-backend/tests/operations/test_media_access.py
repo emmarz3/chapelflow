@@ -113,3 +113,45 @@ def test_media_upload_rejects_mismatched_file_signature(api_client, media_author
     assert "file contents" in str(response.data).lower() or "file type" in str(response.data).lower()
 
 
+
+
+
+def test_media_leader_and_super_admin_can_upload_gallery_files(
+    api_client, make_user, branch_a, super_admin, monkeypatch
+):
+    media_unit = Group.objects.create(
+        branch=branch_a,
+        name="Media",
+        group_type=GroupType.UNIT,
+    )
+    media_leader = make_user(
+        email="media-upload-leader@test.edu",
+        branch=branch_a,
+        role=Roles.UNIT_HEAD,
+        institutional_group=media_unit,
+    )
+
+    class FakeStorage:
+        def upload_fileobj(self, file_obj, storage_name, content_type=""):
+            assert file_obj.read()
+            file_obj.seek(0)
+            return f"https://files.example.edu/{storage_name}"
+
+    monkeypatch.setattr("apps.uploads.views.get_storage_service", lambda: FakeStorage())
+
+    for user in (media_leader, super_admin):
+        api_client.force_authenticate(user)
+        response = api_client.post(
+            "/api/v1/uploads/upload/",
+            {
+                "file": SimpleUploadedFile(
+                    "sunday-gallery.jpg",
+                    b"\xff\xd8\xff" + b"\x00" * 24,
+                    content_type="image/jpeg",
+                ),
+                "category": "MEDIA_CONTENT",
+            },
+            format="multipart",
+        )
+        assert response.status_code == 201, response.data
+        assert response.data["data"]["original_filename"] == "sunday-gallery.jpg"
