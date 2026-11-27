@@ -12,8 +12,7 @@ from rest_framework.views import APIView
 logger = logging.getLogger(__name__)
 
 WAITLIST_MESSAGE = (
-    "Your request has been processed. For new registrations, Scendey may send "
-    "an email verification message. Existing registrations are not duplicated."
+    "Your waitlist signup has been received. Thank you for your interest in Scendey."
 )
 
 
