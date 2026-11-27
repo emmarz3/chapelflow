@@ -161,6 +161,15 @@ async function rawRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
     const signal = init.signal
       ? AbortSignal.any([init.signal, controller.signal])
       : controller.signal;
+    const method = (init.method || "GET").toUpperCase();
+    if (
+      isDjangoBackend &&
+      ["POST", "PUT", "PATCH", "DELETE"].includes(method) &&
+      path !== "/auth/csrf/" &&
+      path !== "/auth/csrf"
+    ) {
+      await ensureCsrfToken();
+    }
     const headers = new Headers(init.headers);
     headers.set("Accept", "application/json");
     if (!(init.body instanceof FormData)) headers.set("Content-Type", "application/json");
