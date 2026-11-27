@@ -199,6 +199,7 @@ REST_FRAMEWORK = {
         "public": "20/min",
         "ads_public": "30/min",
         "ads_application": "3/hour",
+        "ads_read": "60/min",
         "ads_checkout": "5/hour",
         "ads_image": "10/hour",
         "admin_destructive": "5/hour",

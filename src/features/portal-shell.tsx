@@ -47,7 +47,7 @@ import {
 } from "../lib/permissions";
 import type { Permission, Role, User } from "../types/domain";
 import { authService, communityService, notificationService } from "../services/chapelflow";
-import { DashboardAdPopup } from "./advertising";
+import { ApprovedAdPaymentNotice, DashboardAdPopup } from "./advertising";
 import "./sidebar-signout.css";
 
 interface NavItem {
@@ -621,6 +621,7 @@ export function PortalShell() {
           )}
         </header>
         <main id="portal-content" className="portal-content">
+          {user.role === "member" && location.pathname === "/app" && !isDemoMode && <ApprovedAdPaymentNotice />}
           <Outlet />
         </main>
         <nav

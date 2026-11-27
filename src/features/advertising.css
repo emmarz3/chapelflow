@@ -114,3 +114,9 @@
 :root[data-theme="dark"] .ads-page .ads-notice{color:#d8f1e3}
 :root[data-theme="dark"] .ads-page .ads-admin-warning{color:#f5dda0}
 :root[data-theme="dark"] .ads-page .ads-preview>span{color:#d5c5dc}
+
+.ads-payment-banner{display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-bottom:1.25rem;padding:1rem 1.2rem;border:1px solid #d7c2a3;border-radius:14px;background:#fff8e9;color:#342341}
+.ads-payment-banner strong{display:block;font-size:1rem}
+.ads-payment-banner p{margin:.25rem 0 0;font-size:.9rem}
+.ads-payment-banner .button{flex:none}
+@media(max-width:600px){.ads-payment-banner{align-items:stretch;flex-direction:column}.ads-payment-banner .button{text-align:center}}
