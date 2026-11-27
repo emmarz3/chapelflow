@@ -300,3 +300,99 @@ def test_gallery_index_previews_published_media_and_counts(api_client, media_aut
     item = api_client.get("/api/v1/public/content/gallery/").data["data"]["sections"][0]
     assert item["mediaType"] == "image"
     assert item["imageUrl"] == album.cover_image_url
+
+
+
+def test_chaplain_can_publish_audio_sermon_and_public_library_exposes_player(
+    api_client, make_user, media_author
+):
+    chaplain = make_user(
+        role="CHAPLAIN",
+        branch=media_author.branch,
+        email="chaplain-sermons@test.com",
+    )
+    api_client.force_authenticate(chaplain)
+    created = api_client.post(
+        "/api/v1/operations/media/",
+        {
+            "title": "Sunday message",
+            "slug": "sunday-message-audio-test",
+            "content_type": "SERMON",
+            "summary": "A message for the chapel community.",
+            "details": "The full sermon notes and scripture references.",
+            "author_name": "The Chaplain",
+            "media_url": "https://media.example.edu/sunday-message.mp3",
+            "metadata": {
+                "media_type": "audio",
+                "mime_type": "audio/mpeg",
+                "original_filename": "sunday-message.mp3",
+            },
+        },
+        format="json",
+    )
+    assert created.status_code == 201, created.data
+    assert created.data["data"]["status"] == "PUBLISHED"
+
+    api_client.force_authenticate(user=None)
+    public = api_client.get("/api/v1/public/content/sermons/")
+    assert public.status_code == 200
+    item = next(
+        section for section in public.data["data"]["sections"]
+        if section["id"] == created.data["data"]["id"]
+    )
+    assert item["mediaType"] == "audio"
+    assert item["mediaUrl"] == "https://media.example.edu/sunday-message.mp3"
+    assert item["authorName"] == "The Chaplain"
+
+
+def test_gallery_index_supports_audio_and_pdf_media_types(api_client, media_author):
+    album = ContentEntry.objects.create(
+        branch=media_author.branch,
+        created_by=media_author,
+        title="Resources from worship",
+        slug="resources-from-worship",
+        content_type=ContentType.GALLERY,
+        status=ContentStatus.PUBLISHED,
+        published_at=timezone.now(),
+    )
+    audio = ContentEntry.objects.create(
+        branch=media_author.branch,
+        parent=album,
+        created_by=media_author,
+        title="Choir recording",
+        slug="choir-recording-audio",
+        content_type=ContentType.MEDIA,
+        status=ContentStatus.PUBLISHED,
+        published_at=timezone.now(),
+        media_url="https://media.example.edu/choir.mp3",
+        metadata={"media_type": "audio", "mime_type": "audio/mpeg"},
+    )
+    pdf = ContentEntry.objects.create(
+        branch=media_author.branch,
+        parent=album,
+        created_by=media_author,
+        title="Service programme",
+        slug="service-programme-pdf",
+        content_type=ContentType.MEDIA,
+        status=ContentStatus.PUBLISHED,
+        published_at=timezone.now(),
+        media_url="https://media.example.edu/programme.pdf",
+        metadata={"media_type": "pdf", "mime_type": "application/pdf"},
+    )
+
+    api_client.force_authenticate(user=None)
+    index = api_client.get("/api/v1/public/content/gallery/")
+    assert index.status_code == 200
+    album_row = next(
+        item for item in index.data["data"]["sections"] if item["id"] == str(album.id)
+    )
+    assert album_row["mediaType"] == "audio"
+    assert album_row["fileCount"] == 2
+
+    detail = api_client.get(f"/api/v1/public/gallery/{album.slug}/")
+    assert detail.status_code == 200
+    media_types = {row["id"]: row["mediaType"] for row in detail.data["data"]["sections"]}
+    assert media_types[str(audio.id)] == "audio"
+    assert media_types[str(pdf.id)] == "pdf"
+
+
