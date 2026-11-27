@@ -15,7 +15,7 @@ export function GalleryMedia({
   const [failed, setFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const dialog = useRef<HTMLDialogElement>(null);
-  const source = item.imageUrl;
+  const source = item.mediaUrl || item.imageUrl;
   const label = item.imageAlt || item.heading || "Chapel photograph";
   if (failed)
     return (
@@ -44,7 +44,7 @@ export function GalleryMedia({
         )}
       </div>
     );
-  if (!source || item.mediaType === "file")
+  if (!source || item.mediaType === "file" || item.mediaType === "pdf")
     return (
       <div className="gallery-media gallery-media--empty">
         {item.mediaType === "file" ? (
@@ -57,6 +57,14 @@ export function GalleryMedia({
             ? "Downloadable resource"
             : "No preview available"}
         </span>
+      </div>
+    );
+  if (item.mediaType === "audio" && source)
+    return (
+      <div className="gallery-media gallery-media--audio">
+        <audio controls preload="metadata" aria-label={item.heading || "Chapel audio"}>
+          <source src={source} />
+        </audio>
       </div>
     );
   if (item.mediaType === "video")
