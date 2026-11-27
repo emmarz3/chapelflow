@@ -787,6 +787,8 @@ describe("Django API integration", () => {
   });
 
   it("renews an expired access cookie before treating a Django session as signed out", async () => {
+    // Represents a previously authenticated browser session with an expired access cookie.
+    localStorage.setItem("chapelflow:session-established", "1");
     const fetch = vi
       .fn()
       .mockResolvedValueOnce(response({ detail: "Token is invalid" }, 401))

@@ -18,6 +18,7 @@ import { Badge, Button, ErrorState, LoadingState, PageHeader, useToast } from ".
 import { attendanceService, authService, communityService, eventService, notificationService, studentContentService } from "../services/chapelflow";
 import { useAuth } from "./auth-context";
 import { isStudentMember } from "../lib/permissions";
+import { markAppPerformance } from "../lib/performance";
 
 const stateTone = {
   upcoming: "neutral",
@@ -52,6 +53,9 @@ export function StudentDashboardPage() {
     queryKey: ["communities"],
     queryFn: async () => (await communityService.mine()).data,
   });
+  useEffect(() => {
+    if (pass.isSuccess) markAppPerformance("student_dashboard_ready");
+  }, [pass.isSuccess]);
   if (pass.isPending) return <LoadingState label="Loading your chapel activity" />;
   if (pass.isError)
     return <ErrorState description={pass.error.message} onRetry={() => void pass.refetch()} />;
