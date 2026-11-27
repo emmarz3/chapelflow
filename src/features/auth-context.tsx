@@ -9,6 +9,7 @@ import {
 } from "react";
 import type { Role, User } from "../types/domain";
 import { api, ApiError } from "../lib/api";
+import { markAppPerformance } from "../lib/performance";
 import { buildDemoUser, hasPermission } from "../lib/permissions";
 import { isDemoMode } from "../lib/fixtures";
 import { useQueryClient } from "@tanstack/react-query";
@@ -36,9 +37,8 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 let authBootstrapRequest: ReturnType<typeof loadCurrentUser> | null = null;
 
 async function loadCurrentUser() {
-  // The API cookie belongs to a different Render origin. Bootstrap the
-  // partitioned CSRF cookie and retain its matching token in memory first.
-  await api.get<{ data: { csrf_token: string } }>("/auth/csrf");
+  // Session restoration is a safe GET. CSRF is initialised centrally by
+  // the request layer immediately before any state-changing API operation.
   return api.get<{ data: User }>("/auth/me");
 }
 
@@ -84,7 +84,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       })
       .finally(() => {
-        if (active && authRevision.current === revision) setLoading(false);
+        if (active && authRevision.current === revision) {
+          setLoading(false);
+          markAppPerformance("auth_bootstrap_completed");
+        }
       });
     return () => {
       active = false;
@@ -123,6 +126,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           queryClient.clear();
           setAuthError(null);
           setUser(response.data);
+          markAppPerformance("login_authenticated");
           return response.data;
         } finally {
           setLoading(false);
