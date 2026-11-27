@@ -45,3 +45,33 @@ def test_registration_requires_email_before_sign_in(api_client, branch_a):
     assert not user.is_active
     assert send.called
     assert api_client.post("/api/v1/auth/login/", {"email": user.email, "password": "StrongPass123!"}, format="json").status_code != 200
+
+@pytest.mark.django_db(transaction=True)
+@override_settings(EMAIL_VERIFICATION_REQUIRED=False)
+def test_registration_creates_an_active_account_without_email_verification(api_client, branch_a):
+    with patch("apps.accounts.tasks.send_registration_verification_email.delay") as send:
+        response = api_client.post(
+            "/api/v1/auth/register/",
+            {
+                "email": "active@chapelflow.test",
+                "matric_no": "swe/2025/019",
+                "password": "StrongPass123!",
+                "first_name": "Ada",
+                "last_name": "Okafor",
+                "branch": str(branch_a.id),
+                "community": "STUDENT",
+                "academic_level": "100",
+            },
+            format="json",
+        )
+
+    assert response.status_code == 201
+    assert response.data["data"]["verification_required"] is False
+    assert response.data["data"]["approval_required"] is False
+    assert "chapelflow_access" not in response.cookies
+    send.assert_not_called()
+
+    from apps.accounts.models import User
+
+    account = User.objects.get(email="active@chapelflow.test")
+    assert account.is_active
