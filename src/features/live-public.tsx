@@ -10,12 +10,62 @@ import {
   PageHeader,
   SearchField,
 } from "../components/ui";
-import { publicService } from "../services/chapelflow";
+import { publicService, type PublicContentPayload } from "../services/chapelflow";
 import { CHAPEL_PROGRAMMES } from "../lib/chapel-programmes";
 import { CalendarDays, Clock3, MapPin } from "lucide-react";
 import type { EventSummary } from "../types/domain";
 import { useTodayDateKey } from "../lib/use-today-date";
 import { SponsoredCard } from "./advertising";
+
+function PublicSectionMedia({ section }: { section: PublicContentPayload["sections"][number] }) {
+  const mediaUrl = section.mediaUrl || section.imageUrl;
+  if (section.mediaType === "video" && mediaUrl) {
+    return (
+      <div className="cms-public-media cms-public-media--video">
+        <video
+          controls
+          playsInline
+          preload="metadata"
+          poster={section.imageUrl || undefined}
+          aria-label={section.heading || "Chapel video"}
+        >
+          <source src={mediaUrl} />
+        </video>
+      </div>
+    );
+  }
+  if (section.mediaType === "audio" && mediaUrl) {
+    return (
+      <div className="cms-public-media cms-public-media--audio">
+        {section.imageUrl && <img src={section.imageUrl} alt={section.imageAlt || ""} loading="lazy" />}
+        <audio controls preload="metadata" aria-label={section.heading || "Chapel audio recording"}>
+          <source src={mediaUrl} />
+        </audio>
+      </div>
+    );
+  }
+  if ((section.mediaType === "pdf" || section.mediaType === "file") && (mediaUrl || section.action?.href)) {
+    return (
+      <div className="cms-public-media cms-public-media--file">
+        <FileText aria-hidden="true" />
+        <div>
+          <strong>{section.heading || "Published resource"}</strong>
+          <a href={mediaUrl || section.action!.href} target="_blank" rel="noreferrer" download>
+            Open or download file <ArrowRight />
+          </a>
+        </div>
+      </div>
+    );
+  }
+  if (section.imageUrl) {
+    return (
+      <div className="cms-public-media cms-public-media--image">
+        <img src={section.imageUrl} alt={section.imageAlt || section.heading || ""} loading="lazy" />
+      </div>
+    );
+  }
+  return null;
+}
 
 export function LivePublicPage({ slug }: { slug: string }) {
   if (slug === "events") return <LivePublicEventsPage />;
@@ -67,15 +117,7 @@ function LivePublicContentPage({ slug }: { slug: string }) {
       <div className="cms-public-sections section">
         {content.sections.map((section) => (
           <section key={section.id}>
-            {section.imageUrl && section.mediaType === "video" ? (
-              <video controls preload="metadata"><source src={section.imageUrl} /></video>
-            ) : section.imageUrl && (
-              <img
-                src={section.imageUrl}
-                alt={section.imageAlt || ""}
-                loading="lazy"
-              />
-            )}
+            <PublicSectionMedia section={section} />
             {section.heading && <h2>{section.heading}</h2>}
             <p>{section.body}</p>
             {section.action && (
@@ -204,15 +246,7 @@ function LiveDetailContent({
       <article className="cms-article section">
         {content.sections.map((section) => (
           <section key={section.id}>
-            {section.imageUrl && section.mediaType === "video" ? (
-              <video controls preload="metadata"><source src={section.imageUrl} /></video>
-            ) : section.imageUrl && (
-              <img
-                src={section.imageUrl}
-                alt={section.imageAlt || ""}
-                loading="lazy"
-              />
-            )}
+            <PublicSectionMedia section={section} />
             {section.heading && <h2>{section.heading}</h2>}
             <p>{section.body}</p>
             {section.action && (
