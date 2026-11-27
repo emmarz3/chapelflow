@@ -170,13 +170,11 @@ class RegisterView(APIView):
             user.save(update_fields=["is_active"])
             _send_verification(user)
             return success_response({"verification_required": True, "approval_required": False}, message="Check your email for a verification link.", status=201)
-        tokens = RefreshToken.for_user(user)
-        response = success_response(
-            {"access": str(tokens.access_token), "refresh": str(tokens), "user": UserPublicSerializer(user).data},
-            message="Registration successful.",
+        return success_response(
+            {"verification_required": False, "approval_required": False},
+            message="Registration successful. Sign in with your new ChapelFlow account.",
             status=201,
         )
-        return _set_auth_cookies(response, str(tokens.access_token), str(tokens))
 
 
 def _send_verification(user):
