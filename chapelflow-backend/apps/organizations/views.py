@@ -13,6 +13,23 @@ from .models import Branch, Organization
 from .serializers import BranchSerializer, OrganizationSerializer
 
 
+def _public_media_type(entry):
+    metadata = entry.metadata if isinstance(entry.metadata, dict) else {}
+    value = str(metadata.get("media_type") or "").lower()
+    if value in {"image", "video", "audio", "pdf", "file"}:
+        return value
+    content_type = str(metadata.get("content_type") or "").lower()
+    if content_type.startswith("image/"):
+        return "image"
+    if content_type.startswith("video/"):
+        return "video"
+    if content_type.startswith("audio/"):
+        return "audio"
+    if content_type == "application/pdf":
+        return "pdf"
+    return "image"
+
+
 class PublicContentView(APIView):
     """Published CMS pages and collections; drafts never cross this boundary."""
     permission_classes = [AllowAny]
@@ -30,11 +47,16 @@ class PublicContentView(APIView):
         photos = [item for item in items if item.content_type == ContentType.GALLERY_IMAGE]
         videos = [item for item in items if item.content_type == ContentType.GALLERY_VIDEO]
         preview = next((item for item in photos + videos if item.media_url or item.cover_image_url), None)
+        preview_type = (
+            "image" if entry.cover_image_url or not preview or preview in photos
+            else "video" if preview in videos
+            else _public_media_type(preview)
+        )
         return {
             "imageUrl": entry.cover_image_url or (
                 (preview.media_url or preview.cover_image_url) if preview else None
             ),
-            "mediaType": "image" if entry.cover_image_url or not preview or preview in photos else "video",
+            "mediaType": preview_type,
             "itemCount": len(items), "photoCount": len(photos), "videoCount": len(videos),
             "fileCount": len(items) - len(photos) - len(videos),
         }
@@ -72,6 +94,9 @@ class PublicContentView(APIView):
                     "heading": entry.title,
                     "body": entry.summary or entry.details,
                     "imageUrl": entry.cover_image_url or None,
+                    "mediaUrl": entry.media_url or None if slug == "sermons" else None,
+                    "mediaType": _public_media_type(entry) if slug == "sermons" else None,
+                    "authorName": entry.author_name or None if slug == "sermons" else None,
                     **(self.gallery_preview(entry) if slug == "gallery" else {}),
                     "imageAlt": entry.title if entry.cover_image_url else "",
                     "action": {
@@ -246,6 +271,9 @@ class PublicDetailView(APIView):
         sections = [{
             "id": str(entry.id), "body": entry.details,
             "imageUrl": entry.cover_image_url or None,
+            "mediaUrl": entry.media_url or None,
+            "mediaType": _public_media_type(entry),
+            "authorName": entry.author_name or None,
             "imageAlt": entry.title if entry.cover_image_url else "",
             **({"action": {
                 "label": "Download resource" if entry.metadata.get("downloadable") else "Open media",
@@ -268,8 +296,11 @@ class PublicDetailView(APIView):
                     else image.media_url or image.cover_image_url or None
                 ),
                 "imageAlt": image.title,
-                "mediaType": "video" if image.content_type == ContentType.GALLERY_VIDEO else (
-                    "file" if image.content_type == ContentType.MEDIA else "image"
+                "mediaUrl": image.media_url or None,
+                "mediaType": (
+                    "video" if image.content_type == ContentType.GALLERY_VIDEO
+                    else _public_media_type(image) if image.content_type == ContentType.MEDIA
+                    else "image"
                 ),
                 **({"action": {"label": "Open or download file", "href": image.media_url}}
                    if image.content_type == ContentType.MEDIA else {}),
