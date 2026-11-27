@@ -111,7 +111,7 @@ export default defineConfig(({ mode }) => {
               urlPattern: ({ request, url }) =>
                 request.destination === "image" &&
                 url.origin === (globalThis as unknown as { location: { origin: string } }).location.origin &&
-                /^\\/(?:chapel-|chapelflow-|chrisland-|chaplain(?:\\.|-)|student-chaplain\\.)[^/]*\\.(?:jpe?g|png|svg|webp)$/.test(url.pathname),
+                /^\/(?:chapel-|chapelflow-|chrisland-|chaplain(?:\.|-)|student-chaplain\.)[^/]*\.(?:jpe?g|png|svg|webp)$/.test(url.pathname),
               handler: "CacheFirst",
               options: {
                 cacheName: "chapelflow-images-v2",
