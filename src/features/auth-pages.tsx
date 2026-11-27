@@ -31,6 +31,7 @@ import { ApiError, api, renewSessionForMfaEnrollment } from "../lib/api";
 import { isDjangoBackend } from "../lib/backend";
 import { isDemoMode } from "../lib/fixtures";
 import { getAuthenticatedHomePath } from "../lib/permissions";
+import { markAppPerformance } from "../lib/performance";
 import { authService, communityService } from "../services/chapelflow";
 
 const VIDEO_REGISTRY = {
@@ -183,7 +184,7 @@ export function AuthLayout({ children }: { children: React.ReactNode }) {
 }
 
 export function LoginPage() {
-  const { user, login, loading, authError } = useAuth();
+  const { user, login, authError } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const returnTo = new URLSearchParams(location.search).get("returnTo");
@@ -192,6 +193,9 @@ export function LoginPage() {
   const [error, setError] = useState("");
   const [role, setRole] = useState<Role>("chapel_admin");
   const [completing, setCompleting] = useState(false);
+  useEffect(() => {
+    markAppPerformance("login_form_ready");
+  }, []);
   useEffect(() => {
     if (user && !completing && !user.mfaRequired && !user.passwordChangeRequired) {
       navigate(authenticatedHomePath, { replace: true });
@@ -340,7 +344,7 @@ export function LoginPage() {
         <Button
           className="full-button login-submit"
           type="submit"
-          loading={loading}
+          loading={completing}
           disabled={completing}
           aria-live="polite"
         >
