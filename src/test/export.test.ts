@@ -35,15 +35,21 @@ describe("PDF export", () => {
     expect(click).toHaveBeenCalledOnce();
   });
 
-  it("downloads an authorized server PDF using an attached link on mobile browsers", async () => {
+  it("downloads an authorized server PDF using DRF-compatible content negotiation", async () => {
     const pdf = new Blob(["%PDF-test"], { type: "application/pdf" });
-    vi.stubGlobal("fetch", vi.fn(async () => new Response(pdf, { headers: { "Content-Type": "application/pdf" } })));
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      expect(String(input)).toContain("/members/export-pdf/");
+      expect(new Headers(init?.headers).get("Accept")).toBe("*/*");
+      return new Response(pdf, { headers: { "Content-Type": "application/pdf" } });
+    });
+    vi.stubGlobal("fetch", fetchMock);
     vi.stubGlobal("URL", { ...URL, createObjectURL: vi.fn(() => "blob:server-pdf"), revokeObjectURL: vi.fn() });
     const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (this: HTMLAnchorElement) {
       expect(this.isConnected).toBe(true);
       expect(this.download).toBe("chapelflow-members.pdf");
     });
     await downloadAuthenticatedPdf("/members/export-pdf/", "chapelflow-members.pdf");
+    expect(fetchMock).toHaveBeenCalledOnce();
     expect(click).toHaveBeenCalledOnce();
     expect(document.querySelector('a[href="blob:server-pdf"]')).toBeNull();
   });
