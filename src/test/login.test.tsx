@@ -67,7 +67,7 @@ describe("login", () => {
     const pendingRestore = new Promise<Response>((resolve) => {
       finishRestore = resolve;
     });
-    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+    const fetchMock = vi.fn((input: RequestInfo | URL, _init?: RequestInit) => {
       const url = String(input);
       if (url.endsWith("/auth/me/")) return pendingRestore;
       if (url.endsWith("/auth/csrf/"))
