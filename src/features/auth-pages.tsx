@@ -228,6 +228,7 @@ export function LoginPage() {
     }
     try {
       setCompleting(true);
+      markAppPerformance("login_submitted");
       const authenticated = await login(
         parsed.data.identifier,
         parsed.data.password,
