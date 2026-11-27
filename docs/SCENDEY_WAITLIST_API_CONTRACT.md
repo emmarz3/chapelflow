@@ -145,7 +145,11 @@ https://scendey-waitlist-production.up.railway.app/api/join
 
 **Existing sync issue:** the ChapelFlow task currently treats any response with `ok: true` as a completed sync. Scendey's duplicate response also has `ok: true`, even though it does not update an existing record. An advertiser who previously joined as a Shopper could therefore be marked synced without being represented as a Brand in Scendey. Phase 3 must define and implement a safe reconciliation/upsert or an explicit duplicate outcome before considering that sync reliable.
 
-## 7. Phase 1 findings and handoff
+## 7. Existing automated test coverage
+
+The Scendey package script runs `tests/waitlist-validation.test.ts`. The inspected tests cover brand required fields, Shopper email normalization, optional consent, invalid email and excessive interests. They do not exercise the live API route, database persistence, duplicate-email response, Resend delivery, or the complete verification journey. Phase 5 must add or run route-level/integration tests for those behaviours.
+
+## 8. Phase 1 findings and handoff
 
 ### Confirmed
 
