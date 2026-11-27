@@ -189,3 +189,59 @@ Before Phase 3 finalizes the payload, agree whether Student/Staff/Professional/O
 - ChapelFlow: `chapelflow-backend/apps/advertising/tasks.py`
 - ChapelFlow: `chapelflow-backend/apps/advertising/services.py`
 - ChapelFlow: `chapelflow-backend/config/settings/base.py`
+---
+
+## Phase 3–4 implementation addendum (27 November 2026)
+
+The original audit above records the contract at the audited commit. The integration branch extends it as follows.
+
+### Audience and contact fields
+
+audienceCategory is a separate persisted field; it is not overloaded into role, brand category, or shopper interests.
+
+| ChapelFlow audience | Scendey role | Scendey audienceCategory |
+|---|---|---|
+| Student | SHOPPER | STUDENT |
+| Staff / Professional | SHOPPER | STAFF |
+| Business / Brand | BRAND | BUSINESS |
+| Other | SHOPPER | OTHER |
+
+The signup form's required name is stored as WaitlistEntry.name for both roles. For a brand, brandName and category remain separate required business fields.
+
+The Scendey Prisma migration adds audienceCategory with a safe default. Existing brands are backfilled as BUSINESS; older shopper records are backfilled as OTHER because their former audience was not reliably captured.
+
+### ChapelFlow backend relay
+
+The browser submits only to ChapelFlow:
+
+- POST /api/v1/public/scendey-waitlist/
+- ChapelFlow backend reads SCENDEY_WAITLIST_URL server-side.
+- The backend requires an HTTPS destination and uses a bounded connection/read timeout.
+- Public rate limit: 60 submissions per IP per hour, in addition to Scendey's existing per-email limit.
+- A honeypot field quietly drops automated form submissions.
+- Provider outages, invalid endpoints and invalid provider responses do not produce a false success.
+- The public response intentionally does not reveal whether an email already exists in Scendey.
+
+ChapelFlow does not create a local waitlist table or copy signup records. Scendey remains the source of truth.
+
+### Consent and verification
+
+marketingConsent maps to Scendey's existing consent field. It defaults to false and only controls eligibility for optional Scendey campaign/product updates. The Scendey verification email is transactional and remains part of the normal signup flow even when marketing consent is false.
+
+source: "ChapelFlow" is operational acquisition attribution, not marketing permission. It is stored separately from consent and is not treated as permission to send campaigns.
+
+### Duplicate-email behaviour
+
+Scendey enforces a global unique email address. An existing email is not inserted again or silently converted between SHOPPER and BRAND. ChapelFlow returns a generic processed response rather than exposing account existence. The existing advertiser opt-in task continues to call Scendey directly. New records are marked synced; Scendey duplicate-email responses are left unsynced and logged for reconciliation rather than being falsely marked successful. It does not create a second waitlist database.
+
+### Operations and release gates
+
+Before enabling the integration in production:
+
+1. Deploy the Scendey branch and apply the new Prisma migration to the Scendey database.
+2. Confirm the existing Railway SCENDEY_WAITLIST_URL value points to the HTTPS /api/join endpoint for the intended Scendey environment. Do not expose the value in frontend variables.
+3. Deploy the ChapelFlow backend and Celery worker after the migration is available.
+4. Verify the public endpoint with a controlled test registration, including email verification and marketing opt-out; do not use real visitors as test accounts.
+5. Confirm a repeat submission does not create a second record and that a database/provider outage produces an actionable, honest error.
+
+No production migration, API setting change, or deployment is performed by this feature branch.

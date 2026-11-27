@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Modal } from "../components/ui";
+import { scendeyWaitlistService } from "./scendey-waitlist-service";
 import "./scendey-waitlist.css";
 
 const SCENDEY_PUBLIC_URL = "https://scendey-waitlist-production.up.railway.app/";
@@ -35,25 +36,48 @@ const brandCategories = [
 
 function WaitlistForm() {
   const [audience, setAudience] = useState<Audience>("student");
-  const [previewReady, setPreviewReady] = useState(false);
+  const [submission, setSubmission] = useState<"idle" | "submitting" | "success" | "error">("idle");
+  const [feedback, setFeedback] = useState("");
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    // Phase 2 is intentionally UI-only. Phase 3 will connect this form to
-    // ChapelFlow's backend and Scendey's verified waitlist API.
-    setPreviewReady(true);
+    if (submission === "submitting") return;
+    const values = new FormData(event.currentTarget);
+    setSubmission("submitting");
+    setFeedback("");
+    try {
+      const result = await scendeyWaitlistService.join({
+        name: String(values.get("name") || "").trim(),
+        email: String(values.get("email") || "").trim(),
+        audienceCategory: audience,
+        marketingConsent: values.get("updatesConsent") === "on",
+        ...(audience === "business" ? {
+          brandName: String(values.get("brandName") || "").trim(),
+          category: String(values.get("category") || ""),
+        } : {}),
+        website: String(values.get("website") || ""),
+      });
+      setFeedback(result.data?.message || "Your request has been processed. Check your email if Scendey sends a verification message.");
+      setSubmission("success");
+    } catch (error) {
+      const errorStatus = error && typeof error === "object" && "status" in error ? Number(error.status) : 0;
+      setFeedback(errorStatus === 429
+        ? "There have been too many attempts. Please wait a little and try again."
+        : error instanceof Error && error.message
+          ? error.message
+          : "We could not connect to Scendey right now. Your details were not submitted. Please try again.");
+      setSubmission("error");
+    }
   }
 
-  if (previewReady) {
+  if (submission === "success") {
     return (
       <div className="scendey-waitlist-preview" role="status" aria-live="polite">
         <span className="scendey-waitlist-preview__icon"><CheckCircle2 aria-hidden="true" /></span>
-        <p className="scendey-waitlist-kicker">Form preview complete</p>
-        <h3>Your details are ready.</h3>
-        <p>The registration connection is being prepared. Nothing has been sent or saved, and you have not been added to the waitlist yet.</p>
-        <button className="button button--secondary" type="button" onClick={() => setPreviewReady(false)}>
-          Review details
-        </button>
+        <p className="scendey-waitlist-kicker">Request processed</p>
+        <h3>Thank you for your interest.</h3>
+        <p>{feedback}</p>
+        <a className="button button--secondary" href={SCENDEY_PUBLIC_URL} target="_blank" rel="noopener noreferrer">Visit Scendey <ExternalLink size={14} aria-hidden="true" /></a>
       </div>
     );
   }
@@ -64,95 +88,28 @@ function WaitlistForm() {
         <legend>Which best describes you?</legend>
         <div className="scendey-waitlist-audience__grid">
           {audienceOptions.map((option) => (
-            <label
-              className={`scendey-waitlist-audience__option ${audience === option.value ? "is-selected" : ""}`}
-              key={option.value}
-            >
-              <input
-                type="radio"
-                name="audience"
-                value={option.value}
-                checked={audience === option.value}
-                onChange={() => setAudience(option.value)}
-              />
-              <span>
-                <strong>{option.label}</strong>
-                <small>{option.detail}</small>
-              </span>
+            <label className={\`scendey-waitlist-audience__option \${audience === option.value ? "is-selected" : ""}\`} key={option.value}>
+              <input type="radio" name="audience" value={option.value} checked={audience === option.value} onChange={() => setAudience(option.value)} />
+              <span><strong>{option.label}</strong><small>{option.detail}</small></span>
               <span className="scendey-waitlist-audience__radio" aria-hidden="true" />
             </label>
           ))}
         </div>
       </fieldset>
-
       <div className="scendey-waitlist-fields">
-        <label className="scendey-waitlist-field">
-          <span>Full name <b aria-hidden="true">*</b></span>
-          <input
-            name="name"
-            type="text"
-            autoComplete="name"
-            placeholder="Enter your full name"
-            minLength={2}
-            maxLength={100}
-            required
-          />
-        </label>
-
-        <label className="scendey-waitlist-field">
-          <span>Email address <b aria-hidden="true">*</b></span>
-          <input
-            name="email"
-            type="email"
-            autoComplete="email"
-            placeholder="you@example.com"
-            maxLength={254}
-            required
-          />
-        </label>
-
-        {audience === "business" && (
-          <>
-            <label className="scendey-waitlist-field">
-              <span>Business / brand name <b aria-hidden="true">*</b></span>
-              <input
-                name="brandName"
-                type="text"
-                autoComplete="organization"
-                placeholder="Your brand name"
-                minLength={2}
-                maxLength={100}
-                required
-              />
-            </label>
-            <label className="scendey-waitlist-field">
-              <span>Business category <b aria-hidden="true">*</b></span>
-              <select name="category" defaultValue="" required>
-                <option value="" disabled>Select a category</option>
-                {brandCategories.map((category) => <option key={category} value={category}>{category}</option>)}
-              </select>
-            </label>
-          </>
-        )}
+        <label className="scendey-waitlist-field"><span>Full name <b aria-hidden="true">*</b></span><input name="name" type="text" autoComplete="name" placeholder="Enter your full name" minLength={2} maxLength={100} required /></label>
+        <label className="scendey-waitlist-field"><span>Email address <b aria-hidden="true">*</b></span><input name="email" type="email" autoComplete="email" placeholder="you@example.com" maxLength={254} required /></label>
+        {audience === "business" && <>
+          <label className="scendey-waitlist-field"><span>Business / brand name <b aria-hidden="true">*</b></span><input name="brandName" type="text" autoComplete="organization" placeholder="Your brand name" minLength={2} maxLength={100} required /></label>
+          <label className="scendey-waitlist-field"><span>Business category <b aria-hidden="true">*</b></span><select name="category" defaultValue="" required><option value="" disabled>Select a category</option>{brandCategories.map((category) => <option key={category} value={category}>{category}</option>)}</select></label>
+        </>}
       </div>
-
-      <label className="scendey-waitlist-consent">
-        <input type="checkbox" name="updatesConsent" />
-        <span>
-          Send me Scendey progress and launch updates. This is optional, and I can unsubscribe at any time.
-        </span>
-      </label>
-
-      <p className="scendey-waitlist-privacy">
-        Your email will be used to manage your waitlist registration and send necessary verification messages. Product updates are optional.
-      </p>
-
-      <button className="button button--primary scendey-waitlist-submit" type="submit">
-        Join the waitlist <ArrowRight size={17} aria-hidden="true" />
-      </button>
-      <p className="scendey-waitlist-form__note">
-        No payment required. Joining does not guarantee early access.
-      </p>
+      <label className="scendey-waitlist-honeypot" aria-hidden="true">Website<input name="website" type="text" tabIndex={-1} autoComplete="off" /></label>
+      <label className="scendey-waitlist-consent"><input type="checkbox" name="updatesConsent" /><span>Send me Scendey progress and launch updates. This is optional, and I can unsubscribe at any time.</span></label>
+      <p className="scendey-waitlist-privacy">Your email is used to process your waitlist request and send necessary verification messages. Product updates are optional.</p>
+      {submission === "error" && <p className="scendey-waitlist-error" role="alert">{feedback}</p>}
+      <button className="button button--primary scendey-waitlist-submit" type="submit" disabled={submission === "submitting"}>{submission === "submitting" ? "Sending securely…" : "Join the waitlist"} {submission !== "submitting" && <ArrowRight size={17} aria-hidden="true" />}</button>
+      <p className="scendey-waitlist-form__note">No payment required. Joining does not guarantee early access.</p>
     </form>
   );
 }

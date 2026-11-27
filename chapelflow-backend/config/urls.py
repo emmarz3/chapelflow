@@ -32,6 +32,7 @@ urlpatterns = [
     path("api/v1/attendance/", include("apps.attendance.urls")),
     path("api/v1/", include("apps.finance.urls")),
     path("api/v1/ads/", include("apps.advertising.urls")),
+    path("api/v1/public/", include("apps.advertising.public_urls")),
     path("api/v1/communications/", include("apps.communications.urls")),
     path("api/v1/notifications/", include("apps.notifications.urls")),
     path("api/v1/prayer/", include("apps.prayer.urls")),

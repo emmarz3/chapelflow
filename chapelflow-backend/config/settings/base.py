@@ -198,6 +198,7 @@ REST_FRAMEWORK = {
         "community_comment": "20/min",
         "public": "20/min",
         "ads_public": "30/min",
+        "scendey_waitlist": "60/hour",
         "ads_application": "5/5min",
         "ads_read": "60/min",
         "ads_checkout": "5/5min",
