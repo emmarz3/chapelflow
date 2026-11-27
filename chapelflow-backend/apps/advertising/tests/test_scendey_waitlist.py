@@ -43,6 +43,8 @@ def test_public_signup_maps_audience_and_forwards_only_optional_marketing_consen
 
     assert response.status_code == 200, response.data
     assert response.data["data"]["processed"] is True
+    assert "received" in response.data["data"]["message"].lower()
+    assert not any(word in response.data["data"]["message"].lower() for word in ("email", "verification", "link"))
     forwarded = send.call_args.kwargs["json"]
     assert forwarded["role"] == role
     assert forwarded["audienceCategory"] == audience.upper()
