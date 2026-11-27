@@ -79,14 +79,14 @@ def validate_public_media(file_obj):
     header = file_obj.read(32)
     file_obj.seek(position)
     signatures = {
-        "jpg": header.startswith(b"\\xff\\xd8\\xff"),
-        "jpeg": header.startswith(b"\\xff\\xd8\\xff"),
-        "png": header.startswith(b"\\x89PNG\\r\\n\\x1a\\n"),
+        "jpg": header.startswith(b"\xff\xd8\xff"),
+        "jpeg": header.startswith(b"\xff\xd8\xff"),
+        "png": header.startswith(b"\x89PNG\r\n\x1a\n"),
         "gif": header.startswith((b"GIF87a", b"GIF89a")),
         "webp": header.startswith(b"RIFF") and header[8:12] == b"WEBP",
         "mp4": header[4:8] == b"ftyp",
         "mov": header[4:8] == b"ftyp",
-        "webm": header.startswith(b"\\x1a\\x45\\xdf\\xa3"),
+        "webm": header.startswith(b"\x1a\x45\xdf\xa3"),
         "mp3": header.startswith(b"ID3") or (
             len(header) > 1 and header[0] == 0xff and header[1] & 0xe0 == 0xe0
         ),
