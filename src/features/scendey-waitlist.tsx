@@ -46,7 +46,7 @@ function WaitlistForm() {
     setSubmission("submitting");
     setFeedback("");
     try {
-      const result = await scendeyWaitlistService.join({
+      await scendeyWaitlistService.join({
         name: String(values.get("name") || "").trim(),
         email: String(values.get("email") || "").trim(),
         audienceCategory: audience,
@@ -57,7 +57,7 @@ function WaitlistForm() {
         } : {}),
         website: String(values.get("website") || ""),
       });
-      setFeedback(result.data?.message || "Your request has been processed. Check your email if Scendey sends a verification message.");
+      setFeedback("Your waitlist signup has been received. Thank you for your interest in Scendey.");
       setSubmission("success");
     } catch (error) {
       const errorStatus = error && typeof error === "object" && "status" in error ? Number(error.status) : 0;
@@ -106,7 +106,7 @@ function WaitlistForm() {
       </div>
       <label className="scendey-waitlist-honeypot" aria-hidden="true">Website<input name="website" type="text" tabIndex={-1} autoComplete="off" /></label>
       <label className="scendey-waitlist-consent"><input type="checkbox" name="updatesConsent" /><span>Send me Scendey progress and launch updates. This is optional, and I can unsubscribe at any time.</span></label>
-      <p className="scendey-waitlist-privacy">Your email is used to process your waitlist request and send necessary verification messages. Product updates are optional.</p>
+      <p className="scendey-waitlist-privacy">Your email is used to process your waitlist request. Product updates are optional.</p>
       {submission === "error" && <p className="scendey-waitlist-error" role="alert">{feedback}</p>}
       <button className="button button--primary scendey-waitlist-submit" type="submit" disabled={submission === "submitting"}>{submission === "submitting" ? "Sending securely…" : "Join the waitlist"} {submission !== "submitting" && <ArrowRight size={17} aria-hidden="true" />}</button>
       <p className="scendey-waitlist-form__note">No payment required. Joining does not guarantee early access.</p>
@@ -228,7 +228,6 @@ export function ScendeyWaitlistPage() {
 
       <div className="scendey-waitlist-page__reassurance">
         <span><CheckCircle2 size={16} aria-hidden="true" /> No payment required</span>
-        <span><Mail size={16} aria-hidden="true" /> Email verification before confirmation</span>
         <span><ExternalLink size={15} aria-hidden="true" /> Explore Scendey whenever you like</span>
       </div>
       <p className="scendey-waitlist-page__back"><Link to="/">Return to ChapelFlow</Link></p>
