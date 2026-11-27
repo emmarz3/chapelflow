@@ -62,6 +62,57 @@ describe("login", () => {
     expect(screen.queryByRole("heading", { name: "Finance dashboard" })).not.toBeInTheDocument();
   });
 
+  it("keeps the login form interactive while session restoration is pending", async () => {
+    let finishRestore!: (response: Response) => void;
+    const pendingRestore = new Promise<Response>((resolve) => {
+      finishRestore = resolve;
+    });
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith("/auth/me/")) return pendingRestore;
+      if (url.endsWith("/auth/csrf/"))
+        return Promise.resolve(jsonResponse({ data: { csrf_token: "test-csrf" } }));
+      if (url.endsWith("/auth/login/"))
+        return Promise.resolve(jsonResponse({ data: { user: {
+          id: "member-fast-login",
+          email: "ada@example.edu.ng",
+          first_name: "Ada",
+          last_name: "Okafor",
+          role: "MEMBER",
+          community: "STUDENT",
+          effective_permissions: [],
+        } } }));
+      return Promise.resolve(jsonResponse({ data: {} }));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const user = userEvent.setup();
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <MemoryRouter initialEntries={["/login"]}>
+          <AuthProvider>
+            <Routes>
+              <Route path="/login" element={<LoginPage />} />
+              <Route path="/app" element={<h1>Member dashboard</h1>} />
+            </Routes>
+          </AuthProvider>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    const signInButton = screen.getByRole("button", { name: /sign in/i });
+    expect(signInButton).not.toBeDisabled();
+    expect(fetchMock.mock.calls.some(([input]) => String(input).endsWith("/auth/csrf/"))).toBe(false);
+
+    await user.type(screen.getByLabelText(/email, matric number/i), "ada@example.edu.ng");
+    await user.type(screen.getByLabelText(/^password/i), "StrongPass123!");
+    await user.click(signInButton);
+
+    expect(await screen.findByRole("heading", { name: "Member dashboard" })).toBeInTheDocument();
+    expect(fetchMock.mock.calls.some(([input]) => String(input).endsWith("/auth/csrf/"))).toBe(true);
+    finishRestore(jsonResponse({ detail: "Unauthenticated." }, 401));
+  });
+
   it("shows secure validation without identifying an account", async () => {
     const user = userEvent.setup();
     render(
@@ -102,6 +153,8 @@ describe("login", () => {
   ])("opens the $role dashboard after sign-in", async ({ role, path }) => {
     const fetchMock = vi.fn((input: RequestInfo | URL) => {
       const url = String(input);
+      if (url.endsWith("/auth/csrf/"))
+        return Promise.resolve(jsonResponse({ data: { csrf_token: "test-csrf" } }));
       if (url.endsWith("/auth/me/"))
         return Promise.resolve(jsonResponse({ detail: "Unauthenticated." }, 401));
       if (url.endsWith("/auth/login/"))
