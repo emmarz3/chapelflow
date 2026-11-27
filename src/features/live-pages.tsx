@@ -2185,7 +2185,11 @@ function LiveModuleOperationsPage({
               form="operation-form"
               loading={create.isPending || uploading}
             >
-              Continue
+              {module === "media" && selectedContentType === "GALLERY"
+                ? "Publish gallery"
+                : module === "media" && selectedContentType === "SERMON"
+                  ? "Publish sermon"
+                  : "Continue"}
             </Button>
           </>
         }
@@ -2341,7 +2345,16 @@ function LiveModuleOperationsPage({
                     <p>Give this gallery collection a clear name and a short description. All selected photos and videos will appear together inside it.</p>
                   </div>}
                   <Field name="slug" label="Public URL slug (optional)" placeholder={selectedContentType === "GALLERY" ? "sunday-worship-gallery" : "sunday-message"} />
-                  <Field className="field--full" name="summary" label="Public summary" required={module !== "media" || selectedContentType === "SERMON" || selectedContentType === "GALLERY"} />
+                  <Field
+                    className="field--full"
+                    name="summary"
+                    label={module === "media" && selectedContentType === "GALLERY"
+                      ? "Collection description"
+                      : module === "media" && selectedContentType === "SERMON"
+                        ? "Sermon summary"
+                        : "Public summary"}
+                    required={module !== "media" || selectedContentType === "SERMON" || selectedContentType === "GALLERY"}
+                  />
                   {(module !== "media" || selectedContentType === "SERMON" || selectedContentType === "SERMON_SERIES") && <Field name="author_name" label="Speaker" required={selectedContentType === "SERMON"} defaultValue={selectedContentType === "SERMON" ? user?.name || "" : ""} />}
                   <Field name="publish_at" label="Schedule publication" type="datetime-local" />
                   {module === "media" ? selectedContentType === "GALLERY" ? <>
@@ -2426,7 +2439,13 @@ function LiveModuleOperationsPage({
                 </>
               )}
               <label className="field field--full">
-                <span>{module === "cms" || module === "media" ? "Body or notes" : "Details"}</span>
+                <span>{module === "media" && selectedContentType === "GALLERY"
+                  ? "Collection notes (optional)"
+                  : module === "media" && selectedContentType === "SERMON"
+                    ? "Sermon notes"
+                    : module === "cms"
+                      ? "Page content"
+                      : "Details"}</span>
                 <textarea name="detail" required={module !== "media" || selectedContentType === "SERMON"} />
               </label>
             </>
