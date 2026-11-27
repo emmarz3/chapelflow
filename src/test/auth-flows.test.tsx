@@ -168,6 +168,9 @@ describe("authentication recovery flows", () => {
         ),
       ).toBe(true),
     );
+    expect(await screen.findByRole("heading", { name: "Your registration was successful." })).toBeInTheDocument();
+    expect(screen.queryByText(/we sent a verification link/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /resend verification email/i })).not.toBeInTheDocument();
     const [, request] = fetchMock.mock.calls.find(([url]) =>
       String(url).includes("/auth/register"),
     ) as [string, RequestInit];

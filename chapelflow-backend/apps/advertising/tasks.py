@@ -24,14 +24,28 @@ def sync_scendey_waitlist(self, campaign_id):
         return
     try:
         response = requests.post(endpoint, json={
-            'role': 'BRAND', 'email': campaign.owner.email,
+            'role': 'BRAND', 'audienceCategory': 'BUSINESS',
+            'name': (campaign.owner.get_full_name() or campaign.owner.email.split('@', 1)[0])[:100],
+            'email': campaign.owner.email,
             'brandName': campaign.brand_name[:100], 'category': (campaign.ad_category or 'Campus brand')[:60],
             'handleOrUrl': campaign.destination_url[:200],
             'consent': True, 'source': 'ChapelFlow advertising',
         }, timeout=10)
         response.raise_for_status()
-        if not response.json().get('ok'):
+        result = response.json()
+        if not result.get('ok'):
             raise ValueError('Scendey did not accept signup')
+        if result.get('existing') is True:
+            # Scendey's global email uniqueness means we cannot assume an
+            # existing SHOPPER record is the advertiser BRAND entry. Keep the
+            # campaign unsynced for an explicit reconciliation instead of
+            # falsely recording a successful advertiser opt-in.
+            logger.warning(
+                'scendey_waitlist_existing_email_requires_reconciliation campaign_id=%s',
+                campaign.pk,
+            )
+            return {'status': 'already_registered', 'campaign_id': str(campaign.pk)}
     except (requests.RequestException, ValueError) as exc:
         raise self.retry(exc=exc, countdown=min(300, 2 ** self.request.retries * 10)) from exc
     Campaign.objects.filter(pk=campaign.pk, scendey_synced_at__isnull=True).update(scendey_synced_at=timezone.now())
+    return {'status': 'synced', 'campaign_id': str(campaign.pk)}

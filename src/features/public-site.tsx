@@ -51,6 +51,7 @@ import { homepageService, publicService } from "../services/chapelflow";
 import type { EventSummary } from "../types/domain";
 import { LivePublicDetailPage, LivePublicPage } from "./live-public";
 import { SponsoredCard } from "./advertising";
+import { ScendeyWaitlistPromo } from "./scendey-waitlist";
 import "./mobile-menu.css";
 
 const publicNav = [
@@ -214,6 +215,7 @@ function SiteFooter() {
             <Link to="/sermons">Sermons</Link>
             <Link to="/gallery">Gallery</Link>
             <Link to="/app/advertise">Advertise your brand</Link>
+            <Link to="/scendey-waitlist">Discover Scendey</Link>
           </div>
           <div>
             <h3>Community</h3>
@@ -380,6 +382,7 @@ function DemoHomePage() {
       </section>
       <DailyVerseOfTheDay />
       <SponsoredCard placement="home" />
+      <ScendeyWaitlistPromo variant="homepage" />
       <section className="cuc-home__worship" aria-labelledby="cuc-home-worship-title">
         <div>
           <p className="cuc-home__eyebrow">Worship with us</p>

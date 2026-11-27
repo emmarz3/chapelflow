@@ -48,6 +48,7 @@ import {
 import type { Permission, Role, User } from "../types/domain";
 import { authService, communityService, notificationService } from "../services/chapelflow";
 import { ApprovedAdPaymentNotice, DashboardAdPopup } from "./advertising";
+import { ScendeyWaitlistPromo } from "./scendey-waitlist";
 import "./sidebar-signout.css";
 
 interface NavItem {
@@ -622,6 +623,7 @@ export function PortalShell() {
         </header>
         <main id="portal-content" className="portal-content">
           {user.role === "member" && location.pathname === "/app" && !isDemoMode && <ApprovedAdPaymentNotice />}
+          {(location.pathname === "/app" || location.pathname === "/app/admin/dashboard") && <ScendeyWaitlistPromo variant="dashboard" />}
           <Outlet />
         </main>
         <nav

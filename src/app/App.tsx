@@ -31,6 +31,7 @@ import { CommunitySafetyPage } from "../features/moderation";
 import { NotificationSettingsPage } from "../features/notification-settings";
 import { GalleryPage } from "../features/gallery-page";
 import { AdvertisePage, AdvertisingAdminPage, AdsDirectoryPage } from "../features/advertising";
+import { ScendeyWaitlistPage } from "../features/scendey-waitlist";
 import { CommunityOversightPage, LeadershipNoticesPage, LeadershipNoticePage } from "../features/leadership-channel";
 import {
   StudentAttendanceHistoryPage,
@@ -160,6 +161,7 @@ export function App() {
             <Routes>
             <Route element={<PublicLayout />}>
               <Route path="/" element={<HomePage />} />
+              <Route path="/scendey-waitlist" element={<ScendeyWaitlistPage />} />
               <Route
                 path="/about"
                 element={<AboutPage />}
