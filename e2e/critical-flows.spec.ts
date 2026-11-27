@@ -161,7 +161,7 @@ test("registration preserves progress and records policy acceptance", async ({
   await page.getByLabel(/read and accept/i).check();
   await page.getByRole("button", { name: /submit registration/i }).click();
   await expect(
-    page.getByRole("heading", { name: /check your email/i }),
+    page.getByRole("heading", { name: /your registration was successful/i }),
   ).toBeVisible();
 });
 
