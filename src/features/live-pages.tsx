@@ -2208,7 +2208,11 @@ function LiveModuleOperationsPage({
                   ? "Asset name"
                   : module === "communication"
                     ? "Broadcast title"
-                    : "Title"
+                    : module === "media" && selectedContentType === "GALLERY"
+                      ? "Album title"
+                      : module === "media" && selectedContentType === "SERMON"
+                        ? "Sermon title"
+                        : "Title"
             }
             required
           />
@@ -2339,8 +2343,12 @@ function LiveModuleOperationsPage({
                       )}
                     </select>
                   </label>
-                  <Field name="slug" label="Public URL slug" placeholder="sunday-message" />
-                  <Field className="field--full" name="summary" label="Public summary" required={module !== "media" || selectedContentType === "SERMON"} />
+                  {module === "media" && selectedContentType === "GALLERY" && <div className="media-publish-intro field--full">
+                    <strong>Step 1 · Collection details</strong>
+                    <p>Give this gallery collection a clear name and a short description. All selected photos and videos will appear together inside it.</p>
+                  </div>}
+                  <Field name="slug" label="Public URL slug (optional)" placeholder={selectedContentType === "GALLERY" ? "sunday-worship-gallery" : "sunday-message"} />
+                  <Field className="field--full" name="summary" label="Public summary" required={module !== "media" || selectedContentType === "SERMON" || selectedContentType === "GALLERY"} />
                   {(module !== "media" || selectedContentType === "SERMON" || selectedContentType === "SERMON_SERIES") && <Field name="author_name" label="Speaker" required={selectedContentType === "SERMON"} defaultValue={selectedContentType === "SERMON" ? user?.name || "" : ""} />}
                   <Field name="publish_at" label="Schedule publication" type="datetime-local" />
                   {module === "media" ? selectedContentType === "GALLERY" ? <>
@@ -2377,7 +2385,11 @@ function LiveModuleOperationsPage({
                       </div>}
                     </section>
                   </> : <>
-                    <label className="field field--full"><span>{selectedContentType === "SERMON" ? "Sermon recording" : "Cover image from device (optional)"}</span><input name="cover_image_file" type="file" accept="image/jpeg,image/png,image/webp,image/gif" /></label>
+                    <label className="field field--full">
+                      <span>Cover image (optional)</span>
+                      <input name="cover_image_file" type="file" accept=".jpg,.jpeg,.png,.gif,.webp,image/jpeg,image/png,image/gif,image/webp" />
+                      <small>JPG, PNG, GIF or WebP. Maximum 100 MB.</small>
+                    </label>
                     <label className="field field--full">
                       <span>{selectedContentType === "SERMON" ? "Sermon recording (required)" : "Media file (required)"}</span>
                       <input
@@ -2385,11 +2397,19 @@ function LiveModuleOperationsPage({
                         type="file"
                         accept={selectedContentType === "SERMON"
                           ? ".mp3,.m4a,.mp4,.mov,.webm,audio/mpeg,audio/mp4,video/mp4,video/quicktime,video/webm"
-                          : ".jpg,.jpeg,.png,.gif,.webp,.mp4,.mov,.webm,.mp3,.m4a,.pdf,image/jpeg,image/png,image/gif,image/webp,video/mp4,video/quicktime,video/webm,audio/mpeg,audio/mp4,application/pdf"}
+                          : selectedContentType === "GALLERY_IMAGE"
+                            ? ".jpg,.jpeg,.png,.gif,.webp,image/jpeg,image/png,image/gif,image/webp"
+                            : selectedContentType === "GALLERY_VIDEO"
+                              ? ".mp4,.mov,.webm,video/mp4,video/quicktime,video/webm"
+                              : ".jpg,.jpeg,.png,.gif,.webp,.mp4,.mov,.webm,.mp3,.m4a,.pdf,image/jpeg,image/png,image/gif,image/webp,video/mp4,video/quicktime,video/webm,audio/mpeg,audio/mp4,application/pdf"}
                       />
                       <small>{selectedContentType === "SERMON"
-                        ? "Supported recording formats: MP3, M4A, MP4, MOV and WebM. Maximum 100 MB."
-                        : "Supported formats: JPG, PNG, GIF, WebP, MP4, MOV, WebM, MP3, M4A and PDF. Maximum 100 MB."}</small>
+                        ? "Recording formats: MP3, M4A, MP4, MOV or WebM. Maximum 100 MB."
+                        : selectedContentType === "GALLERY_IMAGE"
+                          ? "Photo formats: JPG, PNG, GIF or WebP. Maximum 100 MB."
+                          : selectedContentType === "GALLERY_VIDEO"
+                            ? "Video formats: MP4, MOV or WebM. Maximum 100 MB."
+                            : "Formats: JPG, PNG, GIF, WebP, MP4, MOV, WebM, MP3, M4A or PDF. Maximum 100 MB."}</small>
                     </label>
                     <Field className="field--full" name="stream_url" label="Livestream URL" type="url" />
                   </> : <>
