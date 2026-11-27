@@ -43,6 +43,35 @@ function csrfCookie() {
     ?.split("=")[1];
 }
 
+const SESSION_HINT_KEY = "chapelflow:session-established";
+let sessionHintInMemory = false;
+
+function hasKnownSession() {
+  try {
+    return window.localStorage.getItem(SESSION_HINT_KEY) === "1";
+  } catch {
+    return sessionHintInMemory;
+  }
+}
+
+function rememberKnownSession() {
+  sessionHintInMemory = true;
+  try {
+    window.localStorage.setItem(SESSION_HINT_KEY, "1");
+  } catch {
+    // Session cookies remain authoritative if storage is unavailable.
+  }
+}
+
+function clearKnownSession() {
+  sessionHintInMemory = false;
+  try {
+    window.localStorage.removeItem(SESSION_HINT_KEY);
+  } catch {
+    // Session cookies remain authoritative if storage is unavailable.
+  }
+}
+
 async function isCsrfFailure(response: Response) {
   if (response.status !== 403) return false;
   try {
@@ -75,6 +104,27 @@ function bootstrapCsrfToken() {
   return csrfBootstrapRequest;
 }
 
+/**
+ * Establish the cookie-bound CSRF token before an unsafe authentication request.
+ * Safe GET requests such as /auth/me do not need to pay this extra round trip.
+ */
+export async function ensureCsrfToken() {
+  if (!isDjangoBackend || csrfCookie()) return;
+  let established = false;
+  try {
+    established = await bootstrapCsrfToken();
+  } catch {
+    established = false;
+  }
+  if (!established) {
+    throw new ApiError({
+      code: "CSRF_BOOTSTRAP_FAILED",
+      message: "ChapelFlow could not initialise secure sign-in. Please try again.",
+      status: 503,
+    });
+  }
+}
+
 let refreshRequest: Promise<boolean> | null = null;
 
 function refreshSession() {
@@ -96,8 +146,12 @@ function refreshSession() {
       if (await isCsrfFailure(response) && await bootstrapCsrfToken()) {
         response = await sendRefresh(csrfCookie());
       }
-      if (!response.ok) return false;
+      if (!response.ok) {
+        if (response.status === 400 || response.status === 401) clearKnownSession();
+        return false;
+      }
       rememberCsrfToken(await response.json());
+      rememberKnownSession();
       return true;
     })()
       .finally(() => {
@@ -106,6 +160,15 @@ function refreshSession() {
       });
   }
   return refreshRequest;
+}
+
+/** Reset in-memory auth/CSRF state between isolated unit tests only. */
+export function resetApiSecurityStateForTests() {
+  if (import.meta.env.MODE !== "test") return;
+  csrfTokenValue = null;
+  csrfBootstrapRequest = null;
+  refreshRequest = null;
+  clearKnownSession();
 }
 
 // Renew before showing an authenticator QR code: scanning can outlast the
@@ -140,6 +203,15 @@ async function rawRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
     const signal = init.signal
       ? AbortSignal.any([init.signal, controller.signal])
       : controller.signal;
+    const method = (init.method || "GET").toUpperCase();
+    if (
+      isDjangoBackend &&
+      ["POST", "PUT", "PATCH", "DELETE"].includes(method) &&
+      path !== "/auth/csrf/" &&
+      path !== "/auth/csrf"
+    ) {
+      await ensureCsrfToken();
+    }
     const headers = new Headers(init.headers);
     headers.set("Accept", "application/json");
     if (!(init.body instanceof FormData)) headers.set("Content-Type", "application/json");
@@ -174,9 +246,11 @@ async function rawRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
       }
     }
 
+    const isCurrentUserRequest = path === "/auth/me" || path === "/auth/me/";
     if (
       response.status === 401 &&
       isDjangoBackend &&
+      (!isCurrentUserRequest || hasKnownSession()) &&
       path !== "/auth/refresh/" &&
       path !== "/auth/logout/" &&
       path !== "/auth/login" &&
@@ -211,6 +285,20 @@ async function rawRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
         status: 401,
       });
     }
+    if (response.ok) {
+      if (
+        path === "/auth/login/" ||
+        path === "/auth/me/" ||
+        path === "/auth/me"
+      ) {
+        rememberKnownSession();
+      }
+      if (path === "/auth/logout/" || path === "/auth/logout") {
+        clearKnownSession();
+        csrfTokenValue = null;
+      }
+    }
+
     if (!response.ok) {
       const fallback = {
         code: "REQUEST_FAILED",
