@@ -122,7 +122,8 @@ export default defineConfig(({ mode }) => {
                 cacheableResponse: { statuses: [0, 200] },
               },
             },
-          ],        },
+          ],
+        },
       }),
     ],
     test: {
