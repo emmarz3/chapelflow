@@ -6,7 +6,13 @@ import { RouteScrollManager } from "../components/route-scroll";
 import { ToastProvider } from "../components/ui";
 import { CookieConsent } from "../components/cookie-consent";
 
-import { ErrorBoundary, ERROR_REGISTRY } from "../features/error-pages";
+import {
+  ErrorBoundary,
+  ErrorIndexPage,
+  ErrorPage,
+  ErrorRoutePage,
+  ERROR_REGISTRY,
+} from "../features/error-pages";
 import { markAppPerformance } from "../lib/performance";
 
 const ChapelFlowIntro = lazy(() =>
@@ -72,9 +78,9 @@ const PublicInfoPage = lazy(() => import("../features/public-site").then((module
 const PublicLayout = lazy(() => import("../features/public-site").then((module) => ({ default: module.PublicLayout })));
 const StudentLeadersPage = lazy(() => import("../features/public-site").then((module) => ({ default: module.StudentLeadersPage })));
 
-const ErrorIndexPage = lazy(() => import("../features/error-pages").then((module) => ({ default: module.ErrorIndexPage })));
-const ErrorPage = lazy(() => import("../features/error-pages").then((module) => ({ default: module.ErrorPage })));
-const ErrorRoutePage = lazy(() => import("../features/error-pages").then((module) => ({ default: module.ErrorRoutePage })));
+
+
+
 
 const DashboardPage = lazy(() =>
   import("../features/portal-pages").then((module) => ({
