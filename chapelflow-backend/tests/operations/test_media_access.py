@@ -1,4 +1,5 @@
 import pytest
+from django.core.files.uploadedfile import SimpleUploadedFile
 
 from apps.ministries.models import Group, GroupType
 from common.constants.roles import Roles
@@ -57,3 +58,58 @@ def test_only_media_and_social_media_unit_leaders_can_create_media(api_client, m
     api_client.force_authenticate(protocol_leader)
     denied = api_client.post("/api/v1/operations/media/", _media_payload(), format="json")
     assert denied.status_code == 403
+
+
+
+@pytest.mark.parametrize(
+    ("filename", "content_type", "payload"),
+    [
+        ("service.mp3", "audio/mpeg", b"ID3" + b"\x00" * 20),
+        ("service.m4a", "audio/mp4", b"\x00\x00\x00\x18ftypM4A " + b"\x00" * 20),
+        ("programme.pdf", "application/pdf", b"%PDF-1.4\nChapel programme"),
+        ("worship.webm", "video/webm", b"\x1a\x45\xdf\xa3" + b"\x00" * 20),
+    ],
+)
+def test_media_upload_accepts_supported_sermon_and_gallery_file_formats(
+    api_client, media_author, monkeypatch, filename, content_type, payload
+):
+    class FakeStorage:
+        def upload_fileobj(self, file_obj, storage_name, content_type=""):
+            assert file_obj.read()
+            file_obj.seek(0)
+            return f"https://files.example.edu/{storage_name}"
+
+    monkeypatch.setattr("apps.uploads.views.get_storage_service", lambda: FakeStorage())
+    api_client.force_authenticate(media_author)
+    response = api_client.post(
+        "/api/v1/uploads/upload/",
+        {
+            "file": SimpleUploadedFile(filename, payload, content_type=content_type),
+            "category": "MEDIA_CONTENT",
+        },
+        format="multipart",
+    )
+    assert response.status_code == 201, response.data
+    assert response.data["data"]["original_filename"] == filename
+    assert response.data["data"]["content_type"] == content_type
+
+
+def test_media_upload_rejects_mismatched_file_signature(api_client, media_author, monkeypatch):
+    class FakeStorage:
+        def upload_fileobj(self, file_obj, storage_name, content_type=""):
+            raise AssertionError("Invalid file must be rejected before storage is called")
+
+    monkeypatch.setattr("apps.uploads.views.get_storage_service", lambda: FakeStorage())
+    api_client.force_authenticate(media_author)
+    response = api_client.post(
+        "/api/v1/uploads/upload/",
+        {
+            "file": SimpleUploadedFile("sermon.mp3", b"not-an-mp3-file", content_type="audio/mpeg"),
+            "category": "MEDIA_CONTENT",
+        },
+        format="multipart",
+    )
+    assert response.status_code == 400
+    assert "file contents" in str(response.data).lower() or "file type" in str(response.data).lower()
+
+
