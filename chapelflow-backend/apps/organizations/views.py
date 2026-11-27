@@ -65,10 +65,14 @@ class PublicContentView(APIView):
         items = entry.published_gallery_items
         photos = [item for item in items if item.content_type == ContentType.GALLERY_IMAGE]
         videos = [item for item in items if item.content_type == ContentType.GALLERY_VIDEO]
-        preview = next((item for item in photos + videos if item.media_url or item.cover_image_url), None)
+        files = [
+            item for item in items
+            if item.media_url or item.cover_image_url
+        ]
+        preview = next((item for item in photos if item.media_url or item.cover_image_url), None)
+        preview = preview or next(iter(files), None)
         preview_type = (
             "image" if entry.cover_image_url or not preview or preview in photos
-            else "video" if preview in videos
             else _public_media_type(preview)
         )
         return {
