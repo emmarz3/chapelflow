@@ -88,7 +88,7 @@ function WaitlistForm() {
         <legend>Which best describes you?</legend>
         <div className="scendey-waitlist-audience__grid">
           {audienceOptions.map((option) => (
-            <label className={\`scendey-waitlist-audience__option \${audience === option.value ? "is-selected" : ""}\`} key={option.value}>
+            <label className={`scendey-waitlist-audience__option ${audience === option.value ? "is-selected" : ""}`} key={option.value}>
               <input type="radio" name="audience" value={option.value} checked={audience === option.value} onChange={() => setAudience(option.value)} />
               <span><strong>{option.label}</strong><small>{option.detail}</small></span>
               <span className="scendey-waitlist-audience__radio" aria-hidden="true" />

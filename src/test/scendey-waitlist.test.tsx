@@ -29,12 +29,12 @@ describe("Scendey waitlist integration", () => {
 
   it("collects business fields only when Business / Brand is selected", () => {
     render(<MemoryRouter><ScendeyWaitlistPage /></MemoryRouter>);
-    expect(screen.queryByLabelText(/business \\/ brand name/i)).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("radio", { name: /business \\/ brand/i }));
-    expect(screen.getByLabelText(/business \\/ brand name/i)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/business \/ brand name/i)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("radio", { name: /business \/ brand/i }));
+    expect(screen.getByLabelText(/business \/ brand name/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/business category/i)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("radio", { name: /student/i }));
-    expect(screen.queryByLabelText(/business \\/ brand name/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/business \/ brand name/i)).not.toBeInTheDocument();
   });
 
   it("submits a student audience through the ChapelFlow backend without opting into marketing", async () => {
@@ -54,10 +54,10 @@ describe("Scendey waitlist integration", () => {
 
   it("submits a business audience with brand name, category and explicit marketing consent", async () => {
     render(<MemoryRouter><ScendeyWaitlistPage /></MemoryRouter>);
-    fireEvent.click(screen.getByRole("radio", { name: /business \\/ brand/i }));
+    fireEvent.click(screen.getByRole("radio", { name: /business \/ brand/i }));
     fireEvent.change(screen.getByLabelText(/full name/i), { target: { value: "Brand Owner" } });
     fireEvent.change(screen.getByLabelText(/email address/i), { target: { value: "owner@example.com" } });
-    fireEvent.change(screen.getByLabelText(/business \\/ brand name/i), { target: { value: "Good Things" } });
+    fireEvent.change(screen.getByLabelText(/business \/ brand name/i), { target: { value: "Good Things" } });
     fireEvent.change(screen.getByLabelText(/business category/i), { target: { value: "Fashion" } });
     fireEvent.click(screen.getByLabelText(/send me scendey progress/i));
     fireEvent.click(screen.getByRole("button", { name: /join the waitlist/i }));
