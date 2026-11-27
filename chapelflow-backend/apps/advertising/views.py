@@ -72,6 +72,14 @@ class MyCampaignsView(APIView):
     permission_classes = [IsAuthenticated]
     throttle_scope = 'ads_application'
 
+    def get_throttles(self):
+        # Refreshing the dashboard must not consume the three hourly
+        # application submissions. That previously hid approved ads after a
+        # submit and a couple of automatic refetches (HTTP 429).
+        if self.request.method == 'GET':
+            self.throttle_scope = 'ads_read'
+        return super().get_throttles()
+
     def get(self, request):
         campaigns = Campaign.objects.filter(owner=request.user).select_related('program').prefetch_related('payments')
         return Response(CampaignSerializer(campaigns, many=True).data)
@@ -89,6 +97,7 @@ class MyCampaignsView(APIView):
 
 class MyCampaignDetailView(APIView):
     permission_classes = [IsAuthenticated]
+    throttle_scope = 'ads_application'
 
     def patch(self, request, pk):
         campaign = get_object_or_404(Campaign, pk=pk, owner=request.user)

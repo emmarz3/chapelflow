@@ -38,6 +38,20 @@ type AdvertisingSettings = {
 
 type ActiveAd = Pick<Campaign, "id" | "brand_name" | "description" | "image_url"> & { ad_category?: string; plan?: Campaign["plan"] };
 
+export function ApprovedAdPaymentNotice() {
+  const campaigns = useQuery({
+    queryKey: ["ads-mine"],
+    queryFn: () => api.get<Campaign[]>("/ads/mine/"),
+    refetchOnMount: "always",
+  });
+  const approved = campaigns.data?.filter((ad) => ad.status === "APPROVED") ?? [];
+  if (!approved.length) return null;
+  return <section className="ads-payment-banner" aria-label="Advertisement payment ready">
+    <div><strong>{approved.length === 1 ? `${approved[0]!.brand_name} is approved` : `${approved.length} advertisements are approved`}</strong><p>Complete your subscription payment to activate {approved.length === 1 ? "your ad" : "them"}.</p></div>
+    <Link className="button button--primary" to="/app/advertise#my-advertisements">Continue to payment</Link>
+  </section>;
+}
+
 async function openAdvertiser(id: string) {
   const result = await api.post<{ url: string }>(`/ads/${id}/click/`);
   const target = new URL(result.url);
@@ -151,8 +165,17 @@ export function SponsoredCard({ placement }: { placement: "home" | "events" }) {
 
 export function AdvertisePage() {
   const [params] = useSearchParams();
+  useEffect(() => {
+    if (window.location.hash === "#my-advertisements") {
+      window.requestAnimationFrame(() => document.getElementById("my-advertisements")?.scrollIntoView());
+    }
+  }, []);
   const plans = useQuery({ queryKey: ["ads-plans"], queryFn: () => api.get<Plans>("/ads/plans/") });
-  const campaigns = useQuery({ queryKey: ["ads-mine"], queryFn: () => api.get<Campaign[]>("/ads/mine/") });
+  const campaigns = useQuery({
+    queryKey: ["ads-mine"],
+    queryFn: () => api.get<Campaign[]>("/ads/mine/"),
+    refetchInterval: (query) => (query.state.data as Campaign[] | undefined)?.some((ad) => ad.status === "PENDING" || ad.status === "CHANGES") ? 30_000 : false,
+  });
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -234,6 +257,9 @@ export function AdvertisePage() {
       </ol>
     </header>
     {message && <p role="status" className="ads-notice">{message}</p>}
+    {campaigns.data?.some((ad) => ad.status === "APPROVED") && <div className="ads-founding-note" role="status">
+      Your advertisement is approved and ready for payment. <a href="#my-advertisements">Go to payment</a>
+    </div>}
     <section className="ads-section ads-section--plans">
       <div className="ads-section__heading">
         <div>
@@ -311,9 +337,9 @@ export function AdvertisePage() {
         </div>
       </form>
     </section>
-    <section className="ads-section ads-section--campaigns">
+    <section className="ads-section ads-section--campaigns" id="my-advertisements">
       <div className="ads-section__heading"><div><p className="eyebrow">Your account</p><h2>My advertisements</h2><p>Check each application’s review status, payment details and performance.</p></div></div>
-      {campaigns.isError && <p>Could not load your advertisements.</p>}
+      {campaigns.isError && <p role="alert">Could not load your advertisements: {campaigns.error instanceof Error ? campaigns.error.message : "Please try again."} <button type="button" onClick={() => void campaigns.refetch()}>Try again</button></p>}
       {campaigns.isPending && <p>Loading your advertisements…</p>}
       {campaigns.data?.length === 0 && <p>You have not submitted an ad yet.</p>}
       {campaigns.data?.map((ad) => <article className="ads-entry" key={ad.id}>
@@ -374,6 +400,7 @@ export function AdvertisePage() {
             <button disabled={busy || !plans.data?.checkout_available} onClick={() => void action(`/ads/${ad.id}/checkout/`, true)}>
               {plans.data?.checkout_available ? "Continue to Paystack" : "Checkout unavailable"}
             </button>
+            {plans.data && !plans.data.checkout_available && <p role="status">{plans.data.checkout_reason || "Payment setup is not complete. Contact the Super Admin."}</p>}
           </div>}
           {["ACTIVE", "PAUSED"].includes(ad.status) && !ad.cancel_at_period_end && <button disabled={busy} onClick={() => void action(`/ads/${ad.id}/cancel/`)}>Cancel renewal</button>}
           {ad.payment_history?.length > 0 && <details className="ads-payment-history">

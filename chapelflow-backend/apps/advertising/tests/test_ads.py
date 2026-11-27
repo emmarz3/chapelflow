@@ -16,6 +16,8 @@ from apps.accounts.models import User
 from apps.advertising.models import AdSubscriptionProgram, AdvertisingSettings, Campaign, AdPayment
 from apps.notifications.models import Notification, NotificationChannel, NotificationStatus
 from apps.advertising.services import FOUNDING_FIRST_MONTH_KOBO, PRICES, activate_payment
+
+
 from apps.members.models import Member
 from apps.organizations.models import Organization, Branch
 from apps.finance.services import PaymentProviderError
@@ -31,6 +33,19 @@ def users(db):
     Member.objects.create(user=owner, branch=branch, community='STUDENT', first_name='Brand', last_name='Owner')
     Member.objects.create(user=other, branch=branch, community='GUEST', first_name='Outside', last_name='Owner')
     return owner, other, admin
+
+
+@pytest.mark.django_db
+def test_advertiser_can_refresh_campaigns_after_submission_limit(users):
+    """Dashboard reads must not share the three-per-hour application bucket."""
+    owner, _, _ = users
+    client = APIClient()
+    client.force_authenticate(owner)
+    for _ in range(3):
+        assert client.post('/api/v1/ads/mine/', {}, format='json').status_code == 400
+    assert client.post('/api/v1/ads/mine/', {}, format='json').status_code == 429
+    for _ in range(5):
+        assert client.get('/api/v1/ads/mine/').status_code == 200
 
 
 @pytest.mark.django_db
@@ -484,6 +499,9 @@ def test_ad_application_notifies_super_admin_and_checkout_waits_for_approval(use
     ).exists()
 
     client.force_authenticate(owner)
+    dashboard = client.get('/api/v1/ads/mine/')
+    assert dashboard.status_code == 200
+    assert any(item['id'] == str(campaign.pk) and item['status'] == 'APPROVED' for item in dashboard.data)
     def initialize_checkout(*args, **kwargs):
         reference = kwargs['payload']['reference']
         return {
