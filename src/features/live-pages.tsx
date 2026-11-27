@@ -1882,6 +1882,22 @@ function LiveModuleOperationsPage({
           setUploadError("Choose at least one photo or video for the gallery album.");
           return;
         }
+        const unsupportedFile = galleryFiles.find((file) =>
+          !["image", "video"].includes(publicMediaKind(file) || ""),
+        );
+        if (unsupportedFile) {
+          setUploadError(`"${unsupportedFile.name}" is not a supported gallery photo or video. Use JPG, PNG, GIF, WebP, MP4, MOV or WebM.`);
+          return;
+        }
+        const oversizedFile = galleryFiles.find((file) => file.size > MAX_PUBLIC_MEDIA_BYTES);
+        if (oversizedFile) {
+          setUploadError(`"${oversizedFile.name}" exceeds the 100 MB limit. Choose a smaller file.`);
+          return;
+        }
+        if (galleryFiles.length > 30) {
+          setUploadError("Choose no more than 30 files in one gallery album.");
+          return;
+        }
         if (!String(payload.slug || "").trim()) {
           const titleSlug = String(payload.title || "gallery").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 100) || "gallery";
           payload.slug = `${titleSlug}-${crypto.randomUUID().slice(0, 8)}`;
@@ -1889,34 +1905,63 @@ function LiveModuleOperationsPage({
         payload.detail = String(payload.detail || payload.summary || payload.title || "").trim();
         setUploading(true);
         try {
-          const uploadedFiles: { file: File; url: string }[] = [];
+          const uploadedFiles: { file: File; url: string; mediaType: "image" | "video"; mimeType: string }[] = [];
           for (const file of galleryFiles) {
-            const upload = await uploadService.upload(file, "MEDIA_CONTENT");
-            uploadedFiles.push({ file, url: upload.data.file_url });
+            try {
+              const upload = await uploadService.upload(file, "MEDIA_CONTENT");
+              if (!upload.data.file_url) throw new Error("The storage service did not return a file URL.");
+              const mediaType = publicMediaKind(file);
+              if (mediaType !== "image" && mediaType !== "video") {
+                throw new Error("This file is not a supported gallery photo or video.");
+              }
+              uploadedFiles.push({
+                file,
+                url: upload.data.file_url,
+                mediaType,
+                mimeType: upload.data.content_type || file.type || "",
+              });
+            } catch (error) {
+              throw new Error(`Could not upload "${file.name}": ${message(error)}`);
+            }
           }
-          const firstImage = uploadedFiles.find(({ file }) => file.type.startsWith("image/"));
+
+          const firstImage = uploadedFiles.find(({ mediaType }) => mediaType === "image");
           const album = await operationsService.create("media", {
             ...payload,
             cover_image_url: firstImage?.url || "",
             content_type: "GALLERY",
           });
-          for (const { file, url } of uploadedFiles) {
-            const type = file.type.startsWith("video/") ? "GALLERY_VIDEO" : "GALLERY_IMAGE";
-            const title = file.name.replace(/\.[^.]+$/, "");
-            await operationsService.create("media", {
-              title,
-              slug: `${album.data.id.slice(0, 8)}-${title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 100)}`,
-              summary: String(payload.summary || "").trim(),
-              details: String(payload.detail || payload.summary || "").trim(),
-              content_type: type,
-              media_url: url,
-              parent: album.data.id,
-              ...(payload.publish_at ? { publish_at: payload.publish_at } : {}),
-            });
+
+          for (const [index, item] of uploadedFiles.entries()) {
+            const title = item.file.name.replace(/\.[^.]+$/, "") || `Gallery file ${index + 1}`;
+            const titleSlug = title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 90) || "gallery-file";
+            const uniqueSlug = `${album.data.id.slice(0, 8)}-${titleSlug}-${String(index + 1).padStart(2, "0")}-${crypto.randomUUID().slice(0, 8)}`;
+            try {
+              await operationsService.create("media", {
+                title,
+                slug: uniqueSlug,
+                summary: String(payload.summary || "").trim(),
+                details: String(payload.detail || payload.summary || "").trim(),
+                content_type: item.mediaType === "video" ? "GALLERY_VIDEO" : "GALLERY_IMAGE",
+                media_url: item.url,
+                metadata: {
+                  media_type: item.mediaType,
+                  mime_type: item.mimeType,
+                  original_filename: item.file.name,
+                },
+                parent: album.data.id,
+                ...(payload.publish_at ? { publish_at: payload.publish_at } : {}),
+              });
+            } catch (error) {
+              throw new Error(`The album was created, but "${item.file.name}" could not be attached: ${message(error)}. Reopen the album and retry this file.`);
+            }
           }
           setOpen(false);
-          toast("Gallery album and media published.");
+          setSelectedGalleryFiles([]);
+          toast(`Gallery album published with ${uploadedFiles.length} ${uploadedFiles.length === 1 ? "file" : "files"}.`);
           void client.invalidateQueries({ queryKey: [module] });
+          void client.invalidateQueries({ queryKey: ["media-gallery-albums"] });
+          void client.invalidateQueries({ queryKey: ["public-content", "gallery"] });
         } catch (error) {
           setUploadError(message(error));
         } finally {
@@ -1926,8 +1971,40 @@ function LiveModuleOperationsPage({
       }
       const requiresUploadedMedia = ["SERMON", "MEDIA", "GALLERY_IMAGE", "GALLERY_VIDEO"].includes(contentType);
       if (requiresUploadedMedia && !(mediaFile instanceof File && mediaFile.name)) {
-        setUploadError("Choose the image, video, audio, or document to publish.");
+        setUploadError("Choose the media file you want to publish.");
         return;
+      }
+      if (mediaFile instanceof File && mediaFile.name) {
+        const mediaKind = publicMediaKind(mediaFile);
+        const validForType = contentType === "SERMON"
+          ? mediaKind === "audio" || mediaKind === "video"
+          : contentType === "GALLERY_IMAGE"
+            ? mediaKind === "image"
+            : contentType === "GALLERY_VIDEO"
+              ? mediaKind === "video"
+              : contentType === "MEDIA"
+                ? Boolean(mediaKind)
+                : true;
+        if (!validForType) {
+          setUploadError(contentType === "SERMON"
+            ? "A sermon recording must be MP3, M4A, MP4, MOV or WebM."
+            : contentType === "GALLERY_IMAGE"
+              ? "Choose a JPG, PNG, GIF or WebP photo."
+              : contentType === "GALLERY_VIDEO"
+                ? "Choose an MP4, MOV or WebM video."
+                : "Unsupported file. Use JPG, PNG, GIF, WebP, MP4, MOV, WebM, MP3, M4A or PDF.");
+          return;
+        }
+        if (mediaFile.size > MAX_PUBLIC_MEDIA_BYTES) {
+          setUploadError(`"${mediaFile.name}" exceeds the 100 MB limit.`);
+          return;
+        }
+      }
+      if (coverImageFile instanceof File && coverImageFile.name) {
+        if (publicMediaKind(coverImageFile) !== "image" || coverImageFile.size > MAX_PUBLIC_MEDIA_BYTES) {
+          setUploadError("The cover image must be a JPG, PNG, GIF or WebP file no larger than 100 MB.");
+          return;
+        }
       }
       if (contentType === "LIVESTREAM") {
         payload.media_url = String(payload.stream_url || "").trim();
@@ -1936,10 +2013,20 @@ function LiveModuleOperationsPage({
       try {
         setUploading(true);
         if (coverImageFile instanceof File && coverImageFile.name) {
-          payload.cover_image_url = (await uploadService.upload(coverImageFile, "MEDIA_CONTENT")).data.file_url;
+          const uploadedCover = await uploadService.upload(coverImageFile, "MEDIA_CONTENT");
+          payload.cover_image_url = uploadedCover.data.file_url;
         }
         if (mediaFile instanceof File && mediaFile.name) {
-          payload.media_url = (await uploadService.upload(mediaFile, "MEDIA_CONTENT")).data.file_url;
+          const uploadedMedia = await uploadService.upload(mediaFile, "MEDIA_CONTENT");
+          if (!uploadedMedia.data.file_url) throw new Error("The storage service did not return a file URL.");
+          payload.media_url = uploadedMedia.data.file_url;
+          const metadata = payload.metadata && typeof payload.metadata === "object"
+            ? payload.metadata as Record<string, unknown>
+            : {};
+          metadata.media_type = publicMediaKind(mediaFile);
+          metadata.mime_type = uploadedMedia.data.content_type || mediaFile.type || "";
+          metadata.original_filename = mediaFile.name;
+          payload.metadata = metadata;
         }
       } catch (error) {
         setUploadError(message(error));
