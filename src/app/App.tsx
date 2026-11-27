@@ -77,7 +77,7 @@ const ErrorPage = lazy(() => import("../features/error-pages").then((module) => 
 const ErrorRoutePage = lazy(() => import("../features/error-pages").then((module) => ({ default: module.ErrorRoutePage })));
 
 const DashboardPage = lazy(() =>
-  import("../features/portal-pages").then((module) => ({
+  import("../features/dashboard-page").then((module) => ({
     default: module.DashboardPage,
   })),
 );
