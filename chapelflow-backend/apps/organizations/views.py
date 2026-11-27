@@ -14,11 +14,20 @@ from .serializers import BranchSerializer, OrganizationSerializer
 
 
 def _public_media_type(entry):
+    from urllib.parse import urlparse
+
+    from apps.operations.models import ContentType
+
+    if entry.content_type == ContentType.GALLERY_IMAGE:
+        return "image"
+    if entry.content_type == ContentType.GALLERY_VIDEO:
+        return "video"
+
     metadata = entry.metadata if isinstance(entry.metadata, dict) else {}
     value = str(metadata.get("media_type") or "").lower()
     if value in {"image", "video", "audio", "pdf", "file"}:
         return value
-    content_type = str(metadata.get("content_type") or "").lower()
+    content_type = str(metadata.get("mime_type") or metadata.get("content_type") or "").lower()
     if content_type.startswith("image/"):
         return "image"
     if content_type.startswith("video/"):
@@ -27,7 +36,17 @@ def _public_media_type(entry):
         return "audio"
     if content_type == "application/pdf":
         return "pdf"
-    return "image"
+
+    suffix = urlparse(entry.media_url or "").path.rsplit(".", 1)[-1].lower()
+    if suffix in {"jpg", "jpeg", "png", "gif", "webp"}:
+        return "image"
+    if suffix in {"mp4", "mov", "webm"}:
+        return "video"
+    if suffix in {"mp3", "m4a"}:
+        return "audio"
+    if suffix == "pdf":
+        return "pdf"
+    return "file" if entry.content_type == ContentType.MEDIA else "image"
 
 
 class PublicContentView(APIView):
@@ -313,6 +332,9 @@ class PublicDetailView(APIView):
                 "id": str(sermon.id), "heading": sermon.title,
                 "body": sermon.summary or sermon.details,
                 "imageUrl": sermon.cover_image_url or None,
+                "mediaUrl": sermon.media_url or None,
+                "mediaType": _public_media_type(sermon),
+                "authorName": sermon.author_name or None,
                 "imageAlt": sermon.title if sermon.cover_image_url else "",
                 "action": {"label": "Play message", "href": f"/sermons/{sermon.slug}"},
             } for sermon in sermons] or sections
