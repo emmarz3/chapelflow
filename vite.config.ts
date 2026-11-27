@@ -28,16 +28,21 @@ export default defineConfig(({ mode }) => {
     build: {
       rollupOptions: {
         output: {
+          entryFileNames: "assets/app-[hash].js",
+          chunkFileNames: "assets/chunks/[name]-[hash].js",
           manualChunks: {
             "vendor-react": ["react", "react-dom", "react-router-dom"],
-            "vendor-ui": ["framer-motion", "motion", "lucide-react"],
             "vendor-data": [
               "@tanstack/react-query",
               "date-fns",
               "react-hook-form",
               "zod",
             ],
+            "vendor-icons": ["lucide-react"],
+            "vendor-motion": ["framer-motion", "motion"],
+            "vendor-gsap": ["gsap"],
             "vendor-charts": ["recharts"],
+            "vendor-pdf": ["pdf-lib", "@pdf-lib/fontkit"],
           },
         },
       },
@@ -75,8 +80,44 @@ export default defineConfig(({ mode }) => {
           skipWaiting: true,
           navigateFallback: "/index.html",
           navigateFallbackDenylist: [/^\/api\//],
-          globPatterns: ["**/*.{js,css,html,ico,svg,woff2}"],
+          // Keep the install-time precache to the app shell and shared core chunks.
+          // Route feature chunks are cached the first time a student opens that feature.
+          globPatterns: [
+            "**/*.{html,ico,svg,woff2}",
+            "assets/**/*.css",
+            "assets/app-*.js",
+            "assets/chunks/vendor-react-*.js",
+            "assets/chunks/vendor-data-*.js",
+            "assets/chunks/vendor-icons-*.js",
+            "assets/chunks/vendor-motion-*.js",
+          ],
           runtimeCaching: [
+            {
+              urlPattern: ({ request, url }) =>
+                request.destination === "script" &&
+                url.origin === (globalThis as unknown as { location: { origin: string } }).location.origin &&
+                url.pathname.startsWith("/assets/chunks/"),
+              handler: "CacheFirst",
+              options: {
+                cacheName: "chapelflow-route-chunks-v1",
+                expiration: {
+                  maxEntries: 120,
+                  maxAgeSeconds: 60 * 60 * 24 * 30,
+                },
+                plugins: [
+                  {
+                    // Vercel's SPA fallback can return index.html with HTTP 200
+                    // for an old/missing chunk URL. Never cache HTML as JavaScript.
+                    cacheWillUpdate: async ({ response }) => {
+                      const contentType = response.headers.get("content-type") ?? "";
+                      return response.ok && /(?:java|ecma)script/i.test(contentType)
+                        ? response
+                        : null;
+                    },
+                  },
+                ],
+              },
+            },
             {
               urlPattern: ({ request, url }) =>
                 request.destination === "image" &&
@@ -84,11 +125,12 @@ export default defineConfig(({ mode }) => {
                 /^\/(?:chapel-|chapelflow-|chrisland-|chaplain(?:\.|-)|student-chaplain\.)[^/]*\.(?:jpe?g|png|svg|webp)$/.test(url.pathname),
               handler: "CacheFirst",
               options: {
-              cacheName: "chapelflow-images-v2",
+                cacheName: "chapelflow-images-v2",
                 expiration: {
                   maxEntries: 40,
                   maxAgeSeconds: 60 * 60 * 24 * 30,
                 },
+                cacheableResponse: { statuses: [0, 200] },
               },
             },
           ],
