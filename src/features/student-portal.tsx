@@ -10,7 +10,7 @@ import {
 import { useEffect, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { Badge, Button, ErrorState, LoadingState, PageHeader, useToast } from "../components/ui";
-import { attendanceService, authService, communityService, eventService, notificationService, studentContentService } from "../services/chapelflow";
+import { attendanceService, authService, notificationService, studentContentService } from "../services/chapelflow";
 import { useAuth } from "./auth-context";
 import { isStudentMember } from "../lib/permissions";
 
@@ -89,10 +89,6 @@ function JoinPathSection({ title, description, empty, groups, requestByGroup, ac
       </article>;
     })}</div> : <div className="student-join-path__empty">{empty}</div>}
   </section>;
-}
-
-function CommunityCard({ label, name, unread }: { label: string; name: string; unread?: number }) {
-  return <div className="student-community-card"><Users /><div><small>{label}</small><strong>{name}</strong></div>{Boolean(unread) && <Badge tone="purple">{unread} new</Badge>}</div>;
 }
 
 export function StudentAttendanceHistoryPage() {
