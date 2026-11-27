@@ -1898,7 +1898,7 @@ function LiveModuleOperationsPage({
         payload.detail = String(payload.detail || payload.summary || payload.title || "").trim();
         setUploading(true);
         try {
-          const uploadedFiles: { file: File; url: string; mediaType: "image" | "video"; mimeType: string }[] = [];
+          const uploadedFiles: { id: string; file: File; url: string; mediaType: "image" | "video" }[] = [];
           for (const file of galleryFiles) {
             try {
               const upload = await uploadService.upload(file, "MEDIA_CONTENT");
@@ -1908,10 +1908,10 @@ function LiveModuleOperationsPage({
                 throw new Error("This file is not a supported gallery photo or video.");
               }
               uploadedFiles.push({
+                id: upload.data.id,
                 file,
                 url: upload.data.file_url,
                 mediaType,
-                mimeType: upload.data.content_type || file.type || "",
               });
             } catch (error) {
               throw new Error(`Could not upload "${file.name}": ${message(error)}`);
@@ -1919,36 +1919,12 @@ function LiveModuleOperationsPage({
           }
 
           const firstImage = uploadedFiles.find(({ mediaType }) => mediaType === "image");
-          const album = await operationsService.create("media", {
+          await operationsService.create("media", {
             ...payload,
             cover_image_url: firstImage?.url || "",
             content_type: "GALLERY",
+            gallery_upload_ids: uploadedFiles.map(({ id }) => id),
           });
-
-          for (const [index, item] of uploadedFiles.entries()) {
-            const title = item.file.name.replace(/\.[^.]+$/, "") || `Gallery file ${index + 1}`;
-            const titleSlug = title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 90) || "gallery-file";
-            const uniqueSlug = `${album.data.id.slice(0, 8)}-${titleSlug}-${String(index + 1).padStart(2, "0")}-${crypto.randomUUID().slice(0, 8)}`;
-            try {
-              await operationsService.create("media", {
-                title,
-                slug: uniqueSlug,
-                summary: String(payload.summary || "").trim(),
-                details: String(payload.detail || payload.summary || "").trim(),
-                content_type: item.mediaType === "video" ? "GALLERY_VIDEO" : "GALLERY_IMAGE",
-                media_url: item.url,
-                metadata: {
-                  media_type: item.mediaType,
-                  mime_type: item.mimeType,
-                  original_filename: item.file.name,
-                },
-                parent: album.data.id,
-                ...(payload.publish_at ? { publish_at: payload.publish_at } : {}),
-              });
-            } catch (error) {
-              throw new Error(`The album was created, but "${item.file.name}" could not be attached: ${message(error)}. Reopen the album and retry this file.`);
-            }
-          }
           setOpen(false);
           setSelectedGalleryFiles([]);
           toast(`Gallery album published with ${uploadedFiles.length} ${uploadedFiles.length === 1 ? "file" : "files"}.`);
