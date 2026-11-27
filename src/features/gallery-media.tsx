@@ -144,6 +144,8 @@ export function GalleryCollection({
     { value: "all", label: "All media" },
     { value: "image", label: "Photos" },
     { value: "video", label: "Videos" },
+    { value: "audio", label: "Audio" },
+    { value: "pdf", label: "PDFs" },
     { value: "file", label: "Files" },
   ];
   const items = content.sections.filter(
@@ -192,9 +194,13 @@ export function GalleryCollection({
                 <span className="gallery-card__type">
                   {item.mediaType === "video"
                     ? "Video"
-                    : item.mediaType === "file"
-                      ? "File"
-                      : "Photo"}
+                    : item.mediaType === "audio"
+                      ? "Audio"
+                      : item.mediaType === "pdf"
+                        ? "PDF"
+                        : item.mediaType === "file"
+                          ? "File"
+                          : "Photo"}
                 </span>
                 {item.heading && <h2>{item.heading}</h2>}
                 {item.body && <p>{item.body}</p>}
