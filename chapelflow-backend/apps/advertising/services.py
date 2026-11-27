@@ -35,7 +35,14 @@ def ads_paystack_request(path: str, *, method: str = 'GET', payload: dict | None
     from urllib.request import Request, urlopen
     request = Request(
         f'https://api.paystack.co{path}', data=body, method=method,
-        headers={'Authorization': f'Bearer {secret}', 'Content-Type': 'application/json', 'Accept': 'application/json'},
+        headers={
+            'Authorization': f'Bearer {secret}',
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            # Paystack's Cloudflare edge can reject non-browser Python clients
+            # unless a conventional User-Agent is supplied.
+            'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+        },
     )
     try:
         with urlopen(request, timeout=15) as response:
