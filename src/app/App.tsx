@@ -5,13 +5,7 @@ import { OfflineAttendanceSync } from "../components/offline-attendance-sync";
 import { RouteScrollManager } from "../components/route-scroll";
 import { ToastProvider } from "../components/ui";
 import { CookieConsent } from "../components/cookie-consent";
-import {
-  AccessDeniedPage,
-  NotFoundPage,
-  PortalShell,
-  ProtectedRoute,
-  StudentOnlyRoute,
-} from "../features/portal-shell";
+
 import { ErrorBoundary, ERROR_REGISTRY } from "../features/error-pages";
 import { markAppPerformance } from "../lib/performance";
 
@@ -23,6 +17,12 @@ const ChapelFlowIntro = lazy(() =>
 const AccountProfilePage = lazy(() =>
   import("../features/profile-photo").then((module) => ({ default: module.AccountProfilePage })),
 );
+const AccessDeniedPage = lazy(() => import("../features/portal-shell").then((module) => ({ default: module.AccessDeniedPage })));
+const NotFoundPage = lazy(() => import("../features/portal-shell").then((module) => ({ default: module.NotFoundPage })));
+const PortalShell = lazy(() => import("../features/portal-shell").then((module) => ({ default: module.PortalShell })));
+const ProtectedRoute = lazy(() => import("../features/portal-shell").then((module) => ({ default: module.ProtectedRoute })));
+const StudentOnlyRoute = lazy(() => import("../features/portal-shell").then((module) => ({ default: module.StudentOnlyRoute })));
+
 const AuthLayout = lazy(() => import("../features/auth-pages").then((module) => ({ default: module.AuthLayout })));
 const AuthNoticePage = lazy(() => import("../features/auth-pages").then((module) => ({ default: module.AuthNoticePage })));
 const ForgotPasswordPage = lazy(() => import("../features/auth-pages").then((module) => ({ default: module.ForgotPasswordPage })));
