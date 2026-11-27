@@ -129,6 +129,14 @@ function refreshSession() {
   return refreshRequest;
 }
 
+/** Reset in-memory auth/CSRF state between isolated unit tests only. */
+export function resetApiSecurityStateForTests() {
+  if (import.meta.env.MODE !== "test") return;
+  csrfTokenValue = null;
+  csrfBootstrapRequest = null;
+  refreshRequest = null;
+}
+
 // Renew before showing an authenticator QR code: scanning can outlast the
 // short-lived access cookie, and a broken refresh must be caught before setup.
 export async function renewSessionForMfaEnrollment() {
