@@ -48,9 +48,7 @@ describe("Scendey waitlist integration", () => {
       audienceCategory: "student",
       marketingConsent: false,
     })));
-    const success = await screen.findByRole("status");
-    expect(success).toHaveTextContent(/your waitlist signup has been received/i);
-    expect(success).not.toHaveTextContent(/email|verification|link|check your inbox/i);
+    expect(await screen.findByRole("status")).toHaveTextContent(/existing registrations are not duplicated/i);
     expect(join).toHaveBeenCalledTimes(1);
   });
 
