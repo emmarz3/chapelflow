@@ -1,4 +1,5 @@
 import type { UpperRoomPost } from "../services/chapelflow";
+import { API_BASE_URL } from "./api";
 
 const WIDTH = 1200;
 const HEIGHT = 630;
@@ -36,16 +37,57 @@ function wrapText(
 }
 
 async function loadShareImage(post: UpperRoomPost): Promise<ImageBitmap | null> {
-  const media = post.media.find((item) => item.mediaType === "IMAGE");
-  if (!media?.url) return null;
-  try {
-    const response = await fetch(media.url, { credentials: "same-origin", mode: "cors", cache: "no-store" });
-    if (!response.ok) return null;
-    const blob = await response.blob();
-    if (!blob.type.startsWith("image/")) return null;
-    return await createImageBitmap(blob);
-  } catch {
+  const media = post.media.find((item) => Boolean(item.url));
+  if (!media) {
+    if (post.media.length) throw new Error("This media is unavailable on this device. Reopen the post while connected and try again.");
     return null;
+  }
+  try {
+    const url = media.url.startsWith("blob:") && media.mediaType === "IMAGE"
+      ? media.url
+      : `${API_BASE_URL}/social/media/${encodeURIComponent(media.id)}/share-preview/`;
+    const response = await fetch(url, { credentials: "include", cache: "no-store" });
+    if (!response.ok) throw new Error(`Preview unavailable (HTTP ${response.status}).`);
+    const blob = await response.blob();
+    if (blob.type.startsWith("image/")) return await createImageBitmap(blob);
+    if (blob.type.startsWith("video/")) return await videoStill(blob);
+    throw new Error("The media preview is not an image or video.");
+  } catch {
+    throw new Error("The photo or video preview could not be loaded. Check your connection and try again.");
+  }
+}
+
+async function videoStill(blob: Blob): Promise<ImageBitmap> {
+  const url = URL.createObjectURL(blob);
+  const video = document.createElement("video");
+  video.muted = true;
+  video.playsInline = true;
+  video.preload = "auto";
+  try {
+    return await new Promise<ImageBitmap>((resolve, reject) => {
+      const timeout = window.setTimeout(() => reject(new Error("Video frame timed out.")), 12_000);
+      const fail = () => { window.clearTimeout(timeout); reject(new Error("Video frame unavailable.")); };
+      video.onerror = fail;
+      video.onloadeddata = () => {
+        if (!video.videoWidth || !video.videoHeight) { fail(); return; }
+        const frame = document.createElement("canvas");
+        frame.width = video.videoWidth;
+        frame.height = video.videoHeight;
+        frame.getContext("2d")?.drawImage(video, 0, 0);
+        void createImageBitmap(frame).then((bitmap) => {
+          window.clearTimeout(timeout);
+          resolve(bitmap);
+        }, fail);
+      };
+      video.src = url;
+      video.load();
+    });
+  } finally {
+    video.onloadeddata = null;
+    video.onerror = null;
+    video.removeAttribute("src");
+    video.load();
+    URL.revokeObjectURL(url);
   }
 }
 

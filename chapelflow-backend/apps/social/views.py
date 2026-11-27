@@ -3,6 +3,7 @@ from pathlib import Path
 import re
 from urllib.parse import unquote, urlparse
 from uuid import UUID
+import requests
 
 from django.conf import settings
 from django.core.exceptions import ValidationError as DjangoValidationError
@@ -166,6 +167,85 @@ class SocialMediaView(APIView):
         response["Accept-Ranges"] = "bytes"
         response["Cache-Control"] = "private, no-store"
         response["Content-Disposition"] = "inline"
+        return response
+
+
+class SocialSharePreviewView(APIView):
+    """A same-origin, authorized still for image and video share cards.
+
+    Browsers can display Cloudinary media without being allowed to read its
+    pixels into a canvas. Proxying a bounded still solves that CORS problem.
+    Never accept a client-supplied URL: the post and its stored upload are
+    checked against the member's visible branch and moderation scope.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk):
+        media = get_object_or_404(
+            SocialPostMedia.objects.select_related("upload"),
+            pk=pk, post__in=_posts_for(request.user, stories=None),
+        )
+        upload = media.upload
+        parsed = urlparse(upload.file_url)
+        cloud = settings.CLOUDINARY_CLOUD_NAME
+        kind = "video" if media.media_type == SocialMediaType.VIDEO else "image"
+        marker = f"/{cloud}/{kind}/upload/" if cloud else ""
+        content_type = "image/jpeg"
+        if parsed.scheme == "https" and parsed.hostname == "res.cloudinary.com" and marker and parsed.path.startswith(marker):
+            # Cloudinary can generate a small still for both photos and videos.
+            transformation = "so_0,w_1000,q_auto,f_jpg" if kind == "video" else "w_1000,q_auto,f_jpg"
+            suffix = parsed.path.split(marker, 1)[1].rsplit(".", 1)[0] + ".jpg"
+            preview_url = f"https://res.cloudinary.com{marker}{transformation}/{suffix}"
+            limit = 8 * 1024 * 1024
+        elif upload.file_url.startswith(S3StorageService()._object_url("upper-room/")):
+            preview_url = S3StorageService().get_download_url(upload.file_url, expires_in=120)
+            target = urlparse(preview_url)
+            endpoint = urlparse(settings.AWS_S3_ENDPOINT_URL) if settings.AWS_S3_ENDPOINT_URL else urlparse(upload.file_url)
+            if target.scheme != "https" or not target.hostname or not endpoint.hostname or not (
+                target.hostname == endpoint.hostname or (
+                    settings.AWS_S3_ENDPOINT_URL and target.hostname == f"{settings.AWS_STORAGE_BUCKET_NAME}.{endpoint.hostname}"
+                )
+            ):
+                return HttpResponse("The media storage address is invalid.", status=422)
+            content_type = upload.content_type
+            limit = 50 * 1024 * 1024
+        else:
+            media_prefix = f"{settings.MEDIA_URL.rstrip('/')}/upper-room/"
+            if not unquote(parsed.path).startswith(media_prefix):
+                return HttpResponse("A share preview is unavailable for this media provider.", status=422)
+            relative_path = unquote(parsed.path).removeprefix(settings.MEDIA_URL.rstrip('/') + "/")
+            root = Path(settings.MEDIA_ROOT).resolve()
+            file_path = (root / relative_path).resolve()
+            if not file_path.is_relative_to(root) or not file_path.is_file() or file_path.stat().st_size > 50 * 1024 * 1024:
+                return HttpResponse("The media preview is unavailable.", status=404)
+            response = FileResponse(file_path.open("rb"), content_type=upload.content_type)
+            response["Cache-Control"] = "private, no-store"
+            response["X-Content-Type-Options"] = "nosniff"
+            return response
+        try:
+            upstream = requests.get(preview_url, timeout=(4, 15), stream=True, allow_redirects=False)
+            try:
+                upstream_type = upstream.headers.get("Content-Type", "").lower()
+                if upstream.status_code != 200 or not upstream_type.startswith(("image/", "video/")):
+                    return HttpResponse("The media preview could not be loaded.", status=502)
+                if not upstream_type.startswith(content_type.split("/")[0] + "/"):
+                    return HttpResponse("The media preview has an unexpected type.", status=502)
+                chunks = []
+                size = 0
+                for chunk in upstream.iter_content(chunk_size=64 * 1024):
+                    size += len(chunk)
+                    if size > limit:
+                        return HttpResponse("The media preview is too large.", status=502)
+                    chunks.append(chunk)
+            finally:
+                upstream.close()
+        except requests.RequestException:
+            return HttpResponse("The media preview could not be loaded.", status=502)
+        if not size:
+            return HttpResponse("The media preview is empty.", status=502)
+        response = HttpResponse(b"".join(chunks), content_type=content_type)
+        response["Cache-Control"] = "private, no-store"
+        response["X-Content-Type-Options"] = "nosniff"
         return response
 
 

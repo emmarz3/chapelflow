@@ -5,6 +5,7 @@ from .views import (
     SocialCommentDetailView,
     SocialLikeView,
     SocialMediaView,
+    SocialSharePreviewView,
     SocialPostCollectionView,
     SocialPostDetailView,
     SocialStoryCollectionView,
@@ -13,6 +14,7 @@ from .views import (
 
 urlpatterns = [
     path("media/<uuid:pk>/", SocialMediaView.as_view(), name="social-media"),
+    path("media/<uuid:pk>/share-preview/", SocialSharePreviewView.as_view(), name="social-share-preview"),
     path("posts/", SocialPostCollectionView.as_view(), name="social-posts"),
     path("stories/", SocialStoryCollectionView.as_view(), name="social-stories"),
     path("posts/<uuid:pk>/", SocialPostDetailView.as_view(), name="social-post-detail"),
