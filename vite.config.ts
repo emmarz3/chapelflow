@@ -32,12 +32,7 @@ export default defineConfig(({ mode }) => {
           chunkFileNames: "assets/chunks/[name]-[hash].js",
           manualChunks: {
             "vendor-react": ["react", "react-dom", "react-router-dom"],
-            "vendor-data": [
-              "@tanstack/react-query",
-              "date-fns",
-              "react-hook-form",
-              "zod",
-            ],
+            "vendor-query": ["@tanstack/react-query"],
             "vendor-icons": ["lucide-react"],
             "vendor-motion": ["framer-motion", "motion"],
             "vendor-gsap": ["gsap"],
@@ -87,9 +82,8 @@ export default defineConfig(({ mode }) => {
             "assets/**/*.css",
             "assets/app-*.js",
             "assets/chunks/vendor-react-*.js",
-            "assets/chunks/vendor-data-*.js",
+            "assets/chunks/vendor-query-*.js",
             "assets/chunks/vendor-icons-*.js",
-            "assets/chunks/vendor-motion-*.js",
           ],
           runtimeCaching: [
             {
