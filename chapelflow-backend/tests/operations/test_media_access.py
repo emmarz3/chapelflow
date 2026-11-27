@@ -8,6 +8,11 @@ from common.constants.roles import Roles
 pytestmark = pytest.mark.django_db
 
 
+@pytest.fixture
+def media_author(make_user, branch_a):
+    return make_user(role=Roles.STUDENT_CHAPLAIN, branch=branch_a, email="media-access-author@test.edu")
+
+
 def _media_payload():
     return {
         "title": "Welcome service photos",

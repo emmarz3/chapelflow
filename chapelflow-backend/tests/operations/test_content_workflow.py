@@ -5,6 +5,7 @@ from django.utils import timezone
 
 from apps.operations.models import ContentEntry, ContentRevision, ContentStatus, ContentType
 from apps.operations.tasks import publish_scheduled_content
+from apps.uploads.models import Upload, UploadCategory
 
 
 pytestmark = pytest.mark.django_db
@@ -198,6 +199,42 @@ def test_gallery_album_accepts_optional_slug_and_notes_from_upload_form(api_clie
     assert entry.status == ContentStatus.PUBLISHED
 
 
+def test_gallery_publishes_uploaded_photos_and_videos_together(api_client, media_author):
+    uploads = [Upload.objects.create(
+        branch=media_author.branch, uploaded_by=media_author, category=UploadCategory.MEDIA_CONTENT,
+        original_filename=name, file_url=f"https://media.example.edu/{name}",
+        content_type=mime, size_bytes=1024,
+    ) for name, mime in (("sunday.jpg", "image/jpeg"), ("message.mp4", "video/mp4"))]
+    api_client.force_authenticate(media_author)
+    response = api_client.post("/api/v1/operations/media/", {
+        "title": "Sunday worship", "content_type": "GALLERY", "summary": "Photos and video",
+        "gallery_upload_ids": [str(item.id) for item in uploads],
+    }, format="json")
+    assert response.status_code == 201, response.data
+    album = ContentEntry.objects.get(pk=response.data["data"]["id"])
+    children = list(album.children.order_by("sort_order"))
+    assert [child.media_url for child in children] == [item.file_url for item in uploads]
+    assert [child.content_type for child in children] == [ContentType.GALLERY_IMAGE, ContentType.GALLERY_VIDEO]
+    assert all(child.status == ContentStatus.PUBLISHED for child in children)
+
+
+def test_gallery_rejects_foreign_upload_without_creating_album(api_client, media_author, make_user, branch_a):
+    other = make_user(role="STUDENT_CHAPLAIN", branch=branch_a, email="other-media@test.edu")
+    upload = Upload.objects.create(
+        branch=branch_a, uploaded_by=other, category=UploadCategory.MEDIA_CONTENT,
+        original_filename="private.jpg", file_url="https://media.example.edu/private.jpg",
+        content_type="image/jpeg", size_bytes=1024,
+    )
+    api_client.force_authenticate(media_author)
+    before = ContentEntry.objects.count()
+    response = api_client.post("/api/v1/operations/media/", {
+        "title": "Unowned", "content_type": "GALLERY", "summary": "Check ownership",
+        "gallery_upload_ids": [str(upload.id)],
+    }, format="json")
+    assert response.status_code == 400
+    assert ContentEntry.objects.count() == before
+
+
 def test_super_admin_can_publish_and_list_sermons_without_assigned_branch(api_client, super_admin, organization):
     from apps.organizations.models import Branch
 
@@ -270,6 +307,7 @@ def test_published_gallery_exposes_only_published_images(
         "body": "Students gathered for worship.",
         "imageUrl": "https://media.example.edu/opening-worship.jpg",
         "imageAlt": "Opening worship",
+        "mediaUrl": "https://media.example.edu/opening-worship.jpg",
         "mediaType": "image",
     }]
 
