@@ -1013,7 +1013,7 @@ describe("Django API integration", () => {
 
     expect(fetch.mock.calls.map(([url]) => url)).toEqual([
       "/api/v1/auth/csrf/",
-      "/api/v1/notifications/preferences/",
+      "/api/v1/communications/preferences/me/",
     ]);
     const [, mutationInit] = fetch.mock.calls[1]!;
     expect(mutationInit.credentials).toBe("include");
