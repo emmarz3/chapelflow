@@ -48,7 +48,7 @@ let sessionHintInMemory = false;
 
 function hasKnownSession() {
   try {
-    return window.localStorage.getItem(SESSION_HINT_KEY) === "1";
+    return window.localStorage.getItem(SESSION_HINT_KEY) === "1" || sessionHintInMemory;
   } catch {
     return sessionHintInMemory;
   }
@@ -250,7 +250,7 @@ async function rawRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
     if (
       response.status === 401 &&
       isDjangoBackend &&
-      (!isCurrentUserRequest || hasKnownSession()) &&
+      (!isCurrentUserRequest || hasKnownSession() || window.location.pathname.startsWith("/app")) &&
       path !== "/auth/refresh/" &&
       path !== "/auth/logout/" &&
       path !== "/auth/login" &&
