@@ -10,6 +10,7 @@ from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.permissions import IsAuthenticated
+from rest_framework import serializers as drf_serializers
 from rest_framework.views import APIView
 
 from apps.attendance.models import AttendanceRecord
@@ -22,6 +23,7 @@ from apps.members.models import Member, MembershipStatus
 from apps.ministries.models import Group
 from apps.notifications.models import NotificationChannel
 from apps.organizations.models import Branch
+from apps.uploads.models import Upload, UploadCategory
 from common.constants.roles import PermissionCodes, Roles
 from common.permissions.rbac import user_has_completed_required_mfa
 from common.permissions.inventory import user_has_inventory_access
@@ -787,7 +789,16 @@ class ContentCollectionView(APIView):
     def post(self, request):
         self.authorize(request.user)
         payload = request.data.copy()
+        gallery_upload_ids = payload.pop("gallery_upload_ids", None)
         payload["content_type"] = str(payload.get("content_type") or self.default_type).upper()
+        if gallery_upload_ids is not None:
+            if payload["content_type"] != ContentType.GALLERY or not user_has_media_management_access(request.user):
+                raise ValidationError({"gallery_upload_ids": "Only an authorized gallery album may contain uploaded files."})
+            if not isinstance(gallery_upload_ids, list) or not 1 <= len(gallery_upload_ids) <= 30:
+                raise ValidationError({"gallery_upload_ids": "Select between 1 and 30 gallery files."})
+            if len(set(map(str, gallery_upload_ids))) != len(gallery_upload_ids):
+                raise ValidationError({"gallery_upload_ids": "Gallery files must be unique."})
+            gallery_upload_ids = [str(drf_serializers.UUIDField().run_validation(upload_id)) for upload_id in gallery_upload_ids]
         payload["details"] = payload.get("details") or payload.get("detail") or ""
         payload["summary"] = payload.get("summary") or payload["details"][:500]
         if payload["content_type"] == ContentType.GALLERY:
@@ -810,6 +821,20 @@ class ContentCollectionView(APIView):
         serializer.is_valid(raise_exception=True)
         parent = serializer.validated_data.get("parent")
         branch = _branch_for_create(request.user)
+        gallery_uploads = []
+        if gallery_upload_ids is not None:
+            uploads = Upload.objects.filter(
+                id__in=gallery_upload_ids, uploaded_by=request.user,
+                category=UploadCategory.MEDIA_CONTENT,
+            )
+            by_id = {str(upload.id): upload for upload in uploads}
+            if len(by_id) != len(gallery_upload_ids):
+                raise ValidationError({"gallery_upload_ids": "One or more files were not uploaded by this account."})
+            for upload_id in gallery_upload_ids:
+                upload = by_id[str(upload_id)]
+                if upload.branch_id not in {None, branch.id} or not upload.content_type.startswith(("image/", "video/")):
+                    raise ValidationError({"gallery_upload_ids": "Only photos and videos from this branch can be added."})
+                gallery_uploads.append(upload)
         if parent and parent.branch_id != branch.id:
             raise ValidationError({"parent": "Parent content must belong to the same branch."})
         content_type = serializer.validated_data["content_type"]
@@ -827,6 +852,25 @@ class ContentCollectionView(APIView):
                     entry.published_at = now
                 entry.save(update_fields=["status", "published_at", "updated_at"])
             _create_content_revision(entry, request.user)
+            for index, upload in enumerate(gallery_uploads, start=1):
+                media_type = ContentType.GALLERY_IMAGE if upload.content_type.startswith("image/") else ContentType.GALLERY_VIDEO
+                child_data = {
+                    "parent": str(entry.id), "content_type": media_type,
+                    "title": upload.original_filename.rsplit(".", 1)[0][:255] or f"Gallery file {index}",
+                    "slug": f"gallery-{str(entry.id)[:8]}-{index}",
+                    "summary": entry.summary, "details": entry.details,
+                    "media_url": upload.file_url, "sort_order": index,
+                    "metadata": {"media_type": "image" if media_type == ContentType.GALLERY_IMAGE else "video",
+                                 "mime_type": upload.content_type, "original_filename": upload.original_filename},
+                }
+                child_serializer = ContentEntrySerializer(data=child_data)
+                child_serializer.is_valid(raise_exception=True)
+                child = child_serializer.save(branch=branch, created_by=request.user)
+                child.status = entry.status
+                child.published_at = entry.published_at
+                child.publish_at = entry.publish_at
+                child.save(update_fields=["status", "published_at", "publish_at", "updated_at"])
+                _create_content_revision(child, request.user)
         write_audit_log(
             AuditAction.CREATE, "operations.content", entry.id,
             metadata={"content_type": entry.content_type, "status": entry.status}, user=request.user,
