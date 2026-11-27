@@ -1684,13 +1684,6 @@ export function LiveOperationsPage({ module }: { module: OperationsModule }) {
 
 const GALLERY_IMAGE_EXTENSIONS = new Set(["jpg", "jpeg", "png", "gif", "webp"]);
 const GALLERY_VIDEO_EXTENSIONS = new Set(["mp4", "mov", "webm"]);
-const PUBLIC_MEDIA_EXTENSIONS = new Set([
-  ...GALLERY_IMAGE_EXTENSIONS,
-  ...GALLERY_VIDEO_EXTENSIONS,
-  "mp3",
-  "m4a",
-  "pdf",
-]);
 const MAX_PUBLIC_MEDIA_BYTES = 100 * 1024 * 1024;
 
 function fileExtension(file: File) {
