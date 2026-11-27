@@ -5,7 +5,6 @@ import { BrowserRouter } from "react-router-dom";
 import { AuthProvider } from "./features/auth-context";
 import { App } from "./app/App";
 import { initializeClientPerformanceDiagnostics } from "./lib/performance";
-import { initializeClientPerformanceDiagnostics } from "./lib/performance";
 import "./styles.css";
 import "./home.css";
 import "./extended.css";
@@ -13,8 +12,6 @@ import "./home-brand.css";
 import "./components/intro/intro.css";
 import "./components/motion/motion.css";
 import "./community.css";
-
-initializeClientPerformanceDiagnostics();
 
 initializeClientPerformanceDiagnostics();
 
