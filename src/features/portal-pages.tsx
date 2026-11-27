@@ -71,31 +71,17 @@ import {
   recentAttendance,
 } from "../lib/fixtures";
 import { hasPermission, useAuth } from "./auth-context";
-import { isStudentMember } from "../lib/permissions";
 import { downloadPdf } from "../lib/export";
 import type { Member, Permission } from "../types/domain";
 import {
   LiveAnalyticsPage,
   LiveAttendancePage,
-  LiveDashboardPage,
   LiveEventsPage,
   LiveMembersPage,
   LiveOperationsPage,
 } from "./live-pages";
-import { StudentDashboardPage } from "./student-portal";
-import { RoleDashboardPage } from "./role-dashboard";
-import { MemberAccountHomePage } from "./member-account-home";
 
-export function DashboardPage() {
-  const { user } = useAuth();
-  if (user?.role === "member")
-    return isStudentMember(user) ? <StudentDashboardPage /> : <MemberAccountHomePage />;
-  if (["chaplain", "student_chaplain", "assistant_student_chaplain", "hostel_coordinator", "unit_leader", "fellowship_leader", "attendance_usher"].includes(user?.role ?? "")) return <RoleDashboardPage />;
-  if (!isDemoMode) return <LiveDashboardPage />;
-  return <DemoDashboardPage />;
-}
-
-function DemoDashboardPage() {
+export function DemoDashboardPage() {
   const { user } = useAuth();
   const isMember = user?.role === "member";
   const isWorker = user?.role === "worker";

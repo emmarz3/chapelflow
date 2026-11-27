@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import { RouteScrollManager } from "../components/route-scroll";
-import { CookieConsent } from "../features/public-site";
+import { CookieConsent } from "../components/cookie-consent";
 import {
   isSafeExternalUrl,
   readCookieConsent,

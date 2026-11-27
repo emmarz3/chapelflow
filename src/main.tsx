@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter } from "react-router-dom";
 import { AuthProvider } from "./features/auth-context";
 import { App } from "./app/App";
+import { initializeClientPerformanceDiagnostics } from "./lib/performance";
 import "./styles.css";
 import "./home.css";
 import "./extended.css";
@@ -11,6 +12,8 @@ import "./home-brand.css";
 import "./components/intro/intro.css";
 import "./components/motion/motion.css";
 import "./community.css";
+
+initializeClientPerformanceDiagnostics();
 
 if (import.meta.env.DEV && "serviceWorker" in navigator) {
   void navigator.serviceWorker

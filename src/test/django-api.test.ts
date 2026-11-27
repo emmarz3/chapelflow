@@ -1,10 +1,14 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("../lib/backend", () => ({ isDjangoBackend: true }));
-import { apiRequest } from "../lib/api";
+import { apiRequest, resetApiSecurityStateForTests } from "../lib/api";
 import { adminAccountService, attendanceService, communityAdminService, communityService, studentContentService } from "../services/chapelflow";
 
 const response = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { "Content-Type": "application/json" } });
+beforeEach(() => {
+  resetApiSecurityStateForTests();
+  document.cookie = "chapelflow_csrf=csrf-test-token; path=/; SameSite=Lax";
+});
 afterEach(() => vi.unstubAllGlobals());
 
 describe("Django API integration", () => {
@@ -995,19 +999,22 @@ describe("Django API integration", () => {
     expect(new Headers(retryInit.headers).get("X-ChapelFlow-CSRF")).toBe("csrf-recovered");
   });
 
-  it("bootstraps cross-origin CSRF and sends its token with credentialed mutations", async () => {
+  it("bootstraps cross-origin CSRF on demand before the first state-changing request", async () => {
+    document.cookie = "chapelflow_csrf=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/";
     const fetch = vi.fn()
       .mockResolvedValueOnce(response({ data: { csrf_token: "csrf-test-token" } }))
       .mockResolvedValueOnce(response({ data: { master_enabled: false } }));
     vi.stubGlobal("fetch", fetch);
 
-    await apiRequest("/auth/csrf");
     await apiRequest("/notifications/preferences", {
       method: "PATCH",
       body: JSON.stringify({ masterEnabled: false }),
     });
 
-    expect(String(fetch.mock.calls[0]?.[0])).toBe("/api/v1/auth/csrf/");
+    expect(fetch.mock.calls.map(([url]) => url)).toEqual([
+      "/api/v1/auth/csrf/",
+      "/api/v1/communications/preferences/me/",
+    ]);
     const [, mutationInit] = fetch.mock.calls[1]!;
     expect(mutationInit.credentials).toBe("include");
     expect(new Headers(mutationInit.headers).get("X-ChapelFlow-CSRF")).toBe("csrf-test-token");

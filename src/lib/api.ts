@@ -75,6 +75,27 @@ function bootstrapCsrfToken() {
   return csrfBootstrapRequest;
 }
 
+/**
+ * Establish the cookie-bound CSRF token before an unsafe authentication request.
+ * Safe GET requests such as /auth/me do not need to pay this extra round trip.
+ */
+export async function ensureCsrfToken() {
+  if (!isDjangoBackend || csrfCookie()) return;
+  let established = false;
+  try {
+    established = await bootstrapCsrfToken();
+  } catch {
+    established = false;
+  }
+  if (!established) {
+    throw new ApiError({
+      code: "CSRF_BOOTSTRAP_FAILED",
+      message: "ChapelFlow could not initialise secure sign-in. Please try again.",
+      status: 503,
+    });
+  }
+}
+
 let refreshRequest: Promise<boolean> | null = null;
 
 function refreshSession() {
@@ -106,6 +127,14 @@ function refreshSession() {
       });
   }
   return refreshRequest;
+}
+
+/** Reset in-memory auth/CSRF state between isolated unit tests only. */
+export function resetApiSecurityStateForTests() {
+  if (import.meta.env.MODE !== "test") return;
+  csrfTokenValue = null;
+  csrfBootstrapRequest = null;
+  refreshRequest = null;
 }
 
 // Renew before showing an authenticator QR code: scanning can outlast the
@@ -140,6 +169,15 @@ async function rawRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
     const signal = init.signal
       ? AbortSignal.any([init.signal, controller.signal])
       : controller.signal;
+    const method = (init.method || "GET").toUpperCase();
+    if (
+      isDjangoBackend &&
+      ["POST", "PUT", "PATCH", "DELETE"].includes(method) &&
+      path !== "/auth/csrf/" &&
+      path !== "/auth/csrf"
+    ) {
+      await ensureCsrfToken();
+    }
     const headers = new Headers(init.headers);
     headers.set("Accept", "application/json");
     if (!(init.body instanceof FormData)) headers.set("Content-Type", "application/json");
@@ -298,7 +336,10 @@ export const api = {
 export async function downloadAuthenticatedPdf(path: string, filename: string) {
   const request = () => fetch(`${API_BASE_URL}${path}`, {
     credentials: "include",
-    headers: { Accept: "application/pdf" },
+    // These are DRF views returning a raw HttpResponse PDF. Requesting
+    // application/pdf makes DRF reject the request with 406 unless a PDF
+    // renderer is registered; wildcard negotiation lets the view return its PDF.
+    headers: { Accept: "*/*" },
   });
   let response = await request();
   if (response.status === 401 && await refreshSession()) response = await request();

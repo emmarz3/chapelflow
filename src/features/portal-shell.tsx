@@ -33,7 +33,7 @@ import {
   WifiOff,
   X,
 } from "lucide-react";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, NavLink, Navigate, Outlet, useLocation } from "react-router-dom";
 import { Brand, Modal } from "../components/ui";
@@ -47,7 +47,8 @@ import {
 } from "../lib/permissions";
 import type { Permission, Role, User } from "../types/domain";
 import { authService, communityService, notificationService } from "../services/chapelflow";
-import { ApprovedAdPaymentNotice, DashboardAdPopup } from "./advertising";
+const ApprovedAdPaymentNotice = lazy(() => import("./advertising").then((module) => ({ default: module.ApprovedAdPaymentNotice })));
+const DashboardAdPopup = lazy(() => import("./advertising").then((module) => ({ default: module.DashboardAdPopup })));
 import "./sidebar-signout.css";
 
 interface NavItem {
@@ -621,7 +622,11 @@ export function PortalShell() {
           )}
         </header>
         <main id="portal-content" className="portal-content">
-          {user.role === "member" && location.pathname === "/app" && !isDemoMode && <ApprovedAdPaymentNotice />}
+          {user.role === "member" && location.pathname === "/app" && !isDemoMode && (
+            <Suspense fallback={null}>
+              <ApprovedAdPaymentNotice />
+            </Suspense>
+          )}
           <Outlet />
         </main>
         <nav
@@ -651,7 +656,11 @@ export function PortalShell() {
           </button>
         </nav>
         {user.role === "member" && location.pathname === "/app" && !isDemoMode && <BirthdayPrompt userId={user.id} />}
-        {(location.pathname === "/app" || location.pathname === "/app/admin/dashboard") && !isDemoMode && online && <DashboardAdPopup userId={user.id} />}
+        {(location.pathname === "/app" || location.pathname === "/app/admin/dashboard") && !isDemoMode && online && (
+          <Suspense fallback={null}>
+            <DashboardAdPopup userId={user.id} />
+          </Suspense>
+        )}
       </div>
       {user.role !== "member" && <SearchModal open={searchOpen} onClose={() => setSearchOpen(false)} />}
     </div>

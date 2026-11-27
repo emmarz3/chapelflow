@@ -1,6 +1,12 @@
 import "@testing-library/jest-dom/vitest";
 import { cleanup } from "@testing-library/react";
-import { afterEach } from "vitest";
+import { afterEach, beforeEach } from "vitest";
+
+beforeEach(() => {
+  if (typeof document !== "undefined") {
+    document.cookie = "chapelflow_csrf=csrf-test-token; path=/; SameSite=Lax";
+  }
+});
 
 afterEach(cleanup);
 
