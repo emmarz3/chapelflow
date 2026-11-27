@@ -1,4 +1,4 @@
-import { lazy, Suspense, type ComponentType } from "react";
+import { lazy, Suspense } from "react";
 import { LoadingState } from "../components/ui";
 import { isDemoMode } from "../lib/fixtures";
 import { isStudentMember } from "../lib/permissions";
@@ -22,19 +22,18 @@ const DemoDashboardPage = lazy(() =>
 
 export function DashboardPage() {
   const { user } = useAuth();
-
-  let Dashboard: ComponentType;
-  if (user?.role === "member") {
-    Dashboard = isStudentMember(user) ? StudentDashboardPage : MemberAccountHomePage;
-  } else if (["chaplain", "student_chaplain", "assistant_student_chaplain", "hostel_coordinator", "unit_leader", "fellowship_leader", "attendance_usher"].includes(user?.role ?? "")) {
-    Dashboard = RoleDashboardPage;
-  } else {
-    Dashboard = isDemoMode ? DemoDashboardPage : LiveDashboardPage;
-  }
+  const isLeaderRole = ["chaplain", "student_chaplain", "assistant_student_chaplain", "hostel_coordinator", "unit_leader", "fellowship_leader", "attendance_usher"].includes(user?.role ?? "");
+  const dashboard = user?.role === "member"
+    ? (isStudentMember(user) ? <StudentDashboardPage /> : <MemberAccountHomePage />)
+    : isLeaderRole
+      ? <RoleDashboardPage />
+      : isDemoMode
+        ? <DemoDashboardPage />
+        : <LiveDashboardPage />;
 
   return (
     <Suspense fallback={<LoadingState label="Loading your dashboard" />}>
-      <Dashboard />
+      {dashboard}
     </Suspense>
   );
 }
