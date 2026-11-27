@@ -25,6 +25,27 @@ from apps.organizations.models import Organization, Branch
 from apps.finance.services import PaymentProviderError
 
 
+@override_settings(ADS_PAYSTACK_SECRET_KEY='sk_test_example')
+def test_ads_paystack_request_sends_user_agent_header():
+    response = BytesIO(json.dumps({
+        'status': True,
+        'data': {'plan_code': 'PLN_test'},
+    }).encode())
+    with patch('urllib.request.urlopen', return_value=response) as open_request:
+        result = ads_paystack_request(
+            '/plan',
+            method='POST',
+            payload={'name': 'Campus Brand', 'amount': 350000, 'interval': 'monthly'},
+        )
+
+    assert result == {'plan_code': 'PLN_test'}
+    request = open_request.call_args.args[0]
+    assert request.get_header('User-agent') == (
+        'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 '
+        '(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
+    )
+
+
 @pytest.mark.parametrize(('status_code', 'expected'), [
     (401, 'credentials'), (403, 'API access'), (400, 'monthly advertising plan'),
 ])
