@@ -494,7 +494,6 @@ function registrationError(caught: unknown) {
 export function RegisterPage() {
   const [step, setStep] = useState(0);
   const [complete, setComplete] = useState(false);
-  const [verificationRequired, setVerificationRequired] = useState(true);
   const [approvalRequired, setApprovalRequired] = useState(false);
   const [values, setValues] = useState<Record<string, string>>({});
   const [memberType, setMemberType] = useState("Student");
@@ -533,7 +532,6 @@ export function RegisterPage() {
         const response = await authService.register(
           registrationPayload(merged),
         );
-        setVerificationRequired(response.data.verificationRequired);
         setApprovalRequired(Boolean(response.data.approvalRequired));
       }
       setComplete(true);
@@ -570,26 +568,15 @@ export function RegisterPage() {
           <h1>
             {approvalRequired
               ? "Your registration is awaiting approval."
-              : verificationRequired
-                ? "Check your email to continue."
-                : "Your account is ready."}
+              : "Your registration was successful."}
           </h1>
           <p>
             {approvalRequired ? (
               "The chapel administration will verify your student information before your account can sign in."
-            ) : verificationRequired ? (
-              <>
-                We sent a verification link to{" "}
-                <strong>{values.email || "your email address"}</strong>. The link
-                expires in 24 hours.
-              </>
             ) : (
-              memberType === "Student"
-                ? "Sign in with your email or matric number to open your ChapelFlow account."
-                : "Sign in with the email address you registered to open your ChapelFlow account."
+              "Your ChapelFlow account registration has been received. Thank you for joining the community."
             )}
           </p>
-          {verificationRequired && values.email && !isDemoMode && <Button type="button" variant="ghost" onClick={() => { void authService.resendVerification(values.email || "").then(() => setError("A new link has been requested. Check your inbox.")).catch((caught: unknown) => setError(registrationError(caught))); }}>Resend verification email</Button>}
           {error && <p role="status">{error}</p>}
           <Link className="button button--primary full-button" to="/login">
             Return to sign in
