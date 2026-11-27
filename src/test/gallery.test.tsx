@@ -24,10 +24,18 @@ const content: PublicContentPayload = {
       imageUrl: "/movie.mp4",
     },
     {
-      id: "file",
+      id: "audio",
+      heading: "Choir recording",
+      body: "",
+      mediaType: "audio",
+      mediaUrl: "/choir.mp3",
+    },
+    {
+      id: "pdf",
       heading: "Programme",
       body: "",
-      mediaType: "file",
+      mediaType: "pdf",
+      mediaUrl: "/programme.pdf",
       action: {
         label: "Download programme",
         href: "https://example.com/programme.pdf",
@@ -55,6 +63,23 @@ describe("Gallery media", () => {
       screen.queryByRole("button", { name: "Enlarge Worship photo" }),
     ).not.toBeInTheDocument();
     expect(screen.getByLabelText("Worship video")).toBeInTheDocument();
+  });
+  it("renders sermon and gallery audio as a native audio player", () => {
+    render(<GalleryMedia item={content.sections[2]!} />);
+    const audio = screen.getByLabelText("Choir recording");
+    expect(audio.tagName).toBe("AUDIO");
+    expect(audio).toHaveAttribute("controls");
+    expect(audio.querySelector("source")).toHaveAttribute("src", "/choir.mp3");
+  });
+  it("filters audio resources independently", () => {
+    render(
+      <MemoryRouter>
+        <GalleryCollection content={content} />
+      </MemoryRouter>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Audio 1" }));
+    expect(screen.getByLabelText("Choir recording")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Enlarge Worship photo" })).not.toBeInTheDocument();
   });
   it("shows a retry and original link when a preview cannot load", () => {
     render(<GalleryMedia item={content.sections[1]!} />);
