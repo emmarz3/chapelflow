@@ -14,6 +14,7 @@ let largestContentfulPaint = 0;
 let cumulativeLayoutShift = 0;
 let longestInteractionCandidate = 0;
 let longTaskTotal = 0;
+let reportSent = false;
 const observers: PerformanceObserver[] = [];
 
 function observeEntries(
@@ -77,7 +78,8 @@ function buildPerformanceReport() {
 }
 
 function reportPerformance() {
-  if (!diagnosticsEnabled) return;
+  if (!diagnosticsEnabled || reportSent) return;
+  reportSent = true;
   console.info("[ChapelFlow performance report]", buildPerformanceReport());
   for (const observer of observers) observer.disconnect();
   observers.length = 0;
