@@ -2,6 +2,7 @@ import hashlib
 import hmac
 import json
 from io import BytesIO
+from urllib.error import HTTPError
 from datetime import timedelta
 from unittest.mock import patch
 
@@ -15,12 +16,23 @@ from PIL import Image
 from apps.accounts.models import User
 from apps.advertising.models import AdSubscriptionProgram, AdvertisingSettings, Campaign, AdPayment
 from apps.notifications.models import Notification, NotificationChannel, NotificationStatus
-from apps.advertising.services import FOUNDING_FIRST_MONTH_KOBO, PRICES, activate_payment
+from apps.advertising.services import FOUNDING_FIRST_MONTH_KOBO, PRICES, activate_payment, ads_paystack_request
 
 
 from apps.members.models import Member
 from apps.organizations.models import Organization, Branch
 from apps.finance.services import PaymentProviderError
+
+
+@pytest.mark.parametrize(('status_code', 'expected'), [
+    (401, 'credentials'), (403, 'API access'), (400, 'monthly advertising plan'),
+])
+@override_settings(ADS_PAYSTACK_SECRET_KEY='sk_test_example')
+def test_checkout_provider_errors_explain_why_payment_cannot_open(status_code, expected):
+    response = BytesIO(json.dumps({'status': False, 'code': 'authentication_error'}).encode())
+    with patch('urllib.request.urlopen', side_effect=HTTPError('https://api.paystack.co/plan', status_code, 'error', {}, response)):
+        with pytest.raises(PaymentProviderError, match=expected):
+            ads_paystack_request('/plan', method='POST', payload={'name': 'Campus Brand', 'amount': 350000, 'interval': 'monthly'})
 
 
 @pytest.fixture
