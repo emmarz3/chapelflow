@@ -15,7 +15,7 @@ from common.viewsets import StandardReadOnlyModelViewSet
 from .models import Upload, UploadCategory
 from .serializers import UploadSerializer, public_media_url
 from .storage import S3StorageService, generate_storage_filename, get_storage_service
-from .validators import validate_upload, validate_category_content
+from .validators import MEDIA_CONTENT_ALLOWED_EXTENSIONS, validate_upload, validate_category_content
 from apps.operations.models import ContentEntry, ContentStatus
 from common.constants.roles import Roles
 
@@ -66,7 +66,15 @@ class UploadView(APIView):
             else None
         )
         try:
-            validate_upload(file_obj, max_size_mb=max_size_mb)
+            validate_upload(
+                file_obj,
+                max_size_mb=max_size_mb,
+                allowed_extensions=(
+                    MEDIA_CONTENT_ALLOWED_EXTENSIONS
+                    if category == UploadCategory.MEDIA_CONTENT
+                    else None
+                ),
+            )
             validate_category_content(file_obj, category)
         except ValidationError as exc:
             return error_response(str(exc), status=400)
