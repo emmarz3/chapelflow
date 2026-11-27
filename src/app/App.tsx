@@ -1,46 +1,10 @@
-import { AccountProfilePage } from "../features/profile-photo";
-import { lazy, Suspense } from "react";
-import { Navigate, Route, Routes } from "react-router-dom";
+import { lazy, Suspense, useEffect } from "react";
+import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { PwaPrompt } from "../components/pwa-prompt";
 import { OfflineAttendanceSync } from "../components/offline-attendance-sync";
-import { ChapelFlowIntro } from "../components/intro/chapelflow-intro";
 import { RouteScrollManager } from "../components/route-scroll";
 import { ToastProvider } from "../components/ui";
-import {
-  AuthLayout,
-  AuthNoticePage,
-  ForgotPasswordPage,
-  LoginPage,
-  OtpPage,
-  RequiredPasswordChangePage,
-  RegisterPage,
-  ResetPasswordPage,
-  SuperAdminSetupPage,
-  VerifyEmailPage,
-} from "../features/auth-pages";
-import { AttendanceKioskPage } from "../features/attendance-kiosk";
-import { StudentAttendancePassPage } from "../features/student-attendance-pass";
-import { UsherAttendancePage } from "../features/usher-attendance";
-import { InstitutionalAccountsPage } from "../features/institutional-accounts";
-import { LaunchResetPage } from "../features/launch-reset";
-import { AdminOperationsPage } from "../features/admin-operations";
-import { RoleOperationsPage } from "../features/role-operations";
-import { GivingPage } from "../features/giving-page";
-import { UpperRoomPage } from "../features/upper-room";
-import { CommunitySafetyPage } from "../features/moderation";
-import { NotificationSettingsPage } from "../features/notification-settings";
-import { GalleryPage } from "../features/gallery-page";
-import { AdvertisePage, AdvertisingAdminPage, AdsDirectoryPage } from "../features/advertising";
-import { CommunityOversightPage, LeadershipNoticesPage, LeadershipNoticePage } from "../features/leadership-channel";
-import {
-  StudentAttendanceHistoryPage,
-  StudentAnnouncementsPage,
-  StudentIdentityPassPage,
-  StudentJoinCommunityPage,
-  StudentNotificationsPage,
-  StudentProfilePage,
-} from "../features/student-portal";
-import { StudentProfileEditorPage } from "../features/student-profile-editor";
+import { CookieConsent } from "../components/cookie-consent";
 import {
   AccessDeniedPage,
   NotFoundPage,
@@ -48,26 +12,69 @@ import {
   ProtectedRoute,
   StudentOnlyRoute,
 } from "../features/portal-shell";
-import {
-  AboutPage,
-  FellowshipPage,
-  UnitsPage,
-  CookieConsent,
-  HomePage,
-  LegalPage,
-  PublicContentPage,
-  PublicDetailPage,
-  PublicInfoPage,
-  PublicLayout,
-  StudentLeadersPage,
-} from "../features/public-site";
-import {
-  ErrorBoundary,
-  ErrorIndexPage,
-  ErrorPage,
-  ErrorRoutePage,
-  ERROR_REGISTRY,
-} from "../features/error-pages";
+import { ErrorBoundary, ERROR_REGISTRY } from "../features/error-pages";
+import { markAppPerformance } from "../lib/performance";
+
+const ChapelFlowIntro = lazy(() =>
+  import("../components/intro/chapelflow-intro").then((module) => ({
+    default: module.ChapelFlowIntro,
+  })),
+);
+const AccountProfilePage = lazy(() =>
+  import("../features/profile-photo").then((module) => ({ default: module.AccountProfilePage })),
+);
+const AuthLayout = lazy(() => import("../features/auth-pages").then((module) => ({ default: module.AuthLayout })));
+const AuthNoticePage = lazy(() => import("../features/auth-pages").then((module) => ({ default: module.AuthNoticePage })));
+const ForgotPasswordPage = lazy(() => import("../features/auth-pages").then((module) => ({ default: module.ForgotPasswordPage })));
+const LoginPage = lazy(() => import("../features/auth-pages").then((module) => ({ default: module.LoginPage })));
+const OtpPage = lazy(() => import("../features/auth-pages").then((module) => ({ default: module.OtpPage })));
+const RequiredPasswordChangePage = lazy(() => import("../features/auth-pages").then((module) => ({ default: module.RequiredPasswordChangePage })));
+const RegisterPage = lazy(() => import("../features/auth-pages").then((module) => ({ default: module.RegisterPage })));
+const ResetPasswordPage = lazy(() => import("../features/auth-pages").then((module) => ({ default: module.ResetPasswordPage })));
+const SuperAdminSetupPage = lazy(() => import("../features/auth-pages").then((module) => ({ default: module.SuperAdminSetupPage })));
+const VerifyEmailPage = lazy(() => import("../features/auth-pages").then((module) => ({ default: module.VerifyEmailPage })));
+
+const AttendanceKioskPage = lazy(() => import("../features/attendance-kiosk").then((module) => ({ default: module.AttendanceKioskPage })));
+const StudentAttendancePassPage = lazy(() => import("../features/student-attendance-pass").then((module) => ({ default: module.StudentAttendancePassPage })));
+const UsherAttendancePage = lazy(() => import("../features/usher-attendance").then((module) => ({ default: module.UsherAttendancePage })));
+const InstitutionalAccountsPage = lazy(() => import("../features/institutional-accounts").then((module) => ({ default: module.InstitutionalAccountsPage })));
+const LaunchResetPage = lazy(() => import("../features/launch-reset").then((module) => ({ default: module.LaunchResetPage })));
+const AdminOperationsPage = lazy(() => import("../features/admin-operations").then((module) => ({ default: module.AdminOperationsPage })));
+const RoleOperationsPage = lazy(() => import("../features/role-operations").then((module) => ({ default: module.RoleOperationsPage })));
+const GivingPage = lazy(() => import("../features/giving-page").then((module) => ({ default: module.GivingPage })));
+const UpperRoomPage = lazy(() => import("../features/upper-room").then((module) => ({ default: module.UpperRoomPage })));
+const CommunitySafetyPage = lazy(() => import("../features/moderation").then((module) => ({ default: module.CommunitySafetyPage })));
+const NotificationSettingsPage = lazy(() => import("../features/notification-settings").then((module) => ({ default: module.NotificationSettingsPage })));
+const GalleryPage = lazy(() => import("../features/gallery-page").then((module) => ({ default: module.GalleryPage })));
+const AdvertisePage = lazy(() => import("../features/advertising").then((module) => ({ default: module.AdvertisePage })));
+const AdvertisingAdminPage = lazy(() => import("../features/advertising").then((module) => ({ default: module.AdvertisingAdminPage })));
+const AdsDirectoryPage = lazy(() => import("../features/advertising").then((module) => ({ default: module.AdsDirectoryPage })));
+const CommunityOversightPage = lazy(() => import("../features/leadership-channel").then((module) => ({ default: module.CommunityOversightPage })));
+const LeadershipNoticesPage = lazy(() => import("../features/leadership-channel").then((module) => ({ default: module.LeadershipNoticesPage })));
+const LeadershipNoticePage = lazy(() => import("../features/leadership-channel").then((module) => ({ default: module.LeadershipNoticePage })));
+
+const StudentAttendanceHistoryPage = lazy(() => import("../features/student-portal").then((module) => ({ default: module.StudentAttendanceHistoryPage })));
+const StudentAnnouncementsPage = lazy(() => import("../features/student-portal").then((module) => ({ default: module.StudentAnnouncementsPage })));
+const StudentIdentityPassPage = lazy(() => import("../features/student-portal").then((module) => ({ default: module.StudentIdentityPassPage })));
+const StudentJoinCommunityPage = lazy(() => import("../features/student-portal").then((module) => ({ default: module.StudentJoinCommunityPage })));
+const StudentNotificationsPage = lazy(() => import("../features/student-portal").then((module) => ({ default: module.StudentNotificationsPage })));
+const StudentProfilePage = lazy(() => import("../features/student-portal").then((module) => ({ default: module.StudentProfilePage })));
+const StudentProfileEditorPage = lazy(() => import("../features/student-profile-editor").then((module) => ({ default: module.StudentProfileEditorPage })));
+
+const AboutPage = lazy(() => import("../features/public-site").then((module) => ({ default: module.AboutPage })));
+const FellowshipPage = lazy(() => import("../features/public-site").then((module) => ({ default: module.FellowshipPage })));
+const UnitsPage = lazy(() => import("../features/public-site").then((module) => ({ default: module.UnitsPage })));
+const HomePage = lazy(() => import("../features/public-site").then((module) => ({ default: module.HomePage })));
+const LegalPage = lazy(() => import("../features/public-site").then((module) => ({ default: module.LegalPage })));
+const PublicContentPage = lazy(() => import("../features/public-site").then((module) => ({ default: module.PublicContentPage })));
+const PublicDetailPage = lazy(() => import("../features/public-site").then((module) => ({ default: module.PublicDetailPage })));
+const PublicInfoPage = lazy(() => import("../features/public-site").then((module) => ({ default: module.PublicInfoPage })));
+const PublicLayout = lazy(() => import("../features/public-site").then((module) => ({ default: module.PublicLayout })));
+const StudentLeadersPage = lazy(() => import("../features/public-site").then((module) => ({ default: module.StudentLeadersPage })));
+
+const ErrorIndexPage = lazy(() => import("../features/error-pages").then((module) => ({ default: module.ErrorIndexPage })));
+const ErrorPage = lazy(() => import("../features/error-pages").then((module) => ({ default: module.ErrorPage })));
+const ErrorRoutePage = lazy(() => import("../features/error-pages").then((module) => ({ default: module.ErrorRoutePage })));
 
 const DashboardPage = lazy(() =>
   import("../features/portal-pages").then((module) => ({
@@ -150,9 +157,19 @@ function RouteLoader() {
 }
 
 export function App() {
+  const location = useLocation();
+
+  useEffect(() => {
+    markAppPerformance("application_shell_ready");
+  }, []);
+
   return (
     <>
-      <ChapelFlowIntro />
+      {location.pathname === "/" && (
+        <Suspense fallback={null}>
+          <ChapelFlowIntro />
+        </Suspense>
+      )}
       <RouteScrollManager />
       <ToastProvider>
         <ErrorBoundary>
