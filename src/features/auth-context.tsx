@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import type { Role, User } from "../types/domain";
-import { api, ApiError, ensureCsrfToken } from "../lib/api";
+import { api, ApiError } from "../lib/api";
 import { markAppPerformance } from "../lib/performance";
 import { buildDemoUser, hasPermission } from "../lib/permissions";
 import { isDemoMode } from "../lib/fixtures";
@@ -117,7 +117,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setUser(demoUser);
             return demoUser;
           }
-          await ensureCsrfToken();
           const response = await api.post<{ data: User }>("/auth/login", {
             identifier,
             password,
