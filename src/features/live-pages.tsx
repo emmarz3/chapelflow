@@ -1682,6 +1682,38 @@ export function LiveOperationsPage({ module }: { module: OperationsModule }) {
   return <LiveModuleOperationsPage module={module} />;
 }
 
+const GALLERY_IMAGE_EXTENSIONS = new Set(["jpg", "jpeg", "png", "gif", "webp"]);
+const GALLERY_VIDEO_EXTENSIONS = new Set(["mp4", "mov", "webm"]);
+const PUBLIC_MEDIA_EXTENSIONS = new Set([
+  ...GALLERY_IMAGE_EXTENSIONS,
+  ...GALLERY_VIDEO_EXTENSIONS,
+  "mp3",
+  "m4a",
+  "pdf",
+]);
+const MAX_PUBLIC_MEDIA_BYTES = 100 * 1024 * 1024;
+
+function fileExtension(file: File) {
+  return file.name.split(".").pop()?.toLowerCase() || "";
+}
+
+function publicMediaKind(file: File): "image" | "video" | "audio" | "pdf" | null {
+  const extension = fileExtension(file);
+  const mime = (file.type || "").toLowerCase();
+  if (GALLERY_IMAGE_EXTENSIONS.has(extension) && (!mime || mime.startsWith("image/"))) return "image";
+  if (GALLERY_VIDEO_EXTENSIONS.has(extension) && (!mime || mime.startsWith("video/"))) return "video";
+  if (extension === "mp3" && (!mime || mime.startsWith("audio/"))) return "audio";
+  if (extension === "m4a" && (!mime || mime.startsWith("audio/") || mime === "video/mp4")) return "audio";
+  if (extension === "pdf" && (!mime || mime === "application/pdf")) return "pdf";
+  return null;
+}
+
+function formatUploadSize(bytes: number) {
+  return bytes < 1024 * 1024
+    ? `${Math.max(1, Math.round(bytes / 1024))} KB`
+    : `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 const GALLERY_PUBLISH_TYPES = new Set(["GALLERY", "GALLERY_IMAGE", "GALLERY_VIDEO", "MEDIA"]);
 
 function LiveModuleOperationsPage({
@@ -1731,6 +1763,7 @@ function LiveModuleOperationsPage({
   const [rejectionReason, setRejectionReason] = useState("");
   const [uploadError, setUploadError] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [selectedGalleryFiles, setSelectedGalleryFiles] = useState<File[]>([]);
   const [statusFilter, setStatusFilter] = useState("");
   const toast = useToast();
   const client = useQueryClient();
@@ -1953,6 +1986,7 @@ function LiveModuleOperationsPage({
           ) : canCreate ? (
             <Button icon={<Plus />} onClick={() => {
               if (module === "media") setSelectedContentType(contentTypeFilter || "GALLERY");
+              setSelectedGalleryFiles([]);
               setUploadError("");
               setOpen(true);
             }}>
@@ -2194,7 +2228,13 @@ function LiveModuleOperationsPage({
                 <>
                   <label className="field">
                     <span>Content type</span>
-                    <select name="content_type" required value={module === "media" ? selectedContentType : undefined} onChange={(event) => module === "media" && setSelectedContentType(event.target.value)}>
+                    <select name="content_type" required value={module === "media" ? selectedContentType : undefined} onChange={(event) => {
+                      if (module === "media") {
+                        setSelectedContentType(event.target.value);
+                        setSelectedGalleryFiles([]);
+                        setUploadError("");
+                      }
+                    }}>
                       {module === "cms" ? (
                         <>
                           <option value="PAGE">Website page</option>
@@ -2217,10 +2257,53 @@ function LiveModuleOperationsPage({
                   {(module !== "media" || selectedContentType === "SERMON" || selectedContentType === "SERMON_SERIES") && <Field name="author_name" label="Speaker" required={selectedContentType === "SERMON"} defaultValue={selectedContentType === "SERMON" ? user?.name || "" : ""} />}
                   <Field name="publish_at" label="Schedule publication" type="datetime-local" />
                   {module === "media" ? selectedContentType === "GALLERY" ? <>
-                    <label className="field field--full"><span>Photos and videos</span><input name="gallery_files" type="file" accept="image/*,video/*" multiple /><small>Select multiple files at once. Files publish inside this album as soon as upload finishes; each file can be up to 100 MB.</small></label>
+                    <section className="media-publish-group field--full" aria-labelledby="gallery-files-title">
+                      <div className="media-publish-group__heading">
+                        <strong id="gallery-files-title">Gallery files</strong>
+                        <span>Step 2 of 2</span>
+                      </div>
+                      <p className="media-publish-group__description">Choose one or more photos and videos. Supported formats: JPG, PNG, GIF, WebP, MP4, MOV and WebM. Each file may be up to 100 MB.</p>
+                      <label className="media-file-picker">
+                        <span className="media-file-picker__title">Select photos and videos</span>
+                        <span className="media-file-picker__hint">You can select multiple files in one go</span>
+                        <input
+                          name="gallery_files"
+                          type="file"
+                          accept=".jpg,.jpeg,.png,.gif,.webp,.mp4,.mov,.webm,image/jpeg,image/png,image/gif,image/webp,video/mp4,video/quicktime,video/webm"
+                          multiple
+                          required
+                          onChange={(event) => {
+                            setSelectedGalleryFiles(Array.from(event.target.files || []));
+                            setUploadError("");
+                          }}
+                        />
+                      </label>
+                      {selectedGalleryFiles.length > 0 && <div className="media-selected-files" aria-live="polite">
+                        <div className="media-selected-files__heading"><strong>{selectedGalleryFiles.length} selected</strong><span>{formatUploadSize(selectedGalleryFiles.reduce((sum, file) => sum + file.size, 0))} total</span></div>
+                        <ul>
+                          {selectedGalleryFiles.map((file, index) => <li key={`${file.name}-${file.size}-${index}`}>
+                            <span className="media-selected-files__kind">{publicMediaKind(file) === "video" ? "VIDEO" : "PHOTO"}</span>
+                            <span className="media-selected-files__name">{file.name}</span>
+                            <span className="media-selected-files__size">{formatUploadSize(file.size)}</span>
+                          </li>)}
+                        </ul>
+                      </div>}
+                    </section>
                   </> : <>
                     <label className="field field--full"><span>{selectedContentType === "SERMON" ? "Sermon recording" : "Cover image from device (optional)"}</span><input name="cover_image_file" type="file" accept="image/jpeg,image/png,image/webp,image/gif" /></label>
-                    <label className="field field--full"><span>{selectedContentType === "SERMON" ? "Audio or video recording" : "Media from device"}</span><input name="media_file" type="file" accept="image/*,video/*,audio/*,application/pdf" /><small>Images, videos, audio, and PDFs can be up to 100 MB.</small></label>
+                    <label className="field field--full">
+                      <span>{selectedContentType === "SERMON" ? "Sermon recording (required)" : "Media file (required)"}</span>
+                      <input
+                        name="media_file"
+                        type="file"
+                        accept={selectedContentType === "SERMON"
+                          ? ".mp3,.m4a,.mp4,.mov,.webm,audio/mpeg,audio/mp4,video/mp4,video/quicktime,video/webm"
+                          : ".jpg,.jpeg,.png,.gif,.webp,.mp4,.mov,.webm,.mp3,.m4a,.pdf,image/jpeg,image/png,image/gif,image/webp,video/mp4,video/quicktime,video/webm,audio/mpeg,audio/mp4,application/pdf"}
+                      />
+                      <small>{selectedContentType === "SERMON"
+                        ? "Supported recording formats: MP3, M4A, MP4, MOV and WebM. Maximum 100 MB."
+                        : "Supported formats: JPG, PNG, GIF, WebP, MP4, MOV, WebM, MP3, M4A and PDF. Maximum 100 MB."}</small>
+                    </label>
                     <Field className="field--full" name="stream_url" label="Livestream URL" type="url" />
                   </> : <>
                     <Field className="field--full" name="cover_image_url" label="Cover image URL" type="url" />
