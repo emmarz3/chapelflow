@@ -109,7 +109,9 @@ describe("login", () => {
     await user.click(signInButton);
 
     expect(await screen.findByRole("heading", { name: "Member dashboard" })).toBeInTheDocument();
-    expect(fetchMock.mock.calls.some(([input]) => String(input).endsWith("/auth/csrf/"))).toBe(true);
+    expect(fetchMock.mock.calls.some(([input]) => String(input).endsWith("/auth/csrf/"))).toBe(false);
+    const loginCall = fetchMock.mock.calls.find(([input]) => String(input).endsWith("/auth/login/"));
+    expect(new Headers(loginCall?.[1]?.headers).get("X-ChapelFlow-CSRF")).toBe("csrf-test-token");
     finishRestore(jsonResponse({ detail: "Unauthenticated." }, 401));
   });
 
