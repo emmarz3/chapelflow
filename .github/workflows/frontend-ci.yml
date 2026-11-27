@@ -33,4 +33,4 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm run build
-      - run: npx vitest run src/test/login.test.tsx src/test/auth-flows.test.tsx src/test/user-review.test.tsx src/test/institutional-accounts.test.tsx src/test/community-chat-hub.test.tsx src/test/admin-operations.test.tsx src/test/django-api.test.ts src/test/launch-reset.test.tsx
+      - run: npm test -- --reporter=dot
