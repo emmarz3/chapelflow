@@ -47,15 +47,17 @@ export function GalleryMedia({
   if (!source || item.mediaType === "file" || item.mediaType === "pdf")
     return (
       <div className="gallery-media gallery-media--empty">
-        {item.mediaType === "file" ? (
+        {item.mediaType === "file" || item.mediaType === "pdf" ? (
           <FileText aria-hidden="true" />
         ) : (
           <ImageIcon aria-hidden="true" />
         )}
         <span>
-          {item.mediaType === "file"
-            ? "Downloadable resource"
-            : "No preview available"}
+          {item.mediaType === "pdf"
+            ? "PDF document"
+            : item.mediaType === "file"
+              ? "Downloadable resource"
+              : "No preview available"}
         </span>
       </div>
     );
