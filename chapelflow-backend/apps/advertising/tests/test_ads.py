@@ -2,6 +2,7 @@ import hashlib
 import hmac
 import json
 from io import BytesIO
+from django.core.cache import cache
 from urllib.error import HTTPError
 from datetime import timedelta
 from unittest.mock import patch
@@ -35,6 +36,29 @@ def test_checkout_provider_errors_explain_why_payment_cannot_open(status_code, e
             ads_paystack_request('/plan', method='POST', payload={'name': 'Campus Brand', 'amount': 350000, 'interval': 'monthly'})
 
 
+@pytest.mark.django_db
+@override_settings(ADS_PAYSTACK_SECRET_KEY='sk_test_example', ADS_POLICY_APPROVED=True)
+def test_checkout_allows_five_attempts_then_returns_five_minute_cooldown(users):
+    owner, _, _ = users
+    campaign = Campaign.objects.create(
+        owner=owner, brand_name='Campus Studio', description='Fashion', ad_category='Fashion',
+        image_url='https://example.com/ad.jpg', destination_url='https://example.com',
+        contact_email=owner.email, plan='CAMPUS', applicant_community='STUDENT',
+        status=Campaign.Status.APPROVED,
+    )
+    client = APIClient()
+    client.force_authenticate(owner)
+    cache.clear()
+    with patch('apps.advertising.views.plan_code', side_effect=PaymentProviderError('Paystack blocked the plan')):
+        for _ in range(5):
+            response = client.post(f'/api/v1/ads/{campaign.pk}/checkout/')
+            assert response.status_code == 502, response.data
+        response = client.post(f'/api/v1/ads/{campaign.pk}/checkout/')
+        assert response.status_code == 429, response.data
+        assert 1 <= int(response['Retry-After']) <= 300
+    cache.clear()
+
+
 @pytest.fixture
 def users(db):
     owner = User.objects.create_user(email='brand@example.com', password='passphrase-very-long')
@@ -49,15 +73,17 @@ def users(db):
 
 @pytest.mark.django_db
 def test_advertiser_can_refresh_campaigns_after_submission_limit(users):
-    """Dashboard reads must not share the three-per-hour application bucket."""
+    """Dashboard reads must not share the five-attempt application bucket."""
     owner, _, _ = users
     client = APIClient()
     client.force_authenticate(owner)
-    for _ in range(3):
+    cache.clear()
+    for _ in range(5):
         assert client.post('/api/v1/ads/mine/', {}, format='json').status_code == 400
     assert client.post('/api/v1/ads/mine/', {}, format='json').status_code == 429
     for _ in range(5):
         assert client.get('/api/v1/ads/mine/').status_code == 200
+    cache.clear()
 
 
 @pytest.mark.django_db

@@ -26,6 +26,7 @@ from common.permissions.rbac import IsSuperAdmin
 from apps.uploads.storage import get_storage_service, generate_storage_filename
 from .models import AdDecision, AdSubscriptionProgram, AdvertisingSettings, Campaign
 from .serializers import CampaignSerializer, SubscriptionProgramSerializer, CONSENT
+from .throttles import AdvertisingScopedRateThrottle
 from .services import (
     FOUNDING_FIRST_MONTH_KOBO, FOUNDING_OFFER_LIMIT, PRICES,
     activate_payment, ads_paystack_request, campaign_monthly_price_kobo, notify_advertiser_of_review,
@@ -70,10 +71,11 @@ class PlansView(APIView):
 
 class MyCampaignsView(APIView):
     permission_classes = [IsAuthenticated]
+    throttle_classes = [AdvertisingScopedRateThrottle]
     throttle_scope = 'ads_application'
 
     def get_throttles(self):
-        # Refreshing the dashboard must not consume the three hourly
+        # Refreshing the dashboard must not consume the five ad submission
         # application submissions. That previously hid approved ads after a
         # submit and a couple of automatic refetches (HTTP 429).
         if self.request.method == 'GET':
@@ -97,6 +99,7 @@ class MyCampaignsView(APIView):
 
 class MyCampaignDetailView(APIView):
     permission_classes = [IsAuthenticated]
+    throttle_classes = [AdvertisingScopedRateThrottle]
     throttle_scope = 'ads_application'
 
     def patch(self, request, pk):
@@ -301,6 +304,7 @@ class AdminSettingsView(APIView):
 
 class ImageView(APIView):
     permission_classes = [IsAuthenticated]
+    throttle_classes = [AdvertisingScopedRateThrottle]
     parser_classes = [MultiPartParser, FormParser]
     throttle_scope = 'ads_image'
 
@@ -330,6 +334,7 @@ class ImageView(APIView):
 
 class CheckoutView(APIView):
     permission_classes = [IsAuthenticated]
+    throttle_classes = [AdvertisingScopedRateThrottle]
     throttle_scope = 'ads_checkout'
     def post(self, request, pk):
         campaign = get_object_or_404(Campaign, pk=pk, owner=request.user)
