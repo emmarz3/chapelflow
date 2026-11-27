@@ -37,8 +37,8 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 let authBootstrapRequest: ReturnType<typeof loadCurrentUser> | null = null;
 
 async function loadCurrentUser() {
-  // Session restoration is a safe GET. Do not delay it with a separate CSRF
-  // round trip; the token is bootstrapped immediately before an unsafe login.
+  // Session restoration is a safe GET. CSRF is initialised centrally by
+  // the request layer immediately before any state-changing API operation.
   return api.get<{ data: User }>("/auth/me");
 }
 
