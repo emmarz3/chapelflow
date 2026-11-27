@@ -71,6 +71,12 @@ beforeEach(() => {
 });
 
 describe("institutional account provisioning", () => {
+  it("renders the leadership and accounts control panel", async () => {
+    renderPage();
+    expect(await screen.findByRole("heading", { name: "Leadership and accounts" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Current leadership accounts" })).toBeInTheDocument();
+  });
+
   it("lists student accounts and issues a one-time password from the directory", async () => {
     const user = userEvent.setup();
     vi.mocked(adminAccountService.list).mockResolvedValue({ data: {
@@ -88,6 +94,28 @@ describe("institutional account provisioning", () => {
     await user.click(screen.getByRole("button", { name: "Issue temporary password" }));
     expect(await screen.findByText("One-time-Safe-987!")).toBeInTheDocument();
     expect(adminAccountService.resetPassword).toHaveBeenCalledWith("student-1");
+  });
+
+  it("reassigns an existing institutional account to its matching Chapel workspace", async () => {
+    const user = userEvent.setup();
+    const account = {
+      id: "leader-1", first_name: "Grace", last_name: "Leader", email: "grace@example.edu",
+      role: "UNIT_HEAD" as const, institutional_office: "HEAD_OF_MUSIC", institutional_group: "unit-4",
+      is_active: true,
+    };
+    vi.mocked(institutionalAccountService.list).mockResolvedValue({ data: [account] });
+    vi.mocked(institutionalAccountService.update).mockResolvedValue({ data: account });
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "Assign / transfer" }));
+    await user.selectOptions(screen.getByLabelText("Leadership office"), "CHIEF_USHER");
+    await user.click(screen.getByRole("button", { name: "Save assignment" }));
+
+    await waitFor(() => expect(institutionalAccountService.update).toHaveBeenCalledWith("leader-1", {
+      role: "UNIT_HEAD",
+      institutional_office: "CHIEF_USHER",
+      institutional_group: "unit-6",
+    }));
   });
 
   it("confirms institutional account removal before sending the request", async () => {
@@ -113,7 +141,7 @@ describe("institutional account provisioning", () => {
   ])("submits %s with the right group assignment", async (role, groupId) => {
     const user = userEvent.setup();
     renderPage();
-    await user.click(await screen.findByRole("button", { name: "Create account" }));
+    await user.click(await screen.findByRole("button", { name: "Provision account" }));
     await user.type(screen.getByLabelText("First name"), "Ada");
     await user.type(screen.getByLabelText("Last name"), "Lovelace");
     await user.type(screen.getByLabelText(/^Email/), `${String(role).toLowerCase()}@example.edu`);
@@ -138,7 +166,7 @@ describe("institutional account provisioning", () => {
   it("offers the chapel's named units and fellowships without leader titles", async () => {
     const user = userEvent.setup();
     renderPage();
-    await user.click(await screen.findByRole("button", { name: "Create account" }));
+    await user.click(await screen.findByRole("button", { name: "Provision account" }));
 
     await user.selectOptions(screen.getByLabelText("Role"), "UNIT_HEAD");
     const assignment = screen.getByLabelText(/^Unit or fellowship/);
@@ -194,7 +222,7 @@ describe("institutional account provisioning", () => {
   ])("can provision the %s office %s", async (role, office, groupId) => {
     const user = userEvent.setup();
     renderPage();
-    await user.click(await screen.findByRole("button", { name: "Create account" }));
+    await user.click(await screen.findByRole("button", { name: "Provision account" }));
     await user.type(screen.getByLabelText("First name"), "Ada");
     await user.type(screen.getByLabelText("Last name"), "Lovelace");
     await user.type(screen.getByLabelText(/^Email/), `${office.toLowerCase()}@example.edu`);
@@ -212,7 +240,7 @@ describe("institutional account provisioning", () => {
   it("lists every office from the Chapel register without preloading leader names", async () => {
     const user = userEvent.setup();
     renderPage();
-    await user.click(await screen.findByRole("button", { name: "Create account" }));
+    await user.click(await screen.findByRole("button", { name: "Provision account" }));
     for (const [role, labels] of [
       ["UNIT_HEAD", [
         "Intercessory", "Treasurer", "Chapel Protocol", "Head of Music",
@@ -248,7 +276,7 @@ describe("institutional account provisioning", () => {
       }),
     );
     renderPage();
-    await user.click(await screen.findByRole("button", { name: "Create account" }));
+    await user.click(await screen.findByRole("button", { name: "Provision account" }));
     await user.type(screen.getByLabelText("First name"), "Ada");
     await user.type(screen.getByLabelText("Last name"), "Lovelace");
     await user.type(screen.getByLabelText(/^Email/), "ada@example.edu");

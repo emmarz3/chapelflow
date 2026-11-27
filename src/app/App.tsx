@@ -119,11 +119,6 @@ const CommunityAdminPage = lazy(() =>
     default: module.CommunityAdminPage,
   })),
 );
-const LeadershipAdminPage = lazy(() =>
-  import("../features/community-pages").then((module) => ({
-    default: module.LeadershipAdminPage,
-  })),
-);
 const FinanceWorkspacePage = lazy(() =>
   import("../features/ministry-workspaces").then((module) => ({
     default: module.FinanceWorkspacePage,
@@ -399,15 +394,11 @@ export function App() {
                     element={<CommunityAdminPage />}
                   />
                 </Route>
-                <Route
-                  element={<ProtectedRoute permission="leadership:manage" />}
-                >
+                <Route element={<ProtectedRoute roles={["super_admin"]} />}>
                   <Route
                     path="/app/admin/leadership"
-                    element={<LeadershipAdminPage />}
+                    element={<InstitutionalAccountsPage />}
                   />
-                </Route>
-                <Route element={<ProtectedRoute roles={["super_admin"]} />}>
                   <Route
                     path="/app/admin/dashboard"
                     element={<DashboardPage />}
