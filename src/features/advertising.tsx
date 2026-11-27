@@ -178,6 +178,7 @@ export function AdvertisePage() {
   });
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  const [checkoutError, setCheckoutError] = useState<{ id: string; message: string } | null>(null);
 
   useEffect(() => {
     const id = params.get("campaign");
@@ -223,9 +224,10 @@ export function AdvertisePage() {
     }
   }
 
-  async function action(path: string, redirect = false) {
+  async function action(path: string, redirect = false, campaignId?: string) {
     setBusy(true);
     setMessage("");
+    setCheckoutError(null);
     try {
       if (redirect) {
         const response = await api.post<{ checkout_url: string }>(path);
@@ -238,7 +240,9 @@ export function AdvertisePage() {
         void campaigns.refetch();
       }
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Action failed.");
+      const detail = error instanceof Error ? error.message : "Action failed.";
+      if (redirect && campaignId) setCheckoutError({ id: campaignId, message: detail });
+      else setMessage(detail);
     } finally {
       setBusy(false);
     }
@@ -397,9 +401,10 @@ export function AdvertisePage() {
           {ad.status === "APPROVED" && <div className="ads-checkout">
             <p>Monthly renewal: ₦{ad.monthly_price_ngn.toLocaleString()} per month.</p>
             {ad.founding_offer_awarded && <p>First month: ₦{(plans.data?.founding_offer?.first_month_price_ngn ?? 2000).toLocaleString()}. From month two: ₦{ad.monthly_price_ngn.toLocaleString()} per month.</p>}
-            <button disabled={busy || !plans.data?.checkout_available} onClick={() => void action(`/ads/${ad.id}/checkout/`, true)}>
+            <button disabled={busy || !plans.data?.checkout_available} onClick={() => void action(`/ads/${ad.id}/checkout/`, true, ad.id)}>
               {plans.data?.checkout_available ? "Continue to Paystack" : "Checkout unavailable"}
             </button>
+            {checkoutError?.id === ad.id && <p className="ads-checkout__error" role="alert">Payment could not open: {checkoutError.message}</p>}
             {plans.data && !plans.data.checkout_available && <p role="status">{plans.data.checkout_reason || "Payment setup is not complete. Contact the Super Admin."}</p>}
           </div>}
           {["ACTIVE", "PAUSED"].includes(ad.status) && !ad.cancel_at_period_end && <button disabled={busy} onClick={() => void action(`/ads/${ad.id}/cancel/`)}>Cancel renewal</button>}

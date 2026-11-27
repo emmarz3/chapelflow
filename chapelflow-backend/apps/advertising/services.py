@@ -40,7 +40,26 @@ def ads_paystack_request(path: str, *, method: str = 'GET', payload: dict | None
     try:
         with urlopen(request, timeout=15) as response:
             decoded = json.loads(response.read().decode('utf-8'))
-    except (HTTPError, URLError, TimeoutError, json.JSONDecodeError) as exc:
+    except HTTPError as exc:
+        # Never log the request or Authorization header. A status and Paystack's
+        # machine-readable code are sufficient to distinguish credentials from
+        # account restrictions and rejected plan parameters.
+        try:
+            provider_error = json.loads(exc.read(4096).decode('utf-8'))
+            error_code = str(provider_error.get('code') or '')[:80]
+        except (ValueError, UnicodeError, OSError):
+            error_code = ''
+        logger.warning('ads_paystack_request_failed path=%s status=%s code=%s', path, exc.code, error_code)
+        if exc.code == 401:
+            message = 'Paystack rejected the advertising payment credentials. Ask the Super Admin to check the advertising secret key in Railway.'
+        elif exc.code == 403:
+            message = 'Paystack blocked this payment account request. Ask the Super Admin to check Paystack API access and IP restrictions.'
+        elif exc.code == 400 and path == '/plan':
+            message = 'Paystack rejected the monthly advertising plan. Ask the Super Admin to check the Paystack account and subscription setup.'
+        else:
+            message = 'Advertising payments are temporarily unavailable. Please try again shortly.'
+        raise PaymentProviderError(message) from exc
+    except (URLError, TimeoutError, json.JSONDecodeError) as exc:
         logger.warning('ads_paystack_request_failed path=%s error=%s', path, type(exc).__name__)
         raise PaymentProviderError('Advertising payments are temporarily unavailable. Please try again shortly.') from exc
     if not decoded.get('status') or not isinstance(decoded.get('data'), dict):

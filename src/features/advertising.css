@@ -73,6 +73,7 @@
 .ads-change-form{padding:1rem;border:1px solid var(--border);border-radius:12px;background:var(--surface-subtle)}
 .ads-checkout{display:grid;gap:.6rem;padding:1rem;background:var(--surface-subtle);border:1px solid var(--border);border-radius:12px}
 .ads-checkout p{margin:0}
+.ads-checkout .ads-checkout__error{padding:.75rem;border-radius:8px;background:#fff0f0;color:#8c1e25;font-weight:600}
 .ads-payment-history{margin-top:1rem;color:var(--text-soft)}
 .ads-payment-history summary{cursor:pointer;font-weight:700;color:var(--text)}
 .ads-payment-history ul{padding-left:1.2rem}
