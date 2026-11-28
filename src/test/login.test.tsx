@@ -37,6 +37,35 @@ function DashboardSignOut() {
 }
 
 describe("login", () => {
+  it("recovers from a temporary account API failure during startup", async () => {
+    let csrfAttempts = 0;
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith("/auth/csrf/")) {
+        csrfAttempts += 1;
+        return Promise.resolve(jsonResponse(csrfAttempts === 1
+          ? { message: "Proxy temporarily unavailable." }
+          : { data: { csrf_token: "test-csrf" } }, csrfAttempts === 1 ? 503 : 200));
+      }
+      if (url.endsWith("/auth/me/"))
+        return Promise.resolve(jsonResponse({ detail: "Unauthenticated." }, 401));
+      if (url.endsWith("/auth/refresh/"))
+        return Promise.resolve(jsonResponse({ message: "No refresh token." }, 400));
+      return Promise.resolve(jsonResponse({ data: {} }));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <MemoryRouter initialEntries={["/login"]}>
+          <AuthProvider><LoginPage /></AuthProvider>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    await waitFor(() => expect(csrfAttempts).toBe(2));
+    await waitFor(() => expect(screen.getByRole("button", { name: /sign in/i })).not.toBeDisabled());
+    expect(screen.queryByText(/could not reach|temporarily unavailable/i)).not.toBeInTheDocument();
+  });
+
   it("routes an authenticated treasurer to authenticator enrollment", async () => {
     vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL) => {
       if (String(input).endsWith("/auth/me/")) return Promise.resolve(jsonResponse({ data: {
@@ -327,7 +356,7 @@ describe("login", () => {
     vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL) => {
       if (String(input).endsWith("/auth/me/")) {
         attempts += 1;
-        return Promise.resolve(attempts === 1
+        return Promise.resolve(attempts <= 2
           ? jsonResponse({ detail: "Service unavailable." }, 503)
           : jsonResponse({ data: {
               id: "member-1",
