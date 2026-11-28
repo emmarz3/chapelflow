@@ -36,10 +36,19 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 let authBootstrapRequest: ReturnType<typeof loadCurrentUser> | null = null;
 
 async function loadCurrentUser() {
-  // The API cookie belongs to a different Render origin. Bootstrap the
-  // partitioned CSRF cookie and retain its matching token in memory first.
-  await api.get<{ data: { csrf_token: string } }>("/auth/csrf");
-  return api.get<{ data: User }>("/auth/me");
+  // A brief proxy or API interruption during page load should not strand a
+  // member on the sign-in page. A 401 is an ordinary signed-out session.
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      await api.get<{ data: { csrf_token: string } }>("/auth/csrf");
+      return await api.get<{ data: User }>("/auth/me");
+    } catch (error) {
+      if (!(error instanceof ApiError) || ![0, 408, 502, 503, 504].includes(error.status) || attempt === 1)
+        throw error;
+      await new Promise((resolve) => window.setTimeout(resolve, 700));
+    }
+  }
+  throw new Error("Account bootstrap did not complete.");
 }
 
 function getCurrentUserOnce() {
@@ -77,9 +86,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       })
       .catch((error: unknown) => {
         if (active && authRevision.current === revision) {
-          if (!(error instanceof ApiError && error.status === 401)) {
-            setAuthError("ChapelFlow could not reach its account service. Please retry shortly.");
-          }
+          if (error instanceof ApiError && error.status === 401) setAuthError(null);
+          else if (error instanceof ApiError && [0, 408, 502, 503, 504].includes(error.status))
+            setAuthError("ChapelFlow's account service is temporarily unavailable. Please retry shortly.");
+          else setAuthError("We could not check your account session. Please retry.");
           setUser(null);
         }
       })
@@ -105,6 +115,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
       async login(identifier, password, role = "chapel_admin", otp) {
         authRevision.current += 1;
+        setAuthError(null);
         setLoading(true);
         try {
           if (isDemoMode) {

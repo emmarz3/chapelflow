@@ -36,11 +36,12 @@ function rememberCsrfToken(payload: unknown) {
 }
 
 function csrfCookie() {
-  if (csrfTokenValue) return csrfTokenValue;
+  // Same-origin proxy cookies can rotate in another tab. Read the current
+  // cookie first; keep the response token for cross-origin deployments.
   return document.cookie
     .split("; ")
     .find((cookie) => cookie.startsWith("chapelflow_csrf="))
-    ?.split("=")[1];
+    ?.split("=")[1] || csrfTokenValue || undefined;
 }
 
 async function isCsrfFailure(response: Response) {
@@ -269,9 +270,11 @@ async function rawRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
         status: 408,
       });
     throw new ApiError({
-      code: "NETWORK_ERROR",
-      message: "Check your internet connection and try again.",
-      status: 0,
+      code: error instanceof TypeError ? "NETWORK_ERROR" : "INVALID_RESPONSE",
+      message: error instanceof TypeError
+        ? "ChapelFlow could not connect to its server. Please retry shortly."
+        : "ChapelFlow received an invalid server response. Please retry shortly.",
+      status: error instanceof TypeError ? 0 : 502,
     });
   } finally {
     window.clearTimeout(timeout);
